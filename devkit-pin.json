@@ -1,26 +1,26 @@
 {
- "tag": "devkit-2026.10.28",
- "base": "https://github.com/greyoak111/cccodroid/releases/download/devkit-2026.10.28/",
+ "tag": "devkit-2026.11.19",
+ "base": "https://github.com/greyoak111/hachimia/releases/download/devkit-2026.11.19/",
  "target": "ha.chi.mia",
  "compat": 1,
  "gz": {
   "file": "devkit-ha.chi.mia.tar.gz",
-  "sha256": "3768afcf79a7cfb3b8db27d9d1d2951aaaade4caa79d5a1179cf495ebd14c67d",
-  "bytes": 687011283
+  "sha256": "919a05cd57dd5942ca973d616b28d3e94b8ec02a8f375910bb1382df34943273",
+  "bytes": 689132118
  },
  "tar": {
   "file": "devkit-ha.chi.mia.tar",
-  "sha256": "243b4012f91d30f618e4f4d2c3f8021b924d5f298d31dd2e7e333973106e86cb",
-  "bytes": 1897737728
+  "sha256": "73c07e98cd3bbb81ef929ffeae5e09eab52c8ac512ccd54e08193feb928ca347",
+  "bytes": 1903940608
  },
  "lock": {
   "file": "devkit.lock.json",
-  "sha256": "59fdc65aa72f3376eadf2314d24d6ff81580a1786169b2fba569c414f77bed6b",
-  "bytes": 113080
+  "sha256": "64366520d45d9da5f6cf5e0db6c8474636560a6b213e83013843e81d1278cc11",
+  "bytes": 113605
  },
  "modules": {
   "file": "modules.json",
-  "sha256": "5a0521833f73bd7b8e5fa423ce4f7d96180afbacff9fa9710313bd87fcc64fcd",
-  "bytes": 72726
+  "sha256": "411c9a2d9a3d2e0555b0b73f560a2fd9045edcab3e76fec6ec748a21ac5efcbb",
+  "bytes": 72890
  }
 }
