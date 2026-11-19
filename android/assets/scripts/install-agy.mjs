@@ -15,6 +15,8 @@ import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
 
 const INSTALL_URL = process.env.HACHIMIA_AGY_INSTALL_URL || "https://antigravity.google/cli/install.sh";
+// 官方 install.sh 从这份 manifest 取版本号与下载地址（install.sh 本身不含版本变量，--check 直接问这里）
+const MANIFEST_BASE = process.env.HACHIMIA_AGY_MANIFEST_BASE || "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests";
 const PREFIX = process.env.PREFIX || "";
 const CURL = PREFIX ? path.join(PREFIX, "bin", "curl") : "curl";
 const SH = fs.existsSync(path.join(PREFIX, "bin", "bash"))
@@ -68,21 +70,25 @@ function curlSmall(url, timeoutSec = 20) {
   return { ok: false, status: r.status, err: String(r.stderr || r.error?.message || "").trim().slice(0, 200) };
 }
 
+// 官方 install.sh 的平台检测（hachimia 跑在安卓 bionic 上，通常就是 android_arm64）
+function manifestUrl() {
+  const arch = process.arch === "arm64" ? "arm64" : "amd64";
+  return `${MANIFEST_BASE}/android_${arch}.json`;
+}
+
 // ── --check：供 Updater.java 查询版本状态 ──
 if (ARG === "--check") {
   const cur = installedVersion();
-  const res = curlSmall(INSTALL_URL, 15);
+  const res = curlSmall(manifestUrl(), 15);
   let latest = "";
   if (res.ok) {
-    const script = res.data.toString("utf8");
-    const vm = script.match(/(?:AGY_VERSION|ANTIGRAVITY_VERSION|VERSION)\s*[:=]\s*["']?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.+-]+)?)["']?/);
-    if (vm) latest = vm[1];
+    try { latest = JSON.parse(res.data.toString("utf8")).version || ""; } catch {}
   }
   console.log(JSON.stringify({
     ok: res.ok,
     installed: cur,
     latest: latest || cur || "",
-    source: INSTALL_URL,
+    source: manifestUrl(),
     error: res.ok ? "" : (res.err || `curl exit ${res.status}`),
   }));
   process.exit(res.ok ? 0 : 1);
@@ -132,14 +138,15 @@ fs.mkdirSync(path.join(stageHome, ".local", "bin"), { recursive: true });
 fs.writeFileSync(stageScript, fetched.data, { mode: 0o700 });
 
 try {
-  say("正在运行官方安装脚本（--skip-path --skip-aliases）…");
+  // 官方 install.sh 只认 -d/--dir（装到 <dir>/agy）；装进暂存 HOME 的 .local/bin，下面从那里搬到版本目录
+  const binDir = path.join(stageHome, ".local", "bin");
+  say(`正在运行官方安装脚本（--dir ${binDir}）…`);
   const env = {
     ...process.env,
     HOME: stageHome,
     TMPDIR: process.env.TMPDIR || stage,
-    ...(isVer(ARG) ? { AGY_VERSION: ARG, ANTIGRAVITY_VERSION: ARG } : {}),
   };
-  const run = spawnSync(SH, [stageScript, "--skip-path", "--skip-aliases"], {
+  const run = spawnSync(SH, [stageScript, "--dir", binDir], {
     cwd: stage,
     env,
     stdio: "inherit",
