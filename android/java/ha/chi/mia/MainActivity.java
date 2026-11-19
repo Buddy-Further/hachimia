@@ -2273,7 +2273,7 @@ public class MainActivity extends Activity {
     private static String fromPage(String url, String msg) {
         if (url == null || isOwnGateway(url)) return msg;
         String h; try { h = Uri.parse(url).getHost(); } catch (Exception e) { h = null; }
-        return Tr.f("下面是预览中的网页（{0}）弹出的，不是 cccodroid 在问：", h == null ? "?" : h) + "\n\n" + msg;
+        return Tr.f("下面是预览中的网页（{0}）弹出的，不是 hachimia 在问：", h == null ? "?" : h) + "\n\n" + msg;
     }
     private void jsDialog(String msg, boolean withCancel, String def, android.webkit.JsResult r, android.webkit.JsPromptResult pr) {
         final android.widget.EditText in = def == null ? null : new android.widget.EditText(this);

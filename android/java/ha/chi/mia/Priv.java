@@ -186,7 +186,7 @@ final class Priv {
         nm.notify(41, new android.app.Notification.Builder(ctx, "front")
             .setSmallIcon(android.R.drawable.ic_secure)
             .setContentTitle(text == null || text.isEmpty() ? "cccodroid" : text)
-            .setContentText(Tr.t("点此回到 cccodroid"))
+            .setContentText(Tr.t("点此回到 hachimia"))
             .setContentIntent(pi).setAutoCancel(true).setTimeoutAfter(120_000).build());
         return "notification";
     }
@@ -237,9 +237,9 @@ final class Priv {
             if (p.waitFor() != 0) return Tr.t("[失败] 写不进 ") + STAGE;
             String pkg = ctx.getPackageName();
             // 带点击动作的通知有的 ROM 不让 shell 发（红魔：getIntentSender 权限不足），失败就发纯文字的
-            String note = "cmd notification post -t \"" + shq(Tr.f("cccodroid 已更新到 v{0}（系统不让它在后台自己启动）", version)) + "\"";
-            String notify = "{ " + note + " -c \"activity -n " + pkg + "/.MainActivity\" cccodroid-updated \"" + shq(Tr.t("点此打开即可继续使用")) + "\""
-                + " || " + note + " cccodroid-updated \"" + shq(Tr.t("打开 cccodroid 即可继续使用")) + "\"; } >> " + STAGE_LOG + " 2>&1";
+            String note = "cmd notification post -t \"" + shq(Tr.f("hachimia 已更新到 v{0}（系统不让它在后台自己启动）", version)) + "\"";
+            String notify = "{ " + note + " -c \"activity -n " + pkg + "/.MainActivity\" hachimia-updated \"" + shq(Tr.t("点此打开即可继续使用")) + "\""
+                + " || " + note + " hachimia-updated \"" + shq(Tr.t("打开 hachimia 即可继续使用")) + "\"; } >> " + STAGE_LOG + " 2>&1";
             // 拉界面：am start 回「Starting」不等于界面真出来了 —— 刚装完系统还在做安装后扫描（ColorOS 等），
             // 这时的启动会被悄悄丢掉（10-22 用户手机 0.3.11→0.3.12：日志全成功，界面没回来）。
             // 所以先等两秒，起完看本应用有没有在前台，没有就再拉，三次都不行发通知
@@ -384,8 +384,8 @@ final class Priv {
                     int pid = 0; try { pid = sock.getPeerCredentials().getPid(); } catch (IOException ignored) {}
                     if (on && !noAsk() && !confirm(Tr.t("特权命令不再逐条确认（风险自负）") + "\n\n"
                             + Tr.t("打开后，Antigravity、终端和本机其他程序发来的特权命令都不再弹框问你，直接以 Shizuku（shell）身份执行，hachimia 在后台时也一样。这类命令能装卸应用、改权限和系统设置。") + "\n\n"
-                            + Tr.t("命令写错、模型判断失误、或者混进来的脚本，都可能造成数据丢失、应用异常甚至需要恢复出厂设置。打开即表示你了解并自行承担这些风险，cccodroid 及其作者不对由此造成的损失负责。") + "\n\n"
-                            + Tr.t("涉及 cccodroid 自身、Shizuku / Sui 的命令会尽量拦下来再问你，但拦不住所有写法（比如藏在脚本文件里的）。随时可以在设置里关掉。") + "\n\n"
+                            + Tr.t("命令写错、模型判断失误、或者混进来的脚本，都可能造成数据丢失、应用异常甚至需要恢复出厂设置。打开即表示你了解并自行承担这些风险，hachimia 及其作者不对由此造成的损失负责。") + "\n\n"
+                            + Tr.t("涉及 hachimia 自身、Shizuku / Sui 的命令会尽量拦下来再问你，但拦不住所有写法（比如藏在脚本文件里的）。随时可以在设置里关掉。") + "\n\n"
                             + until, caller(pid), "noask")) {
                         resp = new JSONObject().put("ok", false).put("message", Tr.t("没有确认，仍然逐条询问"));
                         break;
@@ -442,8 +442,8 @@ final class Priv {
                     // 不带版本号 = 装当前渠道查到的那一版：按那一版判（10-31 六轮核验）
                     String chk = ver.trim().isEmpty() ? Updater.get(ctx).latestClaude() : ver;
                     if (("claude".equals(item) || "agy".equals(item)) && Updater.get(ctx).claudeDowngrade(chk)
-                        && !ask(Tr.f("把 Claude Code 降级到 {0}", chk), caller(pid), "upd:" + chk, false)) {
-                        resp = new JSONObject().put("ok", false).put("message", Tr.t("没有允许，Claude Code 没有降级"));
+                        && !ask(Tr.f("把 Antigravity CLI 降级到 {0}", chk), caller(pid), "upd:" + chk, false)) {
+                        resp = new JSONObject().put("ok", false).put("message", Tr.t("没有允许，Antigravity CLI 没有降级"));
                         break;
                     }
                     // 装的就是判过的这一版：别让 apply 再去读一次可能已被换掉的 claude.latest
@@ -474,7 +474,7 @@ final class Priv {
                 case "factory_reset": {
                     // 设置页「恢复初始设置」：这里只请界面弹原生确认框（MainActivity.askFactoryReset），执行要用户在框里点；
                     // 谁发来的请求都一样，脚本发了也只是弹个框。界面不在前台就不弹
-                    if (!foreground()) { resp = new JSONObject().put("ok", false).put("message", Tr.t("请先把 cccodroid 切到前台")); break; }
+                    if (!foreground()) { resp = new JSONObject().put("ok", false).put("message", Tr.t("请先把 hachimia 切到前台")); break; }
                     ctx.startActivity(MainActivity.internal(ctx, MainActivity.ACTION_FACTORY_RESET).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
                     resp = new JSONObject().put("ok", true).put("asked", true);
                     break;
@@ -492,7 +492,7 @@ final class Priv {
                     // 查看器里点「安装」：只在 cccodroid 前台时受理，还要用户在应用自己的确认框里点头，之后才轮到系统安装确认。
                     // 这条通道 Claude 和脚本也连得上：不这样拦，后台就能拿任意 APK 一遍遍弹系统安装框（11-09 用户定）
                     int pid = 0; try { pid = sock.getPeerCredentials().getPid(); } catch (IOException ignored) {}
-                    if (!foreground()) { resp = new JSONObject().put("ok", false).put("message", Tr.t("请先把 cccodroid 切到前台")); break; }
+                    if (!foreground()) { resp = new JSONObject().put("ok", false).put("message", Tr.t("请先把 hachimia 切到前台")); break; }
                     File staged = null;
                     try {
                         File f = new File(req.optString("path")).getCanonicalFile();
@@ -502,7 +502,7 @@ final class Priv {
                         android.content.pm.PackageInfo pi = Apk.archiveInfo(ctx, staged);
                         if (pi == null) throw new IOException(Tr.t("不是有效的安装包"));
                         // 自己的新版本走「设置 → 更新」：那边核签名、记状态，这里装了更新页的状态就对不上
-                        if (ctx.getPackageName().equals(pi.packageName)) throw new IOException(Tr.t("cccodroid 自己的新版本请到「设置 → 更新」里装"));
+                        if (ctx.getPackageName().equals(pi.packageName)) throw new IOException(Tr.t("hachimia 自己的新版本请到「设置 → 更新」里装"));
                         String text = Tr.f("安装应用「{0}」\n包名 {1}\n版本 {2}\n\n文件：{3}", Apk.label(ctx, pi, staged), pi.packageName, String.valueOf(pi.versionName), f.getPath());
                         if (!confirm(text, caller(pid), "apk:" + f.getPath())) {
                             resp = new JSONObject().put("ok", false).put("message", Tr.t("没有允许，没有安装"));
@@ -524,17 +524,17 @@ final class Priv {
                     // 读剪贴板：你从别的应用复制的密码、验证码都在里面，每次都要点头
                     JSONObject da = req.optJSONObject("args");
                     if ("clipboard_read".equals(tool) && !ask(Tr.t("设备工具：读取剪贴板"), who, "dev:clipboard_read", false)) {
-                        resp = new JSONObject().put("ok", false).put("message", Tr.t("用户没有允许读剪贴板（cccodroid 不在前台时也会直接拒绝）"));
+                        resp = new JSONObject().put("ok", false).put("message", Tr.t("用户没有允许读剪贴板（hachimia 不在前台时也会直接拒绝）"));
                     // 写剪贴板能把你刚复制的收款地址悄悄换掉；打开能把浏览器弹到钓鱼网址、把号码填进拨号盘。
                     // 直连套接字的调用不经 Claude 那层确认，这里每次都问（11-01 独立审查低-4）
                     } else if ("clipboard_write".equals(tool) && !ask(Tr.t("设备工具：写入剪贴板") + "\n\n" + clip(da == null ? "" : da.optString("text", "")), who, "dev:clipboard_write", false)) {
-                        resp = new JSONObject().put("ok", false).put("message", Tr.t("用户没有允许写剪贴板（cccodroid 不在前台时也会直接拒绝）"));
+                        resp = new JSONObject().put("ok", false).put("message", Tr.t("用户没有允许写剪贴板（hachimia 不在前台时也会直接拒绝）"));
                     } else if ("open".equals(tool) && !ask(Tr.t("设备工具：打开") + "\n\n" + clip(da == null ? "{}" : da.toString(2)), who, "dev:open", false)) {
-                        resp = new JSONObject().put("ok", false).put("message", Tr.t("用户没有允许打开（cccodroid 不在前台时也会直接拒绝）"));
+                        resp = new JSONObject().put("ok", false).put("message", Tr.t("用户没有允许打开（hachimia 不在前台时也会直接拒绝）"));
                     // 读屏 / 点按 / 输入 / 截图：每个会话第一次问一次，点了允许，这个会话后面的屏幕操作不再问；
                     // 认不出会话的（终端、脚本直连套接字）每次都问（11-03 审查 M-6）
                     } else if (DeviceTools.screenReady(ctx, tool) && !devSessOk(sessToken(pid), who, tool)) {
-                        resp = new JSONObject().put("ok", false).put("message", Tr.t("用户没有允许读屏和点按（cccodroid 不在前台时也会直接拒绝）"));
+                        resp = new JSONObject().put("ok", false).put("message", Tr.t("用户没有允许读屏和点按（hachimia 不在前台时也会直接拒绝）"));
                     } else resp = DeviceTools.call(ctx, req);
                     audit(t0, who, new JSONObject().put("argv", new JSONArray().put("[" + Tr.t("设备工具") + "] " + tool)), resp.optBoolean("ok", true) ? 0 : 1, System.currentTimeMillis() - t0);
                     break;
@@ -790,7 +790,7 @@ final class Priv {
         String who = caller(peerPid);
         if (!granted()) {
             audit(t0, who, req, 126, 0);
-            frame(out, 4, (installed() ? (running() ? Tr.t("Shizuku 还没授权给 cccodroid（设置 → Shizuku 里点授权）") : Tr.t("Shizuku 没在运行，先打开 Shizuku 启动服务"))
+            frame(out, 4, (installed() ? (running() ? Tr.t("Shizuku 还没授权给 hachimia（设置 → Shizuku 里点授权）") : Tr.t("Shizuku 没在运行，先打开 Shizuku 启动服务"))
                 : Tr.t("没装 Shizuku（https://shizuku.rikka.app/）")).getBytes(StandardCharsets.UTF_8));
             frameExit(out, 126);
             return null;
@@ -815,7 +815,7 @@ final class Priv {
         if (pass != null) who = who + "·" + pass;
         else if (risky && !ask(text, who, a + "\0" + req.optString("cwd", "/") + "\0" + e, trustable(argv, req.optString("cwd", "/"), e), self ? null : sess)) {
             audit(t0, who, req, 126, 0);
-            frame(out, 4, Tr.t("这条特权命令要你在 cccodroid 里点「允许」才会执行（只有带服务名的 dumpsys、pm list、settings get 这类查看命令不用问）。这次没有允许，没有执行。cccodroid 不在前台、或者已经有一条在等确认时，会直接拒绝。想让任务在后台也能跑：下次确认时勾上「这个会话后面的特权命令都允许」，或者在设置 → 设备与权限里打开「特权命令不再逐条确认」。").getBytes(StandardCharsets.UTF_8));
+            frame(out, 4, Tr.t("这条特权命令要你在 hachimia 里点「允许」才会执行（只有带服务名的 dumpsys、pm list、settings get 这类查看命令不用问）。这次没有允许，没有执行。hachimia 不在前台、或者已经有一条在等确认时，会直接拒绝。想让任务在后台也能跑：下次确认时勾上「这个会话后面的特权命令都允许」，或者在设置 → 设备与权限里打开「特权命令不再逐条确认」。").getBytes(StandardCharsets.UTF_8));
             frameExit(out, 126);
             return null;
         }

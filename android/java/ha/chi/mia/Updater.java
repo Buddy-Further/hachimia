@@ -875,7 +875,7 @@ final class Updater {
                 final String v = ver;
                 claude.set("installing", "");
                 new Thread(() -> installClaude(v), "upd-claude").start();
-                return r.put("ok", true).put("message", claude.current.isEmpty() ? Tr.f("开始安装 Claude Code {0}", v) : Tr.t("开始更新 Claude Code"));
+                return r.put("ok", true).put("message", claude.current.isEmpty() ? Tr.f("开始安装 Antigravity CLI {0}", v) : Tr.t("开始更新 Antigravity CLI"));
             }
             // 工具包「出错」时的「重试」一律重新检查：清单的签名在检查里核，不能拿出错前留下的地址直接下（审查 A5）
             if (it == devkit && "error".equals(it.state)) { checkAsync(true); return r.put("ok", true).put("message", Tr.t("正在重新检查更新")); }
@@ -973,12 +973,12 @@ final class Updater {
     private void checkApkSigner(File apk) throws Exception {
         PackageManager pm = ctx.getPackageManager();
         PackageInfo a = Apk.archiveInfo(ctx, apk);
-        if (a == null || !ctx.getPackageName().equals(a.packageName)) throw new IOException(Tr.t("下载的不是 cccodroid 安装包"));
+        if (a == null || !ctx.getPackageName().equals(a.packageName)) throw new IOException(Tr.t("下载的不是 hachimia 安装包"));
         String sa = Apk.signer(a);
         if (!sa.equals(Apk.signer(pm.getPackageInfo(ctx.getPackageName(), Apk.SIG_FLAGS))))
             throw new IOException(Tr.t("安装包签名与本应用不一致，拒绝安装"));
         // 只比「已装的那张」不够：已装的被换过（root、别的安装途径），比较基准就跟着换了。另外钉死发布证书（更新链复盘 U-03）
-        if (!java.util.Arrays.asList(SIGNERS).contains(sa)) throw new IOException(Tr.t("安装包不是 cccodroid 发布证书签的，拒绝安装"));
+        if (!java.util.Arrays.asList(SIGNERS).contains(sa)) throw new IOException(Tr.t("安装包不是 hachimia 发布证书签的，拒绝安装"));
         String got = a.applicationInfo != null && a.applicationInfo.targetSdkVersion >= 29 ? "36" : "28";
         if (!got.equals(wantFlavor())) throw new IOException(Tr.f("下载的是 targetSdk {0} 的安装包，要的是 {1}", got, wantFlavor()));
         // 比真实版本号，别只信更新源声称的 tag（审查 10-29 第六份 低1）：同版本只在换 28/36 时才装，不然中间人能让它反复重装

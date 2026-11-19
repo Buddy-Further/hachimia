@@ -308,7 +308,7 @@ final class Notify {
         try { v = c.getPackageManager().getPackageInfo(c.getPackageName(), 0).versionName; } catch (Exception ignored) {}
         n.nm.notify(TAG_DONE, 0x5eed, new Notification.Builder(c, CH_DONE)
             .setSmallIcon(android.R.drawable.stat_notify_chat)
-            .setContentTitle(Tr.f("cccodroid 已更新到 v{0}", v))
+            .setContentTitle(Tr.f("hachimia 已更新到 v{0}", v))
             .setContentText(Tr.t("点此打开即可继续使用"))
             .setContentIntent(n.openIntent("", 5))
             .setAutoCancel(true)

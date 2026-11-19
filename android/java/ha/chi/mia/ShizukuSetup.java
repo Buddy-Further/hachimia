@@ -207,7 +207,7 @@ final class ShizukuSetup {
                 PackageInfo p = Apk.archiveInfo(ctx, f);
                 if (p == null || !Priv.MANAGER.equals(p.packageName)) { f.delete(); throw new Exception(Tr.t("下载的不是 Shizuku 安装包")); }
                 if (!PIN.equals(Apk.signer(p))) { f.delete(); throw new Exception(Tr.t("Shizuku 安装包的签名不是官方的，拒绝安装")); }
-                set("installing", Tr.t("在系统弹窗里点「安装」（第一次需要先允许 cccodroid 安装应用）"));
+                set("installing", Tr.t("在系统弹窗里点「安装」（第一次需要先允许 hachimia 安装应用）"));
                 Apk.install(ctx, f, "shizuku");
             } catch (Exception e) {
                 set("error", Tr.t("装 Shizuku 失败：") + e.getMessage() + Tr.t("。也可以去 https://shizuku.rikka.app/download/ 手动下载"));
@@ -335,7 +335,7 @@ final class ShizukuSetup {
         pairPort = -1;
         pairSeen.clear();
         startPairDiscovery();
-        set("pairing", Tr.t("第一次需要配对：在打开的设置里进「无线调试」→ 打开它 →「使用配对码配对设备」。屏幕顶部会一直悬着 cccodroid 的通知，点「填配对码」，把 6 位码和配对框里的端口一起填，如 123456 37285（也可以填在这里）"));
+        set("pairing", Tr.t("第一次需要配对：在打开的设置里进「无线调试」→ 打开它 →「使用配对码配对设备」。屏幕顶部会一直悬着 hachimia 的通知，点「填配对码」，把 6 位码和配对框里的端口一起填，如 123456 37285（也可以填在这里）"));
         pairNote(Tr.t("在无线调试里点「使用配对码配对设备」，然后点下面的「填配对码」"), true);
         Intent i = new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS);
         Bundle b = new Bundle();
@@ -460,11 +460,11 @@ final class ShizukuSetup {
         // 第二阶段：服务进程在、凭据还没到。系统只在应用状态变化时补投——让用户切出去再切回来。
         // 切回之后 Priv.running() 变 true，这里自动收尾。每 30 秒确认服务进程，没了才放弃。
         for (int i = 0; i < 2400 && !Priv.running(); i++) {
-            if (i == 0) set("starting", Tr.t("服务已启动，正在等系统补投凭据：按 Home 切出去、再切回 cccodroid，就会自动完成激活"));
+            if (i == 0) set("starting", Tr.t("服务已启动，正在等系统补投凭据：按 Home 切出去、再切回 hachimia，就会自动完成激活"));
             Thread.sleep(250);
             if (i > 0 && i % 120 == 0) alive[0] = nudgeAndCheck(serial, alive[0], out);
         }
-        if (!Priv.running()) throw new Exception(Tr.t("等了 10 分钟，凭据还是没投递到 cccodroid：") + (alive[0] ? Tr.t("（服务进程还在，点「刷新」看看，或重新点激活）") : Tr.t("服务进程也没了")) );
+        if (!Priv.running()) throw new Exception(Tr.t("等了 10 分钟，凭据还是没投递到 hachimia：") + (alive[0] ? Tr.t("（服务进程还在，点「刷新」看看，或重新点激活）") : Tr.t("服务进程也没了")) );
         restoreWifi();
         cancelNote();
         requestPermission();
@@ -483,8 +483,8 @@ final class ShizukuSetup {
                 ctx.getSystemService(NotificationManager.class).notify(NOTE, new Notification.Builder(ctx, CH)
                     .setSmallIcon(android.R.drawable.ic_secure)
                     .setContentTitle("Shizuku")
-                    .setContentText(Tr.t("点此回到 cccodroid，完成凭据投递"))
-                    .setStyle(new Notification.BigTextStyle().bigText(Tr.t("点此回到 cccodroid，完成凭据投递")))
+                    .setContentText(Tr.t("点此回到 hachimia，完成凭据投递"))
+                    .setStyle(new Notification.BigTextStyle().bigText(Tr.t("点此回到 hachimia，完成凭据投递")))
                     .setContentIntent(pi).setAutoCancel(true).build());
             } catch (Exception ignored) {}
             log("自动切回被拦，留了通知：" + e.getMessage());
