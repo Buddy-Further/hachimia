@@ -1,0 +1,17 @@
+#!/system/bin/sh
+# 官方 Antigravity CLI (agy) 包装脚本 —— Android (bionic) 原生构建，直接执行。
+# 证书与临时目录补齐安卓缺失的默认路径；应用内终端若由网关下发了 0600 密钥文件，则自动读取为 GEMINI_API_KEY。
+[ -n "$PREFIX" ] && [ -r "$PREFIX/etc/tls/cert.pem" ] && export SSL_CERT_FILE="${SSL_CERT_FILE:-$PREFIX/etc/tls/cert.pem}"
+[ -n "$PREFIX" ] && [ -d "$PREFIX/tmp" ] && export TMPDIR="${TMPDIR:-$PREFIX/tmp}"
+
+case "$CCAPP_KEY_FILE" in
+  ""|*[!A-Za-z0-9._/-]*) ;;
+  *) [ -r "$CCAPP_KEY_FILE" ] && export GEMINI_API_KEY="$(cat "$CCAPP_KEY_FILE")" ;;
+esac
+
+AGY_BIN="${CCAPP_AGY:-$HOME/.local/share/hachimia/agy/current/agy}"
+if [ ! -e "$AGY_BIN" ]; then
+  echo "hachimia: Antigravity CLI (agy) 未安装，请到 设置 → 更新 中安装。" >&2
+  exit 127
+fi
+exec "$AGY_BIN" "$@"

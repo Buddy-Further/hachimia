@@ -1,0 +1,12 @@
+/dist/
+android/build/
+android/assets/app/
+*.apk
+android/assets/devkit-sources.txt
+devkit/out/
+devkit/cache/
+out/
+cache/
+android/assets/devkit-pin.json
+android/nativelib/
+android/assets/gwpin.json
