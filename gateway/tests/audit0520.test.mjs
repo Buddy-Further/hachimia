@@ -229,7 +229,7 @@ test("04-010 auth status 问不出结果：不当成未登录；有上次问出�
   try {
     const v = await login.authStatus(true);
     assert.equal(v.unknown, true);
-    assert.match(v.error, /ENOENT/);
+    assert.match(v.error, /Antigravity CLI \(agy\) 未安装/);
   } finally { PATHS.claudeLoader = prev; }
 });
 
