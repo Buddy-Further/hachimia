@@ -33,7 +33,7 @@ export function tamperRecord(src, files) {
   const ev = { id: ++seq, at: Date.now(), src, files: list, told: false, acked: false };
   EVENTS.push(ev);
   if (EVENTS.length > MAX) EVENTS.shift();
-  log(`⚠️ [篡改留痕] ${src === "app" ? "应用起网关前" : src === "claude" ? "Claude Code 程序" : "网关运行中"}发现改动并已处理：${list.join(", ")}`);
+  log(`⚠️ [篡改留痕] ${src === "app" ? "应用起网关前" : src === "agy" ? "Antigravity CLI 程序" : src === "claude" ? "Claude Code 程序" : "网关运行中"}发现改动并已处理：${list.join(", ")}`);
   try { notify?.(tamperPending()); } catch {}
   return ev;
 }
@@ -51,6 +51,7 @@ export function tamperNote(ids = null) {
   for (const e of fresh) { e.told = true; ids?.push(e.id); }
   const notes = fresh.map((e) => {
     const files = e.files.slice(0, 12).join(", ");
+    if (e.src === "agy") return `Refused to start a modified Antigravity CLI binary (${files}).`;
     if (e.src === "claude") return `Refused to start a modified Claude Code binary (${files}).`;
     if (e.src === "app") return `App files were restored from the installed package (${files}); those changes have been undone.`;
     const config = e.files.filter((f) => /^ccapp-(settings|providers)\.json$/.test(f));
@@ -59,7 +60,7 @@ export function tamperNote(ids = null) {
       (program.length ? `Runtime app-file protection was triggered (${program.slice(0, 12).join(", ")}); files may be restored from the startup snapshot or await an idle restart. ` : "") +
       "To change provider configuration, use the app's provider settings or the authenticated POST /api/providers/save API; do not edit ccapp-providers.json directly.";
   });
-  return "App note: cccodroid detected changes outside its normal update/settings flow. " + notes.join(" ") +
+  return "App note: hachimia detected changes outside its normal update/settings flow. " + notes.join(" ") +
     " Don't try to reapply them or work around these safeguards; if you made the change, tell the user plainly.";
 }
 

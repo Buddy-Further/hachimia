@@ -14,7 +14,6 @@ import { SETTINGS } from "../gw/settings-store.mjs";
 import { listHooks, saveHooks } from "../gw/extensions.mjs";
 import { tamperAck, tamperNote, tamperPending, tamperRecord } from "../gw/tamper.mjs";
 import { claudeSeal } from "../gw/claudeseal.mjs";
-import { _setSealed } from "../gw/edition.mjs";
 
 // CI 的 Linux 没有 /system/bin/sh（#113 同款）：测试本身也要能在非安卓环境跑
 const SH = fs.existsSync("/system/bin/sh") ? "/system/bin/sh" : "/bin/sh";
@@ -122,52 +121,55 @@ test("篡改留痕：界面待提示、点过就不提；模型只告诉一次",
   assert.equal(tamperRecord("runtime", []), null, "空的不记");
 });
 
-test("claude 程序核验：没存清单的发行版不起（不算篡改）、开发版照常起；签名不对、不在安装目录、补核对不上、核过后清单被删都不起", async () => {
-  const root = path.join(CFG.home, ".local", "share", "cccodroid", "claude");
-  const dir = path.join(root, "2.1.999"), bin = path.join(dir, "claude");
+test("agy 程序核验：没清单放行（不算篡改）、清单没 sha256 也放行；对不上、.mismatch 补核都不起，sha256 对上就起", async () => {
+  const root = path.join(CFG.home, ".local", "share", "hachimia", "agy");
+  const dir = path.join(root, "2.1.999"), bin = path.join(dir, "agy");
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(bin, "ELF fake");
   tamperAck(); tamperNote();
   const p0 = await claudeSeal(bin, { force: true });
-  assert.equal(p0.ok, false); assert.equal(p0.pending, true); assert.equal(p0.why, "no signed manifest");
-  assert.equal(tamperPending().length, 0, "没清单只是还没补核，不记成篡改");
-  _setSealed(false);
-  fs.writeFileSync(bin, "ELF fake.");          // 换个大小，免得用上次的结论
-  try { assert.equal((await claudeSeal(bin, { force: true })).ok, null, "开发版没清单照常起"); } finally { _setSealed(true); }
-  fs.writeFileSync(path.join(dir, "manifest.json"), JSON.stringify({ version: "2.1.999", platforms: { "linux-arm64": { checksum: "0".repeat(64) } } }));
-  fs.writeFileSync(path.join(dir, "manifest.json.sig"), "-----BEGIN PGP SIGNATURE-----\n\nAAAA\n-----END PGP SIGNATURE-----\n");
-  const r = await claudeSeal(bin, { force: true });
-  assert.equal(r.ok, false);
-  assert.match(r.why, /signature/);
-  assert.ok(tamperPending().some((e) => e.src === "claude"));
+  assert.equal(p0.ok, null); assert.equal(p0.why, "no local manifest");
+  assert.equal(tamperPending().length, 0, "没清单只是还没核，不记成篡改");
+  // 清单里没有合法 sha256：也放行，不记篡改
+  fs.writeFileSync(path.join(dir, "manifest.json"), JSON.stringify({ version: "2.1.999" }));
+  const r1 = await claudeSeal(bin, { force: true });
+  assert.equal(r1.ok, null); assert.equal(r1.why, "manifest has no sha256");
+  assert.equal(tamperPending().length, 0);
+  // 清单 sha256 对不上：不起，记进 agy 篡改
+  fs.writeFileSync(path.join(dir, "manifest.json"), JSON.stringify({ version: "2.1.999", sha256: "0".repeat(64) }));
+  const r2 = await claudeSeal(bin, { force: true });
+  assert.equal(r2.ok, false);
+  assert.match(r2.why, /sha256 mismatch/);
+  assert.ok(tamperPending().some((e) => e.src === "agy"));
   tamperAck(); tamperNote();
-  assert.equal((await claudeSeal(bin, { force: true })).ok, false, "没变就用上次的结论");
+  assert.equal((await claudeSeal(bin, { force: true })).ok, false, "没变就还是上次的结论");
   // 补核发现对不上：哪怕清单被删了也不起
-  fs.rmSync(path.join(dir, "manifest.json")); fs.rmSync(path.join(dir, "manifest.json.sig"));
+  fs.rmSync(path.join(dir, "manifest.json"));
   fs.writeFileSync(path.join(dir, ".mismatch"), "x\n");
   assert.equal((await claudeSeal(bin, { force: true })).ok, false);
+  assert.match((await claudeSeal(bin, { force: true })).why, /recheck/);
   fs.rmSync(path.join(dir, ".mismatch"));
-  // 不在安装目录的版本子目录里（current 被指到别处）
-  const other = path.join(CFG.workspace, "elsewhere", "2.1.999"); fs.mkdirSync(other, { recursive: true });
-  fs.writeFileSync(path.join(other, "claude"), "ELF fake");
-  const o = await claudeSeal(path.join(other, "claude"), { force: true });
-  assert.equal(o.ok, false); assert.match(o.why, /not an installed version/);
-  assert.equal((await claudeSeal(bin)).ok, null, "开发布局（没有 FILES）不核");
+  // 清单的 sha256 与程序一致：放行
+  fs.writeFileSync(path.join(dir, "manifest.json"), JSON.stringify({ version: "2.1.999", sha256: crypto.createHash("sha256").update("ELF fake").digest("hex") }));
+  assert.equal((await claudeSeal(bin, { force: true })).ok, true);
   tamperAck(); tamperNote();
 });
 
-test("claude 程序核验：真的官方签名清单（2.1.311）验签能过，程序被换就不起", async () => {
-  const dir = path.join(CFG.home, ".local", "share", "cccodroid", "claude", "2.1.311"), bin = path.join(dir, "claude");
+test("agy 程序核验：清单 sha256 匹配就起，程序被换就不起；换版本目录照样按 sha256 拦", async () => {
+  const dir = path.join(CFG.home, ".local", "share", "hachimia", "agy", "2.1.311"), bin = path.join(dir, "agy");
   fs.mkdirSync(dir, { recursive: true });
-  for (const n of ["manifest.json", "manifest.json.sig"]) fs.copyFileSync(new URL("./fixtures/claude-2.1.311/" + n, import.meta.url), path.join(dir, n));
+  fs.writeFileSync(bin, "real agy binary");
+  fs.writeFileSync(path.join(dir, "manifest.json"), JSON.stringify({ version: "2.1.311", sha256: crypto.createHash("sha256").update("real agy binary").digest("hex") }));
+  assert.equal((await claudeSeal(bin, { force: true })).ok, true, "对得上就起");
+  // 程序被换：sha256 对不上就不起
   fs.writeFileSync(bin, "patched binary");
   const r = await claudeSeal(bin, { force: true });
   assert.equal(r.ok, false);
-  assert.equal(r.why, "binary does not match the signed manifest", "验签过了，比到 sha256 才对不上");
-  // 清单拿别的版本目录冒充：版本号对不上
+  assert.match(r.why, /sha256 mismatch/);
+  // 换到别的版本目录冒充：核验只认 sha256，照拦
   const d2 = path.join(path.dirname(dir), "2.1.312"); fs.mkdirSync(d2, { recursive: true });
-  for (const n of ["manifest.json", "manifest.json.sig", "claude"]) fs.copyFileSync(path.join(dir, n), path.join(d2, n));
-  assert.match((await claudeSeal(path.join(d2, "claude"), { force: true })).why, /manifest is for 2\.1\.311/);
+  for (const n of ["manifest.json", "agy"]) fs.copyFileSync(path.join(dir, n), path.join(d2, n));
+  assert.equal((await claudeSeal(path.join(d2, "agy"), { force: true })).ok, false);
   tamperAck(); tamperNote();
 });
 
