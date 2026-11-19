@@ -40,11 +40,11 @@ import org.json.JSONObject;
 final class Updater {
     static final String TAG = "hachimia-upd";
     static final String REPO = "greyoak111/hachimia";
-    /** 备用源：cccodroid.net 镜像了最近几个版本的 APK 和一份同形状的发布列表（dl/releases.json）。
-     *  只在 GitHub 连不上 / 下载不顺时用；下来的 APK 照样核 sha256 和签名。工具包太大，没有镜像 */
-    static final String MIRROR = "https://cccodroid.net";
-    /** 同一份 APK 与发布列表的直连线路（不经 Cloudflare；国内有的网络只通其中一条） */
-    static final String DL = "https://dl.cccodroid.net";
+    /** hachimia 暂无镜像线路（cccodroid 的镜像只放 cccodroid 的文件，用不上），置空：更新只走 GitHub。
+     *  将来架了镜像再填上，fetchLists / checkApp / devkitMirror 会自动启用 */
+    static final String MIRROR = null;
+    /** 同一份 APK 与发布列表的直连线路，同样置空 */
+    static final String DL = null;
     /** 工具包与本 APK 的接口版本：lock.json 里的 compat（缺省 1）对不上就不装，防止新工具包配旧外壳 */
     static final int DEVKIT_COMPAT = 1;
     static final String CH = "updates";
@@ -308,8 +308,8 @@ final class Updater {
      */
     String installedDevkitBase() { return env.devkitInfo().optString("base", ""); }
     private String installedDevkitSha() { return env.devkitInfo().optString("sha256", ""); }
-    /** 同一个文件在 dl.cccodroid.net 上的地址：GitHub 下得不顺时接着续传（内容照样核 sha256） */
-    static String devkitMirror(String base, String file) { return Installer.DEVKIT_MIRROR + tagOf(base) + "/" + file; }
+    /** 同一个文件的镜像地址（暂无镜像线路，返回 null）：GitHub 下得不顺时接着续传（内容照样核 sha256） */
+    static String devkitMirror(String base, String file) { return Installer.DEVKIT_MIRROR == null ? null : Installer.DEVKIT_MIRROR + tagOf(base) + "/" + file; }
 
     /** 本 APK 绑定的那一版工具包的清单（assets/devkit-pin.json，打包时从 Release 的 devkit.lock.json 摘出来）。
      *  首装从镜像下、本地文件认身份，都拿它当准：校验值跟着 APK 走，不靠下载来源 */
@@ -478,19 +478,20 @@ final class Updater {
     }
 
     /**
-     * 发布列表三条线同时问：GitHub（App + 工具包）、cccodroid.net 与 dl.cccodroid.net（只有 App，由 GitHub 定时生成）。
+     * 发布列表同时问：GitHub（App + 工具包）与镜像线路（有配置时，只有 App）。
      * 以前先等 GitHub 连接 20 秒 + 读 60 秒超时才看镜像，不开代理的网络里一次检查要卡一分多钟（群友 10-31）。
      * GitHub 通了就用它（镜像可能晚几分钟）；GitHub 报错立刻看镜像；GitHub 一直挂着，最多等它 15 秒，镜像有了就先用镜像。
      * 返回 {GitHub 的列表, 镜像的列表}，没取到的是 null
      */
     private JSONArray[] fetchLists(String[] ghErr) {
-        final String[] urls = { feed(), MIRROR + "/dl/releases.json", DL + "/dl/releases.json" };
+        final String[] urls = { feed(), MIRROR == null ? null : MIRROR + "/dl/releases.json", DL == null ? null : DL + "/dl/releases.json" };
         final JSONArray[] got = new JSONArray[3];
         final String[] err = new String[3];
         final boolean[] fin = new boolean[3];
         final Object lk = new Object();
         for (int i = 0; i < 3; i++) {
             final int k = i;
+            if (urls[k] == null) { synchronized (lk) { fin[k] = true; } continue; }
             Thread t = new Thread(() -> {
                 JSONArray a = null; String e = null;
                 try { a = new JSONArray(new String(Installer.httpGetSmall(urls[k]), StandardCharsets.UTF_8)); }
@@ -554,8 +555,8 @@ final class Updater {
                 app.url = a.getString("browser_download_url");
                 // 三处都是同一份文件，谁先谁后由下载前测速定（Installer.rank），这里只管都列上
                 String gh = "https://github.com/" + REPO + "/releases/download/" + tag + "/" + name;
-                app.alt = app.url.equals(gh) ? MIRROR + "/dl/" + tag + "/" + name : gh;
-                app.alt2 = DL + "/dl/" + tag + "/" + name;
+                app.alt = app.url.equals(gh) ? (MIRROR == null ? null : MIRROR + "/dl/" + tag + "/" + name) : gh;
+                app.alt2 = DL == null ? null : DL + "/dl/" + tag + "/" + name;
                 app.size = a.optLong("size");
                 String d = a.optString("digest", "");
                 app.sha = d.startsWith("sha256:") ? d.substring(7).toLowerCase(java.util.Locale.ROOT) : null;
@@ -660,13 +661,15 @@ final class Updater {
         } catch (Exception e) { return false; }
     }
 
-    /** 工具包 Release 里的小文件：先 GitHub，连不上换 dl.cccodroid.net（同一份文件）。返回 true = 来自镜像 */
+    /** 工具包 Release 里的小文件：先 GitHub，连不上换镜像（有镜像线路时）。返回 true = 来自镜像 */
     private static boolean fetchDevkitFile(String base, String name, byte[][] out) throws IOException { return fetchDevkitFile(base, name, out, 0); }
     private static boolean fetchDevkitFile(String base, String name, byte[][] out, long deadline) throws IOException {
         try { out[0] = Installer.httpGetSmall(base + name, deadline == 0 ? 0 : msLeft(deadline)); return false; }
         catch (IOException e) {
-            try { out[0] = Installer.httpGetSmall(devkitMirror(base, name), deadline == 0 ? 0 : msLeft(deadline)); return true; }
-            catch (IOException e2) { throw new IOException(Tr.t("GitHub 和 cccodroid.net 镜像都连不上：") + e.getMessage()); }
+            String mirror = devkitMirror(base, name);
+            if (mirror == null) throw e;
+            try { out[0] = Installer.httpGetSmall(mirror, deadline == 0 ? 0 : msLeft(deadline)); return true; }
+            catch (IOException e2) { throw new IOException(Tr.t("GitHub 和镜像都连不上：") + e.getMessage()); }
         }
     }
 

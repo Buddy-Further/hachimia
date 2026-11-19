@@ -48,7 +48,7 @@ import org.json.JSONObject;
  *   · 读屏 / 点按要无障碍，默认关，见 A11y。
  */
 final class DeviceTools {
-    static final String TAG = "cccodroid";
+    static final String TAG = "hachimia";
     static final String PREFS = "devtools";
     static final String CH = "agent";
     static final String[] BASIC = {"device_status", "notify", "clipboard_read", "clipboard_write", "open", "share_file", "app_list"};
@@ -136,7 +136,7 @@ final class DeviceTools {
             if (p.getStringSet("off", new HashSet<>()).contains(tool)) return fail(Tr.t("用户在设置里关掉了这个工具：") + tool);
             if (isScreen(tool)) {
                 // 正在问用户要不要放行一条特权命令：这会儿不许动屏幕，免得替用户点了「允许」
-                if (Priv.asking() || MainActivity.guarding()) return fail(Tr.t("cccodroid 正在等用户确认一条特权命令，这会儿不能操作屏幕，稍后再试"));
+                if (Priv.asking() || MainActivity.guarding()) return fail(Tr.t("hachimia 正在等用户确认一条特权命令，这会儿不能操作屏幕，稍后再试"));
                 if ("off".equals(a11yMode(c)))
                     return fail(Tr.t("读屏 / 点按没开：用户要在 设置 → 设备工具 里把「无障碍」改成「用时自动开」或「常开」"));
                 // 每个会话第一次用屏幕类工具要用户点头：在 Priv 的 dev 分支里问（11-03 审查 M-6），这里只会是问过之后进来的
@@ -284,7 +284,7 @@ final class DeviceTools {
             return t == null ? "" : t.toString();
         });
         // 安卓 10 起，应用不在前台读不到剪贴板（系统直接给 null）
-        if (s == null) return fail(MainActivity.appForeground() ? Tr.t("剪贴板是空的") : Tr.t("安卓不让后台应用读剪贴板：要读的话，请用户先切回 cccodroid"));
+        if (s == null) return fail(MainActivity.appForeground() ? Tr.t("剪贴板是空的") : Tr.t("安卓不让后台应用读剪贴板：要读的话，请用户先切回 hachimia"));
         return new JSONObject().put("ok", true).put("text", clip(s, 20000));
     }
 
@@ -404,7 +404,7 @@ final class DeviceTools {
         channel(c);
         // 通知被系统 / 用户关掉时 notify 不抛异常、只是不显示：以前照样回「已发通知」，用户什么也看不到（BUG-A04）
         JSONObject blocked = notifyBlocked(c);
-        if (blocked != null) return fail(Tr.t("cccodroid 在后台，安卓不让直接弹出界面；系统里通知又被关掉了，打开请求送不到你面前。请先打开应用再试，或在系统设置里允许通知"));
+        if (blocked != null) return fail(Tr.t("hachimia 在后台，安卓不让直接弹出界面；系统里通知又被关掉了，打开请求送不到你面前。请先打开应用再试，或在系统设置里允许通知"));
         PendingIntent pi = PendingIntent.getActivity(c, 700 + (noteId % 50), i, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         int id = noteId++;
         c.getSystemService(NotificationManager.class).notify(id, new Notification.Builder(c, CH)
@@ -413,7 +413,7 @@ final class DeviceTools {
             .setContentText(clip(what, 200))
             .setContentIntent(pi).setAutoCancel(true).setTimeoutAfter(10 * 60_000).build());
         return new JSONObject().put("ok", true).put("shown", "notification")
-            .put("message", Tr.t("cccodroid 在后台，安卓不让直接弹出界面：已发通知，用户点了才会打开"));
+            .put("message", Tr.t("hachimia 在后台，安卓不让直接弹出界面：已发通知，用户点了才会打开"));
     }
 
     private static String clip(String s, int n) { return s == null ? "" : s.length() > n ? s.substring(0, n) + "…" : s; }

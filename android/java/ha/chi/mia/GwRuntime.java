@@ -31,7 +31,7 @@ import java.security.MessageDigest;
  * 网关起 claude 前会再核（gateway/gw/gwpin.mjs），对不上那一轮不起、网关退出让这里重新核。
  */
 final class GwRuntime {
-    private static final String TAG = "cccodroid.gw";
+    private static final String TAG = "hachimia.gw";
 
     final File dir, glibc;
     private final Env env;
@@ -185,7 +185,10 @@ final class GwRuntime {
         String mjUrl = base + mref.optString("file", "modules.json");
         byte[] mj;
         try { mj = Installer.httpGetSmall(mjUrl); }
-        catch (IOException e) { mj = Installer.httpGetSmall(Installer.DEVKIT_MIRROR + tag + "/" + mref.optString("file", "modules.json")); }
+        catch (IOException e) {
+            if (Installer.DEVKIT_MIRROR == null) throw e;
+            mj = Installer.httpGetSmall(Installer.DEVKIT_MIRROR + tag + "/" + mref.optString("file", "modules.json"));
+        }
         if (!mref.optString("sha256").equals(Installer.hex(md().digest(mj)))) throw new IOException(Tr.t("模块表和安装包钉的对不上"));
         JSONObject baseMod = null;
         org.json.JSONArray mods = new JSONObject(new String(mj, StandardCharsets.UTF_8)).optJSONArray("modules");
@@ -201,7 +204,7 @@ final class GwRuntime {
         if (free < need) throw new Installer.NoSpace(need, free);
         String file = gz.optString("file");
         if (say != null) say.say(Tr.f("取回网关运行库：下载 {0} MB…", String.valueOf(gz.optLong("bytes") >> 20)));
-        File got = ins.download(Installer.DEVKIT_MIRROR + tag + "/" + file, base + file, new File(env.files, "gw-" + file), gz.optLong("bytes"), gz.optString("sha256"));
+        File got = ins.download(base + file, Installer.DEVKIT_MIRROR == null ? null : Installer.DEVKIT_MIRROR + tag + "/" + file, new File(env.files, "gw-" + file), gz.optLong("bytes"), gz.optString("sha256"));
         File stage = new File(env.files, "gw-stage");
         Installer.deleteTree(stage);
         try {

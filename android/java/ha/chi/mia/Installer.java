@@ -28,8 +28,8 @@ final class Installer {
     void step(String m) { ui.step(m); }
 
     // ── devkit 下载 ────────────────────────────────────────────────────
-    /** 工具包镜像（VPS 直连，不过 Cloudflare 代理）：dl.cccodroid.net/devkit/<tag>/ 与 GitHub Release 里的文件逐字节相同 */
-    static final String DEVKIT_MIRROR = "https://dl.cccodroid.net/devkit/";
+    /** hachimia 暂无工具包镜像（cccodroid 的镜像只放 cccodroid 的文件，用不上），置空：下载只走 GitHub */
+    static final String DEVKIT_MIRROR = null;
 
     /**
      * 首次安装：按 APK 自带的清单（assets/devkit-pin.json：gz 的文件名、大小、sha256）下载 .tar.gz 到私有目录 ——
@@ -584,7 +584,7 @@ final class Installer {
      * @param mjBytes modules.json 原文（调用方已核过来源：钉子的 sha256 或 modules.json.sig 签名）
      * @param want 用户勾的模块（基础块和依赖自动带上）
      * @param base Release 目录（GitHub）；identity 这份快照整包 gz 的 sha256（写进 .devkit-ok，组件按它匹配）
-     * @param mirrorFirst 先走 dl.cccodroid.net 镜像
+     * @param mirrorFirst 先走镜像（当前没有镜像线路，恒 false）
      */
     void installModules(byte[] mjBytes, java.util.Collection<String> want, String base, String identity, boolean mirrorFirst) throws IOException {
         JSONObject mj;
@@ -606,7 +606,7 @@ final class Installer {
         java.util.List<File> gzs = new java.util.ArrayList<>();
         for (JSONObject m : order) {
             JSONObject gz = m.optJSONObject("gz");
-            String file = gz.optString("file"), gh = base + file, mirror = DEVKIT_MIRROR + tag + "/" + file;
+            String file = gz.optString("file"), gh = base + file, mirror = DEVKIT_MIRROR == null ? null : DEVKIT_MIRROR + tag + "/" + file;
             ui.step(Tr.f("下载模块「{0}」{1} MB…", moduleName(m), String.valueOf(gz.optLong("bytes") >> 20)));
             gzs.add(download(mirrorFirst ? mirror : gh, mirrorFirst ? gh : mirror, new File(env.files, file), gz.optLong("bytes"), gz.optString("sha256")));
         }

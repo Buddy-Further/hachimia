@@ -75,7 +75,7 @@ final class AppFiles {
         // 一律按「升级」吃掉文件差异、不留篡改痕迹。先比版本号，低了按降级安装处理（0.6.9 审计 14-04）
         long nowVc = stampVc(now), seenVc = stampVc(seen);
         if (nowVc >= 0 && seenVc >= 0 && nowVc < seenVc) {
-            Log.w("cccodroid", "安装的版本（" + versionName(now) + "，" + nowVc + "）比上次核对通过的（" + versionName(seen) + "，" + seenVc + "）旧：按降级安装处理，文件差异不当作升级");
+            Log.w("hachimia", "安装的版本（" + versionName(now) + "，" + nowVc + "）比上次核对通过的（" + versionName(seen) + "，" + seenVc + "）旧：按降级安装处理，文件差异不当作升级");
             return null;
         }
         String want, have;

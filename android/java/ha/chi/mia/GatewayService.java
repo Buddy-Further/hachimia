@@ -22,7 +22,7 @@ import java.net.URL;
  *   网关是本服务的子进程 —— 服务活着，它就活着；它自己挂了，这里按退避重新拉起。
  */
 public class GatewayService extends Service {
-    static final String TAG = "cccodroid";
+    static final String TAG = "hachimia";
     static final String CH = "gateway";
     static final String ACTION_STOP = "ha.chi.mia.STOP";
     static final String ACTION_BOOT = "ha.chi.mia.BOOT";
@@ -109,7 +109,7 @@ public class GatewayService extends Service {
         else startForeground(1, note(Tr.t("正在启动…")));
 
         PowerManager pm = getSystemService(PowerManager.class);
-        wake = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "cccodroid:gateway");
+        wake = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "hachimia:gateway");
         wake.setReferenceCounted(false);
         wake.acquire();
 
@@ -296,7 +296,7 @@ public class GatewayService extends Service {
                 continue;
             } catch (GwUnavailable e) {
                 Log.e(TAG, "网关运行库对不上，不起网关：" + e.getMessage());
-                gwBlocked = Tr.f("网关自己的运行库和安装包对不上，为了安全没有启动网关：{0}\n\n联网后会自动再试；一直不行请重装 cccodroid", e.getMessage());
+                gwBlocked = Tr.f("网关自己的运行库和安装包对不上，为了安全没有启动网关：{0}\n\n联网后会自动再试；一直不行请重装 hachimia", e.getMessage());
                 Runnable cb = onSquat;
                 if (cb != null) cb.run();
                 if (stopping) break;
@@ -740,7 +740,7 @@ public class GatewayService extends Service {
             PendingIntent.FLAG_IMMUTABLE);
         return new Notification.Builder(this, CH)
             .setSmallIcon(android.R.drawable.stat_sys_upload_done)
-            .setContentTitle("cccodroid")
+            .setContentTitle("hachimia")
             .setContentText(text)
             .setStyle(new Notification.BigTextStyle().bigText(text))
             .setOngoing(true)

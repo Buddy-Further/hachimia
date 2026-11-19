@@ -202,8 +202,8 @@ public class MainActivity extends Activity {
 
     private void boot() {
         if (secondaryUser(this)) {
-            say(Tr.t("✗ cccodroid 只能装在手机的主空间里。"));
-            say(Tr.t("分身、第二空间、安全文件夹、工作资料里的应用目录路径不同，开发工具包跑不起来（Termux 也有同样的限制）。请卸载这里的 cccodroid，在主空间安装。"));
+            say(Tr.t("✗ hachimia 只能装在手机的主空间里。"));
+            say(Tr.t("分身、第二空间、安全文件夹、工作资料里的应用目录路径不同，开发工具包跑不起来（Termux 也有同样的限制）。请卸载这里的 hachimia，在主空间安装。"));
             ui.post(() -> stuck.setVisibility(View.VISIBLE));
             return;
         }
@@ -270,7 +270,7 @@ public class MainActivity extends Activity {
                 // 后台快速自检：只看文件在不在，缺了就提示修复
                 if (!upd.devkitMoving() && !upd.devkitStaged()) upd.verifyAsync(false);
             } catch (Exception e) {
-                android.util.Log.e("cccodroid-setup", "安装失败", e);
+                android.util.Log.e("hachimia-setup", "安装失败", e);
                 say("✗ " + humanize(e));
                 say(Tr.t("（下载过的部分都留着。处理好之后点「重试」，会从这一步接着来）"));
                 ui.post(() -> { retry.setVisibility(View.VISIBLE); stuck.setVisibility(View.VISIBLE); });
@@ -441,7 +441,7 @@ public class MainActivity extends Activity {
         if (isDestroyed()) return;
         android.app.AlertDialog d = new android.app.AlertDialog.Builder(this)
             .setTitle(Tr.t("打开网页调试？"))
-            .setMessage(Tr.t("发现 ~/.webdebug：有人要打开 cccodroid 界面的网页调试。打开后，连上这台设备的调试工具能看到界面里的一切，包括网关令牌。\n\n不是你自己建的这个文件，就点「取消」，并删掉它。"))
+            .setMessage(Tr.t("发现 ~/.webdebug：有人要打开 hachimia 界面的网页调试。打开后，连上这台设备的调试工具能看到界面里的一切，包括网关令牌。\n\n不是你自己建的这个文件，就点「取消」，并删掉它。"))
             .setPositiveButton(Tr.t("允许"), (x, w) -> { Consent.grant(this, Consent.WEBDEBUG, "1"); WebView.setWebContentsDebuggingEnabled(true); })
             .setNegativeButton(Tr.t("取消"), null)
             .create();
@@ -906,32 +906,31 @@ public class MainActivity extends Activity {
             + "\")c.openSession(\"" + sid + "\")}" + caught("openSession") + "},n?800:0)}else if(n<50)setTimeout(function(){f(n+1)},200)})(0)", null);
     }
 
-    // ── 工具包从哪装：GitHub / cccodroid.net 镜像 / 本地文件 ──────────────────
-    /** 首装：让用户选来源，照着走。两个下载源互为备用（首选连着失败就换另一个接着续传）；本地文件没选就回到选择 */
+    // ── 工具包从哪装：GitHub / 本地文件 ──────────────────
+    /** 首装：让用户选来源，照着走。本地文件没选就回到选择 */
     private void installFirstDevkit(Installer ins) throws Exception {
         org.json.JSONObject pin = Updater.devkitPin(this);
         if (pin == null || pin.optJSONObject("gz") == null) throw new java.io.IOException(Tr.t("APK 里的工具包清单坏了"));
         String file = pin.getJSONObject("gz").getString("file"), base = pin.getString("base");
-        String gh = base + file, mirror = Updater.devkitMirror(base, file);
+        String gh = base + file;
         // 以前共享目录里有 devkit-ha.chi.mia.tar.gz 就自动多一项「用共享目录里的文件」：那里任何有存储权限的应用都能放，
         // 等于替人摆好一个诱饵（审查 v0513b 低-24）。离线装照样能走「选择本地文件…」，自己挑的文件才装
         String local = null;
         while (true) {
             String c = chooseDevkitSource(pin, local);
-            if ("github".equals(c) || "mirror".equals(c)) {
-                boolean m = "mirror".equals(c);
+            if ("github".equals(c)) {
                 // 模块化工具包（钉子里有 modules.json）：取清单、按钉子核 sha256，让用户勾模块，再按块装
                 org.json.JSONObject pm = pin.optJSONObject("modules");
                 if (pm != null) {
-                    String mf = pm.optString("file", "modules.json"), mgh = base + mf, mmir = Updater.devkitMirror(base, mf);
-                    File mj = ins.download(m ? mmir : mgh, m ? mgh : mmir, new File(env.files, mf), pm.optLong("bytes"), pm.optString("sha256"));
+                    String mf = pm.optString("file", "modules.json"), mgh = base + mf;
+                    File mj = ins.download(mgh, (String) null, new File(env.files, mf), pm.optLong("bytes"), pm.optString("sha256"));
                     byte[] bytes = java.nio.file.Files.readAllBytes(mj.toPath());
                     java.util.List<String> want = chooseModules(new org.json.JSONObject(new String(bytes, java.nio.charset.StandardCharsets.UTF_8)));
-                    ins.installModules(bytes, want, base, pin.getJSONObject("gz").getString("sha256"), m);
+                    ins.installModules(bytes, want, base, pin.getJSONObject("gz").getString("sha256"), false);
                     mj.delete();
                     return;
                 }
-                File gz = ins.downloadDevkit(pin, m ? mirror : gh, m ? gh : mirror);
+                File gz = ins.downloadDevkit(pin, gh, null);
                 ins.installDevkit(gz.getPath());
                 gz.delete();      // 解完就删，腾出 650 MB
                 return;
@@ -942,7 +941,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** 在安装页上摆出来源选择，等用户点一个。返回 github / mirror / local / path */
+    /** 在安装页上摆出来源选择，等用户点一个。返回 github / local / path */
     private String chooseDevkitSource(org.json.JSONObject pin, String local) throws InterruptedException {
         final String[] pick = {null};
         CountDownLatch done = new CountDownLatch(1);
@@ -962,12 +961,11 @@ public class MainActivity extends Activity {
             q.setPadding(0, dp(4), 0, dp(8));
             String txt = Tr.f("开发工具包约 {0} MB（解开后约 {1} GB），从哪里装？",
                 String.valueOf(gz.optLong("bytes") >> 20), String.format(java.util.Locale.ROOT, "%.1f", (tar != null ? tar.optLong("bytes") : 0) / 1073741824.0));
-            if (part.length() > 0) txt += "\n" + Tr.f("已经下了 {0} MB，两个下载源都能接着续传。", String.valueOf(part.length() >> 20));
+            if (part.length() > 0) txt += "\n" + Tr.f("已经下了 {0} MB，会接着续传。", String.valueOf(part.length() >> 20));
             q.setText(txt);
             chooser.addView(q);
             String[][] opts = {
                 {"github", Tr.t("从 GitHub 下载"), Tr.t("海外网络一般最快")},
-                {"mirror", Tr.t("从 cccodroid.net 镜像下载"), Tr.t("GitHub 慢或连不上时用；文件与 GitHub 上的一致，照样核对 sha256")},
                 {"local", Tr.t("选择本地文件…"), Tr.t("已经下好的 devkit-ha.chi.mia.tar.gz（或 .tar）；装之前核对是不是发布版")},
                 local != null ? new String[]{"path", Tr.t("用共享目录里的文件"), local} : null,
             };
@@ -1149,7 +1147,7 @@ public class MainActivity extends Activity {
         say(Tr.t("对照已发布的工具包…"));
         org.json.JSONObject id = upd.identifyDevkit(scan[0]);
         if (id == null) {
-            if (!askBlocking(Tr.f("这个文件不是已发布的工具包（也可能是现在没网、查不到清单）。\n\nsha256 前 12 位：{0}\n\n只在它是你自己构建的、或者确定来源可靠时才继续：工具包里的程序能读写 cccodroid 里的一切。", scan[0].substring(0, 12)),
+            if (!askBlocking(Tr.f("这个文件不是已发布的工具包（也可能是现在没网、查不到清单）。\n\nsha256 前 12 位：{0}\n\n只在它是你自己构建的、或者确定来源可靠时才继续：工具包里的程序能读写 hachimia 里的一切。", scan[0].substring(0, 12)),
                     Tr.t("仍然安装"))) { say(Tr.t("已取消")); return false; }
             say("⚠ " + Tr.t("没核对上来源，按你的确认继续"));
         } else {
@@ -1396,7 +1394,7 @@ public class MainActivity extends Activity {
         sp.edit().putBoolean("askedNotifySettings", true).apply();
         new android.app.AlertDialog.Builder(this)
             .setTitle(Tr.t("开启通知"))
-            .setMessage(Tr.t("cccodroid 在后台跑任务时靠一条常驻通知保活；任务完成或需要你确认时也通过通知提醒。\n\n系统目前屏蔽了本应用的通知，去设置里打开吧。"))
+            .setMessage(Tr.t("hachimia 在后台跑任务时靠一条常驻通知保活；任务完成或需要你确认时也通过通知提醒。\n\n系统目前屏蔽了本应用的通知，去设置里打开吧。"))
             .setPositiveButton(Tr.t("去开启"), (d, w) -> {
                 try {
                     startActivity(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName()));
@@ -1410,7 +1408,7 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * targetSdk ≥ 30：共享目录 /sdcard/cccodroid（交付 APK、截图、本地工具包）要「所有文件访问」。
+     * targetSdk ≥ 30：共享目录 /sdcard/hachimia（交付 APK、截图、本地工具包）要「所有文件访问」。
      * 问一次，带去系统设置页（Shizuku 授权了也不代为打开，见下）。给了以后重启网关才进 CCAPP_SHARED
      */
     private void askAllFiles() {
@@ -1421,7 +1419,7 @@ public class MainActivity extends Activity {
         // Shizuku 授权了也先问（审查 v0.5.9 B2）：以前直接 appops 给，绕过了系统的专用同意界面
         new android.app.AlertDialog.Builder(this)
             .setTitle(Tr.t("允许访问共享存储"))
-            .setMessage(Tr.t("cccodroid 和其他应用交换文件（交付的 APK、截图、离线工具包）用的是 /sdcard/cccodroid。这个版本的安卓要你在设置里打开「所有文件访问」才能读写它。\n\n不开也能用，只是这些文件只留在应用私有目录里。"))
+            .setMessage(Tr.t("hachimia 和其他应用交换文件（交付的 APK、截图、离线工具包）用的是 /sdcard/hachimia。这个版本的安卓要你在设置里打开「所有文件访问」才能读写它。\n\n不开也能用，只是这些文件只留在应用私有目录里。"))
             .setPositiveButton(Tr.t("去开启"), (d, w) -> {
                 try { startActivity(new Intent("android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION", Uri.parse("package:" + getPackageName()))); }
                 catch (Exception e) { try { startActivity(new Intent("android.settings.MANAGE_ALL_FILES_ACCESS_PERMISSION")); } catch (Exception ignored) {} }
@@ -1524,7 +1522,7 @@ public class MainActivity extends Activity {
         setupCol = col;
         col.setOrientation(LinearLayout.VERTICAL);
         col.setPadding(dp(20), dp(40), dp(20), dp(20));
-        // 标题行：标识（一直在扫，表示还在忙）+ cccodroid
+        // 标题行：标识（一直在扫，表示还在忙）+ hachimia
         LinearLayout head = new LinearLayout(this);
         head.setGravity(android.view.Gravity.CENTER_VERTICAL);
         head.setPadding(0, 0, 0, dp(12));
@@ -1632,7 +1630,7 @@ public class MainActivity extends Activity {
     }
 
     private void say(String m) {
-        android.util.Log.i("cccodroid-setup", m);      // 安装 / 更新出问题时，logcat 里能看到走到了哪一步
+        android.util.Log.i("hachimia-setup", m);      // 安装 / 更新出问题时，logcat 里能看到走到了哪一步
         ui.post(() -> {
             if (splashStat != null) splashStat.setText(m);
             if (m.startsWith("✗")) expandSetup();
@@ -2219,7 +2217,7 @@ public class MainActivity extends Activity {
     private boolean squatShown;
 
     // ── 恢复初始设置（FactoryReset）：入口在设置页排障栏、启动页「我卡住了」、网关起不来时的等待页 ──
-    private static final String RESCUE_RESET = "cccodroid-rescue:reset", RESCUE_LOGS = "cccodroid-rescue:logs";
+    private static final String RESCUE_RESET = "hachimia-rescue:reset", RESCUE_LOGS = "hachimia-rescue:logs";
     private static String rescueLinks(String color) {
         String a = "style=\"color:" + color + ";display:inline-block;margin:10px 12px 0\"";
         return "<p style=\"font-size:14px;margin-top:28px\"><a " + a + " href=\"" + RESCUE_LOGS + "\">" + android.text.TextUtils.htmlEncode(Tr.t("我卡住了：分享诊断")) + "</a>"
@@ -2256,7 +2254,7 @@ public class MainActivity extends Activity {
             String msg;
             try { File bak = FactoryReset.run(this, keys); msg = Tr.f("已恢复初始设置。原来的配置留底在 {0}", bak.getPath()); }
             catch (FactoryReset.Partial e) { msg = Tr.f("已恢复初始设置，但有几项没挪成：{0}。留底在 {1}", e.getMessage(), e.backup.getPath()); }
-            catch (Exception e) { android.util.Log.e("cccodroid-reset", "恢复初始设置失败", e); msg = Tr.t("恢复初始设置失败：") + e.getMessage(); }
+            catch (Exception e) { android.util.Log.e("hachimia-reset", "恢复初始设置失败", e); msg = Tr.t("恢复初始设置失败：") + e.getMessage(); }
             say(msg);
             final String m = msg;
             if (!GatewayService.serviceUp()) GatewayService.start(this);

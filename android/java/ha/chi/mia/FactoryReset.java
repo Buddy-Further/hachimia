@@ -12,7 +12,7 @@ import java.nio.charset.StandardCharsets;
 
 /**
  * 恢复初始设置（用户 11-09：「和手机恢复出厂设置一样」）。误改了配置以后卡在「每轮都被拒、不出回答」、自己救不回来时用：
- * 用户级 Claude Code 配置、cccodroid 设置、shell 启动文件这些「每轮自动生效的东西」整体挪走，应用文件按安装包重铺，网关重启。
+ * 用户级 Antigravity 配置、hachimia 设置、shell 启动文件这些「每轮自动生效的东西」整体挪走，应用文件按安装包重铺，网关重启。
  *
  * 不删：挪走的都放进 ~/.ccapp-reset/<时间>/，按原来的相对路径摆，要找回就照路径拷回去。
  * 不动：会话记录（~/.claude/projects 下的 .jsonl）、工作区、开发工具包和组件、ssh、git 配置、导出的东西。
@@ -22,7 +22,7 @@ import java.nio.charset.StandardCharsets;
  * 执行时先停住网关（GatewayService.pause）：它内存里有设置，跑着的话会把挪走的文件按内存写回来。
  */
 final class FactoryReset {
-    private static final String TAG = "cccodroid-reset";
+    private static final String TAG = "hachimia-reset";
 
     /** home 下整个挪走的（文件或目录）。shell 启动文件同 guard/cc-guard.mjs 认的那一组 */
     private static final String[] MOVE = {

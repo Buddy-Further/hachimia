@@ -40,7 +40,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 签不了，只在本次运行有效。以前存的同意没有认证链，升级后要重新打开一次。
  */
 final class Consent {
-    static final String TAG = "cccodroid-consent";
+    static final String TAG = "hachimia-consent";
     static final String NOASK = "noask", KEEPALIVE = "keepalive", DEV_ON = "dev.on", DEV_A11Y = "dev.a11y", WEBDEBUG = "webdebug", SHZ_AUTO = "shz.autostart";
     private static final String PREFS = "consent", ALIAS = "cc_consent_";
     /** 本次运行确认过或验过签的：名字 → 值 */
@@ -102,7 +102,7 @@ final class Consent {
     }
 
     /**
-     * 用户刚在 cccodroid 自己的原生对话框里点了「允许」之后调（别的地方别调：这里不再问）。
+     * 用户刚在 hachimia 自己的原生对话框里点了「允许」之后调（别的地方别调：这里不再问）。
      * 本次运行立即生效；能签名就排队弹锁屏验证，验过了存到下次启动
      */
     static void grant(Context c, String name, String value) {
@@ -204,7 +204,7 @@ final class Consent {
         BiometricPrompt bp = new BiometricPrompt.Builder(a)
             .setTitle(Tr.t("用锁屏验证保存这项设置"))
             .setSubtitle(label(name, value))
-            .setDescription(Tr.t("验证后，重启 cccodroid 也会保持打开。不验证的话只在这次运行有效。这样别的程序就改不了这项设置。"))
+            .setDescription(Tr.t("验证后，重启 hachimia 也会保持打开。不验证的话只在这次运行有效。这样别的程序就改不了这项设置。"))
             .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG | BiometricManager.Authenticators.DEVICE_CREDENTIAL)
             .build();
         try {

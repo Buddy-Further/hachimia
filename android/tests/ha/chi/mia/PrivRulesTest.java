@@ -26,25 +26,25 @@ public final class PrivRulesTest {
         if (PrivRules.amStarted(-1, "java.lang.SecurityException")) { fail++; System.out.println("FAIL amStarted 起不来"); }
         // 0601c：免问命令点了本应用 / Shizuku 的名也要问
         names(true, "am force-stop ha.chi.mia");
-        names(true, "am stop-app 'cc.codro''id'");
+        names(true, "am stop-app 'ha.chi.mi''a'");
         names(true, "am force-stop moe.shizuku.privileged.api");
         names(false, "am force-stop com.foo");
         names(false, "dumpsys meminfo | grep -E '^ +[0-9]'");
         // 免确认下也要问的：动到本应用、Shizuku / Sui，或写法看不清（审查 0601 中-3、0601b 引号拆词）
         self(true, "pm uninstall ha.chi.mia");
-        self(true, "pm uninstall cc.codro\"i\"d");
+        self(true, "pm uninstall ha.chi.m\"i\"a");
         self(true, "am force-stop moe.shizuku.privileged.api");
         self(true, "rm -rf /data/adb/modules");
-        self(true, "echo Y2MuY29kcm9pZA== | base64 -d | xargs pm uninstall");
-        self(true, "echo Y2MuY29kcm9pZA== | ba''se64 -d | xargs pm uninstall");
-        self(true, "echo Y2MuY29kcm9pZA== | ba\"\"se64 -d | x''args pm uninstall");
-        self(true, "echo pm uninstall cc.xodroid | sed s/x/c/ | sh");
+        self(true, "echo aGEuY2hpLm1pYQ== | base64 -d | xargs pm uninstall");
+        self(true, "echo aGEuY2hpLm1pYQ== | ba''se64 -d | xargs pm uninstall");
+        self(true, "echo aGEuY2hpLm1pYQ== | ba\"\"se64 -d | x''args pm uninstall");
+        self(true, "echo pm uninstall ha.xhi.mia | sed s/x/c/ | sh");
         self(true, "pm uninstall $P");
-        self(true, "pm uninstall cc.codr*");
+        self(true, "pm uninstall ha.chi.mi*");
         self(true, "ev''al pm uninstall");
         // 0601c：sed 转写 / awk 拼接 / . 从管道读
         self(true, "echo abcdefghij | sed 'y/abcdefghij/pm unistl/' | . /dev/stdin");
-        self(true, "awk 'BEGIN { cmd = \"pm uninstall cc\" \".codroid\"; cmd | getline }'");
+        self(true, "awk 'BEGIN { cmd = \"pm uninstall ha\" \".chi.mia\"; cmd | getline }'");
         self(true, "echo x; . /sdcard/x");
         self(true, "cat /dev/fd/0");
         self(true, "echo x | { . /proc/self/fd/0; }");
@@ -93,7 +93,7 @@ public final class PrivRulesTest {
         sh(true, "am start -a android.intent.action.VIEW -d https://example.com");
         sh(true, "am start-activity -n com.x/.A");
         sh(true, "echo hi > /sdcard/a.txt");
-        sh(true, "dumpsys battery >> /sdcard/cccodroid/b.txt");
+        sh(true, "dumpsys battery >> /sdcard/hachimia/b.txt");
         sh(true, "dumpsys wifi");
         sh(true, "dumpsys -t 5 usagestats");
         sh(true, "dumpsys bluetooth_manager");
@@ -117,7 +117,7 @@ public final class PrivRulesTest {
         // 11-01 独立审查：裸 dumpsys、全机日志、读共享存储
         sh(true, "dumpsys");
         sh(true, "dumpsys 2>/dev/null");
-        sh(true, "logcat -d -t 200 | grep cccodroid");
+        sh(true, "logcat -d -t 200 | grep hachimia");
         want(true, "/system/bin/logcat", "-d");
         sh(true, "cat /sdcard/DCIM/a.jpg");
         sh(true, "head -c 100 /storage/emulated/0/Download/x");

@@ -44,7 +44,7 @@ public class InstallerCarryTest {
     }
 
     public static void main(String[] args) throws Exception {
-        Path tmp = Files.createTempDirectory("cccodroid-carry-test-");
+        Path tmp = Files.createTempDirectory("hachimia-carry-test-");
         try {
             File files = new File(tmp.toFile(), "files");
             new File(files, "components").mkdirs();

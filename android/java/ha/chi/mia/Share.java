@@ -279,8 +279,8 @@ public final class Share extends ContentProvider {
         } catch (Exception e) { sb.append("（读不了自检结果：").append(e.getMessage()).append("）\n"); }
     }
 
-    // 下载 Claude Code / 组件 / 更新要连的几个地方
-    private static final String[] PROBE_HOSTS = { "downloads.claude.ai", "cccodroid.net", "dl.cccodroid.net", "registry.npmmirror.com", "registry.npmjs.org", "github.com" };
+    // 下载 agy / 工具包 / 组件 / 更新要连的几个地方
+    private static final String[] PROBE_HOSTS = { "github.com", "objects.githubusercontent.com", "antigravity.google", "registry.npmjs.org" };
 
     /** 网络：系统看到的网络状态 + Java 解析 + 应用自己的 curl 连一下（并行，总共最多十来秒）。
      *  安装失败常见的是「Java 能下、原生程序出不去」（VPN / 联网控制），两边都测才分得清。只记结果，不发任何内容 */
