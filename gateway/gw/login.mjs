@@ -119,7 +119,26 @@ function hasAgySessionFiles() {
 }
 
 export let AUTH_CACHE = null;
-let AUTH_GOOD = null;
+let AUTH_GOOD = null;   // 最后一次问出结果的状态
+
+/** 从 agy auth status 的 stdout 里找状态对象：优先「带 boolean loggedIn」的那一段，
+ *  并从后往前找 —— 前面夹的 JSON 警告不能被当成 status（审查 11-05，cccodroid 同款）。 */
+function statusJson(text) {
+  const s = String(text || ""), cands = [];
+  const push = (v) => { if (v && typeof v === "object" && !Array.isArray(v)) cands.push(v); };
+  try { push(JSON.parse(s.trim())); } catch {}
+  for (const line of s.split("\n").reverse()) {
+    const t = line.trim();
+    if (!t.includes("{")) continue;
+    try { push(JSON.parse(t)); } catch {}
+  }
+  // 兜底：整段里从第一个 { 到后面某个 } 逐个试（状态 JSON 被别的话包住时）
+  const at = s.indexOf("{");
+  for (let e = s.lastIndexOf("}"), n = 0; at >= 0 && e > at && n < 50; e = s.lastIndexOf("}", e - 1), n++) {
+    try { push(JSON.parse(s.slice(at, e + 1))); } catch {}
+  }
+  return cands.find((x) => typeof x.loggedIn === "boolean") || cands[0] || null;
+}
 
 export async function authStatus(force) {
   if (!force && AUTH_CACHE && Date.now() - AUTH_CACHE.at < 30000) return AUTH_CACHE.v;
@@ -133,35 +152,44 @@ export async function authStatus(force) {
   // 尝试快速调用 `agy auth status`（若当前 agy 版本支持）；不支持则回落到凭据文件存在性探测
   const r = spawnSync(bin, ["auth", "status"], { cwd: CFG.home, env: authEnv(), encoding: "utf8", timeout: 10000 });
   const out = `${r.stdout || ""}\n${r.stderr || ""}`.trim();
-  let loggedIn = false;
-  let email = null;
-  let plan = null;
-  let authMethod = "none";
-
-  try {
-    const j = JSON.parse(String(r.stdout || "").trim());
-    if (typeof j.loggedIn === "boolean") {
-      loggedIn = j.loggedIn;
-      email = j.email || j.account?.email || null;
-      plan = j.plan || j.subscriptionType || null;
-      authMethod = j.authMethod || (loggedIn ? "oauth-personal" : "none");
-    }
-  } catch {
-    if (r.status === 0 && /signed in|logged in|authenticated|@/i.test(out) && !/not (logged|signed) in|not authenticated/i.test(out)) {
-      loggedIn = true;
-      authMethod = "oauth-personal";
-      const em = out.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
-      if (em) email = em[0];
-    } else if (hasAgySessionFiles()) {
-      loggedIn = true;
-      authMethod = "oauth-personal";
-    }
+  // 状态 JSON 优先从 stdout 找：整段 → 逐行倒序 → 滑动窗口（JSON 前后夹警告也认，审查 11-05）
+  const j = statusJson(r.stdout);
+  if (typeof j?.loggedIn === "boolean") {
+    const v = {
+      loggedIn: j.loggedIn,
+      authMethod: j.authMethod || (j.loggedIn ? "oauth-personal" : "none"),
+      email: j.email || j.account?.email || null,
+      org: null,
+      plan: j.plan || j.subscriptionType || null,
+    };
+    AUTH_CACHE = { at: Date.now(), v }; AUTH_GOOD = v;
+    noteLoggedIn(v.loggedIn);
+    return v;
   }
-
-  const v = { loggedIn, authMethod, email, org: null, plan };
-  AUTH_CACHE = { at: Date.now(), v };
-  AUTH_GOOD = v;
-  noteLoggedIn(v.loggedIn);
+  // 文本启发式（agy 输出非 JSON 时）与凭据文件回落：都算登录
+  const textOk = r.status === 0 && /signed in|logged in|authenticated|@/i.test(out) && !/not (logged|signed) in|not authenticated/i.test(out);
+  if (textOk || hasAgySessionFiles()) {
+    const v = { loggedIn: true, authMethod: "oauth-personal", email: null, org: null, plan: null };
+    if (textOk) {
+      const em = out.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
+      if (em) v.email = em[0];
+    }
+    AUTH_CACHE = { at: Date.now(), v }; AUTH_GOOD = v;
+    noteLoggedIn(true);
+    return v;
+  }
+  // 问不出结果（起不来、超时、输出解析不了）：不能当成「未登录」—— 有上次问出的就沿用并标旧，
+  // 没有就标「不知道」，把原因带给界面（#102 04-010）。退出码 0 也一样（DeepSeek 复核 #2）；
+  // 只有输出明说没登录才给确定的 false
+  if (!/not logged in|not authenticated/i.test(out)) {
+    const error = String(out).split("\n").pop().slice(0, 300) || "exit " + r.status;
+    const v = AUTH_GOOD ? { ...AUTH_GOOD, stale: true, error } : { loggedIn: false, authMethod: "none", email: null, org: null, plan: null, unknown: true, error };
+    AUTH_CACHE = { at: Date.now(), v };
+    return v;
+  }
+  const v = { loggedIn: false, authMethod: "none", email: null, org: null, plan: null };
+  AUTH_CACHE = { at: Date.now(), v }; AUTH_GOOD = v;
+  noteLoggedIn(false);
   return v;
 }
 
