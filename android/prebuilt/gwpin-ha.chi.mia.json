@@ -1,0 +1,188 @@
+{
+ "target": "ha.chi.mia",
+ "key": "gwpin3:devkit-2026.11.19:411c9a2d9a3d2e0555b0b73f560a2fd9045edcab3e76fec6ec748a21ac5efcbb",
+ "gw": {
+  "node": {
+   "src": "bin/node",
+   "sha256": "14536b35aaf448750cd6c24d667e69fa7f29c50a535436f696ddffd249321d9f"
+  },
+  "libtermux-exec-linker-ld-preload.so": {
+   "src": "lib/libtermux-exec-linker-ld-preload.so",
+   "sha256": "60ad22f7d772706b16323a5197bed650a4bfeec32de19b643701e785a95d8b89"
+  },
+  "libz.so.1": {
+   "src": "lib/libz.so.1.4",
+   "sha256": "e849f6aff9c8048b83a34a5c994d280e3bd184ecae5038fc62e17a27cf321f23"
+  },
+  "libcares.so": {
+   "src": "lib/libcares.so",
+   "sha256": "17f4b7a928f046d157b5a01baad58619aedf0260043d6cafc26fc9f5e7cff16f"
+  },
+  "libsqlite3.so": {
+   "src": "lib/libsqlite3.so.3.54.1",
+   "sha256": "9ecdb1cf1622a7ad2037efa703b5b04f4905281dc5f3c5210701f341ad93b272"
+  },
+  "libffi.so": {
+   "src": "lib/libffi.so",
+   "sha256": "e2469b909fe2f67ca32bf8865fe5bce9a11e1ee2677bf7a79344e35294d40b5e"
+  },
+  "libcrypto.so.3": {
+   "src": "lib/libcrypto.so.3",
+   "sha256": "6c49a4c577851a8b70180eed9883c9256e087db9adf64809cc6129d06a265759"
+  },
+  "libssl.so.3": {
+   "src": "lib/libssl.so.3",
+   "sha256": "d98c10bb29268ac409f24e064837b14b94ca3acb0f0bbc2a592634b8825279b3"
+  },
+  "libicui18n.so.79": {
+   "src": "lib/libicui18n.so.79.1",
+   "sha256": "b1785b6ceaed1dee4b9a946098eb6fb433fb5cdbe28fafb7463896bbb1cabfb5"
+  },
+  "libicuuc.so.79": {
+   "src": "lib/libicuuc.so.79.1",
+   "sha256": "8561cf5d1fbf5ba4e87755525a30423326e06ac5135803419685004760bbfda2"
+  },
+  "libc++_shared.so": {
+   "src": "lib/libc++_shared.so",
+   "sha256": "05bef9d3901910c3ff8ab450b03bc8b28383d363a2290f2f7b9aed7331ea6ff7"
+  },
+  "libicudata.so.79": {
+   "src": "lib/libicudata.so.79.1",
+   "sha256": "e1400b52e6383635f3eb5122858ae4b126cffc047e7243d58cb13fca3d18ab01"
+  },
+  "libz.so": {
+   "src": "lib/libz.so.1.4",
+   "sha256": "e849f6aff9c8048b83a34a5c994d280e3bd184ecae5038fc62e17a27cf321f23"
+  }
+ },
+ "glibc": {
+  "ld-linux-aarch64.so.1": {
+   "src": "glibc/lib/ld-linux-aarch64.so.1",
+   "sha256": "53f94e1c430d9fdf6fe204d7e63638a1d7a4764f54ded350d4e9f564dbad5604"
+  },
+  "libc.so.6": {
+   "src": "glibc/lib/libc.so.6",
+   "sha256": "945de1bfe4a8c5714706975b566825a7ab86c79816ed3fe8bd1b8987a5e3f709"
+  },
+  "librt.so.1": {
+   "src": "glibc/lib/librt.so.1",
+   "sha256": "a941a6c9eb45597c47597e7711e8cd24b039eb488f20337d2a96e35c22daf327"
+  },
+  "libpthread.so.0": {
+   "src": "glibc/lib/libpthread.so.0",
+   "sha256": "adf2a3b38694cdd6b8e6c08f56a64786420cb20d736ceece48c3871147357ff2"
+  },
+  "libdl.so.2": {
+   "src": "glibc/lib/libdl.so.2",
+   "sha256": "9c8504547ea2ae94146760551135ae49b19659ee3f6d913c1f2f055695a7fce7"
+  },
+  "libm.so.6": {
+   "src": "glibc/lib/libm.so.6",
+   "sha256": "abb088ccfaa16bd8965a61b62353881215c36a053481de87cb601522ece3e44c"
+  },
+  "ld.so": {
+   "src": "glibc/lib/ld-linux-aarch64.so.1",
+   "sha256": "53f94e1c430d9fdf6fe204d7e63638a1d7a4764f54ded350d4e9f564dbad5604"
+  },
+  "libBrokenLocale.so": {
+   "src": "glibc/lib/libBrokenLocale.so.1",
+   "sha256": "3cbd8a43dda38d2d4756916d1dd7f9da17d9bbabcd37362fa79d402d631293de"
+  },
+  "libBrokenLocale.so.1": {
+   "src": "glibc/lib/libBrokenLocale.so.1",
+   "sha256": "3cbd8a43dda38d2d4756916d1dd7f9da17d9bbabcd37362fa79d402d631293de"
+  },
+  "libanl.so": {
+   "src": "glibc/lib/libanl.so.1",
+   "sha256": "47d787bd4aca76bbb469481351463c9b754bbbee72bf5e508dd03750bba7df52"
+  },
+  "libanl.so.1": {
+   "src": "glibc/lib/libanl.so.1",
+   "sha256": "47d787bd4aca76bbb469481351463c9b754bbbee72bf5e508dd03750bba7df52"
+  },
+  "libc_malloc_debug.so": {
+   "src": "glibc/lib/libc_malloc_debug.so.0",
+   "sha256": "d537b377c47135bb74848005eb08916ec924f33b68decfcb87b4f1944e130a6d"
+  },
+  "libc_malloc_debug.so.0": {
+   "src": "glibc/lib/libc_malloc_debug.so.0",
+   "sha256": "d537b377c47135bb74848005eb08916ec924f33b68decfcb87b4f1944e130a6d"
+  },
+  "libmemusage.so": {
+   "src": "glibc/lib/libmemusage.so",
+   "sha256": "11725a6873b161f7367991a90741021d8c644b929646c1abea32487545190eff"
+  },
+  "libmvec.so": {
+   "src": "glibc/lib/libmvec.so.1",
+   "sha256": "8a2882e7c92ef61f9530a659b16e7fcd61555c933035e5338f48e8edf2959457"
+  },
+  "libmvec.so.1": {
+   "src": "glibc/lib/libmvec.so.1",
+   "sha256": "8a2882e7c92ef61f9530a659b16e7fcd61555c933035e5338f48e8edf2959457"
+  },
+  "libnsl.so.1": {
+   "src": "glibc/lib/libnsl.so.1",
+   "sha256": "c2d28d8d346739b28530e3bb659b5b1813a72b61ca963752888cc0fd13cea317"
+  },
+  "libnss_compat.so": {
+   "src": "glibc/lib/libnss_compat.so.2",
+   "sha256": "cffadf770a9e627de4454b45bad16d05b332c4c6e267b1b0286d779c8f97c422"
+  },
+  "libnss_compat.so.2": {
+   "src": "glibc/lib/libnss_compat.so.2",
+   "sha256": "cffadf770a9e627de4454b45bad16d05b332c4c6e267b1b0286d779c8f97c422"
+  },
+  "libnss_db.so": {
+   "src": "glibc/lib/libnss_db.so.2",
+   "sha256": "95da1bd7764426a0c333eb1d58ac0a545dde3c27621ac1c5cd844dacb47b7d27"
+  },
+  "libnss_db.so.2": {
+   "src": "glibc/lib/libnss_db.so.2",
+   "sha256": "95da1bd7764426a0c333eb1d58ac0a545dde3c27621ac1c5cd844dacb47b7d27"
+  },
+  "libnss_dns.so.2": {
+   "src": "glibc/lib/libnss_dns.so.2",
+   "sha256": "1eaa206e5e1c7e5f983038de9c2c9aabb76337334c2f4e9fa46fe8058ebe7dbe"
+  },
+  "libnss_files.so.2": {
+   "src": "glibc/lib/libnss_files.so.2",
+   "sha256": "068976beb57afd439680a9c9ad72652562088efd50bd68e722144003632f5c96"
+  },
+  "libnss_hesiod.so": {
+   "src": "glibc/lib/libnss_hesiod.so.2",
+   "sha256": "3ab76096d6b71ac069403cd11ae00e8692f4eaf58496ba8a6f791d285f597d85"
+  },
+  "libnss_hesiod.so.2": {
+   "src": "glibc/lib/libnss_hesiod.so.2",
+   "sha256": "3ab76096d6b71ac069403cd11ae00e8692f4eaf58496ba8a6f791d285f597d85"
+  },
+  "libpcprofile.so": {
+   "src": "glibc/lib/libpcprofile.so",
+   "sha256": "a92bd70af0ca1bda95637b039f41671db0036da781ca8f31db12f6d8df88ea1f"
+  },
+  "libresolv.so": {
+   "src": "glibc/lib/libresolv.so.2",
+   "sha256": "5e731e4920169f53927c85b5501f3a55b9fc00c89ee891788d146a53c196936b"
+  },
+  "libresolv.so.2": {
+   "src": "glibc/lib/libresolv.so.2",
+   "sha256": "5e731e4920169f53927c85b5501f3a55b9fc00c89ee891788d146a53c196936b"
+  },
+  "libsyscall_without_fsc.so": {
+   "src": "glibc/lib/libsyscall_without_fsc.so",
+   "sha256": "18a15d3be511033f95a3987815e127c4b7a2fe7b01bfd71ffcd6de8e40086028"
+  },
+  "libthread_db.so": {
+   "src": "glibc/lib/libthread_db.so.1",
+   "sha256": "da854529d85741eb1d9697c1b6fed018f7696aa920b772816a66e4b73bbae4b2"
+  },
+  "libthread_db.so.1": {
+   "src": "glibc/lib/libthread_db.so.1",
+   "sha256": "da854529d85741eb1d9697c1b6fed018f7696aa920b772816a66e4b73bbae4b2"
+  },
+  "libutil.so.1": {
+   "src": "glibc/lib/libutil.so.1",
+   "sha256": "652a19f51c45f7ce9b9cf73dfd7527bf4fe3129934898a6374db6f83042768ff"
+  }
+ }
+}
