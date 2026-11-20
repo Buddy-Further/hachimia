@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { spawn } from "node:child_process";
 import { CFG, LAST_LANG, PATHS, log, tr, tz, permModeAction } from "./config.mjs";
 import { SETTINGS, capList, settingsDiskCheck } from "./settings-store.mjs";
-import { PERM_MODES, PROVIDER, acpAuthType, billAfterRun, keyOf, noteTokenDelta, providerById, providersDiskCheck } from "./providers.mjs";
+import { PERM_MODES, PROVIDER, acpAuthType, billAfterRun, hasAdcCredentials, keyOf, noteTokenDelta, providerById, providersDiskCheck } from "./providers.mjs";
 import { ALIAS_SEEN, defaultAcpCompactLine, effortLevelsOf, fetchModels, isLoginMode, learnWindow, modelsCached, normEffort } from "./models.mjs";
 import { agyEnv, bridgeSwitching, claudeAtLeast, claudeCmd, claudeEnv, currentModelInfo, ensureBridge, safeModePerm, settingsArgs } from "./claude.mjs";
 import { runAcpTurn, stopAcpBgTask } from "./acp.mjs";
@@ -275,6 +275,20 @@ export function acpAutoCompactLine(ctxWin, p) {
   return effectiveAutoCompact() ?? defaultAcpCompactLine(ctxWin, p);
 }
 
+/** /autocompact 设线后“立即触发”适用的厂商（MIG-8）：与下面 useAcp 同口径，
+ *  protocol:"gemini" 的自定义厂商也算 ACP 模式；开发端装着 claude 时第三个条件兜底不了它。 */
+export function autocompactImmediateApplies(P) {
+  return !!P && (P.group === "antigravity" || P.authStyle === "gemini-api-key" || P.protocol === "gemini"
+    || (PATHS.agy && fs.existsSync(PATHS.agy) && !fs.existsSync(PATHS.claude)));
+}
+
+/** ADC 厂商发 ACP 轮次前的前置检查（MIG-11）：缺凭据时直接报错并给出
+ *  gcloud 指引，不等首轮 agy 报原文错。返回 "" 表示放行。 */
+export function adcMissingError(P) {
+  if (!P || !(P.authType === "agent-platform" || P.authStyle === "adc")) return "";
+  return hasAdcCredentials() ? "" : tz("没有找到 Google Cloud ADC 凭据（Application Default Credentials）。请先在终端运行 gcloud auth application-default login 登录，再回来选 ADC。");
+}
+
 /** C5-2：把 ACP 轮的 usage_update.size（即 acpRes.usage.context_window）喂给 learnWindow。
  * 纯 agy 模式下这是唯一的窗口学习来源——不喂，解析时记 0 的窗口永远纠正不了，
  * 上下文条与自动压缩线就一直按未知窗口算。 */
@@ -335,7 +349,7 @@ export async function startRun(item) {
         const resEnd = endRun(run, { localCommand: cmd || local[1], resultText: text, durationMs: 0, costUsd: 0 });
         // 用户通过 /autocompact <n> 设了压缩线且当前会话上下文已超线：ACP 模式下立即自动排一次 /compact
         const acLine = (cmd === "autocompact" || local[1] === "autocompact") && (local[2] || "").trim() ? effectiveAutoCompact() : null;
-        if (acLine && run.sessionId && (P.group === "antigravity" || P.authStyle === "gemini-api-key" || (PATHS.agy && fs.existsSync(PATHS.agy) && !fs.existsSync(PATHS.claude)))) {
+        if (acLine && run.sessionId && autocompactImmediateApplies(P)) {
           try {
             const sf = findSessionFile(run.sessionId);
             const curCtx = sf ? await latestContextTokens(sf.file) : 0;
@@ -439,6 +453,12 @@ export async function startRun(item) {
 
   // ── hachimia: Antigravity CLI (`agy acp`) JSON-RPC 2.0 通道 ──
   if (useAcp) {
+    // MIG-11：ADC 厂商发轮次前先查凭据文件，缺失时前置报错（不等首轮 agy 原文报错）
+    const adcErr = adcMissingError(P);
+    if (adcErr) {
+      emit({ type: "error", message: tr(LAST_LANG, adcErr) });
+      return endRun(run, { failed: true });
+    }
     const tBoot = Date.now();
     run.tBoot = tBoot;
     run.bgList = [];

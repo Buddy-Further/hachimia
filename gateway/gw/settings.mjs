@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { CFG, PATHS, PERM_MODES, log, tz } from "./config.mjs";
-import { API_KEY, BUILTIN_PROVIDER, PROVIDER, PROVIDERS_CFG, applyProvider } from "./providers.mjs";
+import { API_KEY, BUILTIN_PROVIDER, PROVIDER, PROVIDERS_CFG, applyProvider, isAgyOnlyMode } from "./providers.mjs";
 import { beginBridgeSwitch, bridgeSwitching, setBridgeUpstream } from "./claude.mjs";
 import { MAX_PARALLEL_CAP, RUNS, maxParallel } from "./runs.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
@@ -70,6 +70,13 @@ export async function routeSettings(req, res, u, p) {
         const want = b.provider ? String(b.provider) : null;
         const known = want && (want === BUILTIN_PROVIDER.id || (PROVIDERS_CFG && Object.hasOwn(PROVIDERS_CFG.providers, want)));   // constructor / __proto__ 别从原型上认出来（v0514 审查低-4）
         if (want && !known) return sendJson(res, 400, { error: "unknown provider", provider: want });
+        // MIG-10：agy-only 下不许切到 Claude 预置（Anthropic 登录在 agy 里走错认证，见 providers.mjs）
+        if (want && isAgyOnlyMode() && PROVIDERS_CFG.providers[want]?.group === "claude") {
+          return sendJson(res, 400, {
+            error: "claude_hidden_in_agy_only",
+            message: tz("当前是纯 Antigravity 模式，Claude 预设（{id}）不可用：Antigravity CLI 无法用 Claude 账户或 Claude API Key 登录。请选 Google Antigravity 订阅登录或其他接口。", { id: want }),
+          });
+        }
         if (want !== PROVIDER.id && (RUNS.size || bridgeSwitching())) {
           return sendJson(res, 409, {
             error: "busy",

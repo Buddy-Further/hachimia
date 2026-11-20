@@ -1128,6 +1128,31 @@ export async function runAcpTurn({
   let sessModes = poolEntry?.modes || null;
   let sessConfig = poolEntry?.configOptions || null;
 
+  // MIG-7：agent 实际在跑的权限模式。init 宣称的是用户要的模式（permMode），但 agent
+  // 只有在 set_mode 成功后才真切过去；新会话默认 default，复用会话沿用池里记的。
+  // set_mode 被拒时按这个值纠回（发 perm_mode 事件），不能按 state.permMode 纠——
+  // state.permMode 在轮次开始时就被置成了宣称的模式，纠它等于没纠。
+  // 只有 agent 确认成功时才更新；还没建会话就调 setMode 时只记请求、不更新（内联步骤会真正去申请）。
+  let effectivePermMode = poolEntry?.permMode || "default";
+  // 向 agent 申请切模式；被拒时发 error 事件并把三处模式纠回被拒前的实际值（再发 perm_mode 事件）。
+  const applyMode = async (mode) => {
+    const prev = effectivePermMode;
+    const modeId = mapUiModeToAcp(mode, sessModes?.availableModes);
+    if (!modeId) return false;
+    try {
+      await client.request("session/set_mode", { sessionId: activeSessionId, modeId }, 5000);
+      effectivePermMode = mode;
+      return true;
+    } catch (e) {
+      permMode = prev;
+      state.permMode = prev;
+      if (run) run.permMode = prev;
+      emit({ type: "error", message: tz("切换权限模式失败（agent 拒绝了 {mode}）：{msg}", { mode, msg: String(e?.message || e) }) });
+      emit({ type: "perm_mode", mode: prev });
+      return false;
+    }
+  };
+
   if (run) {
     run.child = client.child;
     run.preSpawn = false;
@@ -1137,21 +1162,13 @@ export async function runAcpTurn({
       if (activeSessionId) client.notify("session/cancel", { sessionId: activeSessionId });
     };
     // set_mode 被 agent 拒绝时返回 false 并发 error 事件，不再静默返回 true（B11）。
+    // 被拒时 applyMode 会把模式纠回被拒前的实际值并再发 perm_mode 事件（MIG-7）。
     // 返回 Promise<boolean>：调用方 await 它才能知道是否真切过去了。
     run.setMode = (mode) => {
       permMode = mode;
       state.permMode = mode;
       run.permMode = mode;
-      if (activeSessionId && !client.closed) {
-        const modeId = mapUiModeToAcp(mode, sessModes?.availableModes);
-        if (!modeId) return Promise.resolve(false);
-        return client.request("session/set_mode", { sessionId: activeSessionId, modeId }, 5000)
-          .then(() => true)
-          .catch((e) => {
-            emit({ type: "error", message: tz("切换权限模式失败（agent 拒绝了 {mode}）：{msg}", { mode, msg: String(e?.message || e) }) });
-            return false;
-          });
-      }
+      if (activeSessionId && !client.closed) return applyMode(mode);
       return Promise.resolve(true);
     };
   }
@@ -1335,13 +1352,9 @@ export async function runAcpTurn({
       }
     }
     if (permMode && (!reused || poolEntry?.permMode !== permMode)) {
-      const modeId = mapUiModeToAcp(permMode, sessModes?.availableModes);
-      if (modeId) {
-        await client.request("session/set_mode", {
-          sessionId: activeSessionId,
-          modeId,
-        }, 5000).catch(() => {});
-      }
+      // MIG-7：复用 run.setMode 的报错路径（被拒时发 error 事件并把 init 已宣称的模式纠回），
+      // 不得静默吞掉。run 不存在时（直调）走同一份 applyMode。
+      await applyMode(permMode);
     }
 
     // 若走的是 session/load 回落路径，排空异步重放再开闸（B3）：

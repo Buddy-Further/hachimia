@@ -3401,3 +3401,11 @@
 3398	This build has no native layer, so only CPU time is recorded (battery and screen-on need hachimia).
 3399	The Antigravity CLI program was modified and was not started; 
 3400	Antigravity CLI housekeeping files
+// TODO i18n (mig-deep-p2a)：以下为英文原文回退，待译成 ko
+3401	No Google Cloud ADC credentials found (Application Default Credentials). Run `gcloud auth application-default login` in a terminal first, then come back and pick ADC.
+3402	Application Default Credentials found.
+3403	This device runs in Antigravity-only mode, so the Claude preset ({id}) is unavailable: the Antigravity CLI cannot sign in with a Claude account or a Claude API key. Pick Google Antigravity sign-in or another provider.
+3404	The old configuration was still using a Claude preset, which doesn't work in Antigravity-only mode; it has been switched back to Google Antigravity sign-in.
+3405	Protocol: not declared
+3406	Protocol: Gemini (endpoint speaks the Gemini protocol)
+3407	Checking ADC credentials…

@@ -3401,4 +3401,11 @@ window.I18N_DICT["ko"] = {
   "这个版本没有原生层，只记 CPU 时间（电量、亮屏要 hachimia）。": "This build has no native layer, so only CPU time is recorded (battery and screen-on need hachimia).",
   "Antigravity CLI 程序被改过，已拒绝启动；": "The Antigravity CLI program was modified and was not started; ",
   "Antigravity CLI 杂物": "Antigravity CLI housekeeping files",
+  "没有找到 Google Cloud ADC 凭据（Application Default Credentials）。请先在终端运行 gcloud auth application-default login 登录，再回来选 ADC。": "No Google Cloud ADC credentials found (Application Default Credentials). Run `gcloud auth application-default login` in a terminal first, then come back and pick ADC.",
+  "已找到 Application Default Credentials。": "Application Default Credentials found.",
+  "当前是纯 Antigravity 模式，Claude 预设（{id}）不可用：Antigravity CLI 无法用 Claude 账户或 Claude API Key 登录。请选 Google Antigravity 订阅登录或其他接口。": "This device runs in Antigravity-only mode, so the Claude preset ({id}) is unavailable: the Antigravity CLI cannot sign in with a Claude account or a Claude API key. Pick Google Antigravity sign-in or another provider.",
+  "检测到旧配置仍在用 Claude 预设，已自动切回 Google Antigravity 订阅登录。": "The old configuration was still using a Claude preset, which doesn't work in Antigravity-only mode; it has been switched back to Google Antigravity sign-in.",
+  "协议：未声明": "Protocol: not declared",
+  "协议：Gemini（端点讲 Gemini 协议）": "Protocol: Gemini (endpoint speaks the Gemini protocol)",
+  "正在检查 ADC 凭据…": "Checking ADC credentials…",
 };

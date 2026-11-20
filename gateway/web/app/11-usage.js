@@ -499,6 +499,10 @@
         <option value="bearer" ${v.authStyle === "bearer" ? "selected" : ""}>${t("认证：Authorization: Bearer")}</option>
         <option value="x-api-key" ${v.authStyle === "x-api-key" ? "selected" : ""}>${t("认证：x-api-key")}</option>
       </select>
+      <select id="cc-protocol">
+        <option value="" ${!v.protocol ? "selected" : ""}>${t("协议：未声明")}</option>
+        <option value="gemini" ${v.protocol === "gemini" ? "selected" : ""}>${t("协议：Gemini（端点讲 Gemini 协议）")}</option>
+      </select>
       <input id="cc-model" placeholder="${t("默认模型名（必填，如 gemini-3.8-flash）")}" value="${esc(v.defaultModel || "")}">
       <input id="cc-fast" placeholder="${t("快模型名（选填，子代理用；留空同上）")}" value="${esc(v.fastModel || "")}">
       <input id="cc-models" placeholder="${t("模型清单地址（选填；Gemini 端点会自动探测 /v1beta/models）")}" value="${esc(v.modelsUrl || "")}">
@@ -559,7 +563,7 @@ Context window: 1m</pre>
       }
       const body = {
         id: p ? p.id : "", label: $("cc-label").value.trim(), baseUrl: $("cc-base").value.trim(),
-        authStyle: $("cc-auth").value, defaultModel: $("cc-model").value.trim(), fastModel: $("cc-fast").value.trim(),
+        authStyle: $("cc-auth").value, protocol: $("cc-protocol").value, defaultModel: $("cc-model").value.trim(), fastModel: $("cc-fast").value.trim(),
         modelsUrl: $("cc-models").value.trim(), apiKey: $("pc-key").value.trim(), inlineImages: $("cc-inline").checked,
       };
       if (!body.defaultModel) return toast(t("默认模型名必填"), true);

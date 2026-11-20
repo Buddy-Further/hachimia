@@ -24,6 +24,12 @@ function sigOf(p) {
   return s;
 }
 
+/** 模型清单按什么协议猜地址、带什么认证头（MIG-12）：protocol:"gemini" 是“端点讲 Gemini 协议”
+ *  的唯一声明（rem-C2），优先于 authStyle/modelsAuth 的旧猜测；旧条件保留作回退。 */
+export function isGeminiProvider(p) {
+  return !!p && (p.protocol === "gemini" || p.authStyle === "gemini-api-key" || p.modelsAuth === "x-goog-api-key");
+}
+
 /** 把不同厂商的 /models 响应归一成同一种形状。
  *  两家形状不同：DeepSeek 用 context_window/max_output_tokens/effort.supported_levels，
  *  官方 /v1/models 用 max_input_tokens/max_tokens/capabilities.*（能力位里带 supported 标记）。 */
@@ -465,7 +471,7 @@ async function fetchModelsOf(p, force, guess) {
     try {
       const headers = {};
       if (key) {
-        if (p.modelsAuth === "x-goog-api-key" || p.authStyle === "gemini-api-key") {
+        if (isGeminiProvider(p)) {
           headers["x-goog-api-key"] = key;
         } else if (p.modelsAuth === "x-api-key") {
           headers["x-api-key"] = key;
@@ -496,7 +502,7 @@ async function fetchModelsOf(p, force, guess) {
     // 自定义端口没填清单地址：按接口地址猜几个同主机的 /models（第三方端口多半同时开着 OpenAI 形状的清单）。
     // 只试和接口同主机同端口的地址（照样过 modelsUrlOk），密钥不会被带去别处；猜中的记在这份配置名下，下次直接用
     const hit = GUESSED.get(sig);
-    const isGemini = p.authStyle === "gemini-api-key" || p.modelsAuth === "x-goog-api-key";
+    const isGemini = isGeminiProvider(p);
     for (const url of hit ? [hit] : guessModelsUrls(p.baseUrl, { gemini: isGemini })) {
       if (!modelsUrlOk({ baseUrl: p.baseUrl, modelsUrl: url })) continue;
       const list = await pull(url);
