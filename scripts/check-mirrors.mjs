@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// 核对 cccodroid.net 上的镜像是否跟得上：最新正式版 APK 两条线都在且大小对、Claude Code 版本号三处一致、组件包在 dl.cccodroid.net 上都在且大小对。
+// 核对 hachimia 的发布物是否齐全：最新正式版 APK 两个包都在且大小对、agy 官方 manifest 能取到版本号、
+// 预置组件索引在不在（hachimia 尚无 components Release，404 只警告，不算失败——需发布方补 Release）。
 // 只读，不验签（验签由客户端和生成器负责），用来发版前或出问题时快速看一眼。用法：node scripts/check-mirrors.mjs
 const get = async (url, method = "GET") => {
   const r = await fetch(url, { method, signal: AbortSignal.timeout(30000) });
@@ -8,48 +9,48 @@ const get = async (url, method = "GET") => {
 };
 let bad = 0;
 
-// APK：GitHub 最新正式版的两个安装包，在 cccodroid.net/dl/ 与 dl.cccodroid.net/dl/ 上都要在、大小一致；固定直链也要指向它
+// APK：GitHub 最新正式版的两个安装包 hachimia.apk / hachimia-36.apk 都在，直链下回来的大小和资产一致
 try {
-  const rel = await (await get("https://api.github.com/repos/greyoak111/cccodroid/releases/latest")).json();
-  for (const a of rel.assets.filter((x) => /^cccodroid(-36)?\.apk$/.test(x.name))) {
-    const got = [];
-    for (const u of [`https://cccodroid.net/dl/${rel.tag_name}/${a.name}`, `https://dl.cccodroid.net/dl/${rel.tag_name}/${a.name}`, `https://cccodroid.net/dl/${a.name}`, `https://dl.cccodroid.net/dl/${a.name}`])
-      got.push(await get(u, "HEAD").then((r) => +r.headers.get("content-length"), () => 0));
-    const ok = got.every((n) => n === a.size);
+  const rel = await (await get("https://api.github.com/repos/greyoak111/hachimia/releases/latest")).json();
+  const want = rel.assets.filter((x) => /^hachimia(-36)?\.apk$/.test(x.name));
+  if (want.length < 2) { bad++; console.log(`✗ APK ${rel.tag_name}：只找到 ${want.map((a) => a.name).join(" ") || "（无）"}，缺 hachimia.apk / hachimia-36.apk`); }
+  for (const a of want) {
+    const len = await get(a.browser_download_url, "HEAD").then((r) => +r.headers.get("content-length"), () => 0);
+    const ok = len === a.size;
     if (!ok) bad++;
-    console.log(`${ok ? "✓" : "✗"} APK ${rel.tag_name} ${a.name}：GitHub ${a.size} / 主站 ${got[0]} / dl ${got[1]} / 主站直链 ${got[2]} / dl 直链 ${got[3]}`);
+    console.log(`${ok ? "✓" : "✗"} APK ${rel.tag_name} ${a.name}：GitHub ${a.size} / 直链 ${len}`);
   }
 } catch (e) { bad++; console.log(`✗ APK：${e.message}`); }
 
-for (const ch of ["stable", "latest"]) {
-  const v = await Promise.all([
-    "https://downloads.claude.ai/claude-code-releases", "https://cccodroid.net/claude-code", "https://dl.cccodroid.net/claude-code",
-  ].map(b => get(`${b}/${ch}`).then(r => r.text()).then(t => t.trim(), e => "取不到(" + e.message + ")")));
-  const same = v.every(x => x === v[0]);
-  if (!same) bad++;
-  console.log(`${same ? "✓" : "✗"} Claude Code ${ch}：官方 ${v[0]} / cccodroid.net ${v[1]} / dl ${v[2]}`);
-  if (same) for (const b of ["https://cccodroid.net/claude-code", "https://dl.cccodroid.net/claude-code"])
-    for (const f of ["manifest.json", "manifest.json.sig"])
-      await get(`${b}/${v[0]}/${f}`, "HEAD").catch(e => { bad++; console.log("✗", e.message); });
-}
+// agy 官方 manifest：App 的 --check 拿它当 latest 来源，要能取到、里面要有能解析的版本号
+try {
+  const m = await (await get("https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests/android_arm64.json")).json();
+  const v = String(m.version || m.latest || m.tag || "").replace(/^v/, "");
+  const ok = /^\d+\.\d+\.\d+/.test(v);
+  if (!ok) bad++;
+  console.log(`${ok ? "✓" : "✗"} agy manifest：${ok ? "版本 " + v : "没有可解析的版本号：" + JSON.stringify(m).slice(0, 120)}`);
+} catch (e) { bad++; console.log(`✗ agy manifest：${e.message}`); }
 
-for (const name of ["official", "community"]) {
-  let comps;
-  try {
-    const j = await (await get(`https://cccodroid.net/components/${name}/components.json`)).json();
-    comps = Array.isArray(j.components) ? j.components : Object.entries(j.components).map(([id, c]) => ({ id, ...c }));
-  } catch (e) { bad++; console.log(`✗ ${name} 索引：${e.message}`); continue; }
-  let n = 0, miss = 0;
-  for (const c of comps) for (const b of c.builds || []) {
-    const asset = b.asset || String(b.url || "").split("/").pop();
-    if (!/^https:\/\/github\.com\//.test(b.url || "") || !(b.bytes > 0)) continue;
-    n++;
-    try {
-      const len = +(await get(`https://dl.cccodroid.net/components/${name}/${asset}`, "HEAD")).headers.get("content-length");
-      if (len !== b.bytes) throw new Error(`大小 ${len} ≠ ${b.bytes}`);
-    } catch (e) { miss++; console.log(`✗ ${name}/${asset}：${e.message}`); }
+// 预置组件索引：404 只是“还没发布”，警告，不算失败
+try {
+  const r = await fetch("https://github.com/greyoak111/hachimia/releases/download/components/components.json", { signal: AbortSignal.timeout(30000) });
+  if (r.status === 404) console.log("⚠ 预置组件索引：尚未发布（需发布方补 components Release），跳过");
+  else if (!r.ok) { bad++; console.log(`✗ 预置组件索引：HTTP ${r.status}`); }
+  else {
+    const j = await r.json();
+    const comps = Array.isArray(j.components) ? j.components : Object.entries(j.components || {}).map(([id, c]) => ({ id, ...c }));
+    let n = 0, miss = 0;
+    for (const c of comps) for (const b of c.builds || []) {
+      const asset = b.asset || String(b.url || "").split("/").pop();
+      if (!/^https:\/\/github\.com\//.test(b.url || "") || !(b.bytes > 0)) continue;
+      n++;
+      try {
+        const len = +(await get(b.url, "HEAD")).headers.get("content-length");
+        if (len !== b.bytes) throw new Error(`大小 ${len} ≠ ${b.bytes}`);
+      } catch (e) { miss++; console.log(`✗ ${c.id}/${asset}：${e.message}`); }
+    }
+    if (miss) bad++;
+    console.log(`${miss ? "✗" : "✓"} 预置组件包：${n - miss}/${n}（${comps.length} 个组件）`);
   }
-  if (miss) bad++;
-  console.log(`${miss ? "✗" : "✓"} 组件包 ${name}：${n - miss}/${n}`);
-}
+} catch (e) { bad++; console.log(`✗ 预置组件索引：${e.message}`); }
 process.exit(bad ? 1 : 0);

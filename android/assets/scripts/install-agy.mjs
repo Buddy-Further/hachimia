@@ -51,11 +51,13 @@ function installedVersion() {
   try {
     const cur = fs.realpathSync(path.join(DEST, "current"));
     const dirName = path.basename(cur);
-    if (isVer(dirName)) return dirName;
+    // 0.0.0-local 是旧版装坏了的占位版本（E-11），不是真版本号：以二进制实际报的为准，报不出就是没装好
+    if (isVer(dirName) && dirName !== "0.0.0-local") return dirName;
     const bin = path.join(cur, "agy");
     if (fs.existsSync(bin)) {
       const r = spawnSync(bin, ["--version"], { encoding: "utf8", timeout: 10000 });
-      return parseVersion(r.stdout || r.stderr) || dirName;
+      const v = parseVersion(r.stdout || r.stderr);
+      return v || (dirName === "0.0.0-local" ? "" : dirName);
     }
   } catch {}
   return "";
@@ -82,16 +84,19 @@ if (ARG === "--check") {
   const res = curlSmall(manifestUrl(), 15);
   let latest = "";
   if (res.ok) {
-    try { latest = JSON.parse(res.data.toString("utf8")).version || ""; } catch {}
+    try { latest = parseVersion(JSON.parse(res.data.toString("utf8")).version || ""); } catch {}
   }
+  // 上游 manifest 里没有可用的版本号时，latest 必须为空（A11）：拿已装版本冒充 latest，
+  // Updater 会判“已是最新”，用户永远收不到新版；ok 也为 false，让调用方报检查失败而不是“已是最新”
+  const latestOk = res.ok && latest !== "";
   console.log(JSON.stringify({
-    ok: res.ok,
+    ok: latestOk,
     installed: cur,
-    latest: latest || cur || "",
+    latest: latestOk ? latest : "",
     source: manifestUrl(),
-    error: res.ok ? "" : (res.err || `curl exit ${res.status}`),
+    error: latestOk ? "" : (res.ok ? "上游 manifest 里没有可用的版本号" : (res.err || `curl exit ${res.status}`)),
   }));
-  process.exit(res.ok ? 0 : 1);
+  process.exit(latestOk ? 0 : 1);
 }
 
 // ── --recheck：校验已装二进制与本地清单 sha256 ──
@@ -101,7 +106,15 @@ if (ARG === "--recheck") {
     const dir = path.join(DEST, d);
     const bin = path.join(dir, "agy");
     const mf = path.join(dir, "manifest.json");
-    if (!isVer(d) || !fs.existsSync(bin) || !fs.existsSync(mf)) continue;
+    if (!isVer(d)) continue;
+    // 版本目录缺二进制或缺清单就是安装不完整（A10）：以前直接跳过、报“通过”，损坏的版本就一直留着。
+    // 缺失也写 .mismatch 标记：Updater 只看 current 目录下的这个标记来提示重装
+    if (!fs.existsSync(bin) || !fs.existsSync(mf)) {
+      bad++;
+      try { fs.writeFileSync(path.join(dir, ".mismatch"), "incomplete\n"); } catch {}
+      say(`✗ ${d}：安装不完整（缺 ${[!fs.existsSync(bin) && "agy 二进制", !fs.existsSync(mf) && "manifest.json"].filter(Boolean).join("、")}）`);
+      continue;
+    }
     try {
       const m = JSON.parse(fs.readFileSync(mf, "utf8"));
       const got = sha256(bin);
@@ -137,6 +150,9 @@ const stageScript = path.join(stage, "install.sh");
 fs.mkdirSync(path.join(stageHome, ".local", "bin"), { recursive: true });
 fs.writeFileSync(stageScript, fetched.data, { mode: 0o700 });
 
+// 安装失败也要清掉暂存目录：die() 的 process.exit(1) 会跳过 finally（E-04），
+// 所以 try 块里一律 throw，由外面的 catch 在 finally 清理完之后再退出。
+let failed = null;
 try {
   // 官方 install.sh 只认 -d/--dir（装到 <dir>/agy）；装进暂存 HOME 的 .local/bin，下面从那里搬到版本目录
   const binDir = path.join(stageHome, ".local", "bin");
@@ -153,7 +169,7 @@ try {
     timeout: 10 * 60e3,
   });
   if (run.status !== 0) {
-    die(`官方安装脚本退出码 ${run.status ?? "null"}${run.signal ? `（信号 ${run.signal}）` : ""}`);
+    throw new Error(`官方安装脚本退出码 ${run.status ?? "null"}${run.signal ? `（信号 ${run.signal}）` : ""}`);
   }
 
   // 在暂存目录中查找安装好的 agy 二进制
@@ -176,18 +192,36 @@ try {
     };
     found = walk(stageHome);
   }
-  if (!found) die("安装脚本运行完成，但未在目标目录找到 agy 可执行文件");
+  if (!found) throw new Error("安装脚本运行完成，但未在目标目录找到 agy 可执行文件");
 
   const realFound = fs.realpathSync(found);
   fs.chmodSync(realFound, 0o755);
+  // 刚装好的二进制必须自己能跑、且 --version 报得出版本号（A5/E-11）：
+  // 报不出就说明装进来的东西是坏的或输出格式变了，不能把它钉成当前版，更不能回退到 0.0.0-local
   const vr = spawnSync(realFound, ["--version"], { encoding: "utf8", timeout: 15000 });
-  const ver = parseVersion(vr.stdout || vr.stderr) || (isVer(ARG) ? ARG : "0.0.0-local");
+  if (vr.status !== 0) {
+    throw new Error(`刚装好的 agy 无法运行（--version 退出码 ${vr.status ?? "null"}${vr.signal ? `（信号 ${vr.signal}）` : ""}），未安装`);
+  }
+  const ver = parseVersion(vr.stdout || vr.stderr);
+  if (!ver) {
+    throw new Error(`刚装好的 agy --version 没有报出版本号（输出：${String(vr.stdout || vr.stderr || "").trim().slice(0, 200) || "（空）"}），未安装`);
+  }
   const verDir = path.join(DEST, ver);
+  const verDirExisted = fs.existsSync(verDir);
   fs.mkdirSync(verDir, { recursive: true });
 
   const finalBin = path.join(verDir, "agy");
   fs.copyFileSync(realFound, finalBin);
   fs.chmodSync(finalBin, 0o755);
+
+  // 拷贝后的最终文件再校验一次 --version（A5）：截断/损坏的拷贝 sha256 是现算的，能自洽过关，但跑不起来
+  const vr2 = spawnSync(finalBin, ["--version"], { encoding: "utf8", timeout: 15000 });
+  if (vr2.status !== 0 || parseVersion(vr2.stdout || vr2.stderr) !== ver) {
+    try { fs.rmSync(finalBin, { force: true }); } catch {}
+    try { fs.rmSync(path.join(verDir, "manifest.json"), { force: true }); } catch {}
+    if (!verDirExisted) { try { fs.rmSync(verDir, { recursive: true, force: true }); } catch {} }
+    throw new Error(`拷贝后的 agy 无法运行或版本号不对（期望 ${ver}），未安装`);
+  }
 
   const sum = sha256(finalBin);
   fs.writeFileSync(path.join(verDir, "manifest.json"), JSON.stringify({
@@ -204,6 +238,11 @@ try {
   fs.renameSync(tmpLink, path.join(DEST, "current"));
 
   say(`✓ Antigravity CLI ${ver} 安装完成（sha256 ${sum.slice(0, 12)}…）`);
+} catch (e) {
+  // try 块里不直接 die()：die() 的 process.exit(1) 会跳过 finally，暂存目录就泄漏了（E-04）。
+  // 先记下失败，让 finally 清掉 stage，再统一报错退出。
+  failed = e;
 } finally {
   try { fs.rmSync(stage, { recursive: true, force: true }); } catch {}
 }
+if (failed) die(failed.message);

@@ -48,13 +48,15 @@ final class Installer {
         lastTarSha = tarInfo != null ? tarInfo.optString("sha256", null) : null;
         // 空间先算清再下：下到一半才报「No space left」，用户白等十分钟还看不懂。
         // 峰值 = 还没下完的压缩包 + 解开后的全部文件（压缩包解完才删）+ Claude Code 与余量
-        long have = done.isFile() ? done.length() : part.length();
+        // 只有 download() 真会复用的字节才算已下载进度（E-08）：同名文件内容不对时它一直占着盘直到下载结束才被替换，
+        // 拿它的长度当进度会把需要空间低估整整一个 gz（689 MB），低空间机器上放行、下载中途才 ENOSPC。
+        long have = reusableBytes(done, size, sha);
         long tarBytes = tarInfo != null ? tarInfo.optLong("bytes", 0) : 0;
         long need = Math.max(0, size - have) + (tarBytes > 0 ? tarBytes : size * 3) + (400L << 20);
         long free = new android.os.StatFs(env.files.getPath()).getAvailableBytes();
         if (free < need) throw new NoSpace(need, free);
         ui.step(Tr.t("下载来源：") + host(primary));
-        ui.step(String.format(Tr.t("下载开发工具包 %.0f MB%s…"), size / 1048576.0, part.length() > 0 ? String.format(Tr.t("（续传，已有 %.0f MB）"), part.length() / 1048576.0) : ""));
+        ui.step(String.format(Tr.t("下载开发工具包 %.0f MB%s…"), size / 1048576.0, have > 0 && have < size ? String.format(Tr.t("（续传，已有 %.0f MB）"), have / 1048576.0) : ""));
         File f = download(primary, alt, done, size, sha);
         ui.step(Tr.t("✓ sha256 与清单一致"));
         return f;
@@ -74,6 +76,26 @@ final class Installer {
 
     /** 最近一次 downloadDevkit 用的 Release 目录、gz 与 tar 的 sha256（installDevkit 记进 .devkit-ok，更新检查据此比对） */
     String lastBase, lastSha, lastTarSha;
+
+    /**
+     * download() 真正会复用的已下载字节（E-08）：已落盘的 done 只有长度与 sha256 都对得上才不用重下；
+     * 否则 .part 只有旁边的 .sha256 tag 对得上当前版本才续传，tag 不对 download() 会删掉它重下。
+     * 拿同名文件的长度直接当进度，会把空间需求低估最多一个整包。
+     */
+    static long reusableBytes(File done, long size, String sha) {
+        try {
+            if (sha != null && !sha.isEmpty()) {
+                if (done.isFile() && size > 0 && done.length() == size && sha.equals(sha256(done))) return size;
+                File tag = new File(done.getPath() + ".sha256"), part = new File(done.getPath() + ".part");
+                if (tag.isFile() && part.isFile() &&
+                        sha.equals(new String(java.nio.file.Files.readAllBytes(tag.toPath()), StandardCharsets.UTF_8).trim()))
+                    return Math.min(part.length(), size);
+            } else if (done.isFile() && size > 0 && done.length() == size) {
+                return size;
+            }
+        } catch (Exception ignored) {}
+        return 0;
+    }
 
     /**
      * 通用下载：断点续传 + 重试 + sha256（sha 为 null 则不校验）。.part 旁边的 .sha256 记着它属于哪个版本，
@@ -595,7 +617,8 @@ final class Installer {
             JSONObject gz = m.optJSONObject("gz"), tar = m.optJSONObject("tar");
             if (gz == null || tar == null) throw new IOException(Tr.t("模块清单坏了"));
             File have = new File(env.files, gz.optString("file"));
-            if (!have.isFile()) dl += gz.optLong("bytes") - new File(have.getPath() + ".part").length();
+            // 已落盘但内容不对的模块包也要重下（E-08）：以前只要文件在就按 0 算，低估最多单个模块（最大 164 MB）
+            dl += gz.optLong("bytes") - reusableBytes(have, gz.optLong("bytes"), gz.optString("sha256"));
             unpacked += tar.optLong("bytes");
         }
         // 峰值：还要下的 + 已下的压缩包（解完一块删一块，按全部算）+ 解开后的全部 + 余量
