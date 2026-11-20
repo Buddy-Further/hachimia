@@ -234,13 +234,15 @@
     $("upd-channel").querySelector("option[value=pinned]").textContent = st.channel === "pinned" && st.pin ? t("CLI：固定 {v}", { v: st.pin }) : t("CLI：固定版本…");
     let moving = st.checking;
     $("upd-items").innerHTML = st.items.map((it) => {
+      // CLI 更新项有两个 id：开发端报 "agy"，Android 端（Updater.java）仍报 "claude"，名字都是 Antigravity CLI (agy)
+      const isCli = it.id === "agy" || it.id === "claude";
       const busy = it.state === "downloading" || it.state === "installing" || it.state === "verifying";
       moving ||= busy;
       const ver = esc(it.current || "?") + (it.latest && it.latest !== it.current && it.state !== "uptodate" ? " → " + esc(it.latest) : "");
       const prog = it.state === "downloading" && it.total ? `（${fmtSize(it.done) || "0 MB"} / ${fmtSize(it.total)} · ${Math.floor(it.done * 100 / it.total)}%）`
         : (it.state === "installing" || it.state === "verifying") && it.total ? `（${Math.floor(it.done * 100 / it.total)}%）` : "";
       const cls = it.state === "error" || it.state === "damaged" || it.state === "missing" ? "err" : it.state === "uptodate" ? "ok" : it.state === "unknown" ? "" : "warn";
-      const btn = it.state === "missing" ? t("安装") : it.state === "available" ? (it.id === "claude" ? t("更新") : t("下载并安装"))
+      const btn = it.state === "missing" ? t("安装") : it.state === "available" ? (isCli ? t("更新") : t("下载并安装"))
         : it.state === "ready" ? t("安装") : it.state === "damaged" ? t("修复") : it.state === "error" && it.latest ? t("重试") : "";
       // 工具包：随时可以逐个核对文件；坏了就「修复」（重装同一版本）；agy 未安装时直接走 upd_apply 安装最新官方版
       const act = it.state === "damaged" ? "repair" : "";
@@ -249,11 +251,11 @@
       // 从本地文件装（离线、或者已经用电脑下好了）：外壳弹系统文件选择器，认身份、替换都在外壳里做
       const localBtn = it.id === "devkit" && !busy && window.CCApp && CCApp.pickDevkit
         ? `<button class="btn sm ghost" data-item="devkit" data-act="local" title="${esc(t("选一个已经下好的工具包文件来安装"))}">${t("本地文件…")}</button>` : "";
-      // 卸载：工具包回到首装（重选来源和模块）、Claude Code 重新下载；外壳做，老外壳没有这个接口就不显示
-      const unBtn = (it.id === "devkit" || it.id === "claude") && it.current && !busy && window.CCApp && CCApp.uninstall
+      // 卸载：工具包回到首装（重选来源和模块）、Antigravity CLI 重新下载；外壳做，老外壳没有这个接口就不显示
+      const unBtn = (it.id === "devkit" || isCli) && it.current && !busy && window.CCApp && CCApp.uninstall
         ? `<button class="btn sm ghost danger" data-item="${esc(it.id)}" data-act="uninstall">${t("卸载")}</button>` : "";
-      const verBtn = it.id === "claude" && it.current && !busy
-        ? `<button class="btn sm ghost" data-item="claude" data-act="versions">${t("版本…")}</button>` : "";
+      const verBtn = isCli && it.current && !busy
+        ? `<button class="btn sm ghost" data-item="${esc(it.id)}" data-act="versions">${t("版本…")}</button>` : "";
       return `<div class="row-actions" style="justify-content:space-between">
         <div><b>${esc(it.name)}</b> <span class="tiny">${ver}</span><br>
           <span class="prov-state ${cls}" style="margin:0">${UPD_TEXT[it.state] || esc(it.state)}${prog}${it.message ? " · " + esc(it.message) : ""}</span></div>
@@ -269,10 +271,10 @@
     // 点完按钮 / 换完渠道后的一小段时间也接着刷：后台的检查、换版本要过一会儿才开始，只看「正在进行」会漏掉结果
     if ((moving || st.checking || Date.now() < updFollowUntil) && pageOn("settings")) updPoll = setTimeout(loadUpd, 1500);
   }
-  /** Claude Code 版本选单：跟随 stable / latest，或固定到某一版（固定后自动更新、检查更新都不动它） */
+  /** Antigravity CLI (agy) 版本选单：跟随 stable / latest，或固定到某一版（固定后自动更新、检查更新都不动它） */
   async function openClaudeVersions() {
     if ($("ccv-pick")) return;
-    const it = ((lastUpd && lastUpd.items) || []).find((x) => x.id === "claude") || {};
+    const it = ((lastUpd && lastUpd.items) || []).find((x) => x.id === "agy" || x.id === "claude") || {};
     const mode = (lastUpd && lastUpd.channel) || "stable", pin = (lastUpd && lastUpd.pin) || "";
     const m = document.createElement("div");
     m.id = "ccv-pick";
@@ -324,7 +326,7 @@
       const r = await post("/api/app/upd_set", ch === "pinned" ? { channel: ch, version: v } : { channel: ch }).catch((e2) => ({ ok: false, message: e2.message }));
       // 卸载过（未安装）：改设置不会自动装回，要再明说装一次
       if (it.state === "missing" && r.ok !== false) {
-        const r2 = await post("/api/app/upd_apply", { item: "claude", version: ch === "pinned" ? v : ch }).catch((e2) => ({ ok: false, message: e2.message }));
+        const r2 = await post("/api/app/upd_apply", { item: it.id || "agy", version: ch === "pinned" ? v : ch }).catch((e2) => ({ ok: false, message: e2.message }));
         toast(r2.message || (r2.ok ? t("开始") : t("失败")), !r2.ok);
       } else toast(r.ok === false ? (r.message || t("失败")) : ch === "pinned" ? t("已固定到 {v}，正在切换", { v }) : t("已改为跟随 {ch}", { ch }), r.ok === false);
       followUpd(); setTimeout(loadUpd, 500);

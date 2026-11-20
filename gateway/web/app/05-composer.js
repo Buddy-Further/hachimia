@@ -9,7 +9,7 @@
   const attAt = (p) => (/[\s"\\]/.test(p) ? '@"' + p
     .replace(/\\/g, "\\\\").replace(/"/g, '\\"')
     .replace(/\n/g, "\\n").replace(/\r/g, "\\r").replace(/\t/g, "\\t") + '"' : "@" + p);
-  const attRef = (a) => isBigAtt(a) ? `[附件：${a.path} · ${a.size ? fmtSize(a.size) : "?"}，文件较大没有直接读入，需要时按路径读取]` : attAt(a.path);
+  const attRef = (a) => isBigAtt(a) ? tk("[附件：") + a.path + " · " + (a.size ? fmtSize(a.size) : "?") + tk("，文件较大没有直接读入，需要时按路径读取]") : attAt(a.path);
   const newCid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   // 还在上传的文件（0.6.9 审计 195-D.1）：传完之前不发送，否则这些附件不在本条消息里、下一条又悄悄带上
   const uploading = new Set();

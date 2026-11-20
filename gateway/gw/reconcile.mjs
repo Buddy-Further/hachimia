@@ -3,7 +3,7 @@
 // 0.3.9–0.3.11 的问题几乎都是两本账对不上，而且都要等到卸载 / 升级时才露馅：
 // 组件记录说装着、文件已随旧 usr 没了；dpkg 清单写 /data/data、比对时拿 /data/user/0；模块 .ok 在、文件不全……
 // 这里主动核一遍，只读不改：网关启动 1 分钟后一次，设置页「排障」里可以随时再核。
-//   · 工具包：.devkit-ok 在不在；Claude Code 程序在不在
+//   · 工具包：.devkit-ok 在不在；Antigravity CLI 程序在不在
 //   · 组件（files/components/<id>.json）：没写完的记录、装在旧工具包上的、记录里的文件 / 命令不在、路径格式不对
 //   · 包清单（var/lib/dpkg/info/*.list）：前缀是不是本应用；列的文件在不在
 //   · 模块（libexec/devkit/modules/<id>/）：.ok 与 MANIFEST 是否成对；FILES 里的文件在不在
@@ -115,7 +115,7 @@ export async function reconcileNow() {
   if (!dk) add("devkit", "error", tz("找不到工具包的安装标记（.devkit-ok），工具包可能没装完"), null, tz("设置 → 更新：修复工具包"), null, DEVKIT);
   // 用户主动卸载 Claude Code 会留 files/.claude-uninstalled：这是正常状态，别再报红教人重装（0.6.9 审计 195-M.7）
   const claudeUninstalled = PREFIX && exists(path.join(path.dirname(PREFIX), ".claude-uninstalled"));
-  if (PATHS.claude && !fs.existsSync(PATHS.claude) && !claudeUninstalled) add("claude", "error", tz("找不到 Claude Code 程序"), null, tz("设置 → 更新：重装 Claude Code"), [PATHS.claude], CLAUDE);
+  if (PATHS.claude && !fs.existsSync(PATHS.claude) && !claudeUninstalled) add("claude", "error", tz("找不到 Antigravity CLI (agy) 程序"), null, tz("设置 → 更新：重装 Antigravity CLI (agy)"), [PATHS.claude], CLAUDE);
 
   // ── 组件 ──
   let recs = [];
@@ -270,7 +270,7 @@ async function fixRun(steps) {
     catch (e) { st.state = "fail"; st.msg = String(e && e.message || e).slice(0, 300); }
   }
   ledger("repair", steps.every((s) => s.state !== "fail"), `核对记录修补：${steps.map((s) => `${stepKey(s.act)} ${s.state}`).join("，")}`);
-  // 交给应用的（工具包修复、重装 Claude Code）这时才刚开始：马上再核只会核出旧结果，看着像「修完还是坏的」（0.6.11 真机）。
+  // 交给应用的（工具包修复、重装 Antigravity CLI）这时才刚开始：马上再核只会核出旧结果，看着像「修完还是坏的」（0.6.11 真机）。
   // 工具包修复装完网关会重启，启动 1 分钟后自动再核；界面提示做完后再点「核对记录」
   if (!steps.some((s) => s.state === "handed")) await reconcileRun();
   fixJob.running = false; fixJob.end = Date.now();
@@ -283,7 +283,7 @@ const fixView = (lang) => !fixJob ? { running: false, steps: [] } : {
 // GET /api/reconcile[?run=1][&format=selftest]；GET|POST /api/reconcile/fix
 export async function routeReconcile(req, res, u, p) {
   if (p === "/api/reconcile/fix") {
-    if (!PREFIX) return sendJson(res, 200, { ok: false, message: "only available in cccodroid" });
+    if (!PREFIX) return sendJson(res, 200, { ok: false, message: "only available in hachimia" });
     const lang = reqLang(req);
     if (req.method === "GET") return sendJson(res, 200, { ok: true, ...fixView(lang) });
     if (req.method !== "POST") return NEXT;

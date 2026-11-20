@@ -10,7 +10,7 @@ import { ENV_FACTS, envFactsKey, envFactsRerun, envFactsStatus } from "./envfact
 // ── 反馈：拼一个预先填好的 GitHub Issue 链接 ─────────────────────────────
 // 用户点「到 GitHub 反馈」：机型、系统、各家 ROM 版本、自检结果、装了哪些组件都填好，用户只写遇到了什么。
 // 只放设备与版本信息，不放日志、密钥、账号、对话（那些走「打包诊断」私下发）。链接有长度上限，自检明细超了就截
-const ISSUE_REPO = "https://github.com/greyoak111/cccodroid/issues/new";
+const ISSUE_REPO = "https://github.com/Buddy-Further/hachimia/issues/new";
 // 各家 ROM 自己的版本号属性：杀后台、权限路径都跟着 ROM 走，比机型更有用
 const ROM_PROPS = [
   ["ro.mi.os.version.name", "HyperOS"], ["ro.miui.ui.version.name", "MIUI"], ["ro.build.version.oplusrom", "ColorOS"],
@@ -37,9 +37,9 @@ async function issueDraft(lang) {
   const row = (k, v) => (v ? `| ${k} | ${String(v).replace(/[|\n]/g, " ")} |` : "");
   const dev = [
     "| | |", "|---|---|",
-    row("cccodroid", ver("app") || (PREFIX ? "?" : "dev")),
+    row("hachimia", ver("app") || (PREFIX ? "?" : "dev")),
     row("Toolchain", ver("devkit") || devkitVersion(dk)),
-    row("Claude Code", ver("claude")),
+    row("Antigravity CLI (agy)", ver("agy") || ver("claude")),
     row("Android", `${g("ro.build.version.release")} (SDK ${g("ro.build.version.sdk")})`),
     row("Device", `${g("ro.product.manufacturer")} ${g("ro.product.model")}${g("ro.product.brand") && g("ro.product.brand").toLowerCase() !== g("ro.product.manufacturer").toLowerCase() ? ` (${g("ro.product.brand")})` : ""}`),
     row("ROM", rom),
@@ -73,7 +73,7 @@ async function issueDraft(lang) {
     "### Device", "", dev, "",
     "### Self-test", "", stx, "",
     comps ? "### Components\n\n" + comps + "\n" : "",
-    "<sub>Filled in by cccodroid. No logs, keys, account or conversation content.</sub>",
+    "<sub>Filled in by hachimia. No logs, keys, account or conversation content.</sub>",
   ].join("\n");
   let body = build(st);
   if (encodeURIComponent(body).length > 7000) body = build(r ? `Passed ${r.pass}, failed ${r.fail.length}` + (r.fail.length ? "\n\n" + r.fail.slice(0, 5).map((x) => "- " + x.slice(0, 120)).join("\n") : "") : st);

@@ -195,7 +195,7 @@
 
 
   // ── 交流群与参与：帮助页最后一节、更新说明卡片底部共用。群号为主，二维码点开才显示 ──
-  const COMMUNITY = { qq: "1062538743", repo: "https://github.com/greyoak111/hachimia", discord: "https://discord.gg/jE6KW8kwpe" };
+  const COMMUNITY = { qq: "1062538743", repo: "https://github.com/Buddy-Further/hachimia", discord: "https://discord.gg/jE6KW8kwpe" };
   function communityHtml(compact) {
     const R = COMMUNITY.repo, zh = isZh();
     return `<div class="cm-box${compact ? " compact" : ""}">
@@ -298,7 +298,7 @@
       });
     }
     // 已知问题：「状态 · 厂商 · **标题**：说明」→ 可折叠卡片
-    const ISSUE_OK = ["修好了", "Fixed"], ISSUE_ALT = ["有绕法", "Workaround"];   // 帮助只有中英两份
+    const ISSUE_OK = [tk("修好了"), "Fixed"], ISSUE_ALT = [tk("有绕法"), "Workaround"];   // 帮助只有中英两份
     body.querySelectorAll(".help-sec li").forEach((li) => {
       const m = li.innerHTML.match(/^\s*([^·<]+?)\s*·\s*([^·<]+?)\s*·\s*<strong>(.+?)<\/strong>\s*[：:]\s*([\s\S]*)$/);
       if (!m) return;

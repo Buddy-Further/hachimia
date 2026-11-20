@@ -33,7 +33,7 @@ if (/[?&](t|k)=/.test(location.search) || /[#&]k=/.test(location.hash)) history.
   window.addEventListener("error", (e) => {
     // 光秃秃的「Script error.」没有文件和行号：是从外壳 evaluateJavascript 注入的代码里冒出去的错，WebView 把细节抹了。
     // 写在顶栏上谁也看不懂，只进控制台；外壳注入的每段代码自己 try 住交给 __ccErr，页面这边的入口也用 guardHook 包着
-    if (!e.filename && /^Script error\.?$/.test(e.message || "")) { console.warn("[cc] 外壳注入的脚本出错（细节被 WebView 隐去）"); return; }
+    if (!e.filename && /^Script error\.?$/.test(e.message || "")) { console.warn(t("[cc] 外壳注入的脚本出错（细节被 WebView 隐去）")); return; }
     // 带上出错位置（app.js 是拼起来的一整份，行号用 scripts/appjs.mjs 对回分段）
     const at = e.filename ? `[${e.filename.split("/").pop().split("?")[0]}:${e.lineno}:${e.colno}] ` : "";   // 放前头：顶栏截断时位置还在
     showErr(at + (e.message || String(e.error)));
