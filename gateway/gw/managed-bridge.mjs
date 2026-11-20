@@ -26,7 +26,11 @@ function fail(stage = "binding") {
 }
 
 const object = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
-const stamp = (st) => [st.dev, st.ino, st.mode, st.size, st.mtimeNs, st.ctimeNs].join(":");
+// 文件身份不含 ctimeNs：部分文件系统（overlayfs）在写入后 0–1ms 内会自发改动
+// ctimeNs（内容、mtime、ino、size、mode 全不变），把它算进身份会让 ensure 在
+// 真机上偶发失败。唯一失去的是“只改 owner 或只改链接数”的检测，不在本模块的
+// 威胁模型里（注释见 installedBinding：同路径原子替换、内容/状态/权限改变）。
+const stamp = (st) => [st.dev, st.ino, st.mode, st.size, st.mtimeNs].join(":");
 const hash = (data) => crypto.createHash("sha256").update(data).digest("hex");
 
 function snapshot(file, max) {
