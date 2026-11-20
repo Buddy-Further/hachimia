@@ -3396,4 +3396,9 @@ window.I18N_DICT["zh-Hant"] = {
   "授权码没能写进 agy（登录进程的 stdin 已关闭），请重新发起登录。": "授權碼沒能寫進 agy（登入程序的 stdin 已關閉），請重新發起登入。",
   "登录类厂商不用填 API Key，登录走官方流程；这次填的密钥没有保存。": "登入類廠商不用填 API Key，登入走官方流程；這次填的金鑰沒有儲存。",
   "已在排队，跳过这次重复执行": "已在排隊，跳過這次重複執行",
+  "请在应用里打开": "請在應用裡打開",
+  "要 npx（hachimia 的工具包里有）": "要 npx（hachimia 的工具包裡有）",
+  "这个版本没有原生层，只记 CPU 时间（电量、亮屏要 hachimia）。": "這個版本沒有原生層，只記 CPU 時間（電量、亮屏要 hachimia）。",
+  "Antigravity CLI 程序被改过，已拒绝启动；": "Antigravity CLI 程式被改過，已拒絕啟動；",
+  "Antigravity CLI 杂物": "Antigravity CLI 雜物",
 };

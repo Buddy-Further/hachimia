@@ -94,10 +94,12 @@ test("接口：会话号要合规，找不到给 404", async () => {
   assert.equal(r.body.turns.length, 2);
 });
 
-test("导出落盘：只认 cccodroid-lineage-*.svg/png/html，内容要对得上格式", () => {
-  const ok = saveExport("cccodroid-lineage-20261030-2300.svg", '<svg xmlns="http://www.w3.org/2000/svg"></svg>');
+test("导出落盘：只认 hachimia-lineage-*.svg/png/html（旧 cccodroid- 前缀仍兼容），内容要对得上格式", () => {
+  const ok = saveExport("hachimia-lineage-20261030-2300.svg", '<svg xmlns="http://www.w3.org/2000/svg"></svg>');
   assert.equal(ok.ok, true);
   assert.equal(fs.readFileSync(ok.file, "utf8").slice(0, 4), "<svg");
+  // 旧前缀仍放行（老版本前端/旧导出流程兼容）
+  assert.equal(saveExport("cccodroid-lineage-20261030-2300.svg", '<svg xmlns="http://www.w3.org/2000/svg"></svg>').ok, true);
   assert.equal(saveExport("../x.svg", "<svg/>").error, "bad_name");
   assert.equal(saveExport("cccodroid-lineage-a.svg", "<script>").error, "bad_svg");
   assert.equal(saveExport("cccodroid-lineage-a.html", "<html>").error, "bad_html");

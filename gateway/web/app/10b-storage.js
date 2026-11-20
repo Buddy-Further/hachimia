@@ -1,4 +1,4 @@
-  // ── 设置 → 存储（D10）：网关 gw/storage.mjs 扫、清；这里只画和转发。六类：缓存 / 临时文件 / Claude Code 杂物 能清，
+  // ── 设置 → 存储（D10）：网关 gw/storage.mjs 扫、清；这里只画和转发。六类：缓存 / 临时文件 / Antigravity CLI 杂物 能清，
   // 会话、程序和文件只看大小，已有的清理入口汇总后跳回原处 ──
   const ST = { r: null, poll: 0, picks: null, open: false };
   const CACHE_NAMES = { webview: () => t("内置浏览器"), npm: () => "npm", pip: () => "pip", gh: () => "GitHub CLI", pkg: () => t("pkg 下载的安装包"), apt: () => "apt", lineage: () => t("脉络索引") };
@@ -59,8 +59,8 @@
     }).join("")}</div><div class="row-actions">${btn("clean-picks", t("删除勾选的"), "", "btn sm ghost danger")}</div>` : "";
     out.push(card(t("临时文件"), esc(t("共 {size}，其中 7 天没动过的 {old}。包括后台命令的输出、测试和编译留下的临时目录", { size: sz(tp.bytes), old: sz(tp.auto) })),
       list, (tp.top || []).length ? btn("tmp-list", ST.open ? t("收起") : t("最大的 {n} 项", { n: tp.top.length }), "", "btn sm ghost") + " " + btn("clean-tmp", t("清理 7 天前的"), tp.auto ? "" : "disabled") : ""));
-    // 3 Claude Code 杂物
-    out.push(card(t("Claude Code 杂物"), esc(t("调试日志、shell 快照、MCP 日志、.claude.json 的备份，共 {size}；可清的 {n} 项 {auto}（30 天前的，备份留最新 5 份）", { size: sz(s.junk.bytes), n: s.junk.autoCount, auto: sz(s.junk.auto) })), "",
+    // 3 Antigravity CLI 杂物
+    out.push(card(t("Antigravity CLI 杂物"), esc(t("调试日志、shell 快照、MCP 日志、.claude.json 的备份，共 {size}；可清的 {n} 项 {auto}（30 天前的，备份留最新 5 份）", { size: sz(s.junk.bytes), n: s.junk.autoCount, auto: sz(s.junk.auto) })), "",
       btn("clean-junk", t("立即清理"), s.junk.auto ? "" : "disabled")));
     // 4 会话
     const ss = s.sessions || { top: [] };

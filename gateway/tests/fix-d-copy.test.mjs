@@ -11,11 +11,18 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8");
 // ── D-04：java-en.json ──
 test("D-04 java-en.json 更新通知与相关文案不写 cccodroid / Claude Code", () => {
   const d = JSON.parse(read("android/assets/i18n/java-en.json"));
-  assert.equal(Object.keys(d).length, 562);
+  assert.equal(Object.keys(d).length, 551); // rem/copy：删 11 个死键（562 − 11）
   for (const [k, v] of Object.entries(d)) {
+    assert.doesNotMatch(String(k), /cccodroid/, `键仍含 cccodroid: ${JSON.stringify(k)}`);
+    assert.doesNotMatch(String(k), /Claude Code/, `键仍含 Claude Code: ${JSON.stringify(k)}`);
     assert.doesNotMatch(String(v), /cccodroid/, `键 ${JSON.stringify(k)} 的英文值仍含 cccodroid: ${JSON.stringify(v)}`);
     assert.doesNotMatch(String(v), /Claude Code/, `键 ${JSON.stringify(k)} 的英文值仍含 Claude Code: ${JSON.stringify(v)}`);
   }
+  // 活键改名（rem/copy）：旧键已不存在，新键与 Updater.java:467 的调用一致
+  assert.equal(d["来自 hachimia.net 镜像"], "from the hachimia.net mirror");
+  assert.equal(d[" · 来自 hachimia.net 镜像"], " · from the hachimia.net mirror");
+  assert.equal(d["来自 cccodroid.net 镜像"], undefined);
+  assert.equal(d[" · 来自 cccodroid.net 镜像"], undefined);
   assert.equal(d["hachimia 已更新到 v{0}"], "hachimia updated to v{0}");
   assert.match(d["hachimia 已更新到 v{0}（系统不让它在后台自己启动）"], /^hachimia updated to v\{0\}/);
 });
