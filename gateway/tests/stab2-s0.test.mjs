@@ -19,14 +19,17 @@ import { findSessionFile } from "../gw/sessions.mjs";
 const orig = { renameSync: fs.renameSync, copyFileSync: fs.copyFileSync, openSync: fs.openSync, writeSync: fs.writeSync };
 afterEach(() => Object.assign(fs, orig));
 const eacces = (p) => Object.assign(new Error("EACCES: permission denied, " + p), { code: "EACCES" });
-/** 读、换名、复制三样都失败（报告里的触发条件：一时的 EACCES） */
+/** 读、换名、复制三样都失败（报告里的触发条件：一时的 EACCES）。
+ *  root 下 chmod 0 拦不住 open：readSmallFile 的 open 也注入 EACCES，只精确匹配目标文件本身。 */
 function blockFile(file) {
   fs.chmodSync(file, 0);
+  fs.openSync = (p, ...a) => { if (path.resolve(String(p)) === path.resolve(file)) throw eacces(p); return orig.openSync(p, ...a); };
   fs.renameSync = (a, b) => { if (path.resolve(a) === path.resolve(file)) throw eacces(a); return orig.renameSync(a, b); };
   fs.copyFileSync = (a, b, m) => { if (path.resolve(a) === path.resolve(file)) throw eacces(a); return orig.copyFileSync(a, b, m); };
 }
 function unblockFile(file) {
-  Object.assign(fs, { renameSync: orig.renameSync, copyFileSync: orig.copyFileSync });
+  // openSync 也要在这里撤掉：后面的“重读成功再写 / 删后可写 / 故障过去后接回旧条目”都要真读文件
+  Object.assign(fs, { renameSync: orig.renameSync, copyFileSync: orig.copyFileSync, openSync: orig.openSync });
   fs.chmodSync(file, 0o600);
 }
 const bads = (f) => fs.readdirSync(path.dirname(f)).filter((n) => n.startsWith(path.basename(f) + ".bad-"));

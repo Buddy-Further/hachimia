@@ -65,8 +65,16 @@ test("saveState：原子写；目录写不进时返回 false 而不是抛", () =
   assert.equal(fs.readdirSync(D).filter((n) => n.includes(".tmp-")).length, 0);
   const ro = path.join(D, "ro");
   fs.mkdirSync(ro); fs.chmodSync(ro, 0o500);
-  assert.equal(writeAtomic(path.join(ro, "x.json"), "{}"), false);
-  fs.chmodSync(ro, 0o700);
+  // root 下 chmod 500 拦不住 open：在 ro 目录下建临时文件的 open 直接注入 EACCES，
+  // 与非 root 下真实权限失败走同一条 writeAtomic catch → false 分支。只影响 ro 之下的路径。
+  const origOpen = fs.openSync;
+  fs.openSync = (p, ...a) => { if (String(p).startsWith(ro + path.sep)) throw Object.assign(new Error("EACCES: permission denied, " + p), { code: "EACCES" }); return origOpen(p, ...a); };
+  try {
+    assert.equal(writeAtomic(path.join(ro, "x.json"), "{}"), false);
+  } finally {
+    fs.openSync = origOpen;
+    fs.chmodSync(ro, 0o700);
+  }
 });
 
 // 兜底：在子进程里试（要真装 uncaughtException）

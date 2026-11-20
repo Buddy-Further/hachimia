@@ -29,13 +29,18 @@ after(() => fs.rmSync(path.join(PATHS.projects, "-b2-bm"), { recursive: true, fo
 
 test("projects 目录读不出来：书签原样回、标 unreadable，不清空（195-Y.8）", async () => {
   fs.chmodSync(PATHS.projects, 0o000);
+  // root 下 chmod 000 拦不住 accessSync(R_OK)：对 PATHS.projects 的 accessSync 直接注入
+  // EACCES，走 bookmarks.mjs:84 的同一道 gate（canList=false → unreadable 分支）。只精确匹配该目录。
+  // 注入同时修掉 root 下的副作用：不再走正常分支，随机 sid 的书签就不会被判 gone 并落盘清空。
+  const origAccess = fs.accessSync;
+  fs.accessSync = (p, ...a) => { if (path.resolve(String(p)) === path.resolve(PATHS.projects)) throw Object.assign(new Error("EACCES: permission denied, " + p), { code: "EACCES" }); return origAccess(p, ...a); };
   try {
     const r = await call("GET", "/api/bookmarks");
     assert.equal(r.code, 200);
     assert.equal(r.body.unreadable, true);
     assert.equal(r.body.items.length, 1);
     assert.deepEqual(JSON.parse(fs.readFileSync(BM_FILE, "utf8")).map((x) => x.id), ["b1"], "盘上的书签不能被清掉");
-  } finally { fs.chmodSync(PATHS.projects, 0o755); }
+  } finally { fs.accessSync = origAccess; fs.chmodSync(PATHS.projects, 0o755); }
 });
 
 test("写入失败：回 500 write_failed，内存里也回滚（195-N.1）", async () => {
