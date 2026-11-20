@@ -139,6 +139,32 @@ function snapshot() {
     provider: structuredClone(providers.PROVIDER), providers: structuredClone(providers.PROVIDERS_CFG), settings: structuredClone(SETTINGS), apiKey: providers.API_KEY,
     upstream: CFG.upstream, model: CFG.model };
 }
+// 基线落稳：ctime 会在文件创建后数 ms 内自发漂移一次（只变大、无用户态改动，
+// 见 hachimia-bugfix/ci-investigate-bridge-models.md §2/§5），取在漂移前的基线
+// 会让 assert.deepEqual(snapshot(), before) 误报。落稳只移动基线取值时刻：
+// 每 2ms 对全部受保护文件 stat 一次，直到连续两次 ctimeNs 全一致；另设最短
+// 观察窗 6ms——已观测到的最晚漂移在创建后 3.5ms，连续两次采样可能恰好都
+// 落在漂移之前，只要求“两次一致”不够。上限 50ms，超时取最后一次值继续，
+// 不抛错、不 skip。断言与 snapshot() 字段一字不动。
+async function settleProtectedFiles() {
+  const deadline = Date.now() + 50;
+  const started = Date.now();
+  let previous = null;
+  for (;;) {
+    const current = new Map(protectedFiles.map((file) => {
+      try { return [file, fs.statSync(file, { bigint: true }).ctimeNs]; }
+      catch { return [file, null]; }
+    }));
+    if (previous) {
+      let stable = true;
+      for (const [file, ctime] of current) if (previous.get(file) !== ctime) { stable = false; break; }
+      if (stable && Date.now() - started >= 6) return;
+    }
+    if (Date.now() >= deadline) return;
+    previous = current;
+    await delay(2);
+  }
+}
 function noSecrets(text) {
   for (const secret of [upstreamSecret, oldSecret, ambientSecret, localSecret]) assert.equal(text.includes(secret), false, "HTTP 不得泄露任何假凭据");
   for (const value of ["keyTail", "connectionPath", "untrusted fixture diagnostic", home, prefix]) assert.equal(text.includes(value), false, "HTTP 不得转发组件私有诊断或路径");
@@ -181,7 +207,7 @@ function success(result, models = protocol().models, truncated = false) {
   assert.equal(result.status, 200); assert.deepEqual(result.body, { ok: true, models, truncated });
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   restoreMemory();
   for (const file of [marker, releaseFile, stoppedFile, registration, mapping, record, component, ...protectedFiles]) fs.rmSync(file, { force: true });
   fs.rmSync(target, { recursive: true, force: true });
@@ -189,6 +215,7 @@ beforeEach(() => {
   // 完全离线的索引缓存只供断言 COMP_JOBS 对外 phase；绝不调用下载或安装。
   compIndexCache.at = Date.now(); compIndexCache.error = "";
   compIndexCache.data = { components: { "openai-bridge": { name: { zh: "fixture", en: "fixture" }, builds: [], source: "preset" } } };
+  await settleProtectedFiles();
 });
 afterEach(() => restoreMemory());
 after(() => {
@@ -636,6 +663,23 @@ for (const mode of ["signature-mismatch", "overlong"]) test(`真实 HTTP ${mode}
     assert.deepEqual(calls(), []); assert.deepEqual(snapshot(), before);
     success(await request());
   } finally { server.closeAllConnections(); await new Promise((resolve) => server.close(resolve)); }
+});
+
+test("落稳对照：同权限 chmod 只改 ctime 时 snapshot 仍能抓到（基线落稳不得洗掉检测能力）", async () => {
+  const before = snapshot();
+  // 文件时间戳以约 1ms 的 tick 推进：等 2ms 再 chmod，保证 chmod 落在比基线更晚的 tick 上、
+  // ctimeNs 一定变化；否则 chmod 可能与基线落在同一 tick 内，对照本身测不到东西。
+  await delay(2);
+  fs.chmodSync(registration, 0o600); // 与 put() 的创建权限相同，只动 ctime
+  assert.throws(() => assert.deepEqual(snapshot(), before), assert.AssertionError);
+  const after = snapshot();
+  const beforeEntry = before.files.find(([file]) => file === registration)[1];
+  const afterEntry = after.files.find(([file]) => file === registration)[1];
+  assert.equal(afterEntry.bytes, beforeEntry.bytes);
+  assert.equal(afterEntry.mode, beforeEntry.mode);
+  assert.equal(afterEntry.ino, beforeEntry.ino);
+  assert.equal(afterEntry.mtimeNs, beforeEntry.mtimeNs);
+  assert.notEqual(afterEntry.ctimeNs, beforeEntry.ctimeNs);
 });
 
 test("安装记录损坏/入口软链/缺失时模型接口不执行其他脚本或回传私有路径", async () => {
