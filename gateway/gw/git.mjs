@@ -549,7 +549,7 @@ async function handleGit(req, res, p, u) {
     if (st.code) return sendJson(res, 500, { error: st.err || tz("读不出这个文件的状态") });
     if (!st.out) return sendJson(res, 200, { ok: true, message: tz("没有改动") });
     if (st.out.startsWith("??")) {
-      try { fs.rmSync(path.join(root, file), { force: true }); } catch (e) { return sendJson(res, 500, { error: e.message }); }
+      try { fs.rmSync(path.join(root, file), { recursive: true, force: true }); } catch (e) { return sendJson(res, 500, { error: e.message }); }
     } else {
       // 上次提交里没有这个路径（已暂存的新文件、重命名的新名字，或还没有任何提交）：改回去就是没有它 ——
       // 取消跟踪再删掉，跟没跟踪过的新文件一样；重命名还要把旧文件从上次提交里取回来（#106 07-004）
@@ -567,7 +567,7 @@ async function handleGit(req, res, p, u) {
         if (orig && fs.existsSync(path.join(root, orig))) return sendJson(res, 409, { error: tz("{f} 那里已经有个文件了，先挪开再撤销", { f: orig }) });
         const r = await git(root, ["rm", "--cached", "-f", "-q", "--", file]);
         if (r.code) return sendJson(res, 500, { error: r.err });
-        try { fs.rmSync(path.join(root, file), { force: true }); } catch (e) { return sendJson(res, 500, { error: e.message }); }
+        try { fs.rmSync(path.join(root, file), { recursive: true, force: true }); } catch (e) { return sendJson(res, 500, { error: e.message }); }
         if (orig) {
           const o = await git(root, ["checkout", "HEAD", "--", orig]);
           if (o.code) return sendJson(res, 500, { error: o.err });

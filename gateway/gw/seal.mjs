@@ -219,6 +219,11 @@ function pluginFiles(dir) {
     for (const e of ents) {
       const s = path.join(src, e.name), r = rel ? rel + "/" + e.name : e.name;
       if (!rel && ["hooks", "settings.json", ".in_use", ".orphaned_at", ".git", "node_modules"].includes(e.name)) continue;
+      // G4：插件自带的 .mcp.json（MCP 服务器，指向插件内任意脚本）/.lsp.json（LSP 服务器）会被 Claude 加载插件时直接启动——
+      // 钩子剥掉、设置不回填，却把这两扇门原样拷进副本，等于封口绕过。MCP 只走 --mcp-config（mcpConfig()，项目 .mcp.json 本就不回填），
+      // 插件里的这两类文件不拷。官方语义只在插件根目录（Declare it in `.mcp.json` at the plugin root），但嵌套目录里的同名文件
+      // 拷进去也没有合法用途，只多一个被当成配置读到的口子，所以任何深度都不拷。
+      if (e.name === ".mcp.json" || e.name === ".lsp.json") continue;
       let st; try { st = fs.statSync(s); } catch { continue; }
       if (st.isDirectory()) { if (depth < 8) walk(s, r, depth + 1); continue; }
       if (!st.isFile()) continue;

@@ -1,7 +1,8 @@
 // 项目自带的「会自动运行的配置」：网关用 -p 起 claude，-p 不弹工作区信任框，下面这些打开就跑（2.1.311 实测）——
 //   · 工作目录 .claude/settings.json、settings.local.json 里的 hooks、env、各种 *Helper、插件、MCP 开关……
 //   · 工作目录以及每一级上级目录的 .mcp.json（claude 会一路往上找；/sdcard/.mcp.json 任何有存储权限的应用都能放）
-//   · 工作目录 .claude/agents、.claude/skills 里 frontmatter 带 hooks 的
+//   · 工作目录 .claude/agents、.claude/commands、.claude/skills 里 frontmatter 带 hooks 的（G5：commands 原先漏扫，
+//     既不报警、指纹也不含它，事后加 hooks 不会重新弹信任框）
 //   · 工作目录 .claude/output-styles 里的风格（选中就进系统提示）
 // 实测不加载的（不用扫）：上级目录的 .claude/settings*.json（git 根也不读）、--add-dir 目录里的 .mcp.json。
 // clone 下来的仓库、别的应用放进共享存储的文件都可能带这些。起一轮前先看一眼：有、又没被用户认过，就出一张卡片问；
@@ -87,16 +88,16 @@ export function projectRisks(cwd) {
     d = up;
   }
   let n = 0;
-  for (const sub of ["agents", "skills"]) {
+  for (const sub of ["agents", "skills", "commands"]) {
     const base = path.join(cwd, ".claude", sub);
     let ents; try { ents = fs.readdirSync(base, { withFileTypes: true }); } catch { continue; }
     for (const e of ents) {
       if (++n > 300) { risks.push(`${path.join(".claude", sub)}: > 300`); break; }
-      const f = sub === "agents" ? (e.name.endsWith(".md") ? path.join(base, e.name) : null) : path.join(base, e.name, "SKILL.md");
+      const f = sub === "skills" ? path.join(base, e.name, "SKILL.md") : (e.name.endsWith(".md") ? path.join(base, e.name) : null);
       const r = f && readSmall(f);
       if (!r || (!r.big && !hasFrontHooks(r.raw))) continue;
       take(f, r);
-      risks.push(`${path.join(".claude", sub, sub === "agents" ? e.name : e.name + "/SKILL.md")}: ${r.big ? "?" : "hooks"}` + (r.big ? "" : breachNote(r.raw)));
+      risks.push(`${path.join(".claude", sub, sub === "skills" ? e.name + "/SKILL.md" : e.name)}: ${r.big ? "?" : "hooks"}` + (r.big ? "" : breachNote(r.raw)));
     }
   }
   // 项目自带的输出风格：选中（项目设置里的 outputStyle 就能选）就成了系统提示的一部分（输出风格目录的安全报告，11-04）

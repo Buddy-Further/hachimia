@@ -664,6 +664,71 @@ public class GatewayService extends Service {
         return false;
     }
 
+    /** 安装子进程的 cmdline：install-agy.sh / install-agy.mjs（Updater.installClaude / checkClaude）与
+     *  install-claude.mjs。它们经 Env.apply() 也带 CCAPP_TOKEN_FILE 标记，但从不监听网关端口。 */
+    static boolean isInstallerCmd(String cmd) {
+        return cmd != null && (cmd.contains("install-agy") || cmd.contains("install-claude"));
+    }
+
+    /** 第二轮清扫的准入（纯逻辑，可单测）：只凭环境变量不够。候选进程必须同时满足——
+     *  环境里带 CCAPP_TOKEN_FILE，且占着网关端口（/proc/net/tcp{,6} + /proc/<pid>/fd 的证据），
+     *  且 cmdline 不是安装子进程——才认定是网关死后留下的冒牌网关。
+     *  标记本身不能识别网关进程：Env.apply() 把它放进每个子进程的环境，安装子进程（耗时数分钟的下载/安装）
+     *  与网关后代都带着它；以前只凭标记就 SIGKILL，正在安装 agy 的子进程会被杀掉、安装失败 rc=137
+     *  （agycodroid 1.0.2 在 Meizu 18 上出过的事故，这里原样重现，G1/A6）。端口证据是区分两者的关键：
+     *  冒牌网关占着端口才需要清扫，安装子进程从不监听端口。读 /proc 失败时按“不是”算，宁可不杀（SQUAT_HIJACKED），
+     *  也不错杀。 */
+    static boolean squattableLeftover(boolean hasTokenEnv, boolean holdsPort, String cmd) {
+        return hasTokenEnv && holdsPort && !isInstallerCmd(cmd);
+    }
+
+    /** /proc/net/tcp{,6} 里监听网关端口的 socket（LISTEN，状态 0A）：返回 "socket:[inode]" 的集合。
+     *  只认回环地址上的监听：127.0.0.1 / 127.0.0.2 / 0.0.0.0（IPv4 全绑也占住回环），::1 / ::（IPv6 同理，
+     *  含 ::ffff:127.0.0.1 映射形）。/proc 里地址是 16 进制、每 32 位一组小端序：
+     *  127.0.0.1 → tcp 里是 0100007F，tcp6 映射形是 0000000000000000FFFF00000100007F。 */
+    static java.util.Set<String> listenSocketInodes(int port) {
+        java.util.Set<String> out = new java.util.HashSet<>();
+        String hexPort = String.format("%04X", port);
+        for (String f : new String[]{"/proc/net/tcp", "/proc/net/tcp6"}) {
+            boolean v6 = f.endsWith("6");
+            java.util.List<String> lines;
+            try { lines = java.nio.file.Files.readAllLines(new File(f).toPath()); } catch (Exception e) { continue; }
+            for (String ln : lines) {
+                String[] p = ln.trim().split("\\s+");
+                if (p.length < 10) continue;
+                String[] la = p[1].split(":");
+                if (la.length != 2 || !la[1].equalsIgnoreCase(hexPort) || !"0A".equalsIgnoreCase(p[3])) continue;
+                String ip = la[0];
+                boolean loopback = v6
+                    ? ip.equals("00000000000000000000000000000000")          // ::
+                    || ip.equals("00000000000000000000000001000000")          // ::1
+                    || ip.equals("0000000000000000FFFF00000100007F")          // ::ffff:127.0.0.1（每 32 位组小端序，FFFF 在前）
+                    || ip.equals("0000000000000000FFFF00000200007F")          // ::ffff:127.0.0.2
+                    : ip.equals("0100007F") || ip.equals("0200007F") || ip.equals("00000000");
+                if (loopback) out.add("socket:[" + p[9] + "]");
+            }
+        }
+        return out;
+    }
+
+    /** pid 的 /proc/<pid>/fd 里有没有上面那组 socket（即 pid 占着网关端口）。同 uid 才能读到，读不到按没有算。 */
+    static boolean pidHoldsSocket(int pid, java.util.Set<String> sockets) {
+        if (sockets == null || sockets.isEmpty()) return false;
+        File[] fds = new File("/proc/" + pid + "/fd").listFiles();
+        for (File fd : fds == null ? new File[0] : fds) {
+            try {
+                String target = java.nio.file.Files.readSymbolicLink(fd.toPath()).toString();
+                if (sockets.contains(target)) return true;
+            } catch (Exception ignored) {}
+        }
+        return false;
+    }
+
+    /** pid 是不是占着网关端口（listenSocketInodes + pidHoldsSocket 的组合，调用方直接用这个）。 */
+    static boolean holdsGatewayPort(int pid, int port) {
+        return pidHoldsSocket(pid, listenSocketInodes(port));
+    }
+
     /** 端口有人占着、又证明不了自己。本应用自己的残留网关（旧版没有 /__proof，或令牌换过）就请它退出，按 SQUAT_NO 照常起；
      *  杀不着的是别的应用 —— 不起网关，也不往那儿交任何东西（SQUAT_HIJACKED）。
      *  清理期间要是有能证明自己的网关起来了（SQUAT_ADOPTED），交给上面的 alive() 接管，不再拉一个新的撞端口。
@@ -697,11 +762,16 @@ public class GatewayService extends Service {
             killed += gw.size();
             sleep(500);
         }
-        // 再看一遍：网关拉起的进程（claude、钩子、终端里跑的东西）环境里都带着 CCAPP_TOKEN_FILE。网关已经不在了，
-        // 它们占着端口、又证明不了自己，多半是会话里起的冒牌网关（反破甲 11-03，DeepSeek 复核必修 2）：杀掉再起。
-        // 把这个变量摘掉再起的认不出来；那种情况强行停止应用（整个 uid 的进程一起结束）就能恢复。
-        // 上面刚把网关杀掉时更要走这里：被 SIGKILL 的网关没机会收尾，它的 claude 子树就靠这一段兜底（0.6.9 审计 13-02）
+        // 再看一遍：端口上那个证明不了自己的，除了第一轮认出的网关本体，还可能是网关死后留下的冒牌网关
+        // （会话里起的、占着端口又证明不了自己，反破甲 11-03，DeepSeek 复核必修 2）：占着端口的才清扫。
+        // 只凭环境变量不能认：CCAPP_TOKEN_FILE 经 Env.apply() 进了每个子进程的环境，安装子进程
+        // （install-agy.sh 下载安装 agy，耗时数分钟）与网关后代都带着它；以前见标记就 SIGKILL，
+        // 正在安装的子进程会被杀掉、安装失败 rc=137（G1/A6）。所以这里要两道证据才杀：带标记 + 占着网关端口，
+        // 且 cmdline 不是安装子进程（squattableLeftover）。不占端口的一律不碰，端口仍被占就按 SQUAT_HIJACKED 处理。
+        // 上面刚把网关杀掉时更要走这里：被 SIGKILL 的网关没机会收尾，它的 claude 子树就靠这一段兜底（0.6.9 审计 13-02）——
+        // 但兜底也只兜占着端口的冒牌网关，不占端口的残留子进程不在此列。
         int mine = android.os.Process.myPid();
+        java.util.Set<String> portSockets = null;   // 懒算：只有见到带标记的进程才读 /proc/net/tcp{,6}
         for (File d : ps == null ? new File[0] : ps) {
             String name = d.getName();
             if (!name.matches("\\d+") || Integer.parseInt(name) == mine) continue;
@@ -709,8 +779,16 @@ public class GatewayService extends Service {
                 if (android.system.Os.stat(d.getPath()).st_uid != me) continue;
                 String envs = new String(java.nio.file.Files.readAllBytes(new File(d, "environ").toPath()), java.nio.charset.StandardCharsets.UTF_8);
                 if (!("\0" + envs).contains("\0CCAPP_TOKEN_FILE=")) continue;
-                Log.w(TAG, "端口被占、网关不在：结束网关留下的进程 pid=" + name);
-                android.os.Process.sendSignal(Integer.parseInt(name), 9);
+                int pid = Integer.parseInt(name);
+                String cmd = new String(java.nio.file.Files.readAllBytes(new File(d, "cmdline").toPath()), java.nio.charset.StandardCharsets.UTF_8);
+                if (isInstallerCmd(cmd)) { Log.w(TAG, "端口被占、网关不在：pid=" + name + " 是安装子进程，不碰"); continue; }
+                if (portSockets == null) portSockets = listenSocketInodes(Env.PORT);
+                if (!squattableLeftover(true, pidHoldsSocket(pid, portSockets), cmd)) {
+                    Log.w(TAG, "端口被占、网关不在：pid=" + name + " 带网关标记但不占网关端口（安装子进程/残留子进程），不碰");
+                    continue;
+                }
+                Log.w(TAG, "端口被占、网关不在：结束占着网关端口的残留进程 pid=" + name);
+                android.os.Process.sendSignal(pid, 9);
                 killed++;
             } catch (Exception ignored) {}
         }
