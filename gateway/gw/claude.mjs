@@ -716,13 +716,18 @@ export function syncAgySettings(p = PROVIDER, key = keyOf(p)) {
   let obj = {};
   try { obj = JSON.parse(fs.readFileSync(file, "utf8")) || {}; } catch {}
   if (typeof obj !== "object" || Array.isArray(obj)) obj = {};
-  const isApiKey = !!(p && !p.login && (p.authStyle === "gemini-api-key" || p.authType === "gemini-api-key" || p.group === "antigravity" || p.custom) && key);
+  // 只有 Gemini 协议才算 API Key 模式：group/custom 不能当依据，否则自定义 Bearer 端点
+  // 也会被写成 modelProvider=gemini（C3）。登录类厂商（antigravity 订阅等）不走这里。
+  const isApiKey = !!(p && !p.login && (p.authStyle === "gemini-api-key" || p.authType === "gemini-api-key") && key);
   let changed = false;
   if (isApiKey) {
     if (obj.modelProvider !== "gemini") { obj.modelProvider = "gemini"; changed = true; }
     // 自定义端点声明的模型写入官方 customModelsConfig，供 agy 识别非默认模型名
     const baseClean = String(p.baseUrl || "").trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
-    const isCustomEp = !!baseClean && !/^generativelanguage\.googleapis\.com$/i.test(baseClean);
+    // 只比 hostname：官方地址带路径（如 /v1beta）时整串比较会误判为自定义端点（C4）
+    let baseHost = "";
+    try { baseHost = new URL(String(p.baseUrl || "").trim()).hostname; } catch { baseHost = baseClean.split("/")[0] || ""; }
+    const isCustomEp = !!baseClean && !/^generativelanguage\.googleapis\.com$/i.test(baseHost);
     const modelIds = [...new Set([
       p.defaultModel,
       p.fastModel,
@@ -759,7 +764,10 @@ export function syncAgySettings(p = PROVIDER, key = keyOf(p)) {
 export function agyEnv(o = {}) {
   const p = o.provider || PROVIDER;
   const key = keyOf(p);
-  syncAgySettings(p, key);
+  // sync:false = 只组装环境，不碰 ~/.gemini/antigravity-cli/settings.json。
+  // 登录探针（login.mjs 的 authEnv）必须用它：只读操作不得删掉 API Key 模式的配置（A4）。
+  // 真跑（run.mjs / caps.mjs）默认同步，切换厂商时 settings.json 跟着走。
+  if (o.sync !== false) syncAgySettings(p, key);
   const env = {
     ...process.env,
     HOME: CFG.home,
@@ -781,7 +789,9 @@ export function agyEnv(o = {}) {
   delete env.AGY_ADC_AUTH;
   if (p.authType === "agent-platform" || p.authStyle === "adc") {
     env.AGY_ADC_AUTH = "true";
-  } else if (key && !p.login) {
+  } else if (key && !p.login && (p.authStyle === "gemini-api-key" || p.authType === "gemini-api-key")) {
+    // 只有 Gemini 协议才注入 GEMINI_API_KEY：第三方厂商（DeepSeek/GLM 等）的 key
+    // 绝不能冒充 Gemini key、baseUrl 也绝不能冒充 Gemini 端点（C1）
     env.GEMINI_API_KEY = key;
     if (p.baseUrl && !/^https:\/\/generativelanguage\.googleapis\.com\/?$/i.test(p.baseUrl)) {
       env.GOOGLE_GEMINI_BASE_URL = p.baseUrl;

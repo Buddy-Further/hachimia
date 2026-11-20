@@ -2,7 +2,7 @@ import { log } from "./config.mjs";
 import { SETTINGS, saveSettings } from "./settings-store.mjs";
 import { PROVIDER, providerById } from "./providers.mjs";
 import { defaultCompactLine, effortLevelsOf, fetchModels, normEffort } from "./models.mjs";
-import { effectiveAutoCompact } from "./stream.mjs";
+import { clampAutoCompact, effectiveAutoCompact } from "./stream.mjs";
 import { effectiveModel, setSessModel } from "./sessmodel.mjs";
 
 // ── /model 与 /effort：由网关本地处理 ─────────────────────────────────
@@ -53,12 +53,16 @@ export async function handleLocalCommand(name, arg, reply, sid, stopped = () => 
       );
     }
     const a = arg.trim().toLowerCase();
-    let n = null;
+    let n = null, rawN = null;
     if (!/^(off|default|reset|auto|0)$/.test(a)) {
       const m = a.match(/^(\d+(?:\.\d+)?)\s*([km]?)$/);
       if (!m) return reply(`看不懂 \`${arg.trim()}\`。写成 \`400k\`、\`1m\` 或纯数字；恢复默认用 \`off\`。`, "autocompact");
       n = Math.round(Number(m[1]) * (m[2] === "m" ? 1e6 : m[2] === "k" ? 1e3 : 1));
       if (n < 10000) return reply(`${fmt(n)} 太小了，压缩线至少 10k。`, "autocompact");
+      // 与 effectiveAutoCompact()、设置页同一口径：claude 只认 100k–1M，存钳制后的值，
+      // 回复也写钳制后的值，三处才一致（C10）。不钳制时回复写 50k、生效 100k、claude 拿 50k。
+      rawN = n;
+      n = clampAutoCompact(n);
     }
     SETTINGS.autoCompactWindow = n;
     const persisted = saveSettings();
@@ -66,6 +70,7 @@ export async function handleLocalCommand(name, arg, reply, sid, stopped = () => 
     return reply(
       (n ? `自动压缩线已设为 **${fmt(n)} tokens**。上下文达到该阈值时将自动执行 \`/compact\`（若当前已超过会立即触发）。`
         : "自动压缩线已恢复默认（由 Antigravity 按模型窗口决定）。") +
+      (n && n !== rawN ? `\n\n> **注意**：你填的 ${fmt(rawN)} 超出可用范围 100k–1M，已按 ${fmt(n)} 生效。` : "") +
       (n && win && n > win ? `\n\n> **注意**：比当前模型的窗口（${fmt(win)}）还大，实际会先撞上窗口上限。` : "") +
       (persisted ? "" : "\n\n> **注意**：设置没能写入磁盘，只在本次运行内生效；重启后会恢复。"),
       "autocompact"
@@ -127,7 +132,7 @@ export async function handleLocalCommand(name, arg, reply, sid, stopped = () => 
       `- 上下文窗口：${Math.round((target.context_window || 0) / 1024)}k\n` +
       `- 输入模态：${(target.input_modalities || []).join(" / ")}\n` +
       `- effort 档位：${(target.effort?.supported_levels || []).join(" / ")}\n` +
-      (effChanged ? `- **注意**：原 effort 该模型不支持，已调为 \`${eff}\`\n` : "") +
+      (effChanged ? `- **注意**：原 effort 该模型不支持，已调为${eff ? ` \`${eff}\`` : "默认（未设置）"}\n` : "") +
       `\n下一条消息生效${scope}。`,
       "model"
     );

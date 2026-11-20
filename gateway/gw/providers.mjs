@@ -702,10 +702,14 @@ export function upsertProvider(id, b, prepare) {
   const cur = { ...(PROVIDERS_RAW.providers[id] || {}) };
   let keyCleared = false;
   const str = (v) => String(v == null ? "" : v).trim();
-  // 预置厂商还没 Key、这次又什么都没给：别回「已保存」，其实什么都没配上（审查 P3-3）
-  if (PRESETS[id] && !isNew && "apiKey" in b && !str(b.apiKey) && !cur.apiKey && !b.clearKey
+  // 预置厂商还没 Key、这次又什么都没给：别回「已保存」，其实什么都没配上（审查 P3-3）。
+  // 登录类厂商除外：它们本来就不用 Key（C13）。
+  if (PRESETS[id] && !PRESETS[id].login && !isNew && "apiKey" in b && !str(b.apiKey) && !cur.apiKey && !b.clearKey
     && !["endpoint", "defaultModel", "fastModel"].some((k) => k in b && str(b[k]) && str(b[k]) !== str(cur[k]))) return { error: "need_key", message: tz("先把 API Key 粘进来再保存") };
-  if ("apiKey" in b && str(b.apiKey)) cur.apiKey = str(b.apiKey);   // 空串 = 不改（界面上不回显旧密钥）
+  // 登录类厂商（订阅登录）没有 API Key 可言：填进来的 key 是杂 key，存下就会关掉登录态（C13）。不存，只警告。
+  let keyIgnored = false;
+  if (PRESETS[id] && PRESETS[id].login && "apiKey" in b && str(b.apiKey)) keyIgnored = true;
+  if ("apiKey" in b && str(b.apiKey) && !keyIgnored) cur.apiKey = str(b.apiKey);   // 空串 = 不改（界面上不回显旧密钥）
   if (b.clearKey) delete cur.apiKey;
   // 图片随消息发（兼容兜底，见 inlineimg.mjs）：预置和自定义都能开
   if ("inlineImages" in b) { if (b.inlineImages === true) cur.inlineImages = true; else delete cur.inlineImages; }
@@ -767,6 +771,9 @@ export function upsertProvider(id, b, prepare) {
   const conn = (v) => [v.apiKey, v.baseUrl, v.authStyle, v.endpoint].map((x) => String(x || "")).join("\0");
   if (!isNew && conn(PROVIDERS_RAW.providers[id] || {}) !== conn(cur) && [...RUNS.values()].some((r) => !r.ended && r.provider === id))
     return { error: "busy", status: 409, message: tz("这一家正在用，等这一轮跑完再改地址或密钥。") };
+  // 登录类厂商上以前存下的杂 key：这次保存顺手清掉（否则 claudeEnv 会走 key 分支、不走登录态，见 C13）。
+  // 放在 busy 检查之后：清 key 不改变“正在跑”的判定，免得改个默认模型也被 409 挡住。
+  if (PRESETS[id] && PRESETS[id].login && cur.apiKey) { delete cur.apiKey; keyCleared = true; }
   // 受管桥先持久化非秘密的旧/新指纹，再同步写接口；回调不接收密钥，HTTP 请求也不能提供它。
   const rollback = prepare?.(id), previous = PROVIDERS_RAW.providers[id];
   PROVIDERS_RAW.providers[id] = cur;
@@ -778,8 +785,9 @@ export function upsertProvider(id, b, prepare) {
   }
   if (id === PROVIDER.id) applyProvider();
   dropModelCache();   // 会话可能钉在不是全局的这家上：哪家改了都清，免得清单/窗口还是旧的
-  log(`[provider] 已保存 ${id}${"apiKey" in b && str(b.apiKey) ? "（含密钥）" : ""}`);
+  log(`[provider] 已保存 ${id}${"apiKey" in b && str(b.apiKey) && !keyIgnored ? "（含密钥）" : ""}`);
   return { ok: true, id, provider: providerView(id, PROVIDERS_CFG.providers[id]), ...(keyCleared ? { keyCleared: true } : {}),
+    ...(keyIgnored ? { keyIgnored: true, warning: tz("登录类厂商不用填 API Key，登录走官方流程；这次填的密钥没有保存。") } : {}),
     ...(plainRemote(cur.baseUrl) ? { plainHttp: true, warning: tz("这个地址是明文 http，密钥和对话内容会不加密地发到对方机器上；能用 https 就换成 https。") } : {}) };
 }
 
