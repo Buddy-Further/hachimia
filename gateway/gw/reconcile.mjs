@@ -18,6 +18,7 @@ import { COMP_DIR, breathe, compRecord, compRepair, devkitIdentity } from "./com
 import { modInstalled, modRepair, modulesInfo } from "./modules.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
 import { privCall } from "./usage.mjs";
+import { isAgyOnlyMode } from "./providers.mjs";
 
 const STATE = PREFIX ? path.join(CFG.home, ".cache", "cccodroid", "reconcile.json") : "";
 const CUSTOM_DIR = PREFIX ? path.join(CFG.home, ".cccodroid", "custom") : "";
@@ -115,7 +116,9 @@ export async function reconcileNow() {
   if (!dk) add("devkit", "error", tz("找不到工具包的安装标记（.devkit-ok），工具包可能没装完"), null, tz("设置 → 更新：修复工具包"), null, DEVKIT);
   // 用户主动卸载 Claude Code 会留 files/.claude-uninstalled：这是正常状态，别再报红教人重装（0.6.9 审计 195-M.7）
   const claudeUninstalled = PREFIX && exists(path.join(path.dirname(PREFIX), ".claude-uninstalled"));
-  if (PATHS.claude && !fs.existsSync(PATHS.claude) && !claudeUninstalled) add("claude", "error", tz("找不到 Antigravity CLI (agy) 程序"), null, tz("设置 → 更新：重装 Antigravity CLI (agy)"), [PATHS.claude], CLAUDE);
+  // 纯 agy 模式下没有 Claude Code 程序也不需要它：PATHS.claude 指的文件不存在是正常状态，
+  // 不是缺文件（A7 的连带；以前这里无条件报 error，纯 agy 设备上会误报红）。
+  if (!isAgyOnlyMode() && PATHS.claude && !fs.existsSync(PATHS.claude) && !claudeUninstalled) add("claude", "error", tz("找不到 Antigravity CLI (agy) 程序"), null, tz("设置 → 更新：重装 Antigravity CLI (agy)"), [PATHS.claude], CLAUDE);
 
   // ── 组件 ──
   let recs = [];

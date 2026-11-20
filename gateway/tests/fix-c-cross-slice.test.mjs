@@ -30,16 +30,25 @@ rl.on("line", (line) => {
 });
 `;
 
-// C2：run.mjs:430 的 authType 默认映射把非登录厂商都标成 gemini-api-key
-test.skip("C2（跨片：run.mjs:430）：DeepSeek 不得默认映射成 gemini-api-key", async () => {
-  const { providerById } = await import("../gw/providers.mjs");
-  const ds = providerById("deepseek");
-  const authType = ds.authType || (ds.login ? "oauth-personal" : "gemini-api-key");   // 与 run.mjs:430 同款表达式
-  assert.notEqual(authType, "gemini-api-key", "第三方厂商不得默认成 Gemini 认证方式");
+// C2：run.mjs 的 authType 默认映射把非登录厂商都标成 gemini-api-key。
+// 测真实接线：providers.mjs 导出的 acpAuthType（run.mjs 即用它），不再内联旧表达式复述。
+test("C2（跨片：run.mjs）：DeepSeek 不得默认映射成 gemini-api-key", async () => {
+  const { acpAuthType, providerById } = await import("../gw/providers.mjs");
+  assert.equal(acpAuthType(providerById("deepseek")), "deepseek-api-key", "第三方厂商用自己的 api-key 类型");
+  assert.equal(acpAuthType(providerById("gemini-key")), "gemini-api-key", "真 Gemini 厂商仍是 gemini-api-key");
+  assert.equal(acpAuthType(providerById("antigravity")), "oauth-personal", "登录类厂商是 oauth-personal");
+  assert.equal(acpAuthType(providerById("antigravity-enterprise")), "oauth-business", "企业登录保持 oauth-business");
+  assert.equal(acpAuthType(providerById("anthropic-key")), "anthropic-key-api-key");
+  assert.notEqual(acpAuthType(providerById("deepseek")), "gemini-api-key", "第三方厂商不得默认成 Gemini 认证方式");
+  // run.mjs 必须走这个 helper，不得再留旧的默认表达式
+  const runSrc = fs.readFileSync(new URL("../gw/run.mjs", import.meta.url), "utf8");
+  assert.ok(runSrc.includes("acpAuthType(P)"), "run.mjs 应调用 acpAuthType(P)");
+  assert.ok(!runSrc.includes('P.authType || (P.login ? "oauth-personal" : "gemini-api-key")'),
+    "run.mjs 不得再有默认 gemini-api-key 的旧表达式");
 });
 
 // C6：ACP 模型切换静默失败——agy 没有该模型时 init 不得宣称已切
-test.skip("C6（跨片：acp.mjs）：agy 没有 gemini-4-neon 时，init 不得宣称已用它", async () => {
+test("C6（跨片：acp.mjs）：agy 没有 gemini-4-neon 时，init 不得宣称已用它", async () => {
   const { runAcpTurn, closeAcpSession } = await import("../gw/acp.mjs");
   const tmp = fs.mkdtempSync(path.join(CFG.home, "fix-c-c6-"));
   const mockBin = mockAgy(tmp, BASE_MOCK);
@@ -53,7 +62,7 @@ test.skip("C6（跨片：acp.mjs）：agy 没有 gemini-4-neon 时，init 不得
 });
 
 // C7：/compact 假成功——post > pre 时不得补发 compacted
-test.skip("C7（跨片：acp.mjs）：/compact 后上下文不降反升时不得发 compacted", async () => {
+test("C7（跨片：acp.mjs）：/compact 后上下文不降反升时不得发 compacted", async () => {
   const { runAcpTurn, closeAcpSession } = await import("../gw/acp.mjs");
   const tmp = fs.mkdtempSync(path.join(CFG.home, "fix-c-c7-"));
   const mockBin = mockAgy(tmp, `
@@ -90,7 +99,7 @@ rl.on("line", (line) => {
 });
 
 // C16：无 usage_update 时整轮累计用量不得冒充单步上下文
-test.skip("C16（跨片：acp.mjs）：全程无 usage_update 时，累计 900000 不得当成 context_tokens", async () => {
+test("C16（跨片：acp.mjs）：全程无 usage_update 时，累计 900000 不得当成 context_tokens", async () => {
   const { runAcpTurn, closeAcpSession } = await import("../gw/acp.mjs");
   const tmp = fs.mkdtempSync(path.join(CFG.home, "fix-c-c16-"));
   const mockBin = mockAgy(tmp, `

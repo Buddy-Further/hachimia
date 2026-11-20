@@ -324,9 +324,13 @@ rl.on("line", (line) => {
   });
   assert.equal(res.ok, true, res.error);
   assert.equal(res.resultText, "mode=accept-edits,model=gemini-4-neon,effort=xhigh");
-  assert.equal(res.usage?.context_tokens, 10000);
+  // C16：全程无 usage_update 时，promptRes.usage 的整轮累计值（2000+8000）不得冒充单步
+  // context_tokens——留空，只保留累计的 input/output 统计。
+  assert.equal(res.usage?.context_tokens, undefined, "整轮累计值不得冒充单步上下文");
+  assert.equal(res.usage?.input_tokens, 2000);
+  assert.equal(res.usage?.cache_read_input_tokens, 8000);
   assert.equal(res.usage?.output_tokens, 55);
-  assert.ok(events.some((e) => e.type === "usage" && e.contextTokens === 10000 && e.outputTokens === 55));
+  assert.ok(!events.some((e) => e.type === "usage" && e.contextTokens === 10000), "不得把整轮累计和推送到上下文条");
 });
 
 test("syncAgySettings & agyEnv：在 Gemini API Key 与 Google 订阅模式间切换", () => {

@@ -3,8 +3,8 @@ import crypto from "node:crypto";
 import { spawn } from "node:child_process";
 import { CFG, LAST_LANG, PATHS, log, tr, tz, permModeAction } from "./config.mjs";
 import { SETTINGS, capList, settingsDiskCheck } from "./settings-store.mjs";
-import { PERM_MODES, PROVIDER, billAfterRun, keyOf, noteTokenDelta, providerById, providersDiskCheck } from "./providers.mjs";
-import { ALIAS_SEEN, effortLevelsOf, fetchModels, isLoginMode, modelsCached, normEffort } from "./models.mjs";
+import { PERM_MODES, PROVIDER, acpAuthType, billAfterRun, keyOf, noteTokenDelta, providerById, providersDiskCheck } from "./providers.mjs";
+import { ALIAS_SEEN, defaultAcpCompactLine, effortLevelsOf, fetchModels, isLoginMode, learnWindow, modelsCached, normEffort } from "./models.mjs";
 import { agyEnv, bridgeSwitching, claudeAtLeast, claudeCmd, claudeEnv, currentModelInfo, ensureBridge, safeModePerm, settingsArgs } from "./claude.mjs";
 import { runAcpTurn, stopAcpBgTask } from "./acp.mjs";
 import { expandCustomCommand } from "./commands.mjs";
@@ -267,6 +267,25 @@ export function clearAcpTurnMarkers(run, acpRes) {
   }
 }
 
+/** ACP 轮后自动压缩线（C9-2）：用户显式设的线优先，否则按 ACP 默认线
+ * defaultAcpCompactLine（窗口八成、给总结留 40k，原生厂商也适用）。
+ * agy 不读 CLAUDE_CODE_AUTO_COMPACT_WINDOW，只认 effectiveAutoCompact() 时，
+ * 默认配置下 ACP 模式就没有任何阈值压缩保护。 */
+export function acpAutoCompactLine(ctxWin, p) {
+  return effectiveAutoCompact() ?? defaultAcpCompactLine(ctxWin, p);
+}
+
+/** C5-2：把 ACP 轮的 usage_update.size（即 acpRes.usage.context_window）喂给 learnWindow。
+ * 纯 agy 模式下这是唯一的窗口学习来源——不喂，解析时记 0 的窗口永远纠正不了，
+ * 上下文条与自动压缩线就一直按未知窗口算。 */
+export function feedAcpWindow({ model: modelId, contextWindow, provider }) {
+  const win = Number(contextWindow) || 0;
+  const id = String(modelId || "").trim();
+  if (!win || !id) return false;
+  learnWindow({ modelUsage: { [id]: { contextWindow: win, maxOutputTokens: 0 } } }, provider);
+  return true;
+}
+
 export async function startRun(item) {
   const { sid0, pdef0, P } = pickProvider(item);
   const KEY = keyOf(P);
@@ -458,7 +477,7 @@ export async function startRun(item) {
       model,
       effort,
       permMode,
-      authType: P.authType || (P.login ? "oauth-personal" : "gemini-api-key"),
+      authType: acpAuthType(P),
       apiKey: KEY || "",
       mcpServers: [],
       addDirs: item.addDirs || [],
@@ -525,6 +544,8 @@ export async function startRun(item) {
     }
     clearAcpTurnMarkers(run, acpRes);   // ACP 回合走到结果：清「未完成」标记与中断卡（B7）
     const ctxWin = Number(acpRes.usage?.context_window) || Number(currentModelInfo(model, P).context_window) || 0;
+    // C5-2：把本轮 usage_update.size 学到的窗口喂给 learnWindow（纯 agy 模式唯一的学习来源）
+    if (ctxWin > 0) feedAcpWindow({ model: acpRes.model || model, contextWindow: ctxWin, provider: P });
     const usageOut = acpRes.usage
       ? { ...acpRes.usage, ...(ctxWin > 0 ? { context_window: ctxWin } : {}) }
       : undefined;
@@ -561,7 +582,7 @@ export async function startRun(item) {
       if (isCompactMsg || run.auto === "autocompact" || run.auto === "idle") {
         ACP_AUTOCOMPACT.set(run.sessionId, { at: Date.now(), post: usedCtx });
       } else if (!message.trim().startsWith("/") && !run.auto) {
-        const acLine = effectiveAutoCompact();
+        const acLine = acpAutoCompactLine(ctxWin, P);   // C9-2：未设线时按 ACP 默认线（窗口八成），不是没有线
         const prevAc = ACP_AUTOCOMPACT.get(run.sessionId);
         const cooled = !prevAc || (Date.now() - prevAc.at > 60000) || (usedCtx > (prevAc.post || 0) + 10000);
         if (acLine && usedCtx >= acLine && cooled) {

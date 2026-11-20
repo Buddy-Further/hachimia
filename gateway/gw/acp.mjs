@@ -220,18 +220,17 @@ function extractAcpUsage(u, prev = null, { isTurnTotal = false } = {}) {
     ctx = inp + cached;
   } else if (!isTurnTotal && total > out) {
     ctx = total - out;
-  } else if (isTurnTotal && !(prev?.context_tokens > 0)) {
-    // 兜底：若该 ACP 实现整轮都没发过 usage_update，再从终态推一次上下文
-    const fallback = inp + cached > 0 ? inp + cached : (total > out ? total - out : 0);
-    if (fallback > 0) ctx = fallback;
   }
+  // C16：全程无 usage_update 时，整轮累计值（inputTokens/totalTokens）只是“这一轮一共用了多少”，
+  // 不是“当前上下文占了多少”——不得把它冒充成单步 context_tokens。没有单步依据时就留空，
+  // 由调用方按“未知”处理，而不是拿累计值去画上下文条、比自动压缩线。
 
   if (ctx <= 0 && out <= 0 && inp <= 0 && nextWin <= 0) return prev;
   return {
     input_tokens: inp || prev?.input_tokens || 0,
     ...(cached > 0 ? { cache_read_input_tokens: cached } : (prev?.cache_read_input_tokens ? { cache_read_input_tokens: prev.cache_read_input_tokens } : {})),
     output_tokens: out || prev?.output_tokens || 0,
-    context_tokens: ctx,
+    ...(ctx > 0 ? { context_tokens: ctx } : {}),
     ...(nextWin > 0 ? { context_window: nextWin } : {}),
   };
 }
@@ -1176,14 +1175,19 @@ export async function runAcpTurn({
 
       // 2. authenticate（若 agent 声明了 authMethods 且我们指定了认证方式）
       const authMethods = Array.isArray(initRes?.authMethods) ? initRes.authMethods : [];
+      // 厂商自己的 api-key 类型（deepseek-api-key 等，见 providers.mjs 的 acpAuthType）不是
+      // ACP 官方认证方法，agy 永远不会声明它：不得按 A16 抛错，也不得把别家 key 塞进
+      // authenticate 的 _meta（C2）。这种 key 由 agyEnv/settings 等带外通道交给 agy，这里跳过。
+      const isVendorApiKey = typeof authType === "string" && authType !== "gemini-api-key" && /-api-key$/.test(authType);
+      if (isVendorApiKey) log(`[agy-acp] ${authType}：非 ACP 官方认证方法，跳过 authenticate（key 走带外通道）`);
       // agent 声明了认证方式、却不含网关要用的那一种时，不得静默跳过、用默认/错误的
       // 认证跑下去——当场失败并报出双方的 id（A16）。agent 什么都没声明时保持旧行为
       // （跳过），那种 agent 不靠 ACP authenticate 认证。
-      if (authType && authMethods.length && !authMethods.some((m) => m.id === authType)) {
+      if (authType && !isVendorApiKey && authMethods.length && !authMethods.some((m) => m.id === authType)) {
         const declared = authMethods.map((m) => m.id).filter(Boolean).join(", ") || "(无)";
         throw new Error(`[agy-acp] agent 未声明认证方式 ${authType}（已声明：${declared}），无法按该方式认证`);
       }
-      if (authType && authMethods.some((m) => m.id === authType)) {
+      if (authType && !isVendorApiKey && authMethods.some((m) => m.id === authType)) {
         const authParams = { methodId: authType };
         if (authType === "gemini-api-key" && apiKey) {
           authParams._meta = { "api-key": apiKey };
@@ -1258,6 +1262,24 @@ export async function runAcpTurn({
 
     state.sessionId = activeSessionId;
     if (run) run.sessionId = activeSessionId;
+    // C6：agent 明确列出可用模型、所选模型不在其中时，不得静默跳过 set_config_option、
+    // 又在下面的 init 里宣称已切到新模型——在 init 发出前就失败，让调用方知道没切过去。
+    // agent 没列清单（两处都不是数组）时沿用旧行为：直接发 set_config_option，由 agent 决定。
+    const cfgModelOpts = sessConfig?.find((c) => c.id === "model")?.options;
+    const availModels = sessModels?.availableModels;
+    const modelListsDeclared = (Array.isArray(cfgModelOpts) && cfgModelOpts.length > 0)
+      || (Array.isArray(availModels) && availModels.length > 0);
+    const modelOffered = !modelListsDeclared
+      || (Array.isArray(cfgModelOpts) && cfgModelOpts.some((o) => o.value === model || o.id === model))
+      || (Array.isArray(availModels) && availModels.some((m) => m.modelId === model || m.id === model));
+    const modelSwitchNeeded = !!(model && (!reused || poolEntry?.model !== model));
+    if (modelSwitchNeeded && !modelOffered) {
+      const offered = [
+        ...(Array.isArray(availModels) ? availModels.map((m) => m.modelId || m.id).filter(Boolean) : []),
+        ...(Array.isArray(cfgModelOpts) ? cfgModelOpts.map((o) => o.value || o.id).filter(Boolean) : []),
+      ];
+      throw new Error(`[agy-acp] agent 不提供模型 ${model}（可用：${[...new Set(offered)].join(", ") || "(无)"}），无法切换`);
+    }
     const activeModel = model || sessModels?.currentModelId || "antigravity";
     const capsNow = buildCapabilities();
     emit({
@@ -1288,19 +1310,13 @@ export async function runAcpTurn({
     }
 
     // 4. 可选：应用模型、思考强度与权限模式（兼容 models.availableModels 与 configOptions）
-    if (model && (!reused || poolEntry?.model !== model)) {
-      const cfgModelOpts = sessConfig?.find((c) => c.id === "model")?.options;
-      const avail = sessModels?.availableModels;
-      const okModel = (!Array.isArray(cfgModelOpts) && !Array.isArray(avail))
-        || (Array.isArray(cfgModelOpts) && cfgModelOpts.some((o) => o.value === model || o.id === model))
-        || (Array.isArray(avail) && avail.some((m) => m.modelId === model || m.id === model));
-      if (okModel) {
-        await client.request("session/set_config_option", {
-          sessionId: activeSessionId,
-          configId: "model",
-          value: model,
-        }, 10000).catch(() => {});
-      }
+    //    模型不在清单里时上面已在 init 前抛错，这里只剩“清单没列 / 在清单里”两种情况，直接发。
+    if (modelSwitchNeeded) {
+      await client.request("session/set_config_option", {
+        sessionId: activeSessionId,
+        configId: "model",
+        value: model,
+      }, 10000).catch(() => {});
     }
     if (effort && (!reused || poolEntry?.effort !== effort)) {
       const effOpts = sessConfig?.find((c) => c.id === "thought_level")?.options;
@@ -1376,15 +1392,28 @@ export async function runAcpTurn({
     }
 
     // agy acp 1.5.13 执行 /compact 时不发 compaction_update 也不吐正文，只回 usage_update + end_turn：
-    // 主动补发 compacted 通知给前端刷新进度条与提示，避免显示空白气泡让人以为命令无效
+    // 主动补发 compacted 通知给前端刷新进度条与提示，避免显示空白气泡让人以为命令无效。
+    // C7：补发前必须校验真的压下去了（post < pre，且两者都已知）——不校验就发，前端会显示
+    // “已压缩”而上下文根本没降（agy 不支持压缩时 post 反而更大）。未校验通过时只发提示，不发 compacted。
     if (isCompactCmd && !state.sawCompacted) {
       const postCtx = Number(state.usage?.context_tokens) || null;
-      emit({
-        type: "compacted",
-        trigger: run?.auto ? "auto" : "manual",
-        pre: preCompactCtx > 0 ? preCompactCtx : null,
-        post: postCtx,
-      });
+      if (preCompactCtx > 0 && postCtx != null && postCtx < preCompactCtx) {
+        emit({
+          type: "compacted",
+          trigger: run?.auto ? "auto" : "manual",
+          pre: preCompactCtx,
+          post: postCtx,
+        });
+      } else {
+        emit({
+          type: "note",
+          key: "acp-compact-unverified",
+          text: tz("压缩未确认：上下文没有下降（压缩前 {pre}，压缩后 {post}），请重试 /compact 或换新会话。", {
+            pre: preCompactCtx > 0 ? String(preCompactCtx) : "未知",
+            post: postCtx != null ? String(postCtx) : "未知",
+          }),
+        });
+      }
     }
 
     // 若有工具在回合结束时还没收到终态 update，补发一次完成结果，避免前端卡片永远卡在「运行中」
@@ -1416,17 +1445,19 @@ export async function runAcpTurn({
         usage: state.usage,
       });
     } else if (state.usage?.context_tokens > 0) {
-      persistAcpAssistantOnly({
-        cwd,
-        sessionId: activeSessionId,
-        assistantText: preCompactCtx > 0
-          ? `上下文已压缩：${preCompactCtx.toLocaleString()} → ${state.usage.context_tokens.toLocaleString()} tokens`
-          : "上下文已压缩",
-        thinking: "",
-        tools: [],
-        model: activeModel,
-        usage: state.usage,
-      });
+      // C7：只有校验过真的压下去了（post < pre）才记“已压缩”摘要；否则不写这条，
+      // 免得会话历史里留下一句假的压缩记录。最新用量仍由池内 lastContextTokens 保留。
+      if (preCompactCtx > 0 && state.usage.context_tokens < preCompactCtx) {
+        persistAcpAssistantOnly({
+          cwd,
+          sessionId: activeSessionId,
+          assistantText: `上下文已压缩：${preCompactCtx.toLocaleString()} → ${state.usage.context_tokens.toLocaleString()} tokens`,
+          thinking: "",
+          tools: [],
+          model: activeModel,
+          usage: state.usage,
+        });
+      }
     }
 
     emit({

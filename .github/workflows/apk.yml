@@ -97,7 +97,7 @@ jobs:
           rm -f "$RUNNER_TEMP/key.json"
           # 证书指纹：正式包必须是 hachimia 正式钥匙那一张（D3:41…F4:5A:48），对不上就别出包——
           # 钥匙被意外换掉时不会静默发出别的证书签的「正式包」（审查 v0.5.7 L12）。测试包只打出来看
-          # 注意：README 里还写着旧的 cccodroid 指纹（B7:03…8F:E0），那是错的，以下面这行 EXPECT 为准
+          # 注意：README 里的指纹已与正式钥匙一致（D3:41…F4:5A:48），与下面这行 EXPECT 相符
           EXPECT=d341c391a825bbb730397f009f7b8254b97a00db57cae254fa14aa3a2ff45a48
           for a in dist/hachimia.apk dist/hachimia-36.apk; do
             got=$("$BT/apksigner" verify --print-certs "$a" | sed -n 's/.*certificate SHA-256 digest: //p' | head -1)

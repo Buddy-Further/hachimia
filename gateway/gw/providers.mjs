@@ -611,6 +611,19 @@ export function isAgyOnlyMode() {
   return !!(PATHS.agy && fs.existsSync(PATHS.agy) && !(PATHS.claude && fs.existsSync(PATHS.claude)));
 }
 
+/** ACP authenticate 用的认证方式：按厂商真实认证方式映射（C2）。
+ * 预置已声明的 authType 原样用；登录类（无声明，如 anthropic 订阅）→ oauth-personal；
+ * API Key 类 → 该厂商自己的 `<id>-api-key`，绝不能默认 gemini-api-key——
+ * 否则别家 key 会被当成 Gemini key 塞进 authenticate 的 _meta（且 agyEnv 早已不注 Gemini 变量，
+ * 两边对不上）。端侧小模型不走 ACP，返回 null。 */
+export function acpAuthType(p) {
+  if (!p) return null;
+  if (p.authType) return p.authType;
+  if (p.local) return null;
+  if (p.login) return "oauth-personal";
+  return `${p.id}-api-key`;
+}
+
 /** 判断某接口是否应该显示给当前客户端（纯 Antigravity 模式下隐藏无法驱动的 Claude/Anthropic-only 预设） */
 export function isProviderVisible(id, v) {
   if (!v) return false;

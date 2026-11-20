@@ -1,4 +1,5 @@
 import http from "node:http";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -713,12 +714,25 @@ export async function routeClaude(req, res, u, p) {
 export function syncAgySettings(p = PROVIDER, key = keyOf(p)) {
   const dir = path.join(CFG.home, ".gemini", "antigravity-cli");
   const file = path.join(dir, "settings.json");
-  let obj = {};
-  try { obj = JSON.parse(fs.readFileSync(file, "utf8")) || {}; } catch {}
-  if (typeof obj !== "object" || Array.isArray(obj)) obj = {};
   // 只有 Gemini 协议才算 API Key 模式：group/custom 不能当依据，否则自定义 Bearer 端点
   // 也会被写成 modelProvider=gemini（C3）。登录类厂商（antigravity 订阅等）不走这里。
   const isApiKey = !!(p && !p.login && (p.authStyle === "gemini-api-key" || p.authType === "gemini-api-key") && key);
+  // A14：解析失败时不得静默重置成 {} 再写回——那会丢掉用户原有配置。
+  // 原文件保留不动，只记日志并返回 error；调用方（agyEnv）按旧配置继续跑。
+  let obj;
+  try {
+    obj = JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch (e) {
+    if (e.code === "ENOENT") obj = {};
+    else {
+      log(`[agy] settings.json 解析失败，保留原文件不动：${e.message}`);
+      return { file, isApiKey, error: `settings.json 解析失败：${e.message}` };
+    }
+  }
+  if (typeof obj !== "object" || obj === null || Array.isArray(obj)) {
+    log("[agy] settings.json 不是 JSON 对象，保留原文件不动");
+    return { file, isApiKey, error: "settings.json 不是 JSON 对象" };
+  }
   let changed = false;
   if (isApiKey) {
     if (obj.modelProvider !== "gemini") { obj.modelProvider = "gemini"; changed = true; }
@@ -755,8 +769,20 @@ export function syncAgySettings(p = PROVIDER, key = keyOf(p)) {
   if (changed) {
     try {
       fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(file, JSON.stringify(obj, null, 2) + "\n", { mode: 0o600 });
-    } catch (e) { log(`[agy] 写入 settings.json 失败: ${e.message}`); }
+      // A14：原子写——先写同目录临时文件（随机名、0600、独占创建），fsync 后 rename。
+      // 同步函数内无 await，读-改-写本身不会被同进程交错；rename 保证读者永远看到
+      // 完整的新旧其一，不会读到写一半的文件。失败时临时文件尽力清掉，原文件不动。
+      const tmp = file + "." + crypto.randomBytes(12).toString("hex") + ".tmp";
+      const fd = fs.openSync(tmp, "wx", 0o600);
+      try {
+        fs.writeFileSync(fd, JSON.stringify(obj, null, 2) + "\n");
+        fs.fsyncSync(fd);
+      } finally { fs.closeSync(fd); }
+      try { fs.renameSync(tmp, file); } catch (e) { try { fs.rmSync(tmp, { force: true }); } catch {} throw e; }
+    } catch (e) {
+      log(`[agy] 写入 settings.json 失败: ${e.message}`);
+      return { file, isApiKey, error: `写入 settings.json 失败：${e.message}` };
+    }
   }
   return { file, isApiKey };
 }

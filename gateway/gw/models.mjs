@@ -71,7 +71,33 @@ export function normalizeModels(j) {
 // 端侧：下过模型（或用自己配的 local-mode.json）才算。用户还能在设置里把某家从选单里藏起来（hidden），配置照留
 let LOGGED_IN = null;
 export function noteLoggedIn(v) { LOGGED_IN = v == null ? null : !!v; }   // null = 当没问过（测试复位用）
-const loginReady = () => (LOGGED_IN != null ? LOGGED_IN : (fs.existsSync(path.join(CFG.home, ".gemini", "antigravity-cli")) || fs.existsSync(path.join(CFG.home, ".claude", ".credentials.json"))));
+// A15：agy 登录凭据只认 agy 自己的目录，与 login.mjs 的 hasAgySessionFiles 同口径：
+// ~/.gemini/antigravity-cli、~/.config/antigravity、~/.antigravity 里非空的
+// cred/token/auth/oauth/session/profile 文件（.json 的还须是合法非空对象）。
+// ~/.claude/.credentials.json 是 Claude Code 的凭据，agy 从不读它，不能算 agy 已登录；
+// 空目录（A2/A3 同类）也不算。
+const agySessionFilesReady = () => {
+  for (const d of [".gemini/antigravity-cli", ".config/antigravity", ".antigravity"]) {
+    let names;
+    try { names = fs.readdirSync(path.join(CFG.home, d)); } catch { continue; }
+    for (const f of names) {
+      if (!/cred|token|auth|oauth|session|profile/i.test(f) || f.endsWith(".bak")) continue;
+      const fp = path.join(CFG.home, d, f);
+      let st;
+      try { st = fs.statSync(fp); } catch { continue; }
+      if (!st.isFile() || st.size === 0) continue;
+      if (/\.json$/i.test(f)) {
+        try {
+          const j = JSON.parse(fs.readFileSync(fp, "utf8"));
+          if (!j || typeof j !== "object" || Array.isArray(j) || !Object.keys(j).length) continue;
+        } catch { continue; }
+      }
+      return true;
+    }
+  }
+  return false;
+};
+const loginReady = () => (LOGGED_IN != null ? LOGGED_IN : agySessionFilesReady());
 // 每次开选单都扫模型目录不值当：结果记 5 秒
 let LOCAL_AT = 0, LOCAL_OK = false;
 const localReady = () => {
