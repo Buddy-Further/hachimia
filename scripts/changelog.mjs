@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = path.join(ROOT, "gateway/web/changelog");
 const WN = path.join(ROOT, "android/assets/whatsnew");
-const REPO = "greyoak111/hachimia";
+const REPO = "Buddy-Further/hachimia";
 
 const cmpVer = (a, b) => {
   const x = a.split(/[.-]/).map(Number), y = b.split(/[.-]/).map(Number);

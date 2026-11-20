@@ -14,7 +14,7 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 OLDB=/data/user/0/li.dsh.claudecli/files/bldtools
 [ -d "$OLDB" ] || OLDB=${BLDTOOLS:-$HOME/.bldtools}
 TOKEN=${TOKEN:-$OLDB/gh-token-hachimia}
-REPO=greyoak111/hachimia
+REPO=Buddy-Further/hachimia
 APK="$ROOT/dist/hachimia.apk"
 # 双方案：hachimia-36.apk（targetSdk 36）同版本一起发；没打出来就只发 28 的
 APK36="$ROOT/dist/hachimia-36.apk"
