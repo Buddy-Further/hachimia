@@ -79,6 +79,36 @@ export function acpAgentSpawn(cwd, sessionId, { id, name, prompt }) {
     return d;
   } catch { return null; }
 }
+/** ACP 子代理联络落盘（MIG-25 / F-1）：send_message 的 msg 写 index.jsonl，
+ *  长正文（>300 字）另存 msgs/*.md（与 CLI 的 agentBook 同格式），断线重连后 readAgentIndex 仍能读到。
+ *  无 cwd/会话号时静默跳过。 */
+export function acpAgentMsg(cwd, sessionId, { mid, from = "main", to = "subagent", why, body }) {
+  if (!cwd || !sessionId || !mid) return null;
+  try {
+    const dir = agentsDir(cwd, sessionId);
+    fs.mkdirSync(dir, { recursive: true });
+    let file = null;
+    const text = String(body || "");
+    if (text.length > LONG) {
+      file = path.join(dir, "msgs", `${stamp()}-${slug(from)}-to-${slug(to)}-${slug(String(mid).slice(-8))}.md`);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, text + "\n");
+    }
+    fs.appendFileSync(path.join(dir, "index.jsonl"), JSON.stringify({ at: Date.now(), k: "msg", mid: String(mid),
+      from: String(from), to: String(to), why: clip(String(why || "").trim() || firstLine(text), WHY_MAX), file }) + "\n");
+    return file;
+  } catch { return null; }
+}
+/** ACP send_message 的送达回执落盘（与 msg 配对，k:"msg_ok"）。 */
+export function acpAgentMsgOk(cwd, sessionId, { mid, ok, err }) {
+  if (!cwd || !sessionId || !mid) return;
+  try {
+    const dir = agentsDir(cwd, sessionId);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.appendFileSync(path.join(dir, "index.jsonl"), JSON.stringify({ at: Date.now(), k: "msg_ok", mid: String(mid),
+      ok: !!ok, ...(ok ? {} : { err: clip(String(err || ""), 120) }) }) + "\n");
+  } catch {}
+}
 export function acpAgentDone(cwd, sessionId, { id, dir, name, status, why, report }) {
   if (!cwd || !sessionId || !id) return;
   try {

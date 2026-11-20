@@ -5,7 +5,8 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
 import { CFG, HERE, PATHS, PREFIX, log, tz } from "./config.mjs";
-import { claudeEnv, ensureShell, killTree, termKeyFile } from "./claude.mjs";
+import { claudeEnv, ensureShell, killTree, syncAgySettings, termKeyFile } from "./claude.mjs";
+import { PROVIDER, keyOf } from "./providers.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
 
 // ── 应用内终端 ────────────────────────────────────────────────────────
@@ -68,6 +69,23 @@ function ptyCommand() {
   const py = [PREFIX && path.join(PREFIX, "bin", "python3"), path.join(CFG.runtime, "..", "devbin", "python3")]
     .find((p) => p && fs.existsSync(p));
   return py ? [py, "-c", PY_PTY] : null;
+}
+
+/** MIG-28：终端开启（每次 spawn 前）按当前厂商同步一次 agy 设置。
+ *  只同步 ~/.gemini/antigravity-cli/settings.json（modelProvider / customModelsConfig），
+ *  绝不把 GEMINI_API_KEY 注入终端环境——终端里跑的命令同样能 `env` 打印，
+ *  与 claudeEnv“密钥不进 env”的原则冲突。fail-open：同步失败只记日志，终端照常开，
+ *  终端里的 agy 按旧配置跑的风险见报告“开放问题”。
+ *  开放问题（待真机核对）：官方文档称 API Key 模式要 settings.json + GEMINI_API_KEY
+ *  两者齐全才生效，仅同步 settings.json 时终端里的 agy 在 API Key 模式下是否仍无 key 可用，
+ *  需在真机上切 gemini-key、不发消息、开终端跑 `agy models` 核对。 */
+export function syncTermAgySettings(p = PROVIDER, key = keyOf(p)) {
+  try {
+    return syncAgySettings(p, key);
+  } catch (e) {
+    log(`[term] 同步 agy 设置失败（终端按旧配置跑）：${e.message}`);
+    return { error: String(e?.message || e) };
+  }
 }
 
 // ── 应用内终端：新开 / 读写 / 关闭 ──────────────────────────────────
@@ -142,6 +160,9 @@ function termNew({ cols, rows, login, cwd: want } = {}) {
   const shell = ensureShell();
   // want：从项目页「在终端打开」带来的目录；不是目录就退到工作区（工作区也不可用再退 home），落哪儿会说一声
   const { cwd, note: cwdNote } = resolveTermCwd(want);
+  // MIG-28：开终端前按当前厂商同步一次 agy 设置（切厂商后不开 ACP 轮次、终端里的 agy
+  // 就按旧配置跑的问题根源）。只同步 settings.json，不注 GEMINI_API_KEY（见 syncTermAgySettings）。
+  syncTermAgySettings();
   // login：给手动登录用的终端。环境和账户登录一样清掉第三方厂商的地址 / 密钥 / 模型，
   // 开好后替用户敲下 SSH_CONNECTION=1 agy（Remote SSH OAuth 流程），并把该点的登录入口
   // 写进终端提示——授权码由用户贴给 agy 自己的提示，网关只当字节通道

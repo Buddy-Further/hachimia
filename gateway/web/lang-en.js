@@ -3441,4 +3441,11 @@ window.I18N_DICT.en = {
   "这个版本没有原生层，只记 CPU 时间（电量、亮屏要 hachimia）。": "This build has no native layer, so only CPU time is recorded (battery and screen-on need hachimia).",
   "Antigravity CLI 程序被改过，已拒绝启动；": "The Antigravity CLI program was modified and was not started; ",
   "Antigravity CLI 杂物": "Antigravity CLI housekeeping files",
+  "该模型不支持思考强度「{effort}」，已按默认跑。": "This model doesn't support thinking level \"{effort}\"; running with the default instead.",
+  "思考强度「{effort}」设置被 agent 拒绝（{msg}），已按默认跑。": "The agent rejected thinking level \"{effort}\" ({msg}); running with the default instead.",
+  "该厂商在 Antigravity 下暂不支持：Antigravity CLI 没有通用第三方 API Key 通道，密钥送不进 agy。请声明 protocol:\"gemini\"（端点须讲 Gemini 协议），或换用 Gemini / 订阅登录厂商。": "This provider isn't supported under Antigravity yet: the Antigravity CLI has no generic third-party API key channel, so the key can't reach agy. Declare protocol:\"gemini\" (the endpoint must speak the Gemini protocol), or switch to a Gemini / sign-in provider.",
+  "在 Antigravity 下暂不支持": "Not supported under Antigravity",
+  "在 Antigravity 下暂不支持：Antigravity CLI 没有通用第三方 API Key 通道。请声明 protocol:\"gemini\"（端点须讲 Gemini 协议），或换用 Gemini / 订阅登录厂商。": "Not supported under Antigravity: the Antigravity CLI has no generic third-party API key channel. Declare protocol:\"gemini\" (the endpoint must speak the Gemini protocol), or switch to a Gemini / sign-in provider.",
+  "端侧小模型需要 Claude Code，当前设备只有 Antigravity CLI，暂不可用。": "On-device models need Claude Code; this device only has the Antigravity CLI, so they're unavailable for now.",
+  "未填（ACP 下无默认压缩线）": "Not set (no default compaction line under ACP)"
 };

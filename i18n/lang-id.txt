@@ -3401,3 +3401,11 @@
 3398	This build has no native layer, so only CPU time is recorded (battery and screen-on need hachimia).
 3399	The Antigravity CLI program was modified and was not started; 
 3400	Antigravity CLI housekeeping files
+// TODO i18n (MIG-deep-p1)
+3401	This model doesn't support thinking level "{effort}"; running with the default instead.
+3402	The agent rejected thinking level "{effort}" ({msg}); running with the default instead.
+3403	This provider isn't supported under Antigravity yet: the Antigravity CLI has no generic third-party API key channel, so the key can't reach agy. Declare protocol:"gemini" (the endpoint must speak the Gemini protocol), or switch to a Gemini / sign-in provider.
+3404	Not supported under Antigravity
+3405	Not supported under Antigravity: the Antigravity CLI has no generic third-party API key channel. Declare protocol:"gemini" (the endpoint must speak the Gemini protocol), or switch to a Gemini / sign-in provider.
+3406	On-device models need Claude Code; this device only has the Antigravity CLI, so they're unavailable for now.
+3407	Not set (no default compaction line under ACP)

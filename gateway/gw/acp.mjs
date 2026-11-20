@@ -22,7 +22,7 @@ import { onShutdown } from "./crashguard.mjs";
 import { buildCapabilities, setLastInit } from "./caps.mjs";
 import { publish } from "./bus.mjs";
 import { noteAuthTier } from "./login.mjs";
-import { acpAgentSpawn, acpAgentDone } from "./agents.mjs";
+import { acpAgentSpawn, acpAgentDone, acpAgentMsg, acpAgentMsgOk } from "./agents.mjs";
 import { parseGoalPrompt, applyGoalCommand } from "./goal.mjs";
 
 export const ACP_PROTOCOL_VERSION = 1;
@@ -439,10 +439,18 @@ function trackAcpToolSideEffects(phase, tool, state, emit) {
   if (name === "send_message") {
     const rawTo = String(inp.Recipient || "").trim();
     const to = byConv.get(rawTo) || rawTo || "subagent";
+    const body = String(inp.Message || "");
     if (phase === "start") {
-      emit({ type: "ag", k: "msg", mid: tool.id, from: "main", to, why: firstLineOf(inp.Message || "", 80), at: Date.now() });
+      emit({ type: "ag", k: "msg", mid: tool.id, from: "main", to, why: firstLineOf(body, 80), at: Date.now() });
+      // MIG-25：msg 只走瞬时事件、断线重连后查不到——同时写联络簿落盘（F-1 补齐）。
+      if (state.cwd && state.sessionId) {
+        try { acpAgentMsg(state.cwd, state.sessionId, { mid: tool.id, from: "main", to, why: firstLineOf(body, 80), body }); } catch {}
+      }
     } else if (phase === "done") {
       emit({ type: "ag", k: "msg_ok", mid: tool.id, ok: !tool.isError, err: tool.isError ? firstLineOf(tool.output) : null, at: Date.now() });
+      if (state.cwd && state.sessionId) {
+        try { acpAgentMsgOk(state.cwd, state.sessionId, { mid: tool.id, ok: !tool.isError, err: tool.isError ? firstLineOf(tool.output) : "" }); } catch {}
+      }
     }
     return;
   }
@@ -1160,6 +1168,8 @@ export async function runAcpTurn({
   // 本轮进来时用户指着的旧会话号；agent 不支持 resume/load 时会被静默换成新会话（B8），要明示
   const requestedSessionId = activeSessionId;
   let sessionSwitched = false;
+  // MIG-6：agent 确认生效的 effort（池里只记这个；不记请求值，否则下轮以为已生效不再重发）
+  let effortApplied = null;
 
   try {
     if (!reused) {
@@ -1324,15 +1334,27 @@ export async function runAcpTurn({
         value: model,
       }, 10000).catch(() => {});
     }
+    // MIG-6：thought_level 不在 agent 的 options 里时不得静默跳过——发 note 明示
+    // “该模型不支持此档位，已按默认跑”，不发 set_config_option；被 agent 拒绝时同样发 note，
+    // 绝不 .catch(()=>{}) 吞掉。两种情况 effortApplied 都留 null，池里不记为已生效，下轮重发。
     if (effort && (!reused || poolEntry?.effort !== effort)) {
       const effOpts = sessConfig?.find((c) => c.id === "thought_level")?.options;
-      if (Array.isArray(effOpts) && effOpts.some((o) => o.value === effort)) {
-        await client.request("session/set_config_option", {
-          sessionId: activeSessionId,
-          configId: "thought_level",
-          value: effort,
-        }, 10000).catch(() => {});
+      if (Array.isArray(effOpts) && !effOpts.some((o) => o.value === effort)) {
+        emit({ type: "note", key: "acp-effort-unsupported", text: tz("该模型不支持思考强度「{effort}」，已按默认跑。", { effort }) });
+      } else {
+        try {
+          await client.request("session/set_config_option", {
+            sessionId: activeSessionId,
+            configId: "thought_level",
+            value: effort,
+          }, 10000);
+          effortApplied = effort;
+        } catch (e) {
+          emit({ type: "note", key: "acp-effort-rejected", text: tz("思考强度「{effort}」设置被 agent 拒绝（{msg}），已按默认跑。", { effort, msg: String(e?.message || e) }) });
+        }
       }
+    } else if (effort && reused && poolEntry?.effort === effort) {
+      effortApplied = effort;   // 复用且池里记着已生效：本轮没重发，但仍是已生效的状态
     }
     if (permMode && (!reused || poolEntry?.permMode !== permMode)) {
       const modeId = mapUiModeToAcp(permMode, sessModes?.availableModes);
@@ -1533,7 +1555,9 @@ export async function runAcpTurn({
       entry.modes = sessModes;
       entry.configOptions = sessConfig;
       entry.model = model || sessModels?.currentModelId || entry.model || "antigravity";
-      entry.effort = effort;
+      // MIG-6：池里只记 agent 确认生效的 effort。没要 effort 的轮次不碰旧值；
+      // 要了但没生效（不支持/被拒）的记 null，下轮重发而不是永久静默失效。
+      entry.effort = effort ? effortApplied : entry.effort;
       entry.permMode = permMode;
       entry.knownToolIds = state.knownToolIds;
       entry.lastContextTokens = Number(state.usage?.context_tokens) || entry.lastContextTokens || 0;

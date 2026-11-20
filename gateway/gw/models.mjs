@@ -4,7 +4,7 @@ import { execFile } from "node:child_process";
 import { CFG, PATHS, log } from "./config.mjs";
 import { isObj, loadState, saveState } from "./statefile.mjs";
 import { SETTINGS } from "./settings-store.mjs";
-import { PROVIDER, fetchKeyed, keyOf, modelsUrlOk, providerBrief, providerById } from "./providers.mjs";
+import { PROVIDER, fetchKeyed, keyOf, modelsUrlOk, providerBrief, providerById, usesAcp } from "./providers.mjs";
 import { NEXT, fetchJsonCapped, sendJson } from "./http.mjs";
 import { localModels } from "./local.mjs";
 import { effectiveModel } from "./sessmodel.mjs";
@@ -269,18 +269,28 @@ const windowsShape = (j) => {
   return out;
 };
 let WINDOWS = loadState(PATHS.windows, { shape: windowsShape, fallback: () => ({}) }).data;
+/** 从 result.modelUsage 学窗口并落盘。返回是否真的学到（写入或此前已存有同一值）：
+ *  MIG-2：守卫从 nativeModels 改为“ACP 路径可学”——原生厂商、antigravity 组、
+ *  gemini-api-key 认证、protocol:"gemini" 声明的厂商都可学；纯 bearer 的第三方厂商
+ *  （Claude 路径的旧守卫）仍不学。返回 false 时调用方（feedAcpWindow）不得谎报已写入。 */
 export function learnWindow(result, p = PROVIDER) {
-  if (!p.nativeModels) return;
+  if (!p || p.local) return false;
+  const acpLearnable = p.nativeModels || p.group === "antigravity" || p.authStyle === "gemini-api-key"
+    || p.authType === "gemini-api-key" || p.protocol === "gemini";
+  if (!acpLearnable) return false;
+  let learned = false;
   let changed = false;
   for (const [id, u] of Object.entries((result && result.modelUsage) || {})) {
     const w = { context_window: Number(u && u.contextWindow) || 0, max_output_tokens: Number(u && u.maxOutputTokens) || 0 };
     if (!w.context_window) continue;
+    learned = true;
     // 别名也记一份（opus → claude-opus-5-5 是 init 里看到的），下次列表里别名那项也有窗口
     for (const k of [id, ...Object.keys(ALIAS_SEEN).filter((a) => ALIAS_SEEN[a] === id)]) {
       if (JSON.stringify(WINDOWS[k]) !== JSON.stringify(w)) { WINDOWS[k] = w; changed = true; }
     }
   }
   if (changed) saveState(PATHS.windows, WINDOWS);
+  return learned;
 }
 /** 别名（opus）学不到窗口 —— modelUsage 里记的是全名；别名就借 init 报过的那个全名 */
 export const ALIAS_SEEN = {};
@@ -649,10 +659,27 @@ export function defaultAcpCompactLine(win, p) {
   const n = Math.floor(Math.min(win * 0.8, win - 40000, 1000000) / 1000) * 1000;
   return n >= 40000 ? n : null;
 }
-export function compactLineOf(set, win, p) {
+export function compactLineOf(set, win, p, acp = false) {
   if (!set) return null;
+  // MIG-3：ACP 下触发侧（run.mjs 的 acpAutoCompactLine）直接用用户设的值，不按窗口兜底；
+  // 显示侧也一样：窗口未知时不再按 Claude 的 200k 截断，否则界面写的线与实际触发的线脱节。
+  if (acp && !(win > 0)) return set;
   const w = win > 0 ? win : (p && !p.nativeModels && !p.local ? 200000 : 0);
   return w ? Math.min(set, w) : set;
+}
+
+/** MIG-3：显示侧真正生效的压缩线（/api/models 与 /autocompact 共用，与 run.mjs 的
+ *  acpAutoCompactLine 同口径）：ACP 模式下默认线走 defaultAcpCompactLine（原生厂商也适用），
+ *  Claude 模式下走 defaultCompactLine。返回 { compactLine, compactDefault, acpMode }。 */
+export function effectiveCompactLines(win, p) {
+  const acp = usesAcp(p);
+  const set = effectiveAutoCompact();
+  const dflt = acp ? defaultAcpCompactLine(win, p) : defaultCompactLine(win, p);
+  return {
+    compactLine: compactLineOf(set, win, p, acp) ?? dflt,
+    compactDefault: set ? null : dflt,
+    acpMode: acp,
+  };
 }
 
 // ── 路由：/api/models ──
@@ -671,6 +698,7 @@ export async function routeModels(req, res, u, p) {
     // 只认同名：指定了（或那家有默认型号）却不在清单里，能力和窗口就是不知道，别借第一项的（#82，和 currentModelInfo 一致）
     const want = now.model || pp.defaultModel;
     const cur = (want ? own.find((m) => m.id === want) : own[0]) || {};
+    const lines = effectiveCompactLines(Number(cur.context_window) || 0, pp);
     return sendJson(res, 200, {
       models: ms,
       current: now.model || null,
@@ -690,10 +718,12 @@ export async function routeModels(req, res, u, p) {
       maxOutputTokens: Number(cur.max_output_tokens) || 0,
       autoCompactWindow: effectiveAutoCompact(),
       // 真正生效的压缩线：设得比模型窗口还大时，claude 按窗口来（不知道窗口的第三方型号按 200k 算），
-      // 界面别把 528k 当成压缩线报（#67）。设置页的输入框仍显示 autoCompactWindow
-      compactLine: compactLineOf(effectiveAutoCompact(), Number(cur.context_window) || 0, pp) ?? defaultCompactLine(Number(cur.context_window) || 0, pp),
+      // 界面别把 528k 当成压缩线报（#67）。设置页的输入框仍显示 autoCompactWindow。
+      // MIG-3：ACP 模式下按 ACP 默认线（原生厂商也给八成线），与触发侧一致；acpMode 供前端滑块区分口径。
+      compactLine: lines.compactLine,
       // 没设、由网关给了默认线（第三方型号）：设置页的滑块按它画，别再说「交给 claude」
-      compactDefault: effectiveAutoCompact() ? null : defaultCompactLine(Number(cur.context_window) || 0, pp),
+      compactDefault: lines.compactDefault,
+      acpMode: lines.acpMode,
     });
   }
   return NEXT;
