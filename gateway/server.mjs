@@ -217,6 +217,12 @@ server.listen(CFG.port, "127.0.0.1", () => {
     try { same = fs.readFileSync(PATHS.loader).equals(fs.readFileSync(path.join(PATHS.glibcLib, "ld-linux-aarch64.so.1"))); } catch {}
     log(`  执行方式 经加载器 · ld.so ${same ? "与工具包一致" : "⚠️ 与工具包里的不一致，claude 可能起不来：更新工具包"}`);
   }
+  // 每天一次的回收站清理登记放在 150ms 延迟块外面：登记本身零 I/O（setInterval 只建句柄，guarded 是纯包装），
+  // 不阻塞冷启动第一波请求；耗时的首次 expireTrash() 扫描仍留在延迟块里。
+  // 若登记留在块里，listen 后 150ms 内被杀的进程（如测试在“已启动”后立刻 SIGTERM）永远登记不上，
+  // 而“已启动”已对外宣告网关就绪——a0610-b3-head-sweep 因此竞态挂掉（CI 44768480875）。
+  // 只在启动时清一次的话，长期不重启的应用里过期回收站永远不清（195-A.9）；每天一次，unref 不拦着退出
+  setInterval(guarded("回收站清理", expireTrash), 24 * 3600e3).unref();
   // 启动后的巡检与清理延后 150ms：不阻塞冷启动第一波 /__proof、/api/status 与 /api/events（避免首启偶发超时触发「网关离线」）
   setTimeout(() => {
     log(`  历史会话 ${listSessions(500).length} 个`);
@@ -224,8 +230,6 @@ server.listen(CFG.port, "127.0.0.1", () => {
     // 上次被结束时留下的隐藏临时文件（原子写换名前、导入没导完、上传没传完）：清掉一小时前的（FIND-016）
     try { const n = sweepTemps([CFG.home, UPLOAD_DIR]); if (n) log(`清掉 ${n} 个上次留下的临时文件`); } catch (e) { log("临时文件清理失败: " + e.message); }
     try { expireTrash(); } catch (e) { log("回收站清理失败: " + e.message); }
-    // 只在启动时清一次的话，长期不重启的应用里过期回收站永远不清（195-A.9）；每天一次，unref 不拦着退出
-    setInterval(guarded("回收站清理", expireTrash), 24 * 3600e3).unref();
     try { customRefresh(); } catch (e) { log("自定义组件入口重写失败: " + e.message); }
     try { cleanOrphans(); } catch (e) { log("旧工具包残留清理失败: " + e.message); }
     try { startWorkIsland(); } catch (e) { log("工作岛启动失败: " + e.message); }
