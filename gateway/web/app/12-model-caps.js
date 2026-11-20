@@ -202,9 +202,11 @@
       const ps = (state.provList || []).filter((p) => (p.usable && !p.hidden) || [curProv(), globalProv(), browse].includes(p.id));
       provWrap.classList.toggle("hidden", ps.length < 2);
       provBox.innerHTML = `<div class="seg mp-seg mp-provseg">${ps.map((p) =>
-        `<button type="button" class="${p.id === browse ? "on" : ""}${p.id === curProv() ? " cur" : ""}${p.usable ? "" : " off"}" data-prov="${esc(p.id)}">${esc(provLabel(p.id))}</button>`).join("")}</div>` +
+        `<button type="button" class="${p.id === browse ? "on" : ""}${p.id === curProv() ? " cur" : ""}${p.usable ? "" : " off"}" data-prov="${esc(p.id)}">${esc(provLabel(p.id))}${p.noAcpKeyChannel ? " · " + esc(t("在 Antigravity 下暂不支持")) : ""}</button>`).join("")}</div>` +
         // 总要列出的那几家可能用不了（没登录的官方账户、没下模型的端侧）：灰掉，看它时说一句
         (ps.some((p) => p.id === browse && !p.usable) ? `<div class="tiny mp-provhint">${esc(t("这一家还没就绪（没登录或没下模型），先到设置里配好"))}</div>` : "") +
+        // MIG-9：无 key 通道的第三方厂商在选单里就标注，别等发消息才报 agy 原文错
+        (ps.some((p) => p.id === browse && p.noAcpKeyChannel) ? `<div class="tiny mp-provhint">${esc(t("在 Antigravity 下暂不支持：Antigravity CLI 没有通用第三方 API Key 通道。请声明 protocol:\"gemini\"（端点须讲 Gemini 协议），或换用 Gemini / 订阅登录厂商。"))}</div>` : "") +
         (browse !== curProv() ? `<div class="tiny mp-provhint">${esc(t("点一个模型，这个会话就换到「{name}」", { name: provLabel(browse) }))}</div>` : "");
       provBox.querySelector("button.on")?.scrollIntoView({ block: "nearest", inline: "nearest" });   // 横滚里选中的那家露出来
     };
@@ -356,7 +358,7 @@
                     t("该厂商由 claude 自己决定模型，没有可切换的清单。要指定就改 <code>ccapp-providers.json</code> 的 <code>defaultModel</code>。");
       } else $("model-info").textContent = "";    // 上一家的能力说明别留着（审查 #52 D-03）
       // 设置页是全局默认：只按全局型号的窗口画，不借顶栏当前会话的 state.ctxTotal（#76）
-      acPaint(Number(r.contextWindow) || 0, r.autoCompactWindow, r.compactDefault);
+      acPaint(Number(r.contextWindow) || 0, r.autoCompactWindow, r.compactDefault, r.acpMode);
       return true;
     } catch (e) {
       if (my !== modelsSeq) return null;
@@ -522,7 +524,7 @@
     if (patch && "autoCompactWindow" in patch) {
       const n = S.autoCompactWindow ? String(S.autoCompactWindow) : "";
       for (const id of ["set-autocompact", "ac-num"]) { const el = $(id); if (el) el.value = n; }
-      acPaint(acWin, S.autoCompactWindow || 0, acDef);
+      acPaint(acWin, S.autoCompactWindow || 0, acDef, acAcp);
     }
     if ("model" in patch || "effort" in patch) loadModels();
   }
@@ -604,7 +606,7 @@
   // 以前允许 20k，上下文条按 20k 显示满格、claude 实际按 100k 压（0.6.10 审计 195-O.2）
   const AC_MIN = 100000;
   const AC_MAX = 1000000;
-  let acWin = 0, acSet = 0, acDef = 0, acForce = false;   // acDef：没设时网关给第三方型号的默认线（0 = 交给 claude）   // acForce：刚存过，焦点还在控件上也按存下的值回填（没存上就弹回去）
+  let acWin = 0, acSet = 0, acDef = 0, acAcp = false, acForce = false;   // acDef：没设时网关给第三方型号的默认线（0 = 交给 claude）   // acForce：刚存过，焦点还在控件上也按存下的值回填（没存上就弹回去）
   function acStep() { return Math.max(1000, Math.ceil((acWin - AC_MIN) / 100 / 1000) * 1000); }
   function acTok(p) { return Math.min(acWin, Math.round((AC_MIN + (acWin - AC_MIN) * p / 100) / acStep()) * acStep()); }
   function acPos(v) { return Math.max(0, Math.min(100, (v - AC_MIN) / (acWin - AC_MIN) * 100)); }
@@ -617,12 +619,13 @@
       : t("没设，交给 claude 按窗口决定");
     $("ac-auto").classList.toggle("hidden", !v);
   }
-  function acPaint(win, set, def) {
+  function acPaint(win, set, def, acp) {
     const box = $("ac-slide");
-    acWin = Number(win) || 0; acSet = Number(set) || 0; acDef = Number(def) || 0;
+    acWin = Number(win) || 0; acSet = Number(set) || 0; acDef = Number(def) || 0; acAcp = !!acp;
     const unknown = acWin <= AC_MIN;
     // 窗口未知（厂商清单没报）：滑块没法按窗口换算，但用户仍得能改压缩线（195-E.10）。
     // 换成数字框，设过的值照原样显示、可改；claude 对未知窗口按 200k 上限压（gw/models.mjs 的 compactLineOf）。
+    // MIG-3：ACP 下没有“按 200k 算”的兜底——窗口未知且没设线时没有默认压缩线，别拿 Claude 口径误导。
     box.classList.remove("hidden");
     if (unknown) {
       $("ac-range").parentNode.classList.add("hidden");
@@ -633,7 +636,7 @@
       acForce = false;
       $("ac-val").textContent = acSet
         ? t("已设 {line}（模型窗口未知，按你设的生效）", { line: fmtTok(acSet) })
-        : t("未填（按 200k 算）");
+        : acAcp ? t("未填（ACP 下无默认压缩线）") : t("未填（按 200k 算）");
       $("ac-auto").classList.toggle("hidden", !acSet);
       return;
     }

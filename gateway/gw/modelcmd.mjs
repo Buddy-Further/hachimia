@@ -1,7 +1,7 @@
 import { log } from "./config.mjs";
 import { SETTINGS, saveSettings } from "./settings-store.mjs";
-import { PROVIDER, providerById } from "./providers.mjs";
-import { defaultCompactLine, effortLevelsOf, fetchModels, normEffort } from "./models.mjs";
+import { PROVIDER, providerById, usesAcp } from "./providers.mjs";
+import { defaultCompactLine, defaultAcpCompactLine, effectiveCompactLines, effortLevelsOf, fetchModels, normEffort } from "./models.mjs";
 import { clampAutoCompact, effectiveAutoCompact } from "./stream.mjs";
 import { effectiveModel, setSessModel } from "./sessmodel.mjs";
 
@@ -45,9 +45,13 @@ export async function handleLocalCommand(name, arg, reply, sid, stopped = () => 
     const win = Number(cur && cur.context_window) || 0;
     const fmt = (n) => (n >= 1e6 ? +(n / 1e6).toFixed(2) + "M" : Math.round(n / 1000) + "k");
     if (!arg) {
-      const v = effectiveAutoCompact(), d = v ? null : defaultCompactLine(win, P);
+      const v = effectiveAutoCompact();
+      // MIG-3：显示侧与触发侧一致——ACP 模式下默认线走 defaultAcpCompactLine（原生厂商也给八成线），
+      // 不再拿 Claude 口径的 defaultCompactLine（对原生恒为 null）报“默认（由 Antigravity 按模型窗口决定）”。
+      const acp = usesAcp(P);
+      const d = v ? null : (acp ? defaultAcpCompactLine(win, P) : defaultCompactLine(win, P));
       return reply(
-        `自动压缩线：**${v ? fmt(v) + " tokens" : d ? `默认 ${fmt(d)} tokens（第三方型号按窗口的八成）` : "默认（由 Antigravity 按模型窗口决定）"}**${win ? `　（当前模型窗口 ${fmt(win)}）` : ""}\n\n` +
+        `自动压缩线：**${v ? fmt(v) + " tokens" : d ? `默认 ${fmt(d)} tokens（${acp ? "按窗口的八成" : "第三方型号按窗口的八成"}）` : "默认（由 Antigravity 按模型窗口决定）"}**${win ? `　（当前模型窗口 ${fmt(win)}）` : ""}\n\n` +
         "用法：`/autocompact 400k`、`/autocompact 1m`；恢复默认：`/autocompact off`。设置页「自动压缩」一栏是同一个值。",
         "autocompact"
       );

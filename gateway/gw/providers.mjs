@@ -56,16 +56,17 @@ const PRESETS = {
     authType: "oauth-personal", baseUrl: "https://antigravity.google", authStyle: "oauth", defaultModel: null,
     hint: "使用个人 Google 账户（Free / Pro / Ultra）登录 Antigravity CLI，通过官方 ACP 协议本地运行，网关不碰凭据。",
     hintEn: "Sign in with a personal Google account (Free / Pro / Ultra) via official Antigravity CLI ACP; the gateway never touches credentials.",
+    // 窗口未知记 0：`agy models` 不报窗口，写死 1M 会让 learnWindow 学到的真实窗口永远纠正不了（MIG-1；C5 同款）。
     fallbackModels: [
-      { id: "gemini-4-neon", name: "Gemini 4 Neon", context_window: 1048576, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high", "xhigh"], default_level: "high" } },
-      { id: "gemini-4-carbon", name: "Gemini 4 Carbon", context_window: 1048576, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high"], default_level: "high" } },
-      { id: "gemini-4-argon", name: "Gemini 4 Argon", context_window: 1048576, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high"], default_level: "high" } },
-      { id: "gemini-4-hydrogen", name: "Gemini 4 Hydrogen", context_window: 1048576, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high", "xhigh"], default_level: "high" } },
-      { id: "gemini-pro-orchestrator-neon", name: "Orchestrator (Neon)", context_window: 1048576, input_modalities: ["text", "image"] },
-      { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash", context_window: 1048576, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high"], default_level: "high" } },
-      { id: "claude-opus-5-5", name: "Claude Opus 5.5", context_window: 1048576, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high"], default_level: "high" } },
-      { id: "claude-sonnet-5-5", name: "Claude Sonnet 5.5", context_window: 1048576, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high"], default_level: "high" } },
-      { id: "gpt-oss-120b-medium", name: "GPT-OSS 120B (Medium)", context_window: 1048576, input_modalities: ["text", "image"] },
+      { id: "gemini-4-neon", name: "Gemini 4 Neon", context_window: 0, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high", "xhigh"], default_level: "high" } },
+      { id: "gemini-4-carbon", name: "Gemini 4 Carbon", context_window: 0, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high"], default_level: "high" } },
+      { id: "gemini-4-argon", name: "Gemini 4 Argon", context_window: 0, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high"], default_level: "high" } },
+      { id: "gemini-4-hydrogen", name: "Gemini 4 Hydrogen", context_window: 0, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high", "xhigh"], default_level: "high" } },
+      { id: "gemini-pro-orchestrator-neon", name: "Orchestrator (Neon)", context_window: 0, input_modalities: ["text", "image"] },
+      { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash", context_window: 0, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high"], default_level: "high" } },
+      { id: "claude-opus-5-5", name: "Claude Opus 5.5", context_window: 0, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high"], default_level: "high" } },
+      { id: "claude-sonnet-5-5", name: "Claude Sonnet 5.5", context_window: 0, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high"], default_level: "high" } },
+      { id: "gpt-oss-120b-medium", name: "GPT-OSS 120B (Medium)", context_window: 0, input_modalities: ["text", "image"] },
     ],
   },
   "antigravity-enterprise": {
@@ -74,10 +75,10 @@ const PRESETS = {
     hint: "适用于企业 SSO / Google Cloud 项目（Gemini Enterprise 或 Pay As You Go），同样由官方 agy CLI 完成登录。",
     hintEn: "For Gemini Enterprise / Google Cloud SSO authentication through the official agy CLI.",
     fallbackModels: [
-      { id: "gemini-4-neon", name: "Gemini 4 Neon", context_window: 1048576, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high", "xhigh"], default_level: "high" } },
-      { id: "gemini-4-carbon", name: "Gemini 4 Carbon", context_window: 1048576, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high"], default_level: "high" } },
-      { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash", context_window: 1048576, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high"], default_level: "high" } },
-      { id: "claude-opus-5-5", name: "Claude Opus 5.5", context_window: 1048576, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high"], default_level: "high" } },
+      { id: "gemini-4-neon", name: "Gemini 4 Neon", context_window: 0, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high", "xhigh"], default_level: "high" } },
+      { id: "gemini-4-carbon", name: "Gemini 4 Carbon", context_window: 0, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high"], default_level: "high" } },
+      { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash", context_window: 0, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high"], default_level: "high" } },
+      { id: "claude-opus-5-5", name: "Claude Opus 5.5", context_window: 0, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high"], default_level: "high" } },
     ],
   },
   "antigravity-adc": {
@@ -86,8 +87,8 @@ const PRESETS = {
     hint: "使用本机 Application Default Credentials（自动注入 AGY_ADC_AUTH=true），适合无浏览器环境或 gcloud ADC 凭据。",
     hintEn: "Uses local Google Cloud Application Default Credentials (exports AGY_ADC_AUTH=true) for Agent Platform / Vertex AI.",
     fallbackModels: [
-      { id: "gemini-4-neon", name: "Gemini 4 Neon", context_window: 1048576, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high", "xhigh"], default_level: "high" } },
-      { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash", context_window: 1048576, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high"], default_level: "high" } },
+      { id: "gemini-4-neon", name: "Gemini 4 Neon", context_window: 0, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high", "xhigh"], default_level: "high" } },
+      { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash", context_window: 0, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high"], default_level: "high" } },
     ],
   },
   "gemini-key": {
@@ -100,11 +101,11 @@ const PRESETS = {
     hint: "使用 Google AI Studio 的 Gemini API Key：自动写入 ~/.gemini/antigravity-cli/settings.json（modelProvider=gemini）并注入 GEMINI_API_KEY。",
     hintEn: "Uses a Google AI Studio Gemini API key: sets modelProvider=gemini in ~/.gemini/antigravity-cli/settings.json and exports GEMINI_API_KEY.",
     fallbackModels: [
-      { id: "gemini-4-neon", name: "Gemini 4 Neon", context_window: 1048576, input_modalities: ["text", "image"] },
-      { id: "gemini-4-carbon", name: "Gemini 4 Carbon", context_window: 1048576, input_modalities: ["text", "image"] },
-      { id: "gemini-4-argon", name: "Gemini 4 Argon", context_window: 1048576, input_modalities: ["text", "image"] },
-      { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash", context_window: 1048576, input_modalities: ["text", "image"] },
-      { id: "gemini-3.1-pro", name: "Gemini 3.1 Pro", context_window: 1048576, input_modalities: ["text", "image"] },
+      { id: "gemini-4-neon", name: "Gemini 4 Neon", context_window: 0, input_modalities: ["text", "image"] },
+      { id: "gemini-4-carbon", name: "Gemini 4 Carbon", context_window: 0, input_modalities: ["text", "image"] },
+      { id: "gemini-4-argon", name: "Gemini 4 Argon", context_window: 0, input_modalities: ["text", "image"] },
+      { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash", context_window: 0, input_modalities: ["text", "image"] },
+      { id: "gemini-3.1-pro", name: "Gemini 3.1 Pro", context_window: 0, input_modalities: ["text", "image"] },
     ],
   },
   "gemini-custom": {
@@ -116,9 +117,9 @@ const PRESETS = {
     hint: "通过 GOOGLE_GEMINI_BASE_URL + GEMINI_API_KEY 指向任意 Gemini 兼容代理或自建端点。",
     hintEn: "Points agy to any Gemini-compatible endpoint via GOOGLE_GEMINI_BASE_URL and GEMINI_API_KEY.",
     fallbackModels: [
-      { id: "gemini-4-neon", name: "Gemini 4 Neon", context_window: 1048576, input_modalities: ["text", "image"] },
-      { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash", context_window: 1048576, input_modalities: ["text", "image"] },
-      { id: "gemini-3.1-pro", name: "Gemini 3.1 Pro", context_window: 1048576, input_modalities: ["text", "image"] },
+      { id: "gemini-4-neon", name: "Gemini 4 Neon", context_window: 0, input_modalities: ["text", "image"] },
+      { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash", context_window: 0, input_modalities: ["text", "image"] },
+      { id: "gemini-3.1-pro", name: "Gemini 3.1 Pro", context_window: 0, input_modalities: ["text", "image"] },
     ],
   },
   anthropic: {
@@ -629,6 +630,38 @@ export function acpAuthType(p) {
   return `${p.id}-api-key`;
 }
 
+/** 该厂商走 ACP 时 agy 有没有交 key 的通道（MIG-9，rem-C2 方案 b 的判定口径）：
+ *  登录类走 OAuth/ADC、Gemini 协议走 GEMINI_API_KEY + settings.json，都有通道；
+ *  不声明 protocol 的第三方 bearer（自己的 `<id>-api-key`）在 agy 下没有任何通道，
+ *  authenticate 会被豁免跳过、模型调用时才报 agy 原文错。端侧小模型不走 ACP，算有通道（不拦截）。 */
+export function hasAcpKeyChannel(p) {
+  if (!p) return false;
+  if (p.local) return true;
+  if (p.login) return true;
+  if (p.authType === "gemini-api-key" || p.authStyle === "gemini-api-key" || p.protocol === "gemini") return true;
+  if (p.authType === "agent-platform" || p.authStyle === "adc") return true;
+  if (p.authType && /^(oauth-personal|oauth-business|agent-platform)$/.test(p.authType)) return true;
+  return false;
+}
+
+/** 该厂商是否走 ACP（与 run.mjs 的 useAcp 同口径，供 models.mjs 的显示侧共用，见 MIG-3）。 */
+export function usesAcp(p) {
+  if (!p || p.local) return false;
+  return !!(isAgyOnlyMode() || p.group === "antigravity" || p.authStyle === "gemini-api-key" || p.protocol === "gemini"
+    || p.authStyle === "adc" || p.authType === "oauth-personal" || p.authType === "oauth-business"
+    || p.authType === "agent-platform" || process.env.CCAPP_PROTOCOL === "acp");
+}
+
+/** 该厂商在选单里算不算能用（MIG-34）：端侧小模型在 agy-only 设备上是死路——
+ *  端侧链走 Claude argv，而全新安装的设备上没有 runtime/claude（bin/claude 不进包），
+ *  所以 agy-only 下标不可用；有旧版残留 runtime/claude 的设备上 isAgyOnlyMode() 为 false，仍可用。
+ *  端侧链本身保留不动（见 run.mjs 的 ensureLlama 分支）。 */
+export function isProviderUsable(p) {
+  if (!p) return false;
+  if (p.local) return !isAgyOnlyMode();
+  return !!(p.login || keyOf(p));
+}
+
 /** 判断某接口是否应该显示给当前客户端（纯 Antigravity 模式下隐藏无法驱动的 Claude/Anthropic-only 预设） */
 export function isProviderVisible(id, v) {
   if (!v) return false;
@@ -682,6 +715,7 @@ function providerView(id, v) {
     extraModels: v.custom ? extraModelsOf(v) : [],
     keyUrl: v.keyUrl || null, hint: v.hint || "", hintEn: v.hintEn || "",
     hasKey: !!key, keyTail: key ? key.slice(-4) : "", endpointLost: v.endpointLost || null,   // 记着的线路不在了：界面提示重选（196-凭据.1）
+    noAcpKeyChannel: !hasAcpKeyChannel(v),   // MIG-9：无通道厂商在选单里标注“在 Antigravity 下暂不支持”
     plainHttp: plainRemote(v.baseUrl),   // 远程明文 http：Key 明文过网，只警告不拦（0.6.9 审计 199-9-02，用户定）
     active: id === PROVIDER.id,
   };
@@ -1253,7 +1287,7 @@ export function providerBrief() {
   return ids.map((id) => {
     const p = providerById(id);
     return p && { id, label: p.label || id, labelEn: p.labelEn || "", login: !!p.login, local: !!p.local,
-      nativeModels: !!p.nativeModels, usable: !!(p.login || p.local || keyOf(p)), active: id === PROVIDER.id,
+      nativeModels: !!p.nativeModels, usable: isProviderUsable(p), noAcpKeyChannel: !hasAcpKeyChannel(p), active: id === PROVIDER.id,
       keyMode: keyOf(p) ? "key" : p.login ? "login" : "none", defaultModel: p.defaultModel || null };
   }).filter(Boolean);
 }
