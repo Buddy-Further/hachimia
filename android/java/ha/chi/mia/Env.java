@@ -366,7 +366,9 @@ final class Env {
         e.put("CCAPP_LOADER", new File(usr, "glibc/lib/ld-linux-aarch64.so.1").getPath());
         e.put("CCAPP_GLIBC_LIB", new File(usr, "glibc/lib").getPath());
         e.put("CCAPP_AGY", claude().getPath());
-        e.put("CCAPP_CLAUDE", claude().getPath());
+        // 设备上只有 agy、没有独立的 Claude Code 二进制：不要把 agy 路径再写进 CCAPP_CLAUDE。
+        // config.mjs 里“claude 存在”会被当成“不是纯 agy 模式”（isAgyOnlyMode），
+        // 导致 Claude-only 厂商照常展示、非 ACP 分支拿 glibc 加载器去跑 bionic 的 agy（A7）。
         e.put("CCAPP_APP_NAME", "hachimia");
         // ld-linux --preload 给 claude 挂上：被 seccomp 拦下的调用改回 ENOSYS（Android 14 拦 epoll_pwait2）。
         // 应用自己的原生小库、小程序都在 APK 原生库目录里（应用 uid 改不了，安全 4 第 1 层；build.sh 打包时改名 libcc*.so）
