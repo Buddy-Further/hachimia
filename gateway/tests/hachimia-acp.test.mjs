@@ -38,10 +38,13 @@ rl.on("line", (line) => {
     return send({ jsonrpc: "2.0", id: msg.id, result: { ok: true, methodId: msg.params.methodId } });
   }
   if (msg.method === "session/new") {
-    return send({
+    send({
       jsonrpc: "2.0", id: msg.id,
       result: { sessionId: "agy-sess-001", models: { currentModelId: "gemini-4-neon", availableModels: [{ modelId: "gemini-4-neon" }] } },
     });
+    // 官方 1.5.13 恢复会话时会先重放历史消息：这些不算本轮正文
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "agy-sess-001", update: { sessionUpdate: "agent_message", messageId: "msg-old-1", content: { type: "text", text: "【历史】之前聊过的东西" } } } });
+    return;
   }
   if (msg.method === "session/set_config_option") {
     return send({ jsonrpc: "2.0", id: msg.id, result: { ok: true } });
@@ -96,6 +99,7 @@ test("hachimia ACP 端到端流程：握手、认证、流式输出、权限回�
   assert.equal(res.ok, true, res.error || JSON.stringify(events));
   assert.equal(res.sessionId, "agy-sess-001");
   assert.equal(res.resultText, "已完成执行！");
+  assert.ok(!events.some((e) => e.type === "text_delta" && String(e.text).includes("历史")), "重放的历史不能进本轮正文");
   assert.ok(events.some((e) => e.type === "init" && e.protocol === "acp"));
   assert.ok(events.some((e) => e.type === "thinking_delta" && e.text === "思考中..."));
   assert.ok(events.some((e) => e.type === "tool_use" && e.name === "run_shell"));
@@ -140,6 +144,14 @@ test("translateAcpUpdate：v2 风格整条 agent_message / agent_thought 照收�
   const before = ev.length;
   translateAcpUpdate({ sessionUpdate: "user_message_chunk", content: { type: "text", text: "回声" } }, st, emit);
   assert.equal(ev.length, before);
+  // prompt 未发出前的事件（agy 重放的历史）一律不进本轮
+  const st2 = { text: "", thinking: "", tools: new Map(), usage: null, promptSent: false };
+  const ev2 = [];
+  translateAcpUpdate({ sessionUpdate: "agent_message", content: { type: "text", text: "【历史】" } }, st2, (e) => ev2.push(e));
+  translateAcpUpdate({ sessionUpdate: "agent_thought_chunk", content: { type: "text", text: "旧思考" } }, st2, (e) => ev2.push(e));
+  assert.equal(st2.text, "");
+  assert.equal(st2.thinking, "");
+  assert.equal(ev2.length, 0);
 });
 
 test("syncAgySettings & agyEnv：在 Gemini API Key 与 Google 订阅模式间切换", () => {

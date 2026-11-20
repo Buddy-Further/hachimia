@@ -905,6 +905,7 @@
       case "usage":          if (ev.contextTokens) liveCtx(ev.contextTokens, state.ctxTotal); break;
       case "run_tokens":     rv.out = +ev.out || 0; if (statRun === ev.runId) statPaint(); break;
       case "delta":          av.delta(ev.text); break;
+      case "text_delta":     av.delta(ev.text); break;   // ACP 引擎（gw/acp.mjs）的正文流事件名
       case "assistant_text": av.text(ev.text); break;
       case "thinking_delta": av.thinkDelta(ev.text); break;
       case "thinking":       av.thinking(ev.text); break;

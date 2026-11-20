@@ -192,6 +192,9 @@ export function createAcpClient({ bin, args = ["acp"], cwd, env, onNotification,
 export function translateAcpUpdate(params, state, emit) {
   const upd = params?.update || params || {};
   const kind = upd.sessionUpdate || upd.type || "";
+  // 恢复会话时 agy 会把历史消息重放成 update（整条 agent_message 和各类 chunk）：
+  // prompt 还没发出去之前到的事件都是历史，不算这一轮，不累积也不转给界面
+  if (state.promptSent === false) return;
 
   if (kind === "agent_message_chunk" || kind === "text_delta") {
     const text = acpTextOf(upd.content ?? upd.summary ?? upd.text);
@@ -205,6 +208,7 @@ export function translateAcpUpdate(params, state, emit) {
   // 流式收到正文时整段采用，已经收到过的以 chunk 累积为准，避免重复渲染
   if (kind === "agent_message") {
     const text = acpTextOf(upd.content ?? upd.summary ?? upd.text);
+    log(`[agy-acp] agent_message messageId=${upd.messageId || "-"} text=${(text || "").slice(0, 60).replace(/\n/g, " ")}`);
     if (text && !state.text) {
       state.text = text;
       emit({ type: "text_delta", text });
@@ -342,7 +346,7 @@ export async function runAcpTurn({
   mcpServers = [], run, emit, askPermission, timeoutMs = 0,
 }) {
   const t0 = Date.now();
-  const state = { text: "", thinking: "", tools: new Map(), usage: null };
+  const state = { text: "", thinking: "", tools: new Map(), usage: null, promptSent: false };
   let activeSessionId = sessionId || null;
 
   const client = createAcpClient({
@@ -472,6 +476,9 @@ export async function runAcpTurn({
     }
 
     emit({ type: "phase", phase: "wait" });
+    // 从这里起的事件才算这一轮：之前的都是 agy 重放的历史（见 translateAcpUpdate 的守卫）
+    state.promptSent = true;
+    state.text = ""; state.thinking = ""; state.tools.clear();
     const promptRes = await client.request("session/prompt", {
       sessionId: activeSessionId,
       prompt: contentBlocks,
