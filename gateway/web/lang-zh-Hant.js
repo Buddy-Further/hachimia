@@ -3168,4 +3168,5 @@ window.I18N_DICT["zh-Hant"] = {
   "协议：未声明": "Protocol: not declared",
   "协议：Gemini（端点讲 Gemini 协议）": "Protocol: Gemini (endpoint speaks the Gemini protocol)",
   "正在检查 ADC 凭据…": "Checking ADC credentials…",
+  "新建会话失败：Agent 没有返回会话号，请重试": "新建會話失敗：Agent 沒有返回會話號，請重試",
 };

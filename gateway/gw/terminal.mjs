@@ -179,6 +179,7 @@ function termNew({ cols, rows, login, cwd: want } = {}) {
     id, title: `${path.basename(shell) === "bash" ? "bash" : "sh"} ${seq}`, cols, rows,
     created: Date.now(), alive: true, code: null, child,
     buf: "", total: 0, subs: new Set(), dec: new StringDecoder("utf8"),
+    decErr: new StringDecoder("utf8"),   // MIG-29：stderr 同样用 StringDecoder，别按块 toString 切坏多字节字符
   };
   const out = (s) => {
     if (!s) return;
@@ -187,7 +188,7 @@ function termNew({ cols, rows, login, cwd: want } = {}) {
     for (const r of t.subs) sseSend(r, "o", s, t);
   };
   child.stdout.on("data", (d) => out(t.dec.write(d)));
-  child.stderr.on("data", (d) => out(d.toString()));     // 只有 ptyhost 自己的报错走这里
+  child.stderr.on("data", (d) => out(t.decErr.write(d)));     // 只有 ptyhost 自己的报错走这里
   if (cwdNote) out(`\r\n[${tz("目录不存在：{dir}，已改用 {cwd}", { dir: cwdNote, cwd })}]\r\n`);
   if (login) {
     // 先写提示、再敲命令：shell 起好约 400ms 后才敲，提示先进回放环，用户重连也看得到
@@ -201,6 +202,7 @@ function termNew({ cols, rows, login, cwd: want } = {}) {
   const ended = (code) => {
     if (!t.alive) return;
     out(t.dec.end());
+    out(t.decErr.end());
     t.alive = false;
     t.code = code;
     for (const r of t.subs) { sseSend(r, "exit", { code: t.code }); try { r.end(); } catch {} }

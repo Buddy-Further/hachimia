@@ -3171,3 +3171,5 @@
 3165	Protocol: not declared
 3166	Protocol: Gemini (endpoint speaks the Gemini protocol)
 3167	Checking ADC credentials…
+// TODO i18n (MIG-22)：以下为英文原文回退，待译成 ar
+3168	Failed to create a session: the agent returned no session ID. Please try again.

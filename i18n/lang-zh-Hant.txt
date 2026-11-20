@@ -3169,3 +3169,4 @@
 3165	Protocol: not declared
 3166	Protocol: Gemini (endpoint speaks the Gemini protocol)
 3167	Checking ADC credentials…
+3168	新建會話失敗：Agent 沒有返回會話號，請重試

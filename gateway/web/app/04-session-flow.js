@@ -762,6 +762,10 @@
 
   // 轮次 → 会话号：error 事件只带 runId，后台会话失败时要按会话留下提示（FIND-006）
   const runSid = new Map();
+  // 网关刚为某轮发过 acp-session-switched 提示（旧会话续不上、新建会话续跑）：
+  // init 随后就到，凭这个集合抑制一次 detachRun，本轮留在当前视图里（MIG-27）。
+  // 集合只记最近 30 个，没等到 init 的过期条目随新登记挤掉。
+  const switchedRuns = new Set();
   // 会话号 → { text, at }：切走期间失败时网关给的错误文案没有别的落点（run_end 只有 failed 标记），
   // 留到下次进入那个会话时补一行；claude 自己写的 is_error 正文仍在历史里，这里只补网关层的（FIND-006）
   const failNotes = new Map();
@@ -882,8 +886,12 @@
       }
       case "init": {
         if (!view.runIds.has(ev.runId)) return;
-        // 本页已经属于 A，这个 run 却 init 成 B：它是聚合认回来的另一条草稿，从这里摘出去（0.6.9 #191-1）
-        if (view.sessionId && ev.sessionId && ev.sessionId !== view.sessionId) return detachRun(ev.runId);
+        // 本页已经属于 A，这个 run 却 init 成 B：它是聚合认回来的另一条草稿，从这里摘出去（0.6.9 #191-1）。
+        // 例外：网关刚为这轮发过 acp-session-switched——本轮是新建会话续跑的当前轮，提示已明示，留在当前视图（MIG-27）。
+        if (view.sessionId && ev.sessionId && ev.sessionId !== view.sessionId) {
+          if (switchedRuns.delete(ev.runId)) { /* 抑制一次摘走，落到下面继续画 init */ }
+          else return detachRun(ev.runId);
+        }
         if (!view.sessionId && ev.sessionId) { view.sessionId = ev.sessionId; draftAdopt(ev.sessionId); adoptPendingModel(); saveUiState(); }
         if (ev.model) { state.model = ev.model; paintModel(ev.model); }
         if (ev.permissionMode) setPermChip(ev.permissionMode);
@@ -893,6 +901,9 @@
       case "caps_updated": cacheCapsFromInit(ev); return;
       case "run_end": refreshQuota(); return onRunEnd(ev);
       case "quota": case "billing": return refreshQuota();
+      // MIG-16：用量事件不依赖轮次视图——空闲期后台推来的 usage（没有 runId）也要刷新上下文条；
+      // 轮内的 usage 本来就只调 liveCtx，挪到这里行为不变。
+      case "usage":          if (ev.contextTokens || ev.contextWindow) liveCtx(ev.contextTokens ?? state.ctxUsed, ev.contextWindow || state.ctxTotal); return;
       case "perm_mode":
         state.settings.permissionMode = ev.mode;
         setPermChip(ev.mode);
@@ -910,7 +921,6 @@
     const av = rv.av;
     if (!av) return;   // 收尾后只留了 startedAt 的空壳（FIND-042）：晚到的增量不再画
     switch (ev.type) {
-      case "usage":          if (ev.contextTokens || ev.contextWindow) liveCtx(ev.contextTokens ?? state.ctxUsed, ev.contextWindow || state.ctxTotal); break;
       case "run_tokens":     rv.out = +ev.out || 0; if (statRun === ev.runId) statPaint(); break;
       case "delta":          av.delta(ev.text); break;
       case "text_delta":     av.delta(ev.text); break;   // ACP 引擎（gw/acp.mjs）的正文流事件名
@@ -936,7 +946,13 @@
       case "phase":          av.phase(ev); break;
       // 压缩中的状态会连来好几条：同一次压缩只留一行，压完原地换成结果（#67）
       case "compacting":     av.phase(null); av.noteK("cmp" + cmpGen, t("正在压缩上下文…")); scrollDown(); break;
-      case "note":           av.noteK(ev.key, ev.text); scrollDown(); break;
+      case "note": {
+        if (ev.key === "acp-session-switched" && ev.runId) {
+          switchedRuns.add(ev.runId);
+          if (switchedRuns.size > 30) switchedRuns.delete(switchedRuns.keys().next().value);
+        }
+        av.noteK(ev.key, ev.text); scrollDown(); break;
+      }
       case "hook_ctx":       av.hookCtx(ev.event, ev.text); scrollDown(); break;
       case "compacted":
         av.noteK("cmp" + cmpGen++, ev.pre != null && ev.post != null
