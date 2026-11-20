@@ -61,6 +61,39 @@ export function takeAgentNote(cwd, sessionId) {
   try { const t = fs.readFileSync(f, "utf8").trim(); fs.unlinkSync(f); return t; } catch { return ""; }
 }
 
+/** ACP 子代理落盘（F-1）：acp.mjs 的 trackAcpToolSideEffects 直接写联络簿，与 CLI 的 agentBook 同格式
+ *  （index.jsonl + brief.md/report.md），刷新/重进后 readAgentIndex 仍能读到卡片。无 cwd/会话号时静默跳过。 */
+export function acpAgentSpawn(cwd, sessionId, { id, name, prompt }) {
+  if (!cwd || !sessionId || !id) return null;
+  try {
+    const dir = agentsDir(cwd, sessionId);
+    fs.mkdirSync(dir, { recursive: true });
+    const gi = path.join(cwd, ".cccodroid", ".gitignore");
+    if (!onShared(cwd) && !fs.existsSync(gi)) fs.writeFileSync(gi, "*\n");
+    const seq = fs.readdirSync(dir).filter((x) => /^\d+-/.test(x)).length + 1;
+    const d = path.join(dir, `${String(seq).padStart(2, "0")}-${slug(String(name || "agent"))}-${String(id).slice(0, 6).replace(/[^\w-]/g, "_")}`);
+    fs.mkdirSync(d, { recursive: true });
+    fs.writeFileSync(path.join(d, "brief.md"), `# ${name}\n\n${prompt || ""}\n`);
+    fs.appendFileSync(path.join(dir, "index.jsonl"), JSON.stringify({ at: Date.now(), k: "spawn", id: String(id), tool: String(id),
+      name: String(name || "agent").slice(0, 60), parent: null, depth: 1, bg: true, file: path.join(d, "brief.md"), by: "main" }) + "\n");
+    return d;
+  } catch { return null; }
+}
+export function acpAgentDone(cwd, sessionId, { id, dir, name, status, why, report }) {
+  if (!cwd || !sessionId || !id) return;
+  try {
+    const d = agentsDir(cwd, sessionId);
+    let file = null;
+    if (dir && report) {
+      file = path.join(dir, "report.md");
+      try { if (fs.existsSync(file)) fs.renameSync(file, path.join(dir, "report.prev.md")); } catch {}
+      fs.writeFileSync(file, `# ${name || "agent"}\n\n${String(report).slice(0, 20000)}\n`);
+    }
+    fs.appendFileSync(path.join(d, "index.jsonl"), JSON.stringify({ at: Date.now(), k: "done", id: String(id),
+      status, why: clip(String(why || ""), WHY_MAX), file }) + "\n");
+  } catch {}
+}
+
 /** 这一轮没送到模型：取走的汇总放回去，排在这期间新攒的前面 */
 export function putAgentNote(cwd, sessionId, text) {
   if (!cwd || !sessionId || !text) return;

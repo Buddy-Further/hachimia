@@ -22,6 +22,8 @@ import { onShutdown } from "./crashguard.mjs";
 import { buildCapabilities, setLastInit } from "./caps.mjs";
 import { publish } from "./bus.mjs";
 import { noteAuthTier } from "./login.mjs";
+import { acpAgentSpawn, acpAgentDone } from "./agents.mjs";
+import { parseGoalPrompt, applyGoalCommand } from "./goal.mjs";
 
 export const ACP_PROTOCOL_VERSION = 1;
 const ACP_IDLE_TTL_MS = Number(process.env.CCAPP_ACP_IDLE_MS) > 0 ? Number(process.env.CCAPP_ACP_IDLE_MS) : 10 * 60e3;
@@ -386,6 +388,11 @@ function trackAcpToolSideEffects(phase, tool, state, emit) {
   const inp = tool.input && typeof tool.input === "object" ? tool.input : {};
   const agents = (state.acpAgents ||= new Map());        // toolId -> { id, convId, name }
   const byConv = (state.acpAgentsByConv ||= new Map());  // convId -> toolId
+  // F-1：子代理结束记入联络簿（agents.mjs，与 CLI 的 agentBook 同格式），无 cwd/会话号时跳过
+  const bookDone = (toolId, status, why, report) => {
+    if (!state.cwd || !state.sessionId) return;
+    try { acpAgentDone(state.cwd, state.sessionId, { id: toolId, dir: state.acpAgentDirs?.get(toolId) || null, name: agents.get(toolId)?.name || "agent", status, why, report }); } catch {}
+  };
 
   const isSubagentCall = name === "invoke_subagent" || name === "run_workflow";
   if (isSubagentCall) {
@@ -394,6 +401,10 @@ function trackAcpToolSideEffects(phase, tool, state, emit) {
       agents.set(tool.id, { id: tool.id, convId: null, name: label, status: "running" });
       emit({ type: "ag", k: "spawn", id: tool.id, tool: tool.id, name: label, parent: null, depth: 1, bg: true, by: "main", at: Date.now() });
       state.onBgAdd?.({ id: tool.id, type: name === "run_workflow" ? "workflow" : "agent", desc: label });
+      if (state.cwd && state.sessionId && !state.acpAgentDirs?.has(tool.id)) {
+        const d = acpAgentSpawn(state.cwd, state.sessionId, { id: tool.id, name: label, prompt: String(inp.Prompt || inp.Description || "") });
+        if (d) (state.acpAgentDirs ||= new Map()).set(tool.id, d);
+      }
     } else if (phase === "done") {
       const rec = agents.get(tool.id);
       const out = String(tool.output || "");
@@ -402,14 +413,20 @@ function trackAcpToolSideEffects(phase, tool, state, emit) {
         rec.convId = mConv[1];
         byConv.set(rec.convId, rec.id);
       }
+      // F-1：前台完成（输出就是结果，不含 background/running/async 字样）要发 done；
+      // 以前只认 run_workflow，invoke_subagent 前台完成被静默跳过，卡片永久 running。
+      // 后台启动仍不发 done，等空闲回报 / kill 时再结算。
+      const isBgLaunch = /background|running|async/i.test(out);
       if (tool.isError) {
         if (rec) rec.status = "failed";
         emit({ type: "ag", k: "done", id: tool.id, status: "failed", why: firstLineOf(out), at: Date.now() });
         state.onBgRemove?.(tool.id);
-      } else if (name === "run_workflow" && !/background|running|async/i.test(out)) {
+        bookDone(tool.id, "failed", firstLineOf(out), out);
+      } else if (!isBgLaunch) {
         if (rec) rec.status = "done";
         emit({ type: "ag", k: "done", id: tool.id, status: "done", why: firstLineOf(out), at: Date.now() });
         state.onBgRemove?.(tool.id);
+        bookDone(tool.id, "done", firstLineOf(out), out);
       }
     }
     return;
@@ -434,6 +451,7 @@ function trackAcpToolSideEffects(phase, tool, state, emit) {
           rec.status = "stopped";
           emit({ type: "ag", k: "done", id: rec.id, status: "stopped", why: "已终止", at: Date.now() });
           state.onBgRemove?.(rec.id);
+          bookDone(rec.id, "stopped", "已终止", "");
         }
       }
     } else if (act === "kill" && Array.isArray(inp.ConversationIds)) {
@@ -443,6 +461,7 @@ function trackAcpToolSideEffects(phase, tool, state, emit) {
         if (rec && rec.status === "running") {
           rec.status = "stopped";
           emit({ type: "ag", k: "done", id: rec.id, status: "stopped", why: "已终止", at: Date.now() });
+          bookDone(rec.id, "stopped", "已终止", "");
         }
         state.onBgRemove?.(aid);
       }
@@ -930,6 +949,7 @@ export async function runAcpTurn({
     promptSent: false,
     replaySeenAt: 0,
     permMode,
+    cwd,
     sessionId: sessionId || null,
     onBgAdd: (t) => {
       if (!t || !t.id) return;
@@ -1025,6 +1045,7 @@ export async function runAcpTurn({
       if (poolEntry.bgTasks) for (const [k, v] of poolEntry.bgTasks) bgTasks.set(k, v);
       if (poolEntry.acpAgents) state.acpAgents = poolEntry.acpAgents;
       if (poolEntry.acpAgentsByConv) state.acpAgentsByConv = poolEntry.acpAgentsByConv;
+      if (poolEntry.acpAgentDirs) state.acpAgentDirs = poolEntry.acpAgentDirs;
       syncBg();
       poolEntry.client.setHandlers(makeHandlers());
     } else if (hit && !hit.busy) {
@@ -1170,6 +1191,17 @@ export async function runAcpTurn({
       tier: capsNow.tier,
       protocol: "acp",
     });
+
+    // F-2：/goal 在 ACP 下没有原生等价物，发给 agy 只会被当未知命令。会话建立后在网关本地处理：
+    // 设定/清除写 goal_status 落盘，goalStateOf 与 4 秒轮询照常读到；不发 session/prompt。
+    const goalArgs = parseGoalPrompt(prompt);
+    if (goalArgs !== null) {
+      const goalRes = applyGoalCommand(acpSessionFile(cwd, activeSessionId), goalArgs);
+      const goalText = goalRes.text;
+      emit({ type: "result", sessionId: activeSessionId, resultText: goalText, stopReason: "end_turn", durationMs: Date.now() - t0, costUsd: 0 });
+      canKeep = keepAlive && !client.closed && !run?.aborted && !!activeSessionId;
+      return { ok: true, sessionId: activeSessionId, model: activeModel, toolCount: 0, resultText: goalText, stopReason: "end_turn", durationMs: Date.now() - t0, usage: null, reused };
+    }
 
     // 4. 可选：应用模型、思考强度与权限模式（兼容 models.availableModels 与 configOptions）
     if (model && (!reused || poolEntry?.model !== model)) {
@@ -1362,6 +1394,7 @@ export async function runAcpTurn({
       entry.bgTasks = bgTasks;
       entry.acpAgents = state.acpAgents || entry.acpAgents || new Map();
       entry.acpAgentsByConv = state.acpAgentsByConv || entry.acpAgentsByConv || new Map();
+      entry.acpAgentDirs = state.acpAgentDirs || entry.acpAgentDirs || new Map();
       entry.busy = false;
       entry.lastUsed = Date.now();
 
@@ -1466,9 +1499,11 @@ export async function runAcpTurn({
               usage: null,
               promptSent: true,
               permMode: entry.permMode,
+              cwd: entry.cwd,
               sessionId: activeSessionId,
               acpAgents: entry.acpAgents,
               acpAgentsByConv: entry.acpAgentsByConv,
+              acpAgentDirs: entry.acpAgentDirs,
               onBgAdd: (t) => {
                 if (!t || !t.id) return;
                 entry.bgTasks.set(String(t.id), { id: String(t.id), type: t.type || "shell", desc: String(t.desc || t.id) });
