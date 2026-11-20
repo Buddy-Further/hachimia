@@ -23,7 +23,7 @@ ${src05.slice(at0, at1 + marker.length)}
 ${src02.slice(a, b)}
 globalThis.__h = { attAt, splitRefs };
 `;
-  const ctx = {};
+  const ctx = { tk: (s) => s };   // 2026-11-20 集成修正：02-chat-view.js 的 BIG_REF 用 tk() 登记 i18n 键，vm 沙箱须提供 tk
   vm.runInNewContext(code, ctx);
   return ctx.__h;
 }

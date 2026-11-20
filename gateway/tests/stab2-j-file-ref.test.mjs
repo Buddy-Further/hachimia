@@ -30,7 +30,8 @@ let inputEl = { value: "", selectionStart: 0, selectionEnd: 0,
   focus() {}, setSelectionRange(a, b) { this.selectionStart = a; this.selectionEnd = b; } };
 const state = { popup: { mode: null, items: [], sel: 0 }, fileDir: "", fileParent: null };
 const t = (s, v) => String(s).replace(/\\{(\\w+)\\}/g, (_, k) => String(v && v[k] !== undefined ? v[k] : ""));
-const hidePopup = () => {};
+const tk = (s) => s;   // 2026-11-20 集成修正：02-chat-view.js 的 BIG_REF 用 tk() 登记 i18n 键，vm 沙箱须提供 tk
+const hidePopup = () => {}; 
 const autoGrow = () => {};
 const syncInterject = () => {};
 const draftPersistSoon = () => {};
