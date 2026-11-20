@@ -28,9 +28,9 @@ const F = "/data/user/0/li.dsh.claudecli/files", P = `${F}/toolchain/dshtc/prefi
 const BLD = process.env.BLDTOOLS || (OLD ? `${F}/bldtools` : path.join(HOME, ".bldtools"));
 const MANI = path.join(ROOT, "android/AndroidManifest.xml");
 const WN = path.join(ROOT, "android/assets/whatsnew");
-const APK = path.join(ROOT, "dist/cccodroid.apk");
-// 双方案：cccodroid.apk 是 targetSdk 28（默认、兼容最好），cccodroid-36.apk 给系统不让装 28 的机器。同版本号、同钥匙，互相覆盖安装
-const APK36 = path.join(ROOT, "dist/cccodroid-36.apk");
+const APK = path.join(ROOT, "dist/hachimia.apk");
+// 双方案：hachimia.apk 是 targetSdk 28（默认、兼容最好），hachimia-36.apk 给系统不让装 28 的机器。同版本号、同钥匙，互相覆盖安装
+const APK36 = path.join(ROOT, "dist/hachimia-36.apk");
 const STEPS = ["preflight", "bump", "changelog", "commit", "build", "verify", "push", "release", "check", "site", "install"];
 const PUBLIC = ["push", "release", "check", "site"];
 // 官网 cccodroid.net：VPS 上的 cccodroid-site.service 从 GitHub 生成静态站（含 /dl/ 直链），前面是 Cloudflare
@@ -135,7 +135,7 @@ const S = {
     console.log("  " + git("log", "--oneline", "-1"));
   },
   build() {
-    // 先出 36 的、改名放一边，再出 28 的（build.sh 的产物固定叫 cccodroid.apk）。dev 只出 28，省一半时间
+    // 先出 36 的、改名放一边，再出 28 的（build.sh 的产物固定叫 hachimia.apk）。dev 只出 28，省一半时间
     fs.rmSync(APK36, { force: true });
     if (!DEV) {
       run("sh", [path.join(ROOT, "scripts/build.sh")], { cwd: ROOT, env: { ...process.env, TARGET_SDK: "36" } });
@@ -148,7 +148,7 @@ const S = {
     if (b.pkg !== "ha.chi.mia") throw new Error(`包名是 ${b.pkg}`);
     if (b.code !== m.code || b.name !== m.name) throw new Error(`包里是 ${b.name}（${b.code}），清单是 ${m.name}（${m.code}）`);
     if (!DEV && b.name !== VER) throw new Error(`包里版本 ${b.name}，要发的是 ${VER}`);
-    if (b.sdk !== 28) throw new Error(`cccodroid.apk 的 targetSdk 是 ${b.sdk}，应为 28`);
+    if (b.sdk !== 28) throw new Error(`hachimia.apk 的 targetSdk 是 ${b.sdk}，应为 28`);
     state.sha = shaFile(APK); state.size = fs.statSync(APK).size;
     if (fs.readFileSync(APK).length !== state.size) throw new Error("APK 的 stat 大小和实际不一致（FUSE），等几秒重跑 verify");
     if (!DEV) {
@@ -268,8 +268,8 @@ for (const s of plan) {
   // 续跑时 verify 可能是上次的：对外之前核对提交和两个包还是验过的那份，变了就作废 verify 及之后的步骤（审查 v0.5.20 10-002）
   if (PUBLIC.includes(s) && !DEV) {
     const why = state.head !== git("rev-parse", "HEAD") ? "提交变了"
-      : !fs.existsSync(APK) || shaFile(APK) !== state.sha || fs.statSync(APK).size !== state.size ? "cccodroid.apk 变了"
-      : !fs.existsSync(APK36) || shaFile(APK36) !== state.sha36 || fs.statSync(APK36).size !== state.size36 ? "cccodroid-36.apk 变了"
+      : !fs.existsSync(APK) || shaFile(APK) !== state.sha || fs.statSync(APK).size !== state.size ? "hachimia.apk 变了"
+      : !fs.existsSync(APK36) || shaFile(APK36) !== state.sha36 || fs.statSync(APK36).size !== state.size36 ? "hachimia-36.apk 变了"
       : git("status", "--porcelain") ? "工作区有改动" : "";
     if (why) {
       for (const k of STEPS.slice(STEPS.indexOf("verify"))) delete state.done[k];
