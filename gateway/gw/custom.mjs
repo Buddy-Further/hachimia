@@ -104,22 +104,48 @@ function rmTree(p) {
 }
 /**
  * 解压，同时盯着实际写了多少：包里登记的大小能造假（zip 中央目录写 1 KB，数据流解出几 GB），
- * 所以按所在分区可用空间的减少量算，超过上限、条目数太多、或者分区快满了就杀掉（11-04 报告 六-9）
+ * 所以按目标目录树自身的已分配字节（lstat 的 blocks×512，稀疏文件不虚增）+ 文件数算，
+ * 超过上限、条目数太多就杀掉（11-04 报告 六-9）。分区余量检查保留作全局兜底。
+ * 以前按所在分区 statfsSync().bavail 的减少量算：btrfs 上写 400MB 后 bavail 增量全程 0.0MB
+ * （同一写法在 tmpfs 上是准的），上限检查等于被静默绕过；btrfs 的 ffree 也恒为 0，
+ * 文件数那一肢同样是死的（ci-investigate-install.md §3.2，E2/E2b/E2d）。
  */
 const UNPACK_MAX_FILES = 200000, UNPACK_RESERVE = 512 * 1024 * 1024;
+/** 目标目录树自身的已分配字节 + 文件数（lstat，不跟软链；读不到的条目跳过不抛） */
+function treeUsage(dir) {
+  let bytes = 0, files = 0;
+  const stack = [dir];
+  while (stack.length) {
+    const d = stack.pop();
+    let ents; try { ents = fs.readdirSync(d, { withFileTypes: true }); } catch { continue; }
+    for (const e of ents) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) { stack.push(p); continue; }
+      files++;
+      try { const st = fs.lstatSync(p); if (st.isFile()) bytes += (st.blocks || 0) * 512; } catch {}
+    }
+  }
+  return { bytes, files };
+}
 function runCapped(cmd, args, dir, max) {
   return new Promise((resolve) => {
-    let f0; try { f0 = fs.statfsSync(dir); } catch {}
     let over = 0;
     const ch = execFile(cmd, args, { env: termEnv(), timeout: 600000, maxBuffer: 16 << 20 }, (err, out, errOut) => {
       clearInterval(t);
       resolve(over ? { code: "TOOBIG", used: over, out: "", err: "" } : { code: err ? (err.code || 1) : 0, out: String(out || ""), err: String(errOut || err?.message || "") });
     });
+    let lastScan = 0, lastFiles = 0;
     const t = setInterval(() => {
-      if (over || !f0) return;
-      let f; try { f = fs.statfsSync(dir); } catch { return; }
-      const used = (f0.bavail - f.bavail) * f.bsize, files = f0.ffree - f.ffree;
-      if (used > max || files > UNPACK_MAX_FILES || f.bavail * f.bsize < UNPACK_RESERVE) { over = Math.max(used, 1); try { ch.kill("SIGKILL"); } catch {} }
+      if (over) return;
+      // 文件数很大时全树扫描变重：超过 5000 个文件后每 500ms 才扫一次（上限仍会被触发，只是晚一拍）
+      const now = Date.now();
+      if (lastFiles > 5000 && now - lastScan < 500) return;
+      lastScan = now;
+      const { bytes, files } = treeUsage(dir);
+      lastFiles = files;
+      let reserveLow = false;
+      try { const f = fs.statfsSync(dir); reserveLow = f.bavail * f.bsize < UNPACK_RESERVE; } catch {}
+      if (bytes > max || files > UNPACK_MAX_FILES || reserveLow) { over = Math.max(bytes, 1); try { ch.kill("SIGKILL"); } catch {} }
     }, 200);
   });
 }
