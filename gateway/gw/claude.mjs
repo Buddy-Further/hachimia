@@ -759,6 +759,12 @@ export function syncAgySettings(p = PROVIDER, key = keyOf(p)) {
       ...((Array.isArray(p.extraModels) ? p.extraModels : []).map((m) => (typeof m === "string" ? m : m?.id))),
     ].filter((x) => typeof x === "string" && x.trim()))];
     if (isCustomEp && modelIds.length) {
+      // MIG-13：modelName 格式已按官方文档核对一半——官方文档（antigravity.google/docs/settings，
+      // CLI 设置页“customModelsConfig and gcp”一节）写明 modelName 形如
+      // `gemini-api://<base_url>/models/<model>`，与下面 host-only 端点的写法一致。
+      // 但文档没写 <base_url> 带路径段（如 https://proxy.example.com/v1beta）时怎么写，
+      // 本机无 agy、无真机，带路径的写法未验证——核对前不要改格式。真机验证方法：
+      // 配一个带路径的自定义 Gemini 端点，跑 `agy models` 看自定义模型是否出现。
       const nextCustom = {
         customModels: modelIds.map((id) => ({
           modelName: `gemini-api://${baseClean}/models/${id}`,

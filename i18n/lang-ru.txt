@@ -3163,3 +3163,11 @@
 3158	Not supported under Antigravity: the Antigravity CLI has no generic third-party API key channel. Declare protocol:"gemini" (the endpoint must speak the Gemini protocol), or switch to a Gemini / sign-in provider.
 3159	On-device models need Claude Code; this device only has the Antigravity CLI, so they're unavailable for now.
 3160	Not set (no default compaction line under ACP)
+// TODO i18n (mig-deep-p2a)：以下为英文原文回退，待译成 ru
+3161	No Google Cloud ADC credentials found (Application Default Credentials). Run `gcloud auth application-default login` in a terminal first, then come back and pick ADC.
+3162	Application Default Credentials found.
+3163	This device runs in Antigravity-only mode, so the Claude preset ({id}) is unavailable: the Antigravity CLI cannot sign in with a Claude account or a Claude API key. Pick Google Antigravity sign-in or another provider.
+3164	The old configuration was still using a Claude preset, which doesn't work in Antigravity-only mode; it has been switched back to Google Antigravity sign-in.
+3165	Protocol: not declared
+3166	Protocol: Gemini (endpoint speaks the Gemini protocol)
+3167	Checking ADC credentials…

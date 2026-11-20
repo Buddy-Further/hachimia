@@ -4,7 +4,7 @@ import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { CFG, PATHS, PREFIX, log, tz } from "./config.mjs";
 import { SETTINGS, saveSettings } from "./settings-store.mjs";
-import { MODEL_ID_RE, dropModelCache, extraModelsOf, normalizeModels } from "./models.mjs";
+import { MODEL_ID_RE, dropModelCache, extraModelsOf, isGeminiProvider, normalizeModels } from "./models.mjs";
 import { RUNS } from "./runs.mjs";
 import { NEXT, fetchText, readBody, sendJson } from "./http.mjs";
 import { readSmallFile } from "./saferead.mjs";
@@ -589,6 +589,9 @@ function provShape(j) {
   if (isObj(j.providers)) for (const [k, v] of Object.entries(j.providers)) if (isObj(v)) providers[k] = v;
   return { ...j, providers };
 }
+// MIG-10：agy-only 下启动/切换时把 Claude 预置迁回 antigravity 的记录（给 /api/providers 提示界面用）。
+// 声明必须在 loadProviders() 首次执行之前（它在迁移分支里赋值）。
+export let PROVIDER_MIGRATED_FROM = null;
 function loadProviders() {
   // 读坏了（语法错、形状不对）：原文件留底成 .bad-*（厂商 Key 都在里面），按空表起。
   // 以前是静默回落空表，下一次保存就把整份连 Key 一起覆盖掉（0.6.9 审计 P1-1）
@@ -603,7 +606,15 @@ function loadProviders() {
   for (const [id, raw] of Object.entries(PROVIDERS_RAW.providers)) {
     if (!PRESETS[id] && raw && raw.baseUrl) providers[id] = composeProvider(id, raw);
   }
-  const active = providers[PROVIDERS_RAW.active] ? PROVIDERS_RAW.active : (PREFIX || isAgyOnlyMode() ? "antigravity" : "deepseek");
+  let active = providers[PROVIDERS_RAW.active] ? PROVIDERS_RAW.active : (PREFIX || isAgyOnlyMode() ? "antigravity" : "deepseek");
+  // MIG-10：agy-only 下 Claude 系预置不可用。旧配置的 active 仍指着它时迁回 antigravity，
+  // 这里只改内存并记 flag，落盘由模块加载后统一做（见 PROVIDERS_CFG 赋值后的那段）。
+  if (isAgyOnlyMode() && active && providers[active] && providers[active].group === "claude") {
+    PROVIDER_MIGRATED_FROM = active;
+    PROVIDERS_RAW.active = "antigravity";
+    active = "antigravity";
+    log(`[厂商] 纯 Antigravity 模式：${PROVIDER_MIGRATED_FROM} 是 Claude 预置，不可用，已自动切回 antigravity`);
+  }
   return { active, providers };
 }
 
@@ -611,6 +622,26 @@ function loadProviders() {
 export function isAgyOnlyMode() {
   return !!(PATHS.agy && fs.existsSync(PATHS.agy) && !(PATHS.claude && fs.existsSync(PATHS.claude)));
 }
+
+/** Google Cloud ADC 凭据文件（MIG-11）：gcloud 的标准位置。环境变量显式指到哪就只认哪；
+ *  否则认默认路径。只认非空文件；JSON 损坏的当缺失（重登一次即可再生）。 */
+export function adcCredentialsPath() {
+  const viaEnv = (process.env.GOOGLE_APPLICATION_CREDENTIALS || "").trim();
+  const candidates = viaEnv ? [viaEnv] : [path.join(CFG.home, ".config", "gcloud", "application_default_credentials.json")];
+  for (const f of candidates) {
+    try {
+      const st = fs.statSync(f);
+      if (!st.isFile() || st.size === 0) continue;
+      if (/\.json$/i.test(f)) {
+        const j = JSON.parse(fs.readFileSync(f, "utf8"));
+        if (!j || typeof j !== "object" || Array.isArray(j)) continue;
+      }
+      return f;
+    } catch { continue; }
+  }
+  return "";
+}
+export function hasAdcCredentials() { return adcCredentialsPath() !== ""; }
 
 /** ACP authenticate 用的认证方式：按厂商真实认证方式映射（C2）。
  * 预置已声明的 authType 原样用；登录类（无声明，如 anthropic 订阅）→ oauth-personal；
@@ -665,6 +696,9 @@ export function isProviderUsable(p) {
 /** 判断某接口是否应该显示给当前客户端（纯 Antigravity 模式下隐藏无法驱动的 Claude/Anthropic-only 预设） */
 export function isProviderVisible(id, v) {
   if (!v) return false;
+  // MIG-10：agy-only 下 Claude 系预置一律隐藏（不论是否存 key、是否为 active——
+  // active 是 Claude 时由 loadProviders/applyProvider 迁回 antigravity，不留可选项）。
+  if (isAgyOnlyMode() && v.group === "claude") return false;
   if (!isAgyOnlyMode()) return true;
   if (id === PROVIDER.id) return true;
   if (v.group === "antigravity" || v.group === "local" || v.custom) return true;
@@ -699,6 +733,9 @@ export function providersDiskCheck() {
   try { saveProvidersRaw(); return true; } catch (e) { log(`[厂商配置] 写回失败：${e.message}`); return false; }
 }
 export let PROVIDERS_CFG = loadProviders();
+// MIG-10：落盘放这里做（saveProvidersRaw 内部会再调一次 loadProviders，重入时 active 已是
+// antigravity，不会重复迁移）。
+if (PROVIDER_MIGRATED_FROM) { try { saveProvidersRaw(); } catch (e) { log(`[厂商] 迁移落盘失败：${e.message}`); } }
 // 受控修复会重写整表，必须核对整份原始配置，包括删除的字段、无关接口和 active。
 export const providersDiskMatches = (disk) => isDeepStrictEqual(disk, { ...PROVIDERS_RAW, providers: { ...PROVIDERS_RAW.providers } });
 
@@ -903,10 +940,16 @@ function redactKey(s, key) {
 export async function testProvider(id) {
   const v = PROVIDERS_CFG.providers[id];
   if (!v) return { ok: false, message: tz("没有这家厂商") };
+  // MIG-11：ADC 预置先查凭据文件，缺失时前置报错并给出 gcloud 指引（不等“不用测密钥”的回执把问题盖过去）
+  if (v.authType === "agent-platform" || v.authStyle === "adc") {
+    return hasAdcCredentials()
+      ? { ok: true, message: tz("已找到 Application Default Credentials。") }
+      : { ok: false, message: tz("没有找到 Google Cloud ADC 凭据（Application Default Credentials）。请先在终端运行 gcloud auth application-default login 登录，再回来选 ADC。") };
+  }
   if (v.login) return { ok: false, message: tz("账户登录不用测密钥，看登录状态即可") };
   const key = String(v.apiKey || "").trim();
   if (!key) return { ok: false, message: tz("还没填密钥") };
-  const isGemini = v.authStyle === "gemini-api-key" || v.modelsAuth === "x-goog-api-key";
+  const isGemini = isGeminiProvider(v);
   const auth = isGemini
     ? { "x-goog-api-key": key }
     : v.authStyle === "x-api-key"
@@ -1283,7 +1326,8 @@ export function providerBrief() {
   const ids = PROVIDERS_CFG
     ? Object.entries(PROVIDERS_CFG.providers).filter(([id, v]) => isProviderVisible(id, v)).map(([id]) => id)
     : [BUILTIN_PROVIDER.id];
-  if (!ids.includes(PROVIDER.id)) ids.unshift(PROVIDER.id);
+  // 正在用的那家总会列出来——但 agy-only 下被隐藏的 Claude 预置除外（MIG-10：已迁走，不再列出）
+  if (!ids.includes(PROVIDER.id) && isProviderVisible(PROVIDER.id, PROVIDER)) ids.unshift(PROVIDER.id);
   return ids.map((id) => {
     const p = providerById(id);
     return p && { id, label: p.label || id, labelEn: p.labelEn || "", login: !!p.login, local: !!p.local,
@@ -1301,6 +1345,16 @@ export function keyOf(p) {
  *  模型清单缓存无需在此清除 —— 缓存按接口配置指纹存取（models.mjs 的 sigOf），
  *  换厂商自然对不上。 */
 export function applyProvider() {
+  // MIG-10：设置里的 provider 仍指着 Claude 预置时（旧配置/分享导入），同样迁回 antigravity 并落盘
+  if (isAgyOnlyMode() && SETTINGS.provider) {
+    const want = PROVIDERS_CFG.providers[SETTINGS.provider];
+    if (want && want.group === "claude") {
+      PROVIDER_MIGRATED_FROM = SETTINGS.provider;
+      log(`[厂商] 纯 Antigravity 模式：${PROVIDER_MIGRATED_FROM} 是 Claude 预置，不可用，已自动切回 antigravity`);
+      SETTINGS.provider = null;
+      try { saveSettings(); } catch (e) { log(`[厂商] 清掉 Claude 预置选择失败：${e.message}`); }
+    }
+  }
   PROVIDER = resolveProvider();
   CFG.upstream = PROVIDER.baseUrl || BUILTIN_PROVIDER.baseUrl;
   API_KEY = loadApiKey(PROVIDER);
@@ -1345,6 +1399,7 @@ export async function routeProviders(req, res, u, p) {
       .map(([id, v]) => providerView(id, v));
     return sendJson(res, 200, {
       active: PROVIDER.id,
+      ...(PROVIDER_MIGRATED_FROM ? { migratedFrom: PROVIDER_MIGRATED_FROM } : {}),
       configFile: PROVIDERS_FILE,
       configFound: fs.existsSync(PROVIDERS_FILE),
       providers: list,

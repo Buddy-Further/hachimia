@@ -131,30 +131,46 @@ async function loginStart(method = "personal") {
 /**
  * 检测本机 Antigravity CLI 是否有已缓存的 Google 登录态（不读取、不解析、不触碰 OAuth token 内容）。
  * 只认非空文件：空文件、目录、损坏或空对象的 .json 都不算凭据（A3）。
+ * MIG-14：三个目录递归找凭据特征文件（与 logout 同口径，见 listAgyCredentialFiles）。
  */
-function hasAgySessionFiles() {
-  const dirs = [
-    path.join(CFG.home, ".gemini", "antigravity-cli"),
-    path.join(CFG.home, ".config", "antigravity"),
-    path.join(CFG.home, ".antigravity"),
-  ];
-  for (const d of dirs) {
+const AGY_SESSION_DIRS = [
+  path.join(CFG.home, ".gemini", "antigravity-cli"),
+  path.join(CFG.home, ".config", "antigravity"),
+  path.join(CFG.home, ".antigravity"),
+];
+const AGY_CRED_NAME_RE = /cred|token|auth|oauth|session|profile/i;
+/** 三个凭据目录下递归列出凭据特征文件（MIG-14）：只认文件（目录不算）、跳过 .bak；
+ *  不跟随符号链接进子目录（防循环），最多下钻 8 层、最多 1000 个文件。 */
+export function listAgyCredentialFiles() {
+  const out = [];
+  const walk = (dir, depth) => {
+    if (out.length >= 1000 || depth > 8) return;
     let names;
-    try { names = fs.readdirSync(d); } catch { continue; }
-    for (const f of names) {
-      if (!/cred|token|auth|oauth|session|profile/i.test(f) || f.endsWith(".bak")) continue;
-      const fp = path.join(d, f);
-      let st;
-      try { st = fs.statSync(fp); } catch { continue; }
-      if (!st.isFile() || st.size === 0) continue;
-      if (/\.json$/i.test(f)) {
-        try {
-          const j = JSON.parse(fs.readFileSync(fp, "utf8"));
-          if (!j || typeof j !== "object" || Array.isArray(j) || !Object.keys(j).length) continue;
-        } catch { continue; }
-      }
-      return true;
+    try { names = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of names) {
+      if (out.length >= 1000) return;
+      const fp = path.join(dir, e.name);
+      if (e.isDirectory()) { walk(fp, depth + 1); continue; }
+      if (!e.isFile()) continue;
+      if (!AGY_CRED_NAME_RE.test(e.name) || e.name.endsWith(".bak")) continue;
+      out.push(fp);
     }
+  };
+  for (const d of AGY_SESSION_DIRS) walk(d, 0);
+  return out;
+}
+export function hasAgySessionFiles() {
+  for (const fp of listAgyCredentialFiles()) {
+    let st;
+    try { st = fs.statSync(fp); } catch { continue; }
+    if (!st.isFile() || st.size === 0) continue;
+    if (/\.json$/i.test(fp)) {
+      try {
+        const j = JSON.parse(fs.readFileSync(fp, "utf8"));
+        if (!j || typeof j !== "object" || Array.isArray(j) || !Object.keys(j).length) continue;
+      } catch { continue; }
+    }
+    return true;
   }
   return false;
 }
@@ -342,17 +358,13 @@ export async function routeLogin(req, res, u, p) {
       return sendJson(res, 409, { error: "busy", message: tz("这一轮还在生成，等它跑完再退出登录。") });
     }
     // agy 没有 auth logout 子命令：直接删本地凭据文件（与 hasAgySessionFiles 同一口径，
-    // 只删三个目录的顶层文件），然后重探一次验证是不是真的退出了
+    // 三个目录递归删凭据特征文件，MIG-14），然后重探一次验证是不是真的退出了
     let deleted = 0;
-    for (const d of [path.join(CFG.home, ".gemini", "antigravity-cli"), path.join(CFG.home, ".config", "antigravity"), path.join(CFG.home, ".antigravity")]) {
+    for (const fp of listAgyCredentialFiles()) {
       try {
-        for (const f of fs.readdirSync(d)) {
-          if (!/cred|token|auth|oauth|session|profile/i.test(f) || f.endsWith(".bak")) continue;
-          const fp = path.join(d, f);
-          if (!fs.statSync(fp).isFile()) continue;
-          fs.rmSync(fp);
-          deleted++;
-        }
+        if (!fs.statSync(fp).isFile()) continue;
+        fs.rmSync(fp);
+        deleted++;
       } catch {}
     }
     AUTH_CACHE = null; AUTH_GOOD = null; AUTH_TIER = null;

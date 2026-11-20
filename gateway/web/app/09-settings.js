@@ -21,6 +21,11 @@
       const r = await api("/api/providers");
       state.providers = r.providers || [];
       state.providerActive = r.active;
+      // MIG-10：网关把旧配置的 Claude 预置迁回 antigravity 时，提示一次用户（每页只提示一次）
+      if (r.migratedFrom && state.migratedFromShown !== r.migratedFrom) {
+        state.migratedFromShown = r.migratedFrom;
+        toast(t("检测到旧配置仍在用 Claude 预设，已自动切回 Google Antigravity 订阅登录。"));
+      }
       if (!state.provView || (state.provView !== "__new__" && !state.providers.some((p) => p.id === state.provView))) {
         state.provView = r.active;
       }
@@ -176,10 +181,17 @@
   async function renderLoginCard(box, p) {
     if (p.authStyle === "adc") {
       box.innerHTML = `<div class="sub">${esc(pLabel(p))}</div>
-        <div class="prov-state ok">${t("使用本机 Google Cloud ADC（自动启用 AGY_ADC_AUTH=true）")}</div>
+        <div class="prov-state" id="adc-state">${t("正在检查 ADC 凭据…")}</div>
         <div class="row-actions" id="login-actions">${useBtn(p)}</div>
         <div class="tiny">${esc(pHint(p))}</div>`;
       $("login-actions").onclick = (e) => { if (e.target.dataset?.act === "use") useProvider(p); };
+      // MIG-11：选 ADC 预设时先查凭据文件，缺失就当场给 gcloud 指引（不等发消息时才报错）
+      const mine = box.querySelector("#adc-state"), live = () => mine.isConnected && state.provView === p.id;
+      post("/api/providers/test", { id: p.id }).then((st) => {
+        if (!live()) return;
+        mine.textContent = st.message || "";
+        mine.classList.add(st.ok ? "ok" : "err");
+      }).catch((e) => { if (live()) { mine.textContent = t("查询失败：{msg}", { msg: e.message }); mine.classList.add("err"); } });
       return;
     }
     box.innerHTML = `<div class="sub">${esc(pLabel(p))}</div>

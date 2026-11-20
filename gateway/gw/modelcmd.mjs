@@ -97,7 +97,9 @@ export async function handleLocalCommand(name, arg, reply, sid, stopped = () => 
         const on = m.id === curId ? "**▸** " : "　　";
         const img = (m.input_modalities || []).includes("image") ? " · 支持图片" : "";
         const eff = (Array.isArray(m.effort?.supported_levels) ? m.effort.supported_levels : []).join(" / ");
-        return `${on}\`${m.id}\` — ${m.name || ""}\n　　上下文 ${Math.round((m.context_window || 0) / 1024)}k${img} · effort ${eff}`;
+        // MIG-4：未知窗口写“未知”而非 0k（与前端 12-model-caps.js:300 同口径：0 不是窗口，是不知道）
+        const ctx = m.context_window ? Math.round(m.context_window / 1024) + "k" : "未知";
+        return `${on}\`${m.id}\` — ${m.name || ""}\n　　上下文 ${ctx}${img} · effort ${eff}`;
       }).join("\n\n");
       return reply(
         `当前厂商：**${P.label || P.id}**\n` +
@@ -111,9 +113,24 @@ export async function handleLocalCommand(name, arg, reply, sid, stopped = () => 
       );
     }
     const t = arg.toLowerCase().trim();
-    const target = models.find((m) => m.id.toLowerCase() === t)
-      || models.find((m) => (m.name || "").toLowerCase() === t)
-      || models.find((m) => m.id.toLowerCase().includes(t));
+    let target = models.find((m) => m.id.toLowerCase() === t)
+      || models.find((m) => (m.name || "").toLowerCase() === t);
+    if (!target) {
+      // MIG-5：子串命中多个时不直接取第一个（清单顺序的第一个变体未必是用户要的），
+      // 回复候选清单让用户用完整 id 再选；只命中一个时照常切。
+      const subs = models.filter((m) => m.id.toLowerCase().includes(t));
+      if (subs.length > 1) {
+        const shown = subs.slice(0, 20);
+        const more = subs.length > shown.length ? `\n\n（还有 ${subs.length - shown.length} 个匹配，未列出）` : "";
+        return reply(
+          `有多个模型匹配 \`${arg}\`，请用完整 id 再选一次：\n\n` +
+          shown.map((m) => `- \`${m.id}\`${m.name ? "（" + m.name + "）" : ""}　上下文 ${m.context_window ? Math.round(m.context_window / 1024) + "k" : "未知"}`).join("\n") +
+          more,
+          "model"
+        );
+      }
+      if (subs.length === 1) target = subs[0];
+    }
     if (!target) {
       if (!models.length) {
         return reply(
@@ -133,7 +150,7 @@ export async function handleLocalCommand(name, arg, reply, sid, stopped = () => 
     if (!commit({ model: target.id, effort: eff || "" })) return staleReply("model");
     return reply(
       `已切换到 **${target.id}**${target.name ? "（" + target.name + "）" : ""}\n\n` +
-      `- 上下文窗口：${Math.round((target.context_window || 0) / 1024)}k\n` +
+      `- 上下文窗口：${target.context_window ? Math.round(target.context_window / 1024) + "k" : "未知"}\n` +
       `- 输入模态：${(target.input_modalities || []).join(" / ")}\n` +
       `- effort 档位：${(target.effort?.supported_levels || []).join(" / ")}\n` +
       (effChanged ? `- **注意**：原 effort 该模型不支持，已调为${eff ? ` \`${eff}\`` : "默认（未设置）"}\n` : "") +
