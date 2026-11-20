@@ -18,7 +18,9 @@ import { archiveProblem, parseTarListing } from "./archive-check.mjs";
 const DK = PREFIX ? path.join(PREFIX, "libexec/devkit") : "";
 const STAGE = PREFIX ? path.join(path.dirname(PREFIX), "devkit-stage") : "";
 const MOD_JOBS = new Map();          // id → { phase, done, total, via, error, child, cancelled, finished, queue }
-const DEVKIT_MIRROR = "https://dl.cccodroid.net/devkit/";
+// hachimia 暂无工具包镜像（E-06）：cccodroid 的镜像只放 cccodroid 的文件，模块包地址全是 404。
+// 置空后模块下载只走 GitHub Release；以后有了自己的镜像再把地址填回来（与 Installer.java 的 DEVKIT_MIRROR = null 一致）。
+const DEVKIT_MIRROR = null;
 
 /** modules.json 同 uid 可改：dir 只认 $PREFIX 内的普通相对路径 —— 卸载时会对 dirOf(m) 整个 rmSync（196-供应链.3） */
 const modDirOk = (d) => typeof d === "string" && d.length > 0 && !d.includes("\0") && !d.includes("\\") &&
@@ -234,13 +236,14 @@ async function modRunInstall(mj, m, base, job) {
     job.phase = "downloading"; job.done = 0; job.total = m.gz.bytes;
     const tick = setInterval(() => { try { job.done = fs.statSync(part).size; } catch {} }, 500);
     try {
-      // GitHub Release 与 dl.cccodroid.net 镜像逐字节同一份，内容按 modules.json 里的 sha256 把关
-      const gh = base + m.gz.file, mirror = DEVKIT_MIRROR + base.replace(/\/$/, "").split("/").pop() + "/" + m.gz.file;
-      const srcs = modMirrorFirst ? [mirror, gh] : [gh, mirror];
+      // 内容按 modules.json 里的 sha256 把关；镜像未配置时只走 GitHub Release
+      const gh = base + m.gz.file;
+      const mirror = DEVKIT_MIRROR ? DEVKIT_MIRROR + base.replace(/\/$/, "").split("/").pop() + "/" + m.gz.file : null;
+      const srcs = mirror ? (modMirrorFirst ? [mirror, gh] : [gh, mirror]) : [gh];
       let lastErr;
       for (let i = 0; i < 4 && !job.cancelled; i++) {
-        const url = srcs[i % 2];
-        job.via = url === gh ? "GitHub" : "dl.cccodroid.net";
+        const url = srcs[i % srcs.length];
+        job.via = url === gh ? "GitHub" : new URL(url).host;
         try {
           await compRun(job, path.join(PREFIX, "bin", "curl"), ["-fL", "-sS", "-C", "-", "--retry", "2", "--connect-timeout", "15", "--speed-limit", "10000", "--speed-time", "45", "-o", part, url]);
           lastErr = null; modMirrorFirst = url !== gh; break;
@@ -352,7 +355,9 @@ function modRemove(id) {
   let n = 0;
   for (const g of gone) {
     const b = blockOf(mj, g), files = filesOf(b);
-    if (!files.length) { log(`[mod] ${g} 没有 FILES，跳过删除`); continue; }
+    // 没有 FILES 也要卸：只删模块目录与 .ok（E-05）。以前这里 continue，直接跳过了 .ok 删除与目录删除，
+    // 却仍把 id 留在 removed 里——模块目录与 .ok 残留，界面仍显示“已装”，永远卸不掉。
+    if (!files.length) log(`[mod] ${g} 没有 FILES，只删模块目录与 .ok（清单外的文件无法按清单追踪）`);
     fs.rmSync(path.join(dirOf(b), ".ok"), { force: true });         // 先摘 .ok：删到一半被打断就是「没装」
     const dirs = new Set();
     for (const r of files) {
@@ -366,7 +371,11 @@ function modRemove(id) {
         dirs.add(path.join(path.dirname(r), "__pycache__"));
       }
     }
-    fs.rmSync(dirOf(b), { recursive: true, force: true });
+    // 模块目录整个删掉，但里面如果还有别的已装块/组件/pkg 在用的文件（keep），目录留着：那些文件不属于它
+    const relDir = path.relative(PREFIX, dirOf(b));
+    const shared = [...keep].some((r) => r === relDir || r.startsWith(relDir + "/"));
+    if (shared) log(`[mod] ${g} 的目录里还有别的已装内容在用的文件，目录留着`);
+    else fs.rmSync(dirOf(b), { recursive: true, force: true });
     for (const d of [...dirs].sort((a, c) => c.length - a.length)) { try { fs.rmdirSync(path.join(PREFIX, d)); } catch {} }
   }
   for (const g of gone) MOD_JOBS.delete(g);

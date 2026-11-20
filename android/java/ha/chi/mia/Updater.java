@@ -761,10 +761,16 @@ final class Updater {
         String v = j.optString("latest", "").trim();
         if (!v.isEmpty()) claude.latest = v;
         latestCh = channel();
+        // 渠道新版被标成有问题时（E-07）：自动更新不装它（claudeHeld），界面上也写明原因；用户自己点更新仍可装。
+        // 以前 knownBad() 定义了却从没被调用，这道防线不存在。
+        String badReason = v.isEmpty() ? null : knownBad(v);
+        claudeHeld = badReason != null;
+        // 渠道版本比已装的旧（例如切回 stable）：自动更新不装旧的，等用户自己点
+        claudeOlder = !v.isEmpty() && !claude.current.isEmpty() && cmpVer(v, claude.current) < 0;
         if (!"installing".equals(claude.state)) {
-            if (claude.current.isEmpty()) claude.set("available", "");
+            if (claude.current.isEmpty()) claude.set("available", badReason != null ? badReason : "");
             else if (v.isEmpty() || cmpVer(v, claude.current) <= 0) claude.set("uptodate", "");
-            else claude.set("available", "");
+            else claude.set("available", badReason != null ? badReason : "");
         }
         if (!"installing".equals(claude.state) && new File(env.home, ".local/share/hachimia/agy/current/.mismatch").isFile())
             claude.set("available", Tr.t("这一版与清单的 sha256 对不上，点更新重新下载"));
@@ -779,7 +785,7 @@ final class Updater {
     private volatile boolean claudeOlder;
 
     /**
-     * 维护者标成「有已知问题」的 Claude Code 版本（scripts/claude-verified.mjs 发布、网关 gw/ccverified.mjs 验过签存在 home 里的那份）。
+     * 维护者标成「有已知问题」的 agy 版本（scripts/claude-verified.mjs 发布、网关 gw/ccverified.mjs 验过签存在 home 里的那份）。
      * 返回原因（按界面语言，中文以外都用英文），没标就返回 null。文件不在、读不了都当没标：只少一道提醒，不挡更新
      */
     private String knownBad(String v) {

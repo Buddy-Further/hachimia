@@ -4,7 +4,7 @@
 //
 //  用法:  node scripts/ship.mjs <版本> [--title "一句话"]       本地走到核包为止（改版本号、提交、打包），不碰网络
 //         node scripts/ship.mjs <版本> --publish                 接着推送、建 Release、下载回来核哈希、同步官网并清 CF 直链缓存
-//         node scripts/ship.mjs <版本> … --install               最后用 priv 覆盖安装到本机（会关掉正在用的 cccodroid）
+//         node scripts/ship.mjs <版本> … --install               最后用 priv 覆盖安装到本机（会关掉正在用的 hachimia）
 //         node scripts/ship.mjs <版本> --from <步骤>             从某步重来（之前的步骤视为已完成）
 //         node scripts/ship.mjs <版本> --check                   只对账：清单、包、提交、Release 逐项核一遍，不改东西
 //         node scripts/ship.mjs dev [--install]                  只打包当前工作树（不改版本号、不提交），给装机自测用
@@ -34,8 +34,10 @@ const APK = path.join(ROOT, "dist/hachimia.apk");
 const APK36 = path.join(ROOT, "dist/hachimia-36.apk");
 const STEPS = ["preflight", "bump", "changelog", "commit", "build", "verify", "push", "release", "check", "site", "install"];
 const PUBLIC = ["push", "release", "check", "site"];
-// 官网 cccodroid.net：VPS 上的 cccodroid-site.service 从 GitHub 生成静态站（含 /dl/ 直链），前面是 Cloudflare
-const SITE = "https://cccodroid.net", VPS = "root@167.160.161.115", VPS_KEY = path.join(HOME, ".ssh/vps-keys/167.160.161.115-root");
+// 官网：hachimia 暂无独立站点（E-09）。HACHIMIA_SITE 配了才走 site 同步（VPS 上的站点服务 + Cloudflare 直链）；
+// 没配时 S.site() 直接跳过（state.done.site 记 "skipped"，--check 不会再去核它）。cccodroid.net / 167.160.161.115
+// 是 cccodroid 的旧基础设施，hachimia 建站时再换成自己的。
+const SITE = process.env.HACHIMIA_SITE || "", VPS = "root@167.160.161.115", VPS_KEY = path.join(HOME, ".ssh/vps-keys/167.160.161.115-root");
 
 const argv = process.argv.slice(2);
 const opt = (k) => { const i = argv.indexOf(k); return i >= 0 ? argv.splice(i, 2)[1] : undefined; };
@@ -193,8 +195,10 @@ const S = {
     console.log(`  ✓ ${rel.html_url}  下载哈希一致${rel.prerelease ? "（预发布）" : "，已是 Latest"}`);
   },
   async site() {
+    state.siteSkipped = false;   // 上次跳过不代表这次也跳过：每次都按当前有没有配 HACHIMIA_SITE 重新定
     if (!process.env.HACHIMIA_SITE) {
       console.log("  hachimia 暂无独立镜像站点，跳过 site 同步（更新直接走 GitHub Releases）");
+      state.siteSkipped = true;   // 主流程把 done.site 记成 "skipped"，别让 --check 以为这步真做过
       return;
     }
     // 1) 让 VPS 现在就重新生成（平时靠定时器，等不及）；钥匙只交路径，不读出来
@@ -208,10 +212,11 @@ const S = {
 };
 
 // 官网直链给的是不是新包（先按大小等 CF 边缘换新，几秒的事、重试几次；对上了再下回来核 sha256，审查 10-29 L20）。
-// 预发布不进 /dl/cccodroid.apk，只核带版本号的。--check 也用它（只读）
+// 预发布不进 /dl/hachimia.apk，只核带版本号的。--check 也用它（只读）
 function siteVerify() {
-  const want = [[`/dl/v${VER}/cccodroid.apk`, state.size, state.sha], [`/dl/v${VER}/cccodroid-36.apk`, state.size36, state.sha36]];
-  if (!state.prerelease) want.push(["/dl/cccodroid.apk", state.size, state.sha], ["/dl/cccodroid-36.apk", state.size36, state.sha36]);
+  if (!SITE) throw new Error("未配置 HACHIMIA_SITE，无法核对官网直链（hachimia 暂无独立站点）");
+  const want = [[`/dl/v${VER}/hachimia.apk`, state.size, state.sha], [`/dl/v${VER}/hachimia-36.apk`, state.size36, state.sha36]];
+  if (!state.prerelease) want.push(["/dl/hachimia.apk", state.size, state.sha], ["/dl/hachimia-36.apk", state.size36, state.sha36]);
   for (const [f, size, sha] of want) {
     let got = "";
     for (let i = 0; i < 6; i++) {
@@ -256,7 +261,7 @@ const plan = DEV ? ["build", "verify", ...(INSTALL ? ["install"] : [])]
   : STEPS.filter((s) => (PUBLIC.includes(s) ? PUBLISH : s === "install" ? INSTALL : true));
 if (CHECK_ONLY) {
   let bad = 0;
-  for (const s of ["verify", ...(state.done.release ? ["check"] : []), ...(state.done.site ? ["site"] : [])]) {
+  for (const s of ["verify", ...(state.done.release ? ["check"] : []), ...(state.done.site && state.done.site !== "skipped" ? ["site"] : [])]) {
     try { await (s === "site" ? siteVerify() : S[s]()); console.log(`✓ ${s}`); } catch (e) { bad++; console.log(`✗ ${s}：${e.message}`); }
   }
   process.exit(bad ? 1 : 0);
@@ -287,7 +292,7 @@ for (const s of plan) {
     console.error(`✗ ${s}：${e.message}\n  修好后再跑同一条命令，会从 ${s} 接着来`);
     save(); process.exit(1);
   }
-  state.done[s] = new Date().toISOString(); save();
+  state.done[s] = s === "site" && state.siteSkipped ? "skipped" : new Date().toISOString(); save();
 }
 if (!DEV && !PUBLISH) console.log(`\n本地已就绪：${APK}\n点头后推送发布：node scripts/ship.mjs ${VER} --publish${INSTALL ? "" : " [--install]"}`);
 else console.log("\n✓ 完成");

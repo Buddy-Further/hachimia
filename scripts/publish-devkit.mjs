@@ -10,13 +10,14 @@
 //  状态记在 ~/.work/publish/<tag>/state.json：中途断了（网络、CI 失败）再跑同一条命令，从没做完的那步接着来。
 //  最后的 check 不信状态文件，从 GitHub / 市场 / 镜像 / APK 重新取一遍逐项核对，有一项不对就退出码 1。
 //
-//  要的东西（都不进仓库）：gh 已登录（cccodroid 与市场仓库可写）；
+//  要的东西（都不进仓库）：gh 已登录（hachimia 与市场仓库可写）；
 //    INDEX_SIGNING_KEY_FILE  组件索引签名钥匙（缺省 bldtools/index-signing-ed25519.pem），重签浏览器组件索引用
-//    SITE_KICK               一个脚本，触发 cccodroid.net 生成器立刻同步（不给就等它的 30 分钟定时）
-//    MARKET                  市场仓库目录（缺省与本仓库同级的 cccodroid-components）
+//    SITE_KICK               一个脚本，触发镜像站生成器立刻同步（不给就等它的定时）
+//    MARKET                  市场仓库目录（缺省与本仓库同级的 hachimia-components；没有就跳过 market/chromium 两步）
+//    HACHIMIA_MIRROR         镜像站根地址，如 https://dl.hachimia.example（hachimia 暂无镜像站，不配就跳过 mirror 这步）
 //    TEST_WT                 test 分支的工作树（有就把 main 合过去，没有就跳过）
 //    CHROM_CACHE             浏览器组件的下载缓存（缺省 ~/.work/chrom22/cache）
-//  预览包只打不装；加 --install 才用 priv 覆盖安装（会关掉正在用的 cccodroid）。
+//  预览包只打不装；加 --install 才用 priv 覆盖安装（会关掉正在用的 hachimia）。
 //  这个脚本只管工具包。App 正式发版仍是 build.sh + release.sh，且要用户点头。
 // ─────────────────────────────────────────────────────────────────────
 import fs from "node:fs";
@@ -26,12 +27,13 @@ import { execFileSync, spawnSync } from "node:child_process";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const HOME = process.env.HOME;
-const REPO = "greyoak111/hachimia", MREPO = "greyoak111/cccodroid-components";
-const MARKET = process.env.MARKET || path.join(ROOT, "..", "cccodroid-components");
+const REPO = "greyoak111/hachimia";
+const MARKET = process.env.MARKET || path.join(ROOT, "..", "hachimia-components");
 const KEYFILE = process.env.INDEX_SIGNING_KEY_FILE || (fs.existsSync("/data/user/0/li.dsh.claudecli/files/bldtools") ? "/data/user/0/li.dsh.claudecli/files/bldtools" : (process.env.BLDTOOLS || process.env.HOME + "/.bldtools")) + "/index-signing-ed25519.pem";
-const TEST_WT = process.env.TEST_WT || path.join(HOME, ".work/cc-testwt");
+const TEST_WT = process.env.TEST_WT || path.join(HOME, ".work/hachimia-testwt");
 const CHROM_CACHE = process.env.CHROM_CACHE || path.join(HOME, ".work/chrom22/cache");
-const DL = "https://dl.cccodroid.net";
+// 镜像站根地址：hachimia 暂无镜像站（E-03），不配就跳过 mirror 这步；别再默认 cccodroid.net——它从不同步 hachimia 的工具包
+const MIRROR = process.env.HACHIMIA_MIRROR || "";
 const STEPS = ["preflight", "tag", "ci", "fetch", "pin", "market", "chromium", "mirror", "preview", "testmerge", "check"];
 
 const argv = process.argv.slice(2);
@@ -82,6 +84,17 @@ const verifySig = (body, sigText) => crypto.verify(null, body, PUB, Buffer.from(
 const fuseOk = (dir, files) => { for (const f of files) { const p = path.join(dir, f); const a = fs.statSync(p).size, b = fs.readFileSync(p).length; if (a !== b) fail(`${f}：stat ${a} ≠ 实际 ${b}（FUSE 报了过时的大小），等一下再跑`); } };
 const writeFresh = (p, data) => { fs.rmSync(p, { force: true }); fs.writeFileSync(p, data); };
 const lockOf = () => json(path.join(REL, "devkit.lock.json"));
+// 市场仓库地址：从本地市场检出的 git 远端读（E-03）——别硬编码 cccodroid-components；
+// 市场仓库不在、或没有 GitHub 远端时返回 ""，调用方按“跳过/报错”处理
+const marketRepo = () => {
+  try {
+    const u = git(MARKET, "config", "--get", "remote.origin.url").trim();
+    const m = /(?:github\.com[/:])([^/]+\/[^/]+?)(?:\.git)?$/.exec(u);
+    return m ? m[1] : "";
+  } catch { return ""; }
+};
+// 市场仓库在不在：bases.json 是它的标志文件
+const hasMarket = () => fs.existsSync(path.join(MARKET, "bases.json"));
 // 对账不依赖之前的步骤：清单不在就从 Release 取（也能拿来核已经发完的旧版本）
 const ensureRel = () => { if (!["devkit.lock.json", "modules.json", "modules.json.sig"].every((f) => fs.existsSync(path.join(REL, f)))) gh("release", "download", TAG, "-R", REPO, "-D", REL, "--clobber", "-p", "devkit.lock.json", "-p", "modules.json", "-p", "modules.json.sig"); };
 
@@ -105,16 +118,17 @@ const step = {};
 
 step.preflight = async () => {
   gh("auth", "status");
-  if (!fs.existsSync(KEYFILE)) fail(`没有索引签名钥匙 ${KEYFILE}（INDEX_SIGNING_KEY_FILE）`);
-  if (!fs.existsSync(path.join(MARKET, "bases.json"))) fail(`市场仓库不在 ${MARKET}（MARKET）`);
-  if (git(ROOT, "rev-parse", "--abbrev-ref", "HEAD") !== "main") fail("cccodroid 不在 main 上");
-  if (git(ROOT, "status", "--porcelain")) fail("cccodroid 工作区有未提交的改动：工具包要对应一个确定的提交");
+  // 签名钥匙只有 market/chromium 两步要用：市场仓库不在、那两步会跳过时，不拿它拦住整条链
+  if (hasMarket() && !fs.existsSync(KEYFILE)) fail(`没有索引签名钥匙 ${KEYFILE}（INDEX_SIGNING_KEY_FILE）`);
+  if (!hasMarket()) say(`  ⚠ 市场仓库不在 ${MARKET}（MARKET）：market/chromium 两步会跳过`);
+  if (git(ROOT, "rev-parse", "--abbrev-ref", "HEAD") !== "main") fail("hachimia 不在 main 上");
+  if (git(ROOT, "status", "--porcelain")) fail("hachimia 工作区有未提交的改动：工具包要对应一个确定的提交");
   git(ROOT, "fetch", "-q", "origin", "main", "--tags");
-  if (git(ROOT, "rev-parse", "HEAD") !== git(ROOT, "rev-parse", "origin/main")) fail("cccodroid 的 main 和 origin/main 不一致：先推送或拉取");
+  if (git(ROOT, "rev-parse", "HEAD") !== git(ROOT, "rev-parse", "origin/main")) fail("hachimia 的 main 和 origin/main 不一致：先推送或拉取");
   if (git(ROOT, "tag", "-l", TAG)) fail(`tag ${TAG} 已经有了（本地或远端）：换个号，或用 --from 接着之前那次`);
-  if (git(MARKET, "status", "--porcelain")) fail("市场仓库工作区有未提交的改动");
+  if (hasMarket() && git(MARKET, "status", "--porcelain")) fail("市场仓库工作区有未提交的改动");
   const prev = json(path.join(ROOT, "devkit-pin.json")).tag;
-  if (!process.env.SITE_KICK) say("  ⚠ 没给 SITE_KICK：镜像要等生成器的 30 分钟定时，mirror 这步会多等一会");
+  if (MIRROR && !process.env.SITE_KICK) say("  ⚠ 没给 SITE_KICK：镜像要等生成器的定时，mirror 这步会多等一会");
   say(`  上一版 ${prev} → 这一版 ${TAG}；提交 ${git(ROOT, "rev-parse", "--short", "HEAD")}`);
   return { prev, commit: git(ROOT, "rev-parse", "HEAD") };
 };
@@ -201,6 +215,10 @@ step.pin = async () => {
 };
 
 step.market = async () => {
+  // hachimia 暂无市场仓库（E-03）：跳过，别硬去 cccodroid-components 里加钉子
+  if (!hasMarket()) { say(`  市场仓库不在 ${MARKET}，跳过（hachimia 暂无市场仓库）`); return { skipped: true }; }
+  const mr = marketRepo();
+  if (!mr) fail(`市场仓库 ${MARKET} 没有 GitHub 远端：不知道往哪个仓库推 bases.json`);
   git(MARKET, "fetch", "-q", "origin", "main");
   git(MARKET, "checkout", "-q", "-B", "main", "origin/main");
   const bp = path.join(MARKET, "bases.json");
@@ -220,22 +238,24 @@ step.market = async () => {
   }
   let id;
   for (let i = 0; i < 40 && !id; i++) {
-    const runs = JSON.parse(gh("run", "list", "-R", MREPO, "-L", "10", "--json", "databaseId,headSha,workflowName"));
+    const runs = JSON.parse(gh("run", "list", "-R", mr, "-L", "10", "--json", "databaseId,headSha,workflowName"));
     id = runs.find((r) => r.headSha === commit && /build/i.test(r.workflowName))?.databaseId;
     if (!id) await sleep(15000);
   }
   if (!id) fail("没等到市场的构建");
   say(`  市场 CI run ${id}：所有组件为 ${TAG} 重打`);
-  const c = await waitRun(MREPO, id);
-  if (c !== "success") fail(`市场 CI ${c}：gh run view ${id} -R ${MREPO} --log-failed；修好后 --from market`);
+  const c = await waitRun(mr, id);
+  if (c !== "success") fail(`市场 CI ${c}：gh run view ${id} -R ${mr} --log-failed；修好后 --from market`);
   await checkMarket();
   return { commit, run: id };
 };
 
 // 市场索引：验签；每个配方在新底座上都有构建
 async function checkMarket(gz = state.done.fetch.gz) {
-  const body = await getBuf(`https://github.com/${MREPO}/releases/download/index/components.json`);
-  const sig = (await getBuf(`https://github.com/${MREPO}/releases/download/index/components.json.sig`)).toString();
+  const mr = marketRepo();
+  if (!mr) fail("市场仓库没有 GitHub 远端，取不到市场索引");
+  const body = await getBuf(`https://github.com/${mr}/releases/download/index/components.json`);
+  const sig = (await getBuf(`https://github.com/${mr}/releases/download/index/components.json.sig`)).toString();
   if (!verifySig(body, sig)) fail("市场索引验签失败");
   const idx = JSON.parse(body);
   const recipes = fs.readdirSync(path.join(MARKET, "recipes")).filter((d) => fs.statSync(path.join(MARKET, "recipes", d)).isDirectory());
@@ -246,6 +266,10 @@ async function checkMarket(gz = state.done.fetch.gz) {
 }
 
 step.chromium = async () => {
+  // 合并、重签预置索引要签名钥匙；上传要 hachimia 的 components Release——两样缺一个，这步都做不成，跳过
+  if (!fs.existsSync(KEYFILE)) { say(`  没有索引签名钥匙 ${KEYFILE}，跳过 chromium（合并不了预置索引）`); return { skipped: true }; }
+  try { gh("release", "view", "components", "-R", REPO, "--json", "tagName"); }
+  catch { say("  hachimia 尚无 components Release，跳过 chromium（需发布方先建 components Release）"); return { skipped: true }; }
   const D = path.join(W, "chromium");
   fs.rmSync(D, { recursive: true, force: true }); fs.mkdirSync(D, { recursive: true });
   run("node", [path.join(ROOT, "devkit/devkit.mjs"), "component", "chromium", "--target", "ha.chi.mia", "--base", path.join(REL, "devkit.lock.json"), "--out", D, "--cache", CHROM_CACHE], { cwd: path.join(ROOT, "devkit") });
@@ -272,8 +296,10 @@ step.chromium = async () => {
 };
 
 step.mirror = async () => {
+  // hachimia 暂无镜像站（E-03）：不配 HACHIMIA_MIRROR 就跳过，别再等 cccodroid.net——它从不同步 hachimia 的工具包
+  if (!MIRROR) { say("  没有配置 HACHIMIA_MIRROR（hachimia 暂无镜像站），跳过 mirror"); return { skipped: true }; }
   if (process.env.SITE_KICK) run("sh", [process.env.SITE_KICK]);
-  const u = `${DL}/devkit/${TAG}/modules.json.sig`;
+  const u = `${MIRROR}/devkit/${TAG}/modules.json.sig`;
   for (let i = 0; ; i++) {
     if ((await get(u, "HEAD")).status === 200) break;
     if (i >= 90) fail(`45 分钟镜像上还没有 ${u}`);
@@ -284,25 +310,36 @@ step.mirror = async () => {
 };
 
 async function checkMirror() {
+  if (!MIRROR) fail("没有配置 HACHIMIA_MIRROR，核不了镜像");
   for (const f of ["modules.json", "modules.json.sig", "devkit.lock.json"]) {
-    const a = await getBuf(`${DL}/devkit/${TAG}/${f}`);
+    const a = await getBuf(`${MIRROR}/devkit/${TAG}/${f}`);
     if (!a.equals(fs.readFileSync(path.join(REL, f)))) fail(`镜像上的 ${f} 和 Release 上的不一致`);
   }
   const lock = lockOf(), mods = json(path.join(REL, "modules.json"));
   const want = [[lock.gz.file, lock.gz.bytes], ...mods.modules.map((m) => [m.file || m.gz.file, m.bytes || m.gz.bytes])];
   for (const [f, b] of want) {
-    const n = +(await get(`${DL}/devkit/${TAG}/${f}`, "HEAD")).headers.get("content-length");
+    const n = +(await get(`${MIRROR}/devkit/${TAG}/${f}`, "HEAD")).headers.get("content-length");
     if (n !== b) fail(`镜像上 ${f} 大小 ${n} ≠ ${b}`);
   }
   say(`  ✓ 镜像：3 个清单逐字节一致，${want.length} 个 gz 大小一致`);
+  // 预置索引还没发布（chromium 跳过时）就跳过这一项：镜像的浏览器组件无从核起，不是失败
   const gz = lockOf().gz.sha256;
-  const c = state.done.chromium || JSON.parse(await getBuf(`https://github.com/${REPO}/releases/download/components/components.json`)).components.chromium.builds.find((x) => x.base === gz);
-  if (!c) fail("预置索引里没有这版工具包的浏览器，镜像也就无从核起");
-  {
-    const n = +(await get(`${DL}/components/official/${c.asset}`, "HEAD")).headers.get("content-length");
-    if (n !== c.bytes) fail(`镜像上的浏览器组件 ${c.asset} 大小 ${n} ≠ ${c.bytes}（生成器还没同步到？过会儿 --check）`);
-    say(`  ✓ 镜像：浏览器组件 ${c.asset} 已同步`);
+  const c = state.done.chromium && !state.done.chromium.skipped ? state.done.chromium : null;
+  if (!c) {
+    let body = null;
+    try { body = await getBuf(`https://github.com/${REPO}/releases/download/components/components.json`); } catch {}
+    if (!body) { say("  · 镜像：预置组件索引尚未发布，浏览器组件一项跳过"); return; }
+    const found = JSON.parse(body).components.chromium?.builds.find((x) => x.base === gz);
+    if (!found) { say("  · 镜像：预置索引里没有这版工具包的浏览器，浏览器组件一项跳过"); return; }
+    return checkMirrorChromium(found);
   }
+  await checkMirrorChromium(c);
+}
+
+async function checkMirrorChromium(c) {
+  const n = +(await get(`${MIRROR}/components/official/${c.asset}`, "HEAD")).headers.get("content-length");
+  if (n !== c.bytes) fail(`镜像上的浏览器组件 ${c.asset} 大小 ${n} ≠ ${c.bytes}（生成器还没同步到？过会儿 --check）`);
+  say(`  ✓ 镜像：浏览器组件 ${c.asset} 已同步`);
 }
 
 step.preview = async () => {
@@ -315,10 +352,10 @@ step.preview = async () => {
   writeFresh(mf, m0.replace(`android:versionName="${v}"`, `android:versionName="${pv}"`));
   try { run("sh", [path.join(ROOT, "scripts/build.sh")], { cwd: ROOT }); }
   finally { git(ROOT, "checkout", "-q", "android/AndroidManifest.xml"); }
-  const apk = path.join(ROOT, "dist/cccodroid.apk");
+  const apk = path.join(ROOT, "dist/hachimia.apk");
   const inApk = sh("unzip", ["-p", apk, "assets/devkit-pin.json"]);
   if (inApk !== fs.readFileSync(path.join(ROOT, "devkit-pin.json"), "utf8").trim()) fail("APK 里带的 devkit-pin.json 和仓库里的不一样");
-  const out = `/sdcard/Download/cccodroid-${pv}.apk`;
+  const out = `/sdcard/Download/hachimia-${pv}.apk`;
   fs.copyFileSync(apk, out);
   const h = await shaFile(out);
   say(`  ✓ 预览包 ${out}（${pv}，sha256 ${h.slice(0, 16)}…，钉 ${TAG}）`);
@@ -365,20 +402,31 @@ step.check = async () => {
     say(`  ✓ Release 清单验签；origin/main 钉的就是它（gz ${lock.gz.sha256.slice(0, 12)}）`);
   });
   await t("市场", async () => {
+    if (state.done.market?.skipped || !hasMarket()) { say("  · 市场：市场仓库不在（hachimia 暂无市场仓库），跳过"); return; }
     git(MARKET, "fetch", "-q", "origin", "main");
     if (JSON.parse(git(MARKET, "show", "origin/main:bases.json")).bases[0]?.tag !== TAG) fail("市场 bases.json 第一行不是它");
     await checkMarket(gz);
   });
   await t("预置浏览器", async () => {
-    const body = await getBuf(`https://github.com/${REPO}/releases/download/components/components.json`);
-    if (!verifySig(body, (await getBuf(`https://github.com/${REPO}/releases/download/components/components.json.sig`)).toString())) fail("预置组件索引验签失败");
+    if (state.done.chromium?.skipped) { say("  · 预置浏览器：chromium 这步跳过了（没有 components Release 或签名钥匙），跳过"); return; }
+    const r = await get(`https://github.com/${REPO}/releases/download/components/components.json`);
+    if (r.status === 404) { say("  · 预置浏览器：预置组件索引尚未发布（需发布方补 components Release），跳过"); return; }
+    if (!r.ok) fail(`预置组件索引 HTTP ${r.status}`);
+    const body = Buffer.from(await r.arrayBuffer());
+    const rs = await get(`https://github.com/${REPO}/releases/download/components/components.json.sig`);
+    if (rs.status === 404) { say("  · 预置浏览器：预置组件索引尚未发布（缺签名），跳过"); return; }
+    if (!rs.ok) fail(`预置组件索引签名 HTTP ${rs.status}`);
+    if (!verifySig(body, Buffer.from(await rs.arrayBuffer()).toString())) fail("预置组件索引验签失败");
     const b = JSON.parse(body).components.chromium.builds.find((x) => x.base === gz);
     if (!b) fail("预置索引里没有这版工具包的浏览器");
-    const r = await get(b.url, "HEAD");
-    if (+r.headers.get("content-length") !== b.bytes) fail(`${b.asset} 线上大小 ${r.headers.get("content-length")} ≠ ${b.bytes}`);
+    const rh = await get(b.url, "HEAD");
+    if (+rh.headers.get("content-length") !== b.bytes) fail(`${b.asset} 线上大小 ${rh.headers.get("content-length")} ≠ ${b.bytes}`);
     say(`  ✓ 预置索引验签；浏览器 ${b.version} 的包在线上（${b.asset}）`);
   });
-  await t("镜像", checkMirror);
+  await t("镜像", async () => {
+    if (!MIRROR || state.done.mirror?.skipped) { say("  · 镜像：没有配置 HACHIMIA_MIRROR（hachimia 暂无镜像站），跳过"); return; }
+    await checkMirror();
+  });
   await t("预览包", async () => {
     const p = state.done.preview;
     if (!p) { say("  · 预览包：这次没打（没有记录），不核"); return; }
@@ -387,7 +435,7 @@ step.check = async () => {
     say(`  ✓ 预览包 ${p.apk} 钉的是这版`);
   });
   if (bad) fail(`对账有 ${bad} 项不对`);
-  say(`\n✓ ${TAG} 全链对上了。下一步：在 cccodroid 里升级工具包，然后终端跑 node /sdcard/DeepSeekHarness/claude-workspace/verify.mjs`);
+  say(`\n✓ ${TAG} 全链对上了。下一步：在 hachimia 里升级工具包（设置 → 更新 → 检查更新），然后在真机上验一遍`);
 };
 
 // ── 主流程 ──
