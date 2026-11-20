@@ -827,18 +827,19 @@
         if (ev.cid) view.cidRuns.set(ev.cid, ev.runId);
         view.lastRunId = ev.runId;
         if (runViews.has(ev.runId)) return;
-        if (ev.auto !== "idle") { renderUser(ev.text, liveEl); tagRun(liveEl.lastElementChild, ev.runId); }
+        if (ev.auto !== "idle" && ev.auto !== "bg") { renderUser(ev.text, liveEl); tagRun(liveEl.lastElementChild, ev.runId); }
         const av = AssistantView(liveEl, true);
         tagRun(av.msgEl, ev.runId);
-        if (ev.text.trim().startsWith("/")) av.msgEl.classList.add("sys");
+        if (ev.text && ev.text.trim().startsWith("/")) av.msgEl.classList.add("sys");
         if (ev.auto === "idle") av.note(t("会话闲置快一小时，提示缓存快过期了，先自动压缩上下文，下一条消息就不用把整段历史重算一遍。不需要可以在设置里关掉。"), true);
+        if (ev.auto === "bg") av.note(t("后台任务完成，已自动回报："), true);
         const timer = RunTimer(ev.startedAt);
         timer.attach(av);
-        av.phase({ phase: "prep" });     // 网关起进程前的准备；起了进程换「启动中」，claude 就绪换「连接中」（F6）
+        av.phase({ phase: ev.auto === "bg" ? "text" : "prep" });     // 网关起进程前的准备；起了进程换「启动中」，就绪换「连接中」（F6）
         runViews.set(ev.runId, { av, startedAt: ev.startedAt, timer, out: 0 });
         statLive(ev.runId);
         // 只有本窗口刚发的消息才强制回到底部；别的会话 / 别的窗口开始的轮次别把正在翻历史的人拽走（0.6.9 审计 196-聊天.4）
-        scrollDown(!busReplay && !!ev.cid && view.cids.has(ev.cid));
+        scrollDown(!busReplay && ((!!ev.cid && view.cids.has(ev.cid)) || ev.auto === "bg"));
         return;
       }
       case "inject": {
@@ -884,8 +885,10 @@
         if (!view.sessionId && ev.sessionId) { view.sessionId = ev.sessionId; draftAdopt(ev.sessionId); adoptPendingModel(); saveUiState(); }
         if (ev.model) { state.model = ev.model; paintModel(ev.model); }
         if (ev.permissionMode) setPermChip(ev.permissionMode);
+        if (ev.slashCommands || ev.tools || ev.version || ev.tier) cacheCapsFromInit(ev);
         return;
       }
+      case "caps_updated": cacheCapsFromInit(ev); return;
       case "run_end": refreshQuota(); return onRunEnd(ev);
       case "quota": case "billing": return refreshQuota();
       case "perm_mode":
@@ -905,7 +908,7 @@
     const av = rv.av;
     if (!av) return;   // 收尾后只留了 startedAt 的空壳（FIND-042）：晚到的增量不再画
     switch (ev.type) {
-      case "usage":          if (ev.contextTokens) liveCtx(ev.contextTokens, state.ctxTotal); break;
+      case "usage":          if (ev.contextTokens || ev.contextWindow) liveCtx(ev.contextTokens ?? state.ctxUsed, ev.contextWindow || state.ctxTotal); break;
       case "run_tokens":     rv.out = +ev.out || 0; if (statRun === ev.runId) statPaint(); break;
       case "delta":          av.delta(ev.text); break;
       case "text_delta":     av.delta(ev.text); break;   // ACP 引擎（gw/acp.mjs）的正文流事件名
@@ -1153,6 +1156,7 @@
     srv.runs = s.runs || (s.run ? [s.run] : []);
     srv.intr = intrList(s.interrupted);
     srv.queueAll = s.queue || [];
+    srv.acpBg = s.acpBg || {};
     if (s.maxParallel) srv.max = s.maxParallel;
     pickViewRun();
     if (srv.run?.permMode) setPermChip(srv.run.permMode);   // 这一轮实际在用的模式，以网关为准（安全通告 GHSA-2w6p）

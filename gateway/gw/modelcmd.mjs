@@ -47,7 +47,7 @@ export async function handleLocalCommand(name, arg, reply, sid, stopped = () => 
     if (!arg) {
       const v = effectiveAutoCompact(), d = v ? null : defaultCompactLine(win, P);
       return reply(
-        `自动压缩线：**${v ? fmt(v) + " tokens" : d ? `默认 ${fmt(d)} tokens（第三方型号按窗口的八成）` : "默认（由 claude 按模型窗口决定）"}**${win ? `　（当前模型窗口 ${fmt(win)}）` : ""}\n\n` +
+        `自动压缩线：**${v ? fmt(v) + " tokens" : d ? `默认 ${fmt(d)} tokens（第三方型号按窗口的八成）` : "默认（由 Antigravity 按模型窗口决定）"}**${win ? `　（当前模型窗口 ${fmt(win)}）` : ""}\n\n` +
         "用法：`/autocompact 400k`、`/autocompact 1m`；恢复默认：`/autocompact off`。设置页「自动压缩」一栏是同一个值。",
         "autocompact"
       );
@@ -64,7 +64,7 @@ export async function handleLocalCommand(name, arg, reply, sid, stopped = () => 
     const persisted = saveSettings();
     log(`⌘ /autocompact → ${n || "(默认)"}`);
     return reply(
-      (n ? `自动压缩线已设为 **${fmt(n)} tokens**，下一轮起生效。` : "自动压缩线已恢复默认（由 claude 按模型窗口决定），下一轮起生效。") +
+      (n ? `自动压缩线已设为 **${fmt(n)} tokens**，下一轮起生效。` : "自动压缩线已恢复默认（由 Antigravity 按模型窗口决定），下一轮起生效。") +
       (n && win && n > win ? `\n\n> **注意**：比当前模型的窗口（${fmt(win)}）还大，实际会先撞上窗口上限。` : "") +
       (persisted ? "" : "\n\n> **注意**：设置没能写入磁盘，只在本次运行内生效；重启后会恢复。"),
       "autocompact"
@@ -74,11 +74,11 @@ export async function handleLocalCommand(name, arg, reply, sid, stopped = () => 
   // ── /model ──
   if (name === "model" || name === "models") {
     if (!arg) {
-      // 原生厂商（claude 自己认识模型）：不列清单，也不劝你手选
+      // 原生厂商：不列清单，也不劝你手选
       if (!models.length) {
         return reply(
-          `当前厂商：**${P.label || P.id}**（claude 原生）\n\n` +
-          `> 该厂商由 claude 自己决定模型，未提供可切换的模型清单 —— \`/model\` 在此不适用。\n` +
+          `当前厂商：**${P.label || P.id}**（原生）\n\n` +
+          `> 该厂商由 Antigravity 自己决定模型，未提供可切换的模型清单 —— \`/model\` 在此不适用。\n` +
           `> 若要指定，可直接写进 \`ccapp-providers.json\` 的 \`defaultModel\`。`,
           "model"
         );
@@ -91,11 +91,11 @@ export async function handleLocalCommand(name, arg, reply, sid, stopped = () => 
       }).join("\n\n");
       return reply(
         `当前厂商：**${P.label || P.id}**\n` +
-        `当前模型：**${curId || "(由 claude 决定)"}**　（effort **${curEff || "默认"}**）\n\n` +
+        `当前模型：**${curId || "(由 Antigravity 决定)"}**　（effort **${curEff || "默认"}**）\n\n` +
         `可用模型：\n\n${lines}\n\n` +
         `用法：\`/model <id>\`　切换思考强度：\`/effort\`\n\n` +
         (P.nativeModels
-          ? `> 模型名由 claude 自己解析，写错会直接报错。`
+          ? `> 模型名由 Antigravity 直接解析，写错会直接报错。`
           : `> 第三方厂商对不认识的名字**可能静默回落**，所以这里挡一道，免得你以为切成功了。`),
         "model"
       );

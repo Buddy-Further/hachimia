@@ -77,12 +77,16 @@
       case "WebSearch": h = `<pre class="perm-cmd">${esc(i.query || "")}</pre>`; break;
       case "ExitPlanMode": h = `<div class="perm-plan">${renderMd(String(i.plan || ""))}</div>`; break;
       case "AskUserQuestion":
+      case "ask_question":
         h = (i.questions || []).map((q, qi) => `
           <div class="perm-q" data-q="${qi}">
             <div class="perm-qt">${esc(q.question || "")}</div>
-            <div class="perm-opts">${(q.options || []).map((o) => `
-              <label class="perm-opt"><input type="${q.multiSelect ? "checkbox" : "radio"}" name="pq-${esc(p.id)}-${qi}" value="${esc(o.label)}">
-                <span><b>${esc(o.label)}</b>${o.description ? `<small>${esc(o.description)}</small>` : ""}</span></label>`).join("")}
+            <div class="perm-opts">${(q.options || []).map((o) => {
+              const lbl = typeof o === "string" ? o : (o?.label || "");
+              const desc = typeof o === "object" && o?.description ? o.description : "";
+              return `<label class="perm-opt"><input type="${(q.multiSelect || q.is_multi_select) ? "checkbox" : "radio"}" name="pq-${esc(p.id)}-${qi}" value="${esc(lbl)}">
+                <span><b>${esc(lbl)}</b>${desc ? `<small>${esc(desc)}</small>` : ""}</span></label>`;
+            }).join("")}
             </div>
             <input class="perm-other" placeholder="${t("或者直接写你的回答…")}">
           </div>`).join("");
@@ -135,7 +139,7 @@
       <button class="pa-allow" data-mode="acceptEdits">${t("批准，自动接受编辑")}</button>
       <button class="pa-more">${t("再改改 ▾")}</button>`;
     }
-    if (p.tool === "AskUserQuestion") return `
+    if (p.tool === "AskUserQuestion" || p.tool === "ask_question") return `
       <button class="pa-answer primary">${t("提交回答")}</button>
       <button class="pa-more">${t("不回答 ▾")}</button>`;
     const rules = permRules(p);
@@ -150,13 +154,14 @@
     const el = document.createElement("div");
     el.className = p.guard ? "perm guard" : "perm";
     el.dataset.id = p.id;
-    const kind = p.tool === "ExitPlanMode" ? t("计划待批准") : p.tool === "AskUserQuestion" ? t("Claude 想问你") : p.guard ? t("敏感操作") : t("需要确认");
+    const isAsk = p.tool === "AskUserQuestion" || p.tool === "ask_question";
+    const kind = p.tool === "ExitPlanMode" ? t("计划待批准") : isAsk ? t("Antigravity 想问你") : p.guard ? t("敏感操作") : t("需要确认");
     el.innerHTML = `
       <div class="perm-head"><span class="perm-kind">${uiI("pause")}${kind}</span><span class="perm-tool">${esc(p.tool)}</span>${p.agentId ? `<span class="perm-sub">${t("子代理")}</span>` : ""}</div>
       <div class="perm-body">${permPreview(p)}</div>
       <div class="perm-acts">${permActions(p, runId)}</div>
       <div class="perm-deny hidden">
-        <textarea rows="2" placeholder="${p.tool === "ExitPlanMode" ? t("说说要怎么改（会发回给 Claude）") : t("可选：告诉 Claude 为什么 / 该怎么做")}"></textarea>
+        <textarea rows="2" placeholder="${p.tool === "ExitPlanMode" ? t("说说要怎么改（会发回给 Antigravity）") : t("可选：告诉 Antigravity 为什么 / 该怎么做")}"></textarea>
         <div class="perm-acts">
           <button class="pa-deny">${p.tool === "ExitPlanMode" ? t("发回意见") : p.tool === "UserConfig" ? t("撤销改动") : t("拒绝")}</button>
           <button class="pa-stop">${p.tool === "UserConfig" ? t("撤销并停止") : t("拒绝并停止")}</button>
@@ -226,15 +231,18 @@
     if (!it || it.done) return;
     it.done = true;
     const p = it.p;
-    const what = p.tool === "Bash" ? (p.input.command || "") : (p.input.file_path || p.input.url || p.input.query || "");
+    const isAsk = p.tool === "AskUserQuestion" || p.tool === "ask_question";
+    const what = (p.tool === "Bash" || p.tool === "run_command" || p.tool === "run_shell")
+      ? (p.input.CommandLine || p.input.command || p.input.toolSummary || "")
+      : (p.input.Path || p.input.file_path || p.input.url || p.input.query || "");
     const label = p.tool === "UserConfig" && behavior === "allow" ? t("✓ 已保留")
       : p.tool === "UserConfig" && behavior === "deny" ? (o.interrupt ? t("↩ 已撤销并停止") : t("↩ 已撤销"))
       : behavior === "allow"
-      ? (p.tool === "ExitPlanMode" ? t("✓ 已批准计划") : p.tool === "AskUserQuestion" ? t("✓ 已回答") : o.always ? t("✓ 已允许（始终）") : t("✓ 已允许"))
+      ? (p.tool === "ExitPlanMode" ? t("✓ 已批准计划") : isAsk ? t("✓ 已回答") : o.always ? t("✓ 已允许（始终）") : t("✓ 已允许"))
       : behavior === "deny" ? (o.expired ? t("超时") : o.interrupt ? t("✗ 已拒绝并停止") : p.tool === "ExitPlanMode" ? t("↩ 已退回修改") : t("✗ 已拒绝"))
       : behavior === "cancel" ? t("已撤回") : behavior === "stopped" ? t("已停止（这一轮结束了）") : t("已失效");
     const tc = p.toolUseId && TOOL_CARDS.get(p.toolUseId);
-    if (it.el && tc && tc.el && tc.el.isConnected && p.tool !== "ExitPlanMode" && p.tool !== "AskUserQuestion") {
+    if (it.el && tc && tc.el && tc.el.isConnected && p.tool !== "ExitPlanMode" && !isAsk) {
       const tag = document.createElement("span");
       tag.className = "perm-tag " + (behavior === "allow" ? "ok" : "no");
       tag.textContent = label;
@@ -249,7 +257,7 @@
       it.el.classList.remove("busy");
       it.el.classList.add("done", behavior === "allow" ? "ok" : "no");
       // 收起成一行，留在记录里；计划和问答的正文还有用，留着
-      if (p.tool !== "ExitPlanMode" && p.tool !== "AskUserQuestion") it.el.querySelector(".perm-body").remove();
+      if (p.tool !== "ExitPlanMode" && !isAsk) it.el.querySelector(".perm-body").remove();
       it.el.querySelectorAll(".perm-acts, .perm-deny").forEach((x) => x.remove());
       it.el.querySelectorAll("input").forEach((x) => { x.disabled = true; });
       it.el.querySelector(".perm-head").innerHTML = `<span class="perm-res">${label}</span><span class="perm-tool">${esc(p.tool)}</span><span class="tool-arg">${esc(String(what).slice(0, 90))}</span>`;
@@ -318,7 +326,7 @@
   // ── 输入框上方的状态带：/goal 目标进度 + 后台任务 ──
   const runStrip = $("run-strip");
   let goalTick = null;
-  const BG_KIND = (k) => /agent/i.test(k) ? t("子代理") : /workflow/i.test(k) ? t("工作流") : /monitor/i.test(k) ? t("监视") : /bash|shell/i.test(k) ? t("命令") : k || "?";
+  const BG_KIND = (k) => /agent/i.test(k) ? t("子代理") : /workflow/i.test(k) ? t("工作流") : /daemon/i.test(k) ? t("常驻") : /monitor/i.test(k) ? t("定时") : /bash|shell/i.test(k) ? t("命令") : k || "?";
   // 任务清单：折叠时一行（进度 + 正在做的那项），点开看全部；全部完成可 ✕ 收起
   let tasksOpen = localStorage.getItem("cc.tasksOpen") === "1";
   let bgOpen = localStorage.getItem("cc.bgOpen") === "1";
@@ -351,7 +359,9 @@
   }
   function renderRunStrip() {
     const g = view.goal && !(view.goal.done && view.goal.at <= view.goalHide) ? view.goal : null;
-    const bg = (srv.run && srv.run.bgList) || [];
+    const bgRun = (srv.run && srv.run.bgList) || [];
+    const bgPool = (view.sessionId && srv.acpBg && srv.acpBg[view.sessionId]) || [];
+    const bg = bgRun.length ? bgRun : bgPool;
     // 清单的折叠管整条：收起时目标、后台任务（包括不能单独折叠的单个任务）一起收起，展开再全露出来
     let html = "";
     if (g && g.active) {
@@ -434,11 +444,11 @@
       } else send("/goal clear");
       return;
     }
-    if (b.classList.contains("rs-stop") && srv.run) {
+    if (b.classList.contains("rs-stop") && (srv.run || (view.sessionId && srv.acpBg?.[view.sessionId]?.length))) {
       // 输入已关时停不了单个任务，只能整轮结束：不止一个就先说清楚
-      if (srv.run.sealed && srv.run.bg > 1 && !confirm(t("这一轮已经收不进指令，只能把 {n} 个后台任务一起停掉。继续？", { n: srv.run.bg }))) return;
+      if (srv.run?.sealed && srv.run.bg > 1 && !confirm(t("这一轮已经收不进指令，只能把 {n} 个后台任务一起停掉。继续？", { n: srv.run.bg }))) return;
       b.disabled = true;
-      api("/api/task/stop", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ runId: srv.run.id, taskId: b.dataset.task }) })
+      api("/api/task/stop", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ runId: srv.run?.id || "", sessionId: view.sessionId || "", taskId: b.dataset.task }) })
         .catch((err) => { b.disabled = false; toast(err.message, true); });
     }
   });
@@ -457,13 +467,15 @@
     // 敏感卡（guard）不能当成 simple、不进「全部允许」（0.6.9 审计 195-B.3）。但全部放行模式下弹出来的只剩敏感卡，
     // 底部条一个「允许」都没有（用户 11-09）：单个敏感卡带上卡片同一句风险说明再给「允许」；
     // 用户级配置 / 项目配置两种的选项不是允许拒绝（保留撤销、记住），仍只给「查看」
-    const f = list[0].p, simple = (it) => !it.p.guard && it.p.tool !== "ExitPlanMode" && it.p.tool !== "AskUserQuestion";
-    const quick = (it) => simple(it) || (!!it.p.guard && it.p.tool !== "ExitPlanMode" && it.p.tool !== "AskUserQuestion" && it.p.guard.cat !== "userconf" && it.p.guard.cat !== "project");
-    const what = f.tool === "Bash" ? f.input.command : (f.input.file_path || f.input.url || f.input.query || "");
+    const f = list[0].p, simple = (it) => !it.p.guard && it.p.tool !== "ExitPlanMode" && it.p.tool !== "AskUserQuestion" && it.p.tool !== "ask_question";
+    const quick = (it) => simple(it) || (!!it.p.guard && it.p.tool !== "ExitPlanMode" && it.p.tool !== "AskUserQuestion" && it.p.tool !== "ask_question" && it.p.guard.cat !== "userconf" && it.p.guard.cat !== "project");
+    const what = (f.tool === "Bash" || f.tool === "run_command" || f.tool === "run_shell")
+      ? (f.input.CommandLine || f.input.command || f.input.toolSummary || "")
+      : (f.input.Path || f.input.file_path || f.input.url || f.input.query || "");
     permBar.innerHTML = `
       <div class="pb-main">
         ${list.length > 1 ? `<span class="pb-n">${t("第 {i}/{n} 个", { i: 1, n: list.length })}</span>` : ""}
-        <span class="pb-txt${f.guard ? " wrap" : ""}">${uiI("pause")}${f.tool === "ExitPlanMode" ? t("计划待批准") : f.tool === "AskUserQuestion" ? t("Claude 想问你") : t("Claude 在等你确认") + " · "}${simple(list[0]) ? `<b>${esc(f.tool)}</b> <span class="mono">${esc(String(what || "").slice(0, 80))}</span>`
+        <span class="pb-txt${f.guard ? " wrap" : ""}">${uiI("pause")}${f.tool === "ExitPlanMode" ? t("计划待批准") : (f.tool === "AskUserQuestion" || f.tool === "ask_question") ? t("Antigravity 想问你") : t("Antigravity 在等你确认") + " · "}${simple(list[0]) ? `<b>${esc(f.tool)}</b> <span class="mono">${esc(String(what || "").slice(0, 80))}</span>`
           : quick(list[0]) ? `<b>${t("敏感操作")}</b> ${esc(permGuardWhat(f.guard, f.input))}` : ""}</span>
         ${quick(list[0]) ? `<button class="pb-allow primary" data-id="${esc(String(f.id))}">${t("允许")}</button>` : ""}
         <button class="pb-view">${t("查看")}</button>
@@ -513,8 +525,8 @@
       default: t("读文件不问；改文件、跑命令、联网前先问你"),
       acceptEdits: t("改文件不问，跑命令还要问"),
       plan: t("只读和出计划，等你批准再动手"),
-      auto: t("由 Claude 的分类器判断哪些要问（实验）"),
-      bypassPermissions: t("什么都不问。Claude 可以不经你同意删文件、跑任意命令"),
+      auto: t("由 Antigravity 自动判断哪些操作需要确认"),
+      bypassPermissions: t("什么都不问。Antigravity 可以不经你同意删文件、跑任意命令"),
     };
     m.innerHTML = MODE_KEYS.map((k) => `
       <button data-mode="${k}" class="${k === state.permissionMode ? "cur" : ""}${k === "bypassPermissions" ? " danger" : ""}">

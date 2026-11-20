@@ -128,6 +128,31 @@ export function cmdDescs() {
   return m;
 }
 
+/**
+ * ACP 模式下展开用户/项目「常用指令」（/<name> [args] → commands/<name>.md 正文，替换 $ARGUMENTS / $1..$9）。
+ * 若不是用户自定义指令，原样返回 { expanded: false, text: message }。
+ */
+export function expandCustomCommand(message, cwd) {
+  const s = String(message || "");
+  const m = /^\/([A-Za-z0-9][A-Za-z0-9_-]{0,39})(?:\s+([\s\S]*))?$/.exec(s.trim());
+  if (!m) return { expanded: false, text: s };
+  const name = m[1], argStr = (m[2] || "").trim();
+  const findIn = (scope, dir) => {
+    const res = listCmds(scope, dir);
+    return (res.items || []).find((c) => c.name === name) || null;
+  };
+  // 项目级优先于用户级
+  const hit = (cwd ? findIn("project", cwd) : null) || findIn("user");
+  if (!hit || !hit.body || !hit.body.trim()) return { expanded: false, text: s };
+  const parts = argStr ? argStr.split(/\s+/) : [];
+  let body = hit.body;
+  const hadPlaceholder = /\$ARGUMENTS\b|\$[1-9]\b/.test(body);
+  body = body.replace(/\$ARGUMENTS\b/g, () => argStr);
+  body = body.replace(/\$([1-9])\b/g, (_, n) => parts[Number(n) - 1] ?? "");
+  if (!hadPlaceholder && argStr) body = body.replace(/\s+$/, "") + "\n\n" + argStr;
+  return { expanded: true, name, text: body.trim() };
+}
+
 function saveCmd(b, builtin) {
   const scope = b.scope === "project" ? "project" : "user";
   const name = String(b.name || "").trim();

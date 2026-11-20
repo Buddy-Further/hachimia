@@ -2011,15 +2011,9 @@ public class MainActivity extends Activity {
             }
         });
         // 网关换了一个（重启、崩溃重拉）：它只认按新启动号派生的 Cookie，这里种上，界面的事件总线重连时就接上了（审查 S1）
-        Env.onBoot = myOnBoot = (v) -> ui.post(() -> {
-            android.webkit.CookieManager cm = android.webkit.CookieManager.getInstance();
-            cm.setCookie("http://" + Env.HOST + ":" + Env.PORT, "cc_t_" + Env.PORT + "=" + v + "; Path=/; HttpOnly; SameSite=Strict");
-            // 旧版种在另一个界面地址上的那份清掉：网关已经不认了，留着只会被别的端口收走。
-            // 回退设备上界面就在 127.0.0.1（Env.checkHost），清的是旧版留在 127.0.0.2 上的死值（复核报告发现 #2）
-            cm.setCookie("http://" + ("127.0.0.1".equals(Env.HOST) ? "127.0.0.2" : "127.0.0.1") + ":" + Env.PORT, "cc_t_" + Env.PORT + "=; Path=/; Max-Age=0");
-            cm.flush();
+        Env.onBoot = myOnBoot = (v) -> ui.post(() -> applyGatewayCookie(v, () -> {
             if (squatShown || waitingShown) { squatShown = false; waitingShown = false; loadUi(); }
-        });
+        }));
         // 守护线程核过 /proc、确认端口被别的应用占着：正开着的界面（或等待页）换成说明页；网关起来后（onBoot）再接回界面
         GatewayService.onSquat = mySquat = () -> ui.post(() -> { if (web != null && !squatShown && (waitingShown || isOwnGateway(web.getUrl()))) showSquatted(); });
         loadUi();
@@ -2165,16 +2159,44 @@ public class MainActivity extends Activity {
         loadUi();
     }
 
+    /** 异步写入网关会话 Cookie，待 Chromium CookieStore 确认落地后再执行回调，消除首启 loadUrl 与种 Cookie 竞态 */
+    private void applyGatewayCookie(String v, Runnable then) {
+        if (v == null || v.isEmpty()) {
+            if (then != null) then.run();
+            return;
+        }
+        android.webkit.CookieManager cm = android.webkit.CookieManager.getInstance();
+        cm.setAcceptCookie(true);
+        // 旧版种在另一个界面地址上的那份清掉：网关已经不认了，留着只会被别的端口收走。
+        // 回退设备上界面就在 127.0.0.1（Env.checkHost），清的是旧版留在 127.0.0.2 上的死值（复核报告发现 #2）
+        cm.setCookie("http://" + ("127.0.0.1".equals(Env.HOST) ? "127.0.0.2" : "127.0.0.1") + ":" + Env.PORT,
+            "cc_t_" + Env.PORT + "=; Path=/; Max-Age=0", null);
+        cm.setCookie("http://" + Env.HOST + ":" + Env.PORT,
+            "cc_t_" + Env.PORT + "=" + v + "; Path=/; HttpOnly; SameSite=Strict",
+            ok -> {
+                cm.flush();
+                if (then != null) then.run();
+            });
+    }
+
     /** 打开界面。地址里带着令牌和桥口令，先在后台核网关身份，过了才交出去（审查 S1）；
      *  端口上没人在听就照旧打开（只会显示连不上，什么也漏不出去）；有人在听却证明不了自己，换成一页说明 */
     private void loadUi() {
         new Thread(() -> {
-            Env.resetBoot();       // 这一次核身份一定回调 onBoot，种好 Cookie 再加载（onBoot 的 post 排在下面 loadUrl 前面）
+            Env.resetBoot();       // 这一次核身份一定回调 onBoot，种好 Cookie 再加载
             boolean proved = Env.proveGateway();
+            String cookie = proved ? Env.currentCookie() : "";
             int decision = uiPageDecision(proved, !proved && Env.portBusy(), GatewayService.gwBlocked != null);
             ui.post(() -> {
                 if (web == null) return;
-                if (decision == UI_LOAD) { waitingShown = false; web.loadUrl(Env.uiUrl()); return; }
+                if (decision == UI_LOAD) {
+                    applyGatewayCookie(cookie, () -> {
+                        if (web == null) return;
+                        waitingShown = false;
+                        web.loadUrl(Env.uiUrl());
+                    });
+                    return;
+                }
                 // 运行库对不上：原因已经确定，直接给说明页
                 if (decision == UI_SQUAT) { showSquatted(); return; }
                 // 端口上有人答话、但这次启动证明不了它：先停在「等待网关」。

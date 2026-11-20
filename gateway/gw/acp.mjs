@@ -19,7 +19,9 @@ import readline from "node:readline";
 import { spawn } from "node:child_process";
 import { CFG, LIVE, PATHS, log, tz } from "./config.mjs";
 import { onShutdown } from "./crashguard.mjs";
-import { setLastInit } from "./caps.mjs";
+import { buildCapabilities, setLastInit } from "./caps.mjs";
+import { publish } from "./bus.mjs";
+import { noteAuthTier } from "./login.mjs";
 
 export const ACP_PROTOCOL_VERSION = 1;
 const ACP_IDLE_TTL_MS = Number(process.env.CCAPP_ACP_IDLE_MS) > 0 ? Number(process.env.CCAPP_ACP_IDLE_MS) : 10 * 60e3;
@@ -32,10 +34,42 @@ const ACP_POOL = new Map();
 export function closeAcpSession(sessionId) {
   const entry = sessionId && ACP_POOL.get(sessionId);
   if (!entry) return;
+  try { entry.flushIdle?.(); } catch {}
   ACP_POOL.delete(sessionId);
   if (entry.idleTimer) clearTimeout(entry.idleTimer);
   try { entry.client.close(); } catch {}
   try { entry.client.child?.kill?.("SIGTERM"); } catch {}
+}
+
+/** 查询常驻 ACP 进程池中正在后台运行的任务列表（供前端顶部后台任务条展示） */
+export function getAcpPoolBg(sessionId) {
+  if (sessionId) {
+    const e = ACP_POOL.get(sessionId);
+    return e && e.bgTasks?.size ? [...e.bgTasks.values()] : [];
+  }
+  const out = {};
+  for (const [sid, e] of ACP_POOL) {
+    if (e.bgTasks?.size) out[sid] = [...e.bgTasks.values()];
+  }
+  return out;
+}
+
+/** 停止某个 ACP 会话的后台任务（无单任务取消协议时触发 session/cancel 或回收空闲进程） */
+export function stopAcpBgTask(sessionId, taskId) {
+  const entry = sessionId && ACP_POOL.get(sessionId);
+  if (!entry) return false;
+  if (taskId && entry.bgTasks?.has(taskId)) {
+    entry.bgTasks.delete(taskId);
+  } else if (!taskId) {
+    entry.bgTasks?.clear();
+  }
+  if (!entry.client.closed) {
+    try { entry.client.notify("session/cancel", { sessionId }); } catch {}
+  }
+  if (!entry.busy && (!entry.bgTasks || entry.bgTasks.size === 0)) {
+    closeAcpSession(sessionId);
+  }
+  return true;
 }
 
 /** 网关关闭或测试收尾时清理所有常驻 ACP 进程 */
@@ -158,21 +192,40 @@ export function readKnownToolIds(cwd, sessionId) {
   return ids;
 }
 
-/** 解析 ACP 用量对象（兼容 usage_update 通知与 session/prompt 终态 usage） */
-function extractAcpUsage(u, prev = null) {
+/** 解析 ACP 用量对象（兼容 usage_update 单步快照与 session/prompt 整轮累计 usage） */
+function extractAcpUsage(u, prev = null, { isTurnTotal = false } = {}) {
   if (!u || typeof u !== "object") return prev;
   const inp = Number(u.inputTokens ?? u.promptTokens ?? u.input_tokens ?? 0) || 0;
   const cached = Number(u.cachedReadTokens ?? u.cacheReadTokens ?? u.cache_read_input_tokens ?? 0) || 0;
   const out = Number(u.outputTokens ?? u.completionTokens ?? u.output_tokens ?? 0) || 0;
   const total = Number(u.totalTokens ?? u.total_tokens ?? 0) || 0;
-  const used = Number(u.used ?? u.contextTokens ?? u.context_tokens ?? 0) || 0;
-  const ctx = used || (inp + cached > 0 ? inp + cached : (total > out ? total - out : 0));
-  if (ctx <= 0 && out <= 0 && inp <= 0) return prev;
+  const hasUsed = u.used !== undefined || u.contextTokens !== undefined || u.context_tokens !== undefined;
+  const used = hasUsed ? (Number(u.used ?? u.contextTokens ?? u.context_tokens ?? 0) || 0) : -1;
+  const win = Number(u.size ?? u.contextWindow ?? u.context_window ?? 0) || 0;
+  const prevWin = Number(prev?.context_window || 0) || 0;
+  const nextWin = win > 0 ? win : prevWin;
+
+  // promptRes.usage 是整轮所有工具调用的累加和，绝不能覆盖 usage_update 报出的单步真实上下文占用
+  let ctx = prev?.context_tokens || 0;
+  if (used > 0) {
+    ctx = used;
+  } else if (!isTurnTotal && inp + cached > 0) {
+    ctx = inp + cached;
+  } else if (!isTurnTotal && total > out) {
+    ctx = total - out;
+  } else if (isTurnTotal && !(prev?.context_tokens > 0)) {
+    // 兜底：若该 ACP 实现整轮都没发过 usage_update，再从终态推一次上下文
+    const fallback = inp + cached > 0 ? inp + cached : (total > out ? total - out : 0);
+    if (fallback > 0) ctx = fallback;
+  }
+
+  if (ctx <= 0 && out <= 0 && inp <= 0 && nextWin <= 0) return prev;
   return {
     input_tokens: inp || prev?.input_tokens || 0,
     ...(cached > 0 ? { cache_read_input_tokens: cached } : (prev?.cache_read_input_tokens ? { cache_read_input_tokens: prev.cache_read_input_tokens } : {})),
     output_tokens: out || prev?.output_tokens || 0,
-    context_tokens: ctx || prev?.context_tokens || 0,
+    context_tokens: ctx,
+    ...(nextWin > 0 ? { context_window: nextWin } : {}),
   };
 }
 
@@ -319,12 +372,118 @@ export function createAcpClient({ bin, args = ["acp"], cwd, env, onNotification,
   };
 }
 
+/** 从工具输出中提取首行摘要 */
+function firstLineOf(s, max = 80) {
+  const line = String(s || "").split("\n").map((x) => x.trim()).find(Boolean) || "";
+  return line.length > max ? line.slice(0, max - 1) + "…" : line;
+}
+
+/** 识别 agy 原生子代理 / 后台任务工具调用并同步发射 `ag` 联络卡与后台任务事件 */
+function trackAcpToolSideEffects(phase, tool, state, emit) {
+  if (!tool || !state) return;
+  const rawName = String(tool.name || "");
+  const name = rawName.toLowerCase();
+  const inp = tool.input && typeof tool.input === "object" ? tool.input : {};
+  const agents = (state.acpAgents ||= new Map());        // toolId -> { id, convId, name }
+  const byConv = (state.acpAgentsByConv ||= new Map());  // convId -> toolId
+
+  const isSubagentCall = name === "invoke_subagent" || name === "run_workflow";
+  if (isSubagentCall) {
+    if (phase === "start") {
+      const label = String(inp.Role || inp.TypeName || inp.Description || rawName).trim().slice(0, 60) || "subagent";
+      agents.set(tool.id, { id: tool.id, convId: null, name: label, status: "running" });
+      emit({ type: "ag", k: "spawn", id: tool.id, tool: tool.id, name: label, parent: null, depth: 1, bg: true, by: "main", at: Date.now() });
+      state.onBgAdd?.({ id: tool.id, type: name === "run_workflow" ? "workflow" : "agent", desc: label });
+    } else if (phase === "done") {
+      const rec = agents.get(tool.id);
+      const out = String(tool.output || "");
+      const mConv = /conversationId["':=\s]+([a-f0-9-]{8,})/i.exec(out) || /\b([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/i.exec(out);
+      if (rec && mConv) {
+        rec.convId = mConv[1];
+        byConv.set(rec.convId, rec.id);
+      }
+      if (tool.isError) {
+        if (rec) rec.status = "failed";
+        emit({ type: "ag", k: "done", id: tool.id, status: "failed", why: firstLineOf(out), at: Date.now() });
+        state.onBgRemove?.(tool.id);
+      } else if (name === "run_workflow" && !/background|running|async/i.test(out)) {
+        if (rec) rec.status = "done";
+        emit({ type: "ag", k: "done", id: tool.id, status: "done", why: firstLineOf(out), at: Date.now() });
+        state.onBgRemove?.(tool.id);
+      }
+    }
+    return;
+  }
+
+  if (name === "send_message") {
+    const rawTo = String(inp.Recipient || "").trim();
+    const to = byConv.get(rawTo) || rawTo || "subagent";
+    if (phase === "start") {
+      emit({ type: "ag", k: "msg", mid: tool.id, from: "main", to, why: firstLineOf(inp.Message || "", 80), at: Date.now() });
+    } else if (phase === "done") {
+      emit({ type: "ag", k: "msg_ok", mid: tool.id, ok: !tool.isError, err: tool.isError ? firstLineOf(tool.output) : null, at: Date.now() });
+    }
+    return;
+  }
+
+  if (name === "manage_subagents" && phase === "done" && !tool.isError) {
+    const act = String(inp.Action || "").toLowerCase();
+    if (act === "kill_all") {
+      for (const rec of agents.values()) {
+        if (rec.status === "running") {
+          rec.status = "stopped";
+          emit({ type: "ag", k: "done", id: rec.id, status: "stopped", why: "已终止", at: Date.now() });
+          state.onBgRemove?.(rec.id);
+        }
+      }
+    } else if (act === "kill" && Array.isArray(inp.ConversationIds)) {
+      for (const cid of inp.ConversationIds) {
+        const aid = byConv.get(String(cid)) || String(cid);
+        const rec = agents.get(aid);
+        if (rec && rec.status === "running") {
+          rec.status = "stopped";
+          emit({ type: "ag", k: "done", id: rec.id, status: "stopped", why: "已终止", at: Date.now() });
+        }
+        state.onBgRemove?.(aid);
+      }
+    }
+    return;
+  }
+
+  if (name === "run_command" && phase === "done" && !tool.isError) {
+    const out = String(tool.output || "");
+    const bgMatch = /running in (?:the )?background|background task|TaskId["':=\s]+(\S+)/i.test(out) || !!inp.IsDaemon;
+    if (bgMatch) {
+      const mId = /(?:TaskId|task[_\s-]?id)["':=\s]+([A-Za-z0-9._-]+)/i.exec(out);
+      const tid = mId ? mId[1] : tool.id;
+      const desc = String(inp.toolSummary || inp.CommandLine || "后台命令").trim().slice(0, 80);
+      state.onBgAdd?.({ id: tid, type: inp.IsDaemon ? "daemon" : "shell", desc });
+    }
+    return;
+  }
+
+  if (name === "manage_task" && phase === "done" && !tool.isError) {
+    const act = String(inp.Action || "").toLowerCase();
+    if (act === "kill" && inp.TaskId) state.onBgRemove?.(String(inp.TaskId));
+    return;
+  }
+
+  if (name === "schedule" && phase === "done" && !tool.isError) {
+    const out = String(tool.output || "");
+    const mId = /(?:TaskId|id)["':=\s]+([A-Za-z0-9._-]+)/i.exec(out);
+    const tid = mId ? mId[1] : tool.id;
+    const desc = String(inp.Prompt || inp.CronExpression || (inp.DurationSeconds ? `${inp.DurationSeconds}s 定时提醒` : "定时任务")).trim().slice(0, 80);
+    state.onBgAdd?.({ id: tid, type: "monitor", desc });
+  }
+}
+
 /** 构造发往前端的 tool_result 事件（遵循前端 ok/text 契约，并保留 content/is_error 兼容字段） */
-function emitToolResult(tool, emit) {
+function emitToolResult(tool, emit, state = null) {
   const full = String(tool.output || "");
   const clipped = full.length > TOOL_OUT_MAX ? full.slice(0, TOOL_OUT_MAX) + "\n\n…（已截断）" : full;
   const isErr = !!tool.isError;
   tool.done = true;
+  if (state) trackAcpToolSideEffects("done", tool, state, emit);
   emit({
     type: "tool_result",
     id: tool.id,
@@ -416,13 +575,14 @@ export function translateAcpUpdate(params, state, emit) {
     const rec = { id, name, input, status: upd.status || "pending", output: "", isError: false, done: false };
     state.tools.set(id, rec);
     emit({ type: "tool_use", id, name, input });
+    trackAcpToolSideEffects("start", rec, state, emit);
     // 部分实现会在 tool_call 上直接带终态
     const st0 = String(upd.status || "").toLowerCase();
     if (st0 === "completed" || st0 === "failed" || st0 === "error" || st0 === "cancelled" || st0 === "canceled") {
       const out0 = acpTextOf(upd.content ?? upd.rawOutput ?? upd.output);
       if (out0) rec.output = mergeToolOutput(rec.output, out0);
       rec.isError = st0 !== "completed";
-      emitToolResult(rec, emit);
+      emitToolResult(rec, emit, state);
     }
     return;
   }
@@ -440,6 +600,7 @@ export function translateAcpUpdate(params, state, emit) {
       prev = { id, name, input, status: upd.status || "in_progress", output: "", isError: false, done: false };
       state.tools.set(id, prev);
       emit({ type: "tool_use", id, name, input });
+      trackAcpToolSideEffects("start", prev, state, emit);
     } else {
       if (upd.title || upd.name) prev.name = String(upd.title || upd.name);
       if (upd.rawInput && typeof upd.rawInput === "object" && Object.keys(upd.rawInput).length) {
@@ -453,7 +614,7 @@ export function translateAcpUpdate(params, state, emit) {
     const terminal = st === "completed" || st === "failed" || st === "error" || st === "cancelled" || st === "canceled";
     if (terminal) {
       prev.isError = st !== "completed";
-      emitToolResult(prev, emit);
+      emitToolResult(prev, emit, state);
     }
     return;
   }
@@ -472,10 +633,17 @@ export function translateAcpUpdate(params, state, emit) {
   }
 
   if (kind === "usage" || kind === "usage_update" || upd.usage) {
-    const nextUsage = extractAcpUsage(upd.usage || upd, state.usage);
-    if (nextUsage && (nextUsage.context_tokens > 0 || nextUsage.output_tokens > 0)) {
+    const nextUsage = extractAcpUsage(upd.usage || upd, state.usage, { isTurnTotal: false });
+    if (nextUsage && (nextUsage.context_tokens > 0 || nextUsage.output_tokens > 0 || nextUsage.context_window > 0)) {
       state.usage = nextUsage;
-      emit({ type: "usage", contextTokens: state.usage.context_tokens, outputTokens: state.usage.output_tokens });
+      if (state.usage.context_tokens > 0 || state.usage.context_window > 0) {
+        emit({
+          type: "usage",
+          ...(state.usage.context_tokens > 0 ? { contextTokens: state.usage.context_tokens } : {}),
+          ...(state.usage.context_window > 0 ? { contextWindow: state.usage.context_window } : {}),
+          outputTokens: state.usage.output_tokens,
+        });
+      }
       if (state.usage.output_tokens > 0) emit({ type: "run_tokens", out: state.usage.output_tokens });
     }
     return;
@@ -490,10 +658,116 @@ export function translateAcpUpdate(params, state, emit) {
     return;
   }
 
+  if (kind === "compaction_update") {
+    const st = String(upd.status || upd.phase || "").toLowerCase();
+    const pre = Number(upd.preTokens ?? upd.pre_tokens ?? upd.beforeTokens ?? 0) || null;
+    const post = Number(upd.postTokens ?? upd.post_tokens ?? upd.afterTokens ?? 0) || null;
+    if (st === "completed" || st === "done" || st === "finished" || post != null) {
+      if (post && post > 0) {
+        state.usage = { ...(state.usage || {}), context_tokens: post };
+      }
+      emit({ type: "compacted", trigger: upd.trigger || "", pre, post });
+    } else {
+      emit({ type: "compacting" });
+    }
+    return;
+  }
+
+  if (kind === "notice") {
+    const text = acpTextOf(upd.message ?? upd.text ?? upd.content).trim();
+    if (text) emit({ type: "note", key: "acp-notice-" + String(upd.id || "0"), text: text.slice(0, 1200) });
+    return;
+  }
+
   // 已知但有意忽略的种类（不回显、不影响本轮正文），之外的记进日志：
   // 真机上 agy 发来新种类时，日志里能直接看到名字，不用再猜
-  const IGNORED = new Set(["user_message", "user_message_chunk", "config_option_update", "session_info_update", "notice", "compaction_update", "compaction_summary_chunk", "permission_confirmation"]);
+  const IGNORED = new Set(["user_message", "user_message_chunk", "config_option_update", "session_info_update", "compaction_summary_chunk", "permission_confirmation"]);
   if (!IGNORED.has(kind)) log(`[agy-acp] 未识别的 update 种类：${kind}`);
+}
+
+/**
+ * 仅追加助手回复与工具记录（无 user 行）：用于 ACP 空闲期间后台任务 / 子代理主动唤醒回报落盘。
+ */
+export function persistAcpAssistantOnly({ cwd, sessionId, assistantText, thinking, tools, model, usage }) {
+  if (!sessionId) return;
+  const list = Array.isArray(tools) ? tools : [];
+  if (!assistantText && !thinking && !list.length) return;
+  const file = acpSessionFile(cwd, sessionId);
+  if (!list.length) {
+    const blocks = [];
+    if (thinking) blocks.push({ type: "thinking", thinking });
+    if (assistantText) blocks.push({ type: "text", text: assistantText });
+    appendJsonl(file, {
+      type: "assistant",
+      uuid: crypto.randomUUID(),
+      parentUuid: null,
+      sessionId,
+      cwd,
+      timestamp: new Date().toISOString(),
+      message: {
+        id: "acp-" + crypto.randomUUID(),
+        role: "assistant",
+        model: model || "antigravity",
+        content: blocks,
+        ...(usage ? { usage } : {}),
+      },
+    });
+    return;
+  }
+  const toolAsstUuid = crypto.randomUUID();
+  const toolBlocks = [];
+  if (thinking) toolBlocks.push({ type: "thinking", thinking });
+  for (const t of list) toolBlocks.push({ type: "tool_use", id: t.id, name: t.name, input: t.input || {} });
+  appendJsonl(file, {
+    type: "assistant",
+    uuid: toolAsstUuid,
+    parentUuid: null,
+    sessionId,
+    cwd,
+    timestamp: new Date().toISOString(),
+    message: {
+      id: "acp-" + crypto.randomUUID(),
+      role: "assistant",
+      model: model || "antigravity",
+      content: toolBlocks,
+      ...(!assistantText && usage ? { usage } : {}),
+    },
+  });
+  const resUuid = crypto.randomUUID();
+  appendJsonl(file, {
+    type: "user",
+    uuid: resUuid,
+    parentUuid: toolAsstUuid,
+    sessionId,
+    cwd,
+    timestamp: new Date().toISOString(),
+    message: {
+      role: "user",
+      content: list.map((t) => ({
+        type: "tool_result",
+        tool_use_id: t.id,
+        content: String(t.output || "").slice(0, TOOL_OUT_MAX),
+        is_error: !!t.isError,
+      })),
+    },
+  });
+  if (assistantText) {
+    appendJsonl(file, {
+      type: "assistant",
+      uuid: crypto.randomUUID(),
+      parentUuid: resUuid,
+      sessionId,
+      cwd,
+      timestamp: new Date().toISOString(),
+      message: {
+        id: "acp-" + crypto.randomUUID(),
+        role: "assistant",
+        model: model || "antigravity",
+        content: [{ type: "text", text: assistantText }],
+        ...(usage ? { usage } : {}),
+      },
+    });
+  }
 }
 
 /**
@@ -530,6 +804,7 @@ export function persistAcpTurn({ cwd, sessionId, userText, assistantText, thinki
       cwd,
       timestamp: new Date().toISOString(),
       message: {
+        id: "acp-" + crypto.randomUUID(),
         role: "assistant",
         model: model || "antigravity",
         content: blocks.length ? blocks : [{ type: "text", text: "" }],
@@ -553,6 +828,7 @@ export function persistAcpTurn({ cwd, sessionId, userText, assistantText, thinki
     cwd,
     timestamp: new Date().toISOString(),
     message: {
+      id: "acp-" + crypto.randomUUID(),
       role: "assistant",
       model: model || "antigravity",
       content: toolBlocks,
@@ -586,6 +862,7 @@ export function persistAcpTurn({ cwd, sessionId, userText, assistantText, thinki
       cwd,
       timestamp: new Date().toISOString(),
       message: {
+        id: "acp-" + crypto.randomUUID(),
         role: "assistant",
         model: model || "antigravity",
         content: [{ type: "text", text: assistantText }],
@@ -628,12 +905,21 @@ function mapUiModeToAcp(permMode, availableModes) {
  * 在 LIVE 模式下（或显式 keepAlive: true），按 sessionId 复用常驻 `agy acp` 进程，避免每轮重启。
  */
 export async function runAcpTurn({
-  bin, args = ["acp"], cwd, env, prompt, images = [], sessionId = null,
+  bin, args = ["acp"], cwd, env, prompt, displayPrompt = null, images = [], sessionId = null,
   model = "", effort = "", permMode = "default", authType = "", apiKey = "",
-  mcpServers = [], run, emit, askPermission, timeoutMs = 0,
+  mcpServers = [], addDirs = [], run, emit, askPermission, onBgChange, timeoutMs = 0,
   keepAlive = LIVE && process.env.CCAPP_ACP_KEEPALIVE !== "0",
 }) {
   const t0 = Date.now();
+  const bgTasks = new Map();
+  const syncBg = () => {
+    const list = [...bgTasks.values()];
+    if (run) {
+      run.bgList = list;
+      run.bgTasks = list.length;
+    }
+    onBgChange?.(list);
+  };
   const state = {
     text: "",
     thinking: "",
@@ -644,27 +930,42 @@ export async function runAcpTurn({
     replaySeenAt: 0,
     permMode,
     sessionId: sessionId || null,
+    onBgAdd: (t) => {
+      if (!t || !t.id) return;
+      bgTasks.set(String(t.id), { id: String(t.id), type: t.type || "shell", desc: String(t.desc || t.id) });
+      syncBg();
+    },
+    onBgRemove: (id) => {
+      if (!id) return;
+      if (bgTasks.delete(String(id))) syncBg();
+    },
     onCommands: (cmds) => {
-      const names = cmds.map((c) => String(c?.name || "").replace(/^\//, "")).filter(Boolean);
+      const names = [];
+      const meta = {};
+      for (const c of cmds) {
+        const n = String(c?.name || "").replace(/^\//, "").trim();
+        if (!n) continue;
+        names.push(n);
+        meta[n] = { description: String(c?.description || "").trim(), input: c?.input || null };
+      }
       if (names.length) {
         setLastInit({
           slash_commands: names,
-          tools: [],
-          skills: [],
-          agents: [],
-          plugins: [],
-          mcp_servers: [],
+          slash_command_meta: meta,
         });
+        const caps = buildCapabilities();
+        publish({ type: "caps_updated", slashCommands: caps.slashCommands, version: caps.version, tier: caps.tier });
       }
     },
   };
   let activeSessionId = sessionId || null;
   const pKey = poolKey({ bin, args, cwd, authType, apiKey });
 
+  const isBenignStderr = (line) => /logging before google\.Init:.*Initialized Android local timezone/i.test(line);
   const makeHandlers = () => ({
     onStderr: (s) => {
       const line = s.trim();
-      if (line) log(`[agy-acp!] ${line.slice(0, 300)}`);
+      if (line && !isBenignStderr(line)) log(`[agy-acp!] ${line.slice(0, 300)}`);
     },
     onNotification: (method, params) => {
       if (method === "session/update") {
@@ -713,11 +1014,17 @@ export async function runAcpTurn({
   if (keepAlive && activeSessionId) {
     const hit = ACP_POOL.get(activeSessionId);
     if (hit && !hit.busy && !hit.client.closed && hit.key === pKey) {
+      // 复用前先冲刷空闲期间可能已收到的后台唤醒回报，确保顺序不交叉
+      try { hit.flushIdle?.(); } catch {}
       poolEntry = hit;
       reused = true;
       if (poolEntry.idleTimer) { clearTimeout(poolEntry.idleTimer); poolEntry.idleTimer = null; }
       poolEntry.busy = true;
       if (poolEntry.knownToolIds) for (const tid of poolEntry.knownToolIds) state.knownToolIds.add(tid);
+      if (poolEntry.bgTasks) for (const [k, v] of poolEntry.bgTasks) bgTasks.set(k, v);
+      if (poolEntry.acpAgents) state.acpAgents = poolEntry.acpAgents;
+      if (poolEntry.acpAgentsByConv) state.acpAgentsByConv = poolEntry.acpAgentsByConv;
+      syncBg();
       poolEntry.client.setHandlers(makeHandlers());
     } else if (hit && !hit.busy) {
       closeAcpSession(activeSessionId);
@@ -774,6 +1081,9 @@ export async function runAcpTurn({
         clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
         clientInfo: { name: "hachimia", version: "0.1.0" },
       }, 30000);
+      if (initRes?.agentInfo?.version) {
+        setLastInit({ version: String(initRes.agentInfo.version) });
+      }
 
       // 2. authenticate（若 agent 声明了 authMethods 且我们指定了认证方式）
       const authMethods = Array.isArray(initRes?.authMethods) ? initRes.authMethods : [];
@@ -821,23 +1131,42 @@ export async function runAcpTurn({
         }
       }
       if (!sessRes) {
-        sessRes = await client.request("session/new", { cwd, mcpServers }, 30000);
+        const extraDirs = Array.isArray(addDirs) ? addDirs.filter((d) => typeof d === "string" && d.trim()) : [];
+        const canAddDirs = !!(caps.sessionCapabilities?.additionalDirectories || caps.session_capabilities?.additionalDirectories);
+        sessRes = await client.request("session/new", {
+          cwd,
+          mcpServers,
+          ...(canAddDirs && extraDirs.length ? { additionalDirectories: extraDirs } : {}),
+        }, 30000);
         activeSessionId = sessRes?.sessionId || activeSessionId || crypto.randomUUID();
       }
       sessModels = sessRes?.models || null;
       sessModes = sessRes?.modes || null;
       sessConfig = Array.isArray(sessRes?.configOptions) ? sessRes.configOptions : null;
+      const tier = sessRes?._meta?.antigravity?.tier;
+      if (tier?.name) {
+        setLastInit({ tier: String(tier.name) });
+        noteAuthTier(tier);
+      }
     }
 
     state.sessionId = activeSessionId;
     if (run) run.sessionId = activeSessionId;
     const activeModel = model || sessModels?.currentModelId || "antigravity";
+    const capsNow = buildCapabilities();
     emit({
       type: "init",
       sessionId: activeSessionId,
       model: activeModel,
       permissionMode: permMode,
-      tools: [],
+      tools: capsNow.tools,
+      slashCommands: capsNow.slashCommands,
+      skills: capsNow.skills,
+      agents: capsNow.agents,
+      plugins: capsNow.plugins,
+      mcpServers: capsNow.mcpServers,
+      version: capsNow.version,
+      tier: capsNow.tier,
       protocol: "acp",
     });
 
@@ -901,13 +1230,19 @@ export async function runAcpTurn({
       prompt: contentBlocks,
     }, timeoutMs > 0 ? timeoutMs : 0);
 
-    // 补采 promptRes.usage（agy 1.5.13 会在终态返回含 cachedReadTokens 的完整用量）
+    // 补采 promptRes.usage（整轮累计统计：保留单步 usage_update 的真实 context_tokens，不拿多步累加值冲爆上下文条）
     if (promptRes?.usage) {
-      const mergedUsage = extractAcpUsage(promptRes.usage, state.usage);
+      const hadCtx = Number(state.usage?.context_tokens) > 0;
+      const mergedUsage = extractAcpUsage(promptRes.usage, state.usage, { isTurnTotal: true });
       if (mergedUsage) {
         state.usage = mergedUsage;
-        if (state.usage.context_tokens > 0) {
-          emit({ type: "usage", contextTokens: state.usage.context_tokens, outputTokens: state.usage.output_tokens });
+        if (!hadCtx && state.usage.context_tokens > 0) {
+          emit({
+            type: "usage",
+            contextTokens: state.usage.context_tokens,
+            ...(state.usage.context_window > 0 ? { contextWindow: state.usage.context_window } : {}),
+            outputTokens: state.usage.output_tokens,
+          });
         }
         if (state.usage.output_tokens > 0) emit({ type: "run_tokens", out: state.usage.output_tokens });
       }
@@ -918,7 +1253,7 @@ export async function runAcpTurn({
       if (!tool.done) {
         const st = String(tool.status || "").toLowerCase();
         tool.isError = st === "failed" || st === "error" || st === "cancelled" || st === "canceled";
-        emitToolResult(tool, emit);
+        emitToolResult(tool, emit, state);
       }
     }
 
@@ -932,7 +1267,7 @@ export async function runAcpTurn({
     persistAcpTurn({
       cwd,
       sessionId: activeSessionId,
-      userText: prompt,
+      userText: displayPrompt != null ? displayPrompt : prompt,
       assistantText: state.text,
       thinking: state.thinking,
       tools: [...state.tools.values()],
@@ -955,6 +1290,8 @@ export async function runAcpTurn({
     return {
       ok: true,
       sessionId: activeSessionId,
+      model: activeModel,
+      toolCount: state.tools.size,
       resultText: state.text,
       stopReason,
       durationMs,
@@ -981,17 +1318,140 @@ export async function runAcpTurn({
     }
     if (canKeep) {
       const entry = poolEntry || { client, sessionId: activeSessionId, key: pKey, knownToolIds: new Set() };
+      entry.cwd = cwd;
       entry.models = sessModels;
       entry.modes = sessModes;
       entry.configOptions = sessConfig;
-      entry.model = model;
+      entry.model = model || sessModels?.currentModelId || entry.model || "antigravity";
       entry.effort = effort;
       entry.permMode = permMode;
       entry.knownToolIds = state.knownToolIds;
+      entry.bgTasks = bgTasks;
+      entry.acpAgents = state.acpAgents || entry.acpAgents || new Map();
+      entry.acpAgentsByConv = state.acpAgentsByConv || entry.acpAgentsByConv || new Map();
       entry.busy = false;
       entry.lastUsed = Date.now();
+
+      // 空闲期间后台任务 / 定时提醒 / 子代理完成时，agy 会主动通过 session/update 推送回复：
+      // 实时转推给前端并防抖落盘到 .jsonl，避免必须问「好了吗」才能看到结果
+      let idleBurst = null;
+      let idleFlushTimer = null;
+      const flushIdle = () => {
+        if (idleFlushTimer) { clearTimeout(idleFlushTimer); idleFlushTimer = null; }
+        const b = idleBurst;
+        if (!b) return;
+        idleBurst = null;
+        for (const tool of b.state.tools.values()) {
+          if (!tool.done) {
+            const st = String(tool.status || "").toLowerCase();
+            tool.isError = st === "failed" || st === "error" || st === "cancelled" || st === "canceled";
+            emitToolResult(tool, b.emit, b.state);
+          }
+          entry.knownToolIds.add(tool.id);
+        }
+        persistAcpAssistantOnly({
+          cwd: entry.cwd,
+          sessionId: activeSessionId,
+          assistantText: b.state.text,
+          thinking: b.state.thinking,
+          tools: [...b.state.tools.values()],
+          model: entry.model,
+          usage: b.state.usage,
+        });
+        // 如果空闲期间收到了正文回报，说明之前非 daemon 的后台任务/子代理已完成回报
+        if (b.state.text && entry.bgTasks?.size) {
+          for (const [k, v] of [...entry.bgTasks]) {
+            if (v.type !== "daemon") {
+              entry.bgTasks.delete(k);
+              if (v.type === "agent") {
+                const rec = entry.acpAgents?.get(k);
+                if (rec && rec.status === "running") {
+                  rec.status = "done";
+                  publish({ type: "ag", runId: b.runId, sessionId: activeSessionId, k: "done", id: k, status: "done", why: firstLineOf(b.state.text), at: Date.now() });
+                }
+              }
+            }
+          }
+          onBgChange?.([...entry.bgTasks.values()]);
+        }
+        publish({
+          type: "run_end",
+          runId: b.runId,
+          sessionId: activeSessionId,
+          ok: true,
+          resultText: b.state.text,
+          durationMs: Date.now() - b.startedAt,
+          costUsd: 0,
+          ...(b.state.usage ? { usage: b.state.usage } : {}),
+        });
+        log(`[agy-acp idle] 后台唤醒回报已推送并落盘（${activeSessionId.slice(0, 8)}，${b.state.text.length} 字）`);
+      };
+      entry.flushIdle = flushIdle;
+
+      const scheduleIdleFlush = () => {
+        if (idleFlushTimer) clearTimeout(idleFlushTimer);
+        const hasPendingTool = idleBurst && [...idleBurst.state.tools.values()].some((t) => !t.done);
+        idleFlushTimer = setTimeout(() => {
+          if (!idleBurst) return;
+          if ([...idleBurst.state.tools.values()].some((t) => !t.done)) {
+            scheduleIdleFlush();
+            return;
+          }
+          flushIdle();
+        }, hasPendingTool ? 5000 : 1500);
+        idleFlushTimer.unref?.();
+      };
+
+      const IDLE_WAKE_KINDS = new Set([
+        "agent_message_chunk", "text_delta", "agent_message",
+        "agent_thought_chunk", "thinking_delta", "agent_thought",
+        "tool_call", "tool_call_update", "plan", "compaction_update", "notice",
+      ]);
+
       client.setHandlers({
-        onStderr: (s) => { const line = s.trim(); if (line) log(`[agy-acp! idle] ${line.slice(0, 200)}`); },
+        onStderr: (s) => { const line = s.trim(); if (line && !isBenignStderr(line)) log(`[agy-acp! idle] ${line.slice(0, 200)}`); },
+        onNotification: (method, params) => {
+          if (method !== "session/update") return;
+          const upd = params?.update || params || {};
+          const kind = upd.sessionUpdate || upd.type || "";
+          if (kind === "available_commands_update") {
+            const cmds = Array.isArray(upd.availableCommands) ? upd.availableCommands : [];
+            if (cmds.length) state.onCommands(cmds);
+            return;
+          }
+          if (!idleBurst && !IDLE_WAKE_KINDS.has(kind)) return;
+          entry.lastUsed = Date.now();
+          if (!idleBurst) {
+            const runId = "acp-bg-" + crypto.randomBytes(4).toString("hex");
+            const startedAt = Date.now();
+            const bgEmit = (ev) => publish({ ...ev, runId, sessionId: activeSessionId });
+            const bgState = {
+              text: "",
+              thinking: "",
+              tools: new Map(),
+              knownToolIds: entry.knownToolIds,
+              usage: null,
+              promptSent: true,
+              permMode: entry.permMode,
+              sessionId: activeSessionId,
+              acpAgents: entry.acpAgents,
+              acpAgentsByConv: entry.acpAgentsByConv,
+              onBgAdd: (t) => {
+                if (!t || !t.id) return;
+                entry.bgTasks.set(String(t.id), { id: String(t.id), type: t.type || "shell", desc: String(t.desc || t.id) });
+                onBgChange?.([...entry.bgTasks.values()]);
+              },
+              onBgRemove: (id) => {
+                if (id && entry.bgTasks.delete(String(id))) onBgChange?.([...entry.bgTasks.values()]);
+              },
+              onCommands: state.onCommands,
+            };
+            idleBurst = { runId, startedAt, state: bgState, emit: bgEmit };
+            publish({ type: "run_start", runId, sessionId: activeSessionId, text: "", auto: "bg", startedAt });
+          }
+          translateAcpUpdate(params, idleBurst.state, idleBurst.emit);
+          scheduleIdleFlush();
+        },
         // 空闲期间若有后台任务/子代理发起权限请求：bypassPermissions 下自动放行，否则优雅取消，不再抛 -32603
         onRequest: async (method, params) => {
           if (method === "session/request_permission") {
@@ -1006,13 +1466,20 @@ export async function runAcpTurn({
         },
       });
       if (entry.idleTimer) clearTimeout(entry.idleTimer);
-      entry.idleTimer = setTimeout(() => {
-        if (ACP_POOL.get(activeSessionId) === entry && !entry.busy) {
-          log(`[agy-acp] 会话 ${activeSessionId.slice(0, 8)} 空闲超时，回收常驻进程`);
-          closeAcpSession(activeSessionId);
-        }
-      }, ACP_IDLE_TTL_MS);
-      entry.idleTimer.unref?.();
+      const armIdleGc = () => {
+        entry.idleTimer = setTimeout(() => {
+          if (ACP_POOL.get(activeSessionId) === entry && !entry.busy) {
+            if (entry.bgTasks?.size > 0 && Date.now() - entry.lastUsed < ACP_IDLE_TTL_MS * 3) {
+              armIdleGc();
+              return;
+            }
+            log(`[agy-acp] 会话 ${activeSessionId.slice(0, 8)} 空闲超时，回收常驻进程`);
+            closeAcpSession(activeSessionId);
+          }
+        }, ACP_IDLE_TTL_MS);
+        entry.idleTimer.unref?.();
+      };
+      armIdleGc();
       ACP_POOL.set(activeSessionId, entry);
       // 最多保留 6 个空闲常驻会话，超出先清最久未用的
       if (ACP_POOL.size > 6) {

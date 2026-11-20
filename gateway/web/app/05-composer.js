@@ -42,18 +42,20 @@
     // 官方账户登录：OAuth 全程由 claude 自己完成，网关只转递授权页地址；授权码不经手（要贴码就在终端里贴给 claude）
     if (typed === "/login" || typed.startsWith("/login ")) {
       if (fromInput) { inputEl.value = ""; autoGrow(); }
-      const arg = typed.slice(6).trim();
+      const arg = typed.slice(6).trim().toLowerCase();
       const post = (p, body) => api(p, {
         method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
       });
       try {
-        addNote(t("正在启动登录…"));
-        const j = await post("/api/login/start", { method: arg === "console" ? "console" : "claudeai" });
+        addNote(t("正在启动 Google Antigravity 登录…"));
+        const method = (arg === "enterprise" || arg === "console" || arg === "business") ? "enterprise" : "personal";
+        const j = await post("/api/login/start", { method });
         if (!j.ok) throw new Error(j.message || t("启动登录失败"));
-        const bubble = addSysMsg(t("在浏览器打开下面的地址完成授权，授权后浏览器跳回本机，登录自动完成：") + `\n\n[${j.url}](${j.url})\n\n` +
-          t("浏览器跳不回来（比如在别的设备上授权）：打开终端运行 {cmd}，把页面给出的授权码直接贴给 claude。", { cmd: "`claude auth login`" }), "/login");
-        // OAuth 在应用内 WebView 里会被 Google 等拦：和设置页登录卡一样交给系统浏览器（0.6.9 审计 195-G.1）
-        openExternal(j.url);
+        if (j.alreadyLoggedIn) { addNote(t("Google 账户已登录")); return; }
+        const bubble = addSysMsg(t("在浏览器打开下面的地址完成 Google 授权，拿到授权码后到 设置 → 接口 粘贴提交：") + `\n\n[${j.url}](${j.url})\n\n` +
+          t("也可以在应用内终端运行 {cmd} 完成登录。", { cmd: "`SSH_CONNECTION=1 agy`" }), "/login");
+        // OAuth 在应用内 WebView 里会被 Google 拦：和设置页登录卡一样交给系统浏览器（0.6.9 审计 195-G.1）
+        if (j.url) openExternal(j.url);
         bubble.querySelectorAll("a.weblink").forEach((a) => a.addEventListener("click", (e) => {
           e.preventDefault(); e.stopPropagation(); openExternal(a.getAttribute("href"));
         }));
@@ -136,7 +138,7 @@
       view.pendingMerge = null;
       // 斜杠命令只在空闲时插进去，送进去就画出来了（gw/run.mjs 的 run.inject），不用再提示
       if (r.duplicate) { /* 网关早就收过这条（重发）：别把「已排队」再说一遍 */ }
-      else if (r.injected) { if (!text.trim().startsWith("/")) toast(t("已插话：当前这一步做完，Claude 就会看到")); }
+      else if (r.injected) { if (!text.trim().startsWith("/")) toast(t("已插话：当前这一步做完就会看到")); }
       else if (!r.started) toast(mode === "inject" ? t("这一轮正在收尾，插不进去 —— 已排到最前，马上发出")
         : srv.run && !srv.run.idle ? t("已排队，这一轮结束后发出") : srv.run?.sealed ? t("已排队：后台任务还在跑，这一轮收不进新消息了。点「立即发送」会停掉后台任务再发") : atCap() ? t("同时在跑的会话已到上限，已排队，有空位就发出") : t("已排队：这个会话的上一轮还没完全结束，结束后发出"));
     } catch (e) {
@@ -278,8 +280,20 @@
   function openCmdPalette(filter) {
     dropReq("filepal");   // 在途的 @ 文件请求作废：整段换成 /xx 时它迟到会把命令面板盖成文件面板（审查 #52 A-CHAT-003）
     const caps = state.caps;
-    // 常用指令（自己存的 commands/*.md）排在最前；说明是用户自己写的，不过翻译。没在筛选时顶上放一个「管理常用指令…」
-    const all = (caps?.slashCommands || []).filter((c) => !filter || c.name.includes(filter));
+    if (!caps?.slashCommands?.length && !openCmdPalette._loading) {
+      openCmdPalette._loading = true;
+      loadCaps().finally(() => {
+        openCmdPalette._loading = false;
+        if (state.popup.mode === "cmd") {
+          const caret = inputEl.selectionStart ?? inputEl.value.length;
+          const m = inputEl.value.slice(0, caret).match(/(?:^|\s)\/([a-zA-Z0-9_-]*)$/);
+          if (m) openCmdPalette(m[1]);
+        }
+      });
+    }
+    const q = String(filter || "").toLowerCase();
+    // 常用指令（自己存的 commands/*.md）排在最前；支持按命令名与说明模糊匹配
+    const all = (caps?.slashCommands || []).filter((c) => !q || String(c.name || "").toLowerCase().includes(q) || String(c.desc || "").toLowerCase().includes(q));
     const cmds = all.filter((c) => c.custom).concat(all.filter((c) => !c.custom));
     const items = cmds.map((c) => ({ label: "/" + c.name, desc: c.custom ? [c.desc, c.hint].filter(Boolean).join(" · ") : c.desc ? t(c.desc) : "", cat: c.cat && t(c.cat), raw: c.name }));
     if (!filter) items.unshift({ label: t("管理常用指令…"), desc: t("把常发的长提示存成 /指令"), cat: t("常用指令"), raw: "", manage: true });

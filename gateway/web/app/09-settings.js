@@ -510,7 +510,8 @@
     const top = Math.max(0, ...ws.map((x) => +x[1].used || 0));
     return { text: ws.map((x) => x[0] + " " + Math.round(x[1].used) + "%").join(" · "), lvl: top >= 90 ? 2 : top >= 70 ? 1 : 0 };
   }
-  const qbBrief = (c) => (!c ? { text: "", lvl: 0 } : c.login ? loginBrief(c.limits) : billBrief(c.bill));
+  const isAgyProv = (id) => id === "antigravity" || id === "antigravity-enterprise";
+  const qbBrief = (c) => (!c ? { text: "", lvl: 0 } : c.login ? (c.limits ? loginBrief(c.limits) : (c.bill ? billBrief(c.bill) : { text: "", lvl: 0 })) : billBrief(c.bill));
   /** 拉当前接口的额度 / 余额，画到细条上；速览卡、用量页开着就一起重画 */
   async function qbLoad(force) {
     const s = state.serverStatus;
@@ -525,6 +526,11 @@
       // 查询失败（网络/网关忙）别把已经显示的已登录额度清掉；只有接口明确回“没登录”才撤（195-O.9）
       if (failed && QB.cur && QB.cur.id === cur.id) return QB.cur;
       cur.limits = st && st.loggedIn ? st.limits || null : null;
+      // Google Antigravity 订阅登录不回传 Claude 风格的 5h/周百分比：同步拉本机账本 token 统计，让顶栏与速览卡始终有实时数据
+      if (!cur.limits) {
+        cur.bill = await api(`/api/billing?id=${encodeURIComponent(cur.id)}`).catch(() => null);
+        if (cur.bill && cur.bill.error) cur.bill = null;
+      }
     } else {
       cur.bill = await api(`/api/billing?id=${encodeURIComponent(cur.id)}${force ? "&refresh=1" : ""}`).catch(() => null);
       if (cur.bill && cur.bill.error) cur.bill = null;
@@ -612,11 +618,22 @@
     qcRender();
     qbLoad(false);
   }
+  function loginQuotaOrBill(c, brief) {
+    if (c.limits) return quotaHtml(c.limits);
+    if (isAgyProv(c.id) || (c.bill && (c.bill.tok?.length || c.bill.tokOld?.in))) {
+      const rows = c.bill ? billRows(c.bill, { id: c.id }, brief) : "";
+      const note = isAgyProv(c.id)
+        ? `<div class="tiny">${t("Google Antigravity 订阅配额由 Google 账户管理（CLI 不回传剩余百分比），此处显示本机实际 token 用量。")}</div>`
+        : "";
+      return rows + note;
+    }
+    return quotaHtml(null);
+  }
   function qcRender() {
     if (!qcOpen()) return;
     const c = QB.cur;
     const body = !c ? `<div class="tiny">${t("读取中…")}</div>`
-      : c.login ? quotaHtml(c.limits)
+      : c.login ? loginQuotaOrBill(c, true)
       : c.bill ? billRows(c.bill, { id: c.id }, true)
       : `<div class="tiny">${t("查不到这个接口的额度")}</div>`;
     qcEl.innerHTML = `<div class="qc-h"><b>${esc(c ? c.name : "")}</b><span class="grow"></span>
@@ -644,7 +661,7 @@
     const cur = await qbLoad(force);
     if (curPage !== "usage") return;
     $("us-acct-name").textContent = cur ? cur.name : "";
-    $("us-acct-cur").innerHTML = !cur ? "" : cur.login ? quotaHtml(cur.limits)
+    $("us-acct-cur").innerHTML = !cur ? "" : cur.login ? loginQuotaOrBill(cur, false)
       : cur.bill ? billRows(cur.bill, { id: cur.id }) : `<div class="tiny">${t("查不到这个接口的额度")}</div>`;
     let list = [];
     try { list = (await api("/api/providers")).providers || []; } catch {}

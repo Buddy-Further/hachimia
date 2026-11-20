@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { spawn, spawnSync } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { CFG, PATHS, log, tz } from "./config.mjs";
 import { isLoginMode, noteLoggedIn } from "./models.mjs";
 import { agyEnv, claudeBlocked, killTree } from "./claude.mjs";
@@ -9,6 +9,7 @@ import { providerById } from "./providers.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
 import { toFront } from "./local.mjs";
 import { RATE_LIMITS, clearRateLimits } from "./stream.mjs";
+import { publish } from "./bus.mjs";
 
 // ── Google Antigravity 账户登录（OAuth 全程由官方 agy CLI 完成；网关只转递地址与授权码，不碰凭据）──
 //
@@ -131,9 +132,40 @@ function hasAgySessionFiles() {
 
 export let AUTH_CACHE = null;
 let AUTH_GOOD = null;   // 最后一次问出结果的状态
+let AUTH_INFLIGHT = null;
+const TIER_FILE = path.join(CFG.home, ".cache", "hachimia-tier.json");
+let AUTH_TIER = (() => {
+  try { const j = JSON.parse(fs.readFileSync(TIER_FILE, "utf8")); return typeof j?.name === "string" && j.name ? j.name : null; }
+  catch { return null; }
+})();
+
+/** 记录从 agy acp 会话响应 `_meta.antigravity.tier` 拿到的订阅档位（如 Google AI Ultra） */
+export function noteAuthTier(tier) {
+  const name = typeof tier === "string" ? tier.trim() : String(tier?.name || "").trim();
+  if (!name || name === AUTH_TIER) return;
+  AUTH_TIER = name;
+  try {
+    fs.mkdirSync(path.dirname(TIER_FILE), { recursive: true });
+    fs.writeFileSync(TIER_FILE, JSON.stringify({ name, at: Date.now() }));
+  } catch {}
+  if (AUTH_CACHE?.v?.loggedIn) AUTH_CACHE.v.plan = name;
+  if (AUTH_GOOD?.loggedIn) AUTH_GOOD.plan = name;
+  publish({ type: "quota" });
+}
+
+function execAgyModels(bin) {
+  return new Promise((resolve) => {
+    execFile(bin, ["models"], { cwd: CFG.home, env: authEnv(), encoding: "utf8", timeout: 10000, maxBuffer: 2 << 20 }, (err, stdout, stderr) => {
+      const status = err ? (typeof err.code === "number" ? err.code : 1) : 0;
+      const errMsg = err && !stdout && !stderr ? (err.killed ? "timeout" : err.message || String(err.code || "")) : "";
+      resolve({ status, stdout: String(stdout || ""), stderr: String(stderr || errMsg) });
+    });
+  });
+}
 
 export async function authStatus(force) {
   if (!force && AUTH_CACHE && Date.now() - AUTH_CACHE.at < 30000) return AUTH_CACHE.v;
+  if (!force && AUTH_INFLIGHT) return AUTH_INFLIGHT;
   const bin = agyBin();
   if (!fs.existsSync(bin)) {
     const v = { loggedIn: false, authMethod: "none", email: null, org: null, plan: null, unknown: true, error: "Antigravity CLI (agy) 未安装" };
@@ -141,44 +173,48 @@ export async function authStatus(force) {
     return v;
   }
 
-  // 零成本探测：`agy models`（官方 agy 没有 auth 子命令，agy auth status 会被当 prompt
-  // 参数忽略报错）。实测 android arm64 1.5.13：未登录 → exit 1 + "Please sign in to
-  // view available models"；登录后 → exit 0 + 模型列表。只打一个列表接口，不产生模型调用。
-  const r = spawnSync(bin, ["models"], { cwd: CFG.home, env: authEnv(), encoding: "utf8", timeout: 10000 });
-  const out = `${r.stdout || ""}\n${r.stderr || ""}`.trim();
-  // 未登录的文案先认（不赌退出码：实测 1.5.13 是 exit 1，别的版本可能不同）
-  if (/please sign in|sign in to view/i.test(out)) {
+  // 零成本异步探测：`agy models`（官方 agy 没有 auth 子命令，agy auth status 会被当 prompt
+  // 参数忽略报错）。必须用异步 execFile：以前用 spawnSync 会把整个网关事件循环冻住数秒，
+  // 导致冷启动并发 /__proof 超时、WebView 收到 502 并闪「网关离线」再重连。
+  const run = (async () => {
+    const r = await execAgyModels(bin);
+    const out = `${r.stdout || ""}\n${r.stderr || ""}`.trim();
+    // 未登录的文案先认（不赌退出码：实测 1.5.13 是 exit 1，别的版本可能不同）
+    if (/please sign in|sign in to view/i.test(out)) {
+      const v = { loggedIn: false, authMethod: "none", email: null, org: null, plan: null };
+      AUTH_CACHE = { at: Date.now(), v }; AUTH_GOOD = v;
+      noteLoggedIn(false);
+      return v;
+    }
+    if (r.status === 0 && out) {
+      const em = out.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
+      const v = { loggedIn: true, authMethod: "oauth-personal", email: em ? em[0] : null, org: null, plan: AUTH_TIER };
+      AUTH_CACHE = { at: Date.now(), v }; AUTH_GOOD = v;
+      noteLoggedIn(true);
+      return v;
+    }
+    // 凭据文件回落：探测问不出结果时，有本地凭据文件就算登录
+    if (hasAgySessionFiles()) {
+      const v = { loggedIn: true, authMethod: "oauth-personal", email: null, org: null, plan: AUTH_TIER };
+      AUTH_CACHE = { at: Date.now(), v }; AUTH_GOOD = v;
+      noteLoggedIn(true);
+      return v;
+    }
+    // 问不出结果（起不来、超时、网络错）：不能当成「未登录」—— 有上次问出的就沿用并标旧，
+    // 没有就标「不知道」，把原因带给界面（#102 04-010）
+    if (!/not logged in|not authenticated/i.test(out)) {
+      const error = String(out).split("\n").pop().slice(0, 300) || "exit " + r.status;
+      const v = AUTH_GOOD ? { ...AUTH_GOOD, stale: true, error } : { loggedIn: false, authMethod: "none", email: null, org: null, plan: null, unknown: true, error };
+      AUTH_CACHE = { at: Date.now(), v };
+      return v;
+    }
     const v = { loggedIn: false, authMethod: "none", email: null, org: null, plan: null };
     AUTH_CACHE = { at: Date.now(), v }; AUTH_GOOD = v;
     noteLoggedIn(false);
     return v;
-  }
-  if (r.status === 0 && out) {
-    const em = out.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
-    const v = { loggedIn: true, authMethod: "oauth-personal", email: em ? em[0] : null, org: null, plan: null };
-    AUTH_CACHE = { at: Date.now(), v }; AUTH_GOOD = v;
-    noteLoggedIn(true);
-    return v;
-  }
-  // 凭据文件回落：探测问不出结果时，有本地凭据文件就算登录
-  if (hasAgySessionFiles()) {
-    const v = { loggedIn: true, authMethod: "oauth-personal", email: null, org: null, plan: null };
-    AUTH_CACHE = { at: Date.now(), v }; AUTH_GOOD = v;
-    noteLoggedIn(true);
-    return v;
-  }
-  // 问不出结果（起不来、超时、网络错）：不能当成「未登录」—— 有上次问出的就沿用并标旧，
-  // 没有就标「不知道」，把原因带给界面（#102 04-010）
-  if (!/not logged in|not authenticated/i.test(out)) {
-    const error = String(out).split("\n").pop().slice(0, 300) || "exit " + r.status;
-    const v = AUTH_GOOD ? { ...AUTH_GOOD, stale: true, error } : { loggedIn: false, authMethod: "none", email: null, org: null, plan: null, unknown: true, error };
-    AUTH_CACHE = { at: Date.now(), v };
-    return v;
-  }
-  const v = { loggedIn: false, authMethod: "none", email: null, org: null, plan: null };
-  AUTH_CACHE = { at: Date.now(), v }; AUTH_GOOD = v;
-  noteLoggedIn(false);
-  return v;
+  })().finally(() => { if (AUTH_INFLIGHT === run) AUTH_INFLIGHT = null; });
+  AUTH_INFLIGHT = run;
+  return run;
 }
 
 // ── 路由：/api/login/start /api/login/status /api/login/code /api/login/cancel /api/login/logout ──
@@ -241,7 +277,8 @@ export async function routeLogin(req, res, u, p) {
         }
       } catch {}
     }
-    AUTH_CACHE = null; AUTH_GOOD = null;
+    AUTH_CACHE = null; AUTH_GOOD = null; AUTH_TIER = null;
+    try { fs.unlinkSync(TIER_FILE); } catch {}
     noteLoggedIn(false);
     clearRateLimits();
     const v = await authStatus(true);   // 重探：真退了才算数

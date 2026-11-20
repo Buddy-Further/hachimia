@@ -70,10 +70,10 @@ function promptOf(e) {
 /** 工具调用的一句话说明：文件路径 / 命令 / 描述，取最像人话的那个 */
 function labelOf(name, input) {
   const x = input || {};
-  const v = x.description || x.file_path || x.path || x.command || x.pattern || x.url || x.query || x.prompt || x.skill || x.subject || "";
+  const v = x.toolSummary || x.description || x.Description || x.Path || x.file_path || x.path || x.CommandLine || x.command || x.pattern || x.url || x.query || x.Role || x.Prompt || x.prompt || x.skill || x.subject || "";
   return String(typeof v === "string" ? v : JSON.stringify(v)).replace(/\s+/g, " ").trim().slice(0, 90);
 }
-const isAgentTool = (n) => n === "Agent" || n === "Task";
+const isAgentTool = (n) => n === "Agent" || n === "Task" || n === "invoke_subagent" || n === "run_workflow";
 const one = (q) => q.replace(/\s+/g, " ").trim().slice(0, 140);
 
 // 同一章同一段字节读过就记住（翻来翻去不重读）；最新那一章还在长，to 变了键就变了

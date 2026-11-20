@@ -132,7 +132,11 @@ function termNew({ cols, rows, login, cwd: want } = {}) {
   const child = spawn(pc[0], [...pc.slice(1), String(rows), String(cols), shell], {
     cwd, env, detached: true, stdio: ["pipe", "pipe", "pipe", "pipe"],
   });
-  if (login) setTimeout(() => { try { child.stdin.write("claude auth login" + (login === "console" ? " --console" : "") + "\r"); } catch {} }, 400);
+  if (login) {
+    const hasAgy = !!(PATHS.agy && fs.existsSync(PATHS.agy));
+    const cmd = hasAgy ? "SSH_CONNECTION=1 agy\r" : ("claude auth login" + (login === "console" ? " --console" : "") + "\r");
+    setTimeout(() => { try { child.stdin.write(cmd); } catch {} }, 400);
+  }
   const t = {
     id, title: `${path.basename(shell) === "bash" ? "bash" : "sh"} ${seq}`, cols, rows,
     created: Date.now(), alive: true, code: null, child,

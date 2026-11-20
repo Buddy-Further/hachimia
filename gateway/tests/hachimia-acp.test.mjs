@@ -52,6 +52,9 @@ rl.on("line", (line) => {
   if (msg.method === "session/set_config_option" || msg.method === "session/set_mode") {
     return send({ jsonrpc: "2.0", id: msg.id, result: { ok: true } });
   }
+  if (msg.method === "session/set_mode" || msg.method === "session/set_config_option") {
+    return send({ jsonrpc: "2.0", id: msg.id, result: { ok: true } });
+  }
   if (msg.method === "session/prompt") {
     promptCount++;
     const sid = msg.params.sessionId;
@@ -285,6 +288,9 @@ rl.on("line", (line) => {
   if (msg.method === "session/set_config_option" || msg.method === "session/set_mode") {
     return send({ jsonrpc: "2.0", id: msg.id, result: { ok: true } });
   }
+  if (msg.method === "session/set_mode" || msg.method === "session/set_config_option") {
+    return send({ jsonrpc: "2.0", id: msg.id, result: { ok: true } });
+  }
   if (msg.method === "session/prompt") {
     const modeCall = seen.find((x) => x.method === "session/set_mode");
     const cfgCalls = seen.filter((x) => x.method === "session/set_config_option");
@@ -343,6 +349,74 @@ test("syncAgySettings & agyEnv：在 Gemini API Key 与 Google 订阅模式间�
   assert.equal("modelProvider" in st2, false);
 });
 
+test("hachimia ACP：usage_update 单步上下文不被 promptRes 累计用量覆盖，且历史重载读真实单步值", async () => {
+  const { readSessionPage, latestContextTokens } = await import("../gw/transcript.mjs");
+  const { acpSessionFile } = await import("../gw/acp.mjs");
+  const tmp = fs.mkdtempSync(path.join(CFG.home, "hachimia-acp-ctx-"));
+  const mockBin = path.join(tmp, "mock-agy-ctx");
+  fs.writeFileSync(mockBin, `#!${process.execPath}
+const readline = require("node:readline");
+const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+const send = (o) => process.stdout.write(JSON.stringify(o) + "\\n");
+rl.on("line", (line) => {
+  const t = line.trim(); if (!t) return;
+  const msg = JSON.parse(t);
+  if (msg.method === "initialize") {
+    return send({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: 1, agentCapabilities: { loadSession: true } } });
+  }
+  if (msg.method === "session/new") {
+    return send({ jsonrpc: "2.0", id: msg.id, result: { sessionId: "sess-ctx-step-1" } });
+  }
+  if (msg.method === "session/set_mode" || msg.method === "session/set_config_option") {
+    return send({ jsonrpc: "2.0", id: msg.id, result: { ok: true } });
+  }
+  if (msg.method === "session/prompt") {
+    const sid = msg.params.sessionId;
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: sid, update: { sessionUpdate: "usage_update", used: 0, size: 1048576 } } });
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: sid, update: { sessionUpdate: "usage_update", used: 7810, size: 1048576 } } });
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: sid, update: { sessionUpdate: "usage_update", used: 8199, size: 1048576 } } });
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: sid, update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "done" } } } });
+    // promptRes.usage 为整轮 3 次 LLM 调用的累计和（23757），远大于真实单步上下文（8199）
+    return send({
+      jsonrpc: "2.0", id: msg.id,
+      result: { stopReason: "end_turn", usage: { inputTokens: 12283, cachedReadTokens: 11474, outputTokens: 209, totalTokens: 23966 } },
+    });
+  }
+});
+`, { mode: 0o755 });
+
+  const events = [];
+  const res = await runAcpTurn({
+    bin: process.execPath,
+    args: [mockBin],
+    cwd: CFG.workspace,
+    env: process.env,
+    prompt: "跑两个命令",
+    keepAlive: false,
+    emit: (ev) => events.push(ev),
+  });
+  assert.equal(res.ok, true, res.error);
+  assert.equal(res.usage?.context_tokens, 8199, "终态累计 usage 不应覆盖单步真实上下文");
+  assert.equal(res.usage?.context_window, 1048576);
+  assert.equal(res.usage?.output_tokens, 209);
+  assert.ok(events.some((e) => e.type === "usage" && e.contextTokens === 8199 && e.contextWindow === 1048576));
+  assert.ok(!events.some((e) => e.type === "usage" && e.contextTokens === 23757), "不应把整轮累计和推送到上下文条");
+
+  const file = acpSessionFile(CFG.workspace, "sess-ctx-step-1");
+  const page = await readSessionPage(file);
+  assert.equal(page.contextTokens, 8199, "重开会话分页读到的上下文应为单步真实值而非累计和");
+  assert.equal(await latestContextTokens(file), 8199, "latestContextTokens 应返回单步真实值");
+  assert.equal(res.toolCount, 0);
+  // 持久化记录应带 message.id，且旧版无 message.id 的脏累计行（>1M 且等于 sum）不应捅穿上下文条
+  const lines = fs.readFileSync(file, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+  assert.ok(lines.some((l) => l.type === "assistant" && typeof l.message?.id === "string" && l.message.id.startsWith("acp-")));
+  fs.appendFileSync(file, JSON.stringify({
+    type: "assistant", uuid: "dirty-legacy-1", sessionId: "sess-ctx-step-1", cwd: CFG.workspace, timestamp: new Date().toISOString(),
+    message: { role: "assistant", model: "gemini-4-neon", content: [{ type: "text", text: "old" }], usage: { input_tokens: 403631, cache_read_input_tokens: 1947960, output_tokens: 1362, context_tokens: 2351591 } },
+  }) + "\n");
+  assert.equal(await latestContextTokens(file), 8199, "旧版多步累计脏行应被跳过，回落到上一条真实单步值");
+});
+
 test("normalizeModels：兼容 Google Gemini /v1beta/models 响应格式", () => {
   const list = normalizeModels({
     models: [
@@ -355,4 +429,117 @@ test("normalizeModels：兼容 Google Gemini /v1beta/models 响应格式", () =>
   assert.equal(list[0].name, "Gemini 3.8 Flash");
   assert.equal(list[0].context_window, 1048576);
   assert.equal(list[0].max_output_tokens, 65536);
+});
+
+test("hachimia ACP：斜杠命令同步、压缩事件、子代理联络卡、后台任务与空闲唤醒推送", async () => {
+  const { buildCapabilities } = await import("../gw/caps.mjs");
+  const { expandCustomCommand } = await import("../gw/commands.mjs");
+  const { acpSessionFile, closeAcpSession, getAcpPoolBg, stopAcpBgTask } = await import("../gw/acp.mjs");
+  const { onPublish } = await import("../gw/bus.mjs");
+  const published = [];
+  const offBus = onPublish((ev) => published.push(ev));
+
+  // 1. 测试常用指令在 ACP 下的 $ARGUMENTS / $1 展开
+  const cmdDir = path.join(CFG.home, ".claude", "commands");
+  fs.mkdirSync(cmdDir, { recursive: true });
+  fs.writeFileSync(path.join(cmdDir, "shipcheck.md"), "---\ndescription: 发布前检查\n---\n检查 $1 分支：$ARGUMENTS\n");
+  const exp = expandCustomCommand("/shipcheck main 所有测试", CFG.workspace);
+  assert.equal(exp.expanded, true);
+  assert.equal(exp.name, "shipcheck");
+  assert.equal(exp.text, "检查 main 分支：main 所有测试");
+
+  // 2. 启动带斜杠命令、tier、子代理、后台命令、压缩与空闲异步回报的 mock agy acp
+  const tmp = fs.mkdtempSync(path.join(CFG.home, "hachimia-acp-full-"));
+  const mockBin = path.join(tmp, "mock-agy-full");
+  fs.writeFileSync(mockBin, `#!${process.execPath}
+const readline = require("node:readline");
+const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+const send = (o) => process.stdout.write(JSON.stringify(o) + "\\n");
+rl.on("line", (line) => {
+  const t = line.trim(); if (!t) return;
+  const msg = JSON.parse(t);
+  if (msg.method === "initialize") {
+    return send({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: 1, agentInfo: { name: "Antigravity ACP Server", version: "1.5.13" }, agentCapabilities: { loadSession: true, sessionCapabilities: { resume: {}, additionalDirectories: {} } } } });
+  }
+  if (msg.method === "session/new") {
+    const sid = "sess-full-wiring-1";
+    send({ jsonrpc: "2.0", id: msg.id, result: { sessionId: sid, _meta: { antigravity: { tier: { name: "Google AI Ultra", id: "g1-ultra-tier" } } } } });
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: sid, update: { sessionUpdate: "available_commands_update", availableCommands: [
+      { name: "compact", description: "Compact history" },
+      { name: "grill-me", description: "Interview to align on a plan" },
+      { name: "run-workflow", description: "Run Python workflow" },
+    ] } } });
+    return;
+  }
+  if (msg.method === "session/set_mode" || msg.method === "session/set_config_option") {
+    return send({ jsonrpc: "2.0", id: msg.id, result: { ok: true } });
+  }
+  if (msg.method === "session/prompt") {
+    const sid = msg.params.sessionId;
+    // 压缩事件
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: sid, update: { sessionUpdate: "compaction_update", status: "started" } } });
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: sid, update: { sessionUpdate: "compaction_update", status: "completed", preTokens: 50000, postTokens: 12000 } } });
+    // 子代理派生 + 联络
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: sid, update: { sessionUpdate: "tool_call", toolCallId: "sub-1", title: "invoke_subagent", rawInput: { Role: "Code Reviewer", TypeName: "research", Prompt: "check" }, status: "in_progress" } } });
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: sid, update: { sessionUpdate: "tool_call_update", toolCallId: "sub-1", status: "completed", rawOutput: "Launched subagent conversationId=11111111-2222-3333-4444-555555555555 running in background" } } });
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: sid, update: { sessionUpdate: "tool_call", toolCallId: "msg-1", title: "send_message", rawInput: { Recipient: "11111111-2222-3333-4444-555555555555", Message: "focus on tests" }, status: "completed", rawOutput: "sent" } } });
+    // 后台命令
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: sid, update: { sessionUpdate: "tool_call", toolCallId: "cmd-1", title: "run_command", rawInput: { CommandLine: "npm run dev", toolSummary: "Dev server", IsDaemon: true }, status: "completed", rawOutput: "Command running in the background TaskId=bg-srv-1" } } });
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: sid, update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "已启动子代理和后台服务" } } } });
+    send({ jsonrpc: "2.0", id: msg.id, result: { stopReason: "end_turn" } });
+    // 120ms 后（主回合已结束、进程在 ACP_POOL 空闲）主动推一条后台子代理回报
+    setTimeout(() => {
+      send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: sid, update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "后台子代理审查完毕：全部通过" } } } });
+    }, 120);
+  }
+});
+`, { mode: 0o755 });
+
+  const events = [];
+  try {
+    const res = await runAcpTurn({
+      bin: process.execPath,
+      args: [mockBin],
+      cwd: CFG.workspace,
+      env: process.env,
+      prompt: "帮我审查并起服务",
+      keepAlive: true,
+      emit: (ev) => events.push(ev),
+    });
+    assert.equal(res.ok, true, res.error);
+    // 校验压缩事件
+    assert.ok(events.some((e) => e.type === "compacting"), "应发射 compacting");
+    assert.ok(events.some((e) => e.type === "compacted" && e.pre === 50000 && e.post === 12000), "应发射 compacted");
+    // 校验子代理联络卡事件
+    assert.ok(events.some((e) => e.type === "ag" && e.k === "spawn" && e.id === "sub-1" && e.name === "Code Reviewer"), "应派生子代理卡");
+    assert.ok(events.some((e) => e.type === "ag" && e.k === "msg" && e.to === "sub-1"), "send_message 应按 conversationId 映射回子代理 ID");
+    assert.ok(events.some((e) => e.type === "ag" && e.k === "msg_ok" && e.ok === true));
+    // 校验能力清单同步（带版本、tier、真 agy 命令）
+    const caps = buildCapabilities();
+    assert.equal(caps.version, "1.5.13");
+    assert.equal(caps.tier, "Google AI Ultra");
+    assert.ok(caps.slashCommands.some((c) => c.name === "grill-me"), "应包含 agy 原生 /grill-me");
+    assert.ok(caps.slashCommands.some((c) => c.name === "run-workflow" && c.desc), "应保留命令 description");
+    // 校验后台任务已登记进常驻池
+    const bg = getAcpPoolBg("sess-full-wiring-1");
+    assert.ok(bg.some((x) => x.id === "bg-srv-1" && x.type === "daemon"), "后台 daemon 应登记在池中");
+
+    // 等待空闲唤醒回报推送 + 防抖落盘（120ms + 1500ms 缓冲）
+    await new Promise((r) => setTimeout(r, 1950));
+    const busBgStart = published.some((e) => e.type === "run_start" && e.sessionId === "sess-full-wiring-1" && e.auto === "bg");
+    const busBgDelta = published.some((e) => e.type === "text_delta" && e.sessionId === "sess-full-wiring-1" && e.text.includes("审查完毕"));
+    const busBgEnd = published.some((e) => e.type === "run_end" && e.sessionId === "sess-full-wiring-1" && e.resultText?.includes("审查完毕"));
+    assert.ok(busBgStart, "空闲后台回报应广播 run_start(auto=bg)");
+    assert.ok(busBgDelta, "空闲后台回报应流式广播 text_delta");
+    assert.ok(busBgEnd, "空闲后台回报应防抖收尾广播 run_end");
+    const jsonl = fs.readFileSync(acpSessionFile(CFG.workspace, "sess-full-wiring-1"), "utf8");
+    assert.ok(jsonl.includes("后台子代理审查完毕：全部通过"), "空闲后台回报应持久化到 jsonl");
+
+    // 停止常驻后台任务并回收池中进程
+    assert.equal(stopAcpBgTask("sess-full-wiring-1", "bg-srv-1"), true);
+    assert.equal(getAcpPoolBg("sess-full-wiring-1").length, 0);
+  } finally {
+    offBus();
+    closeAcpSession("sess-full-wiring-1");
+  }
 });

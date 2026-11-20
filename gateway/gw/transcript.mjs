@@ -97,7 +97,14 @@ function contextOf(ev) {
     return { n: Number.isFinite(post) && post >= 0 ? post : null };
   }
   if (ev.type === "assistant" && !ev.isApiErrorMessage && ev.message?.model !== "<synthetic>") {
-    const n = promptTokens(ev.message?.usage);
+    const u = ev.message?.usage;
+    // ACP 回合把单步真实上下文记在 usage.context_tokens（input_tokens+cache_read 为整轮多步累计统计），优先取它；
+    // 旧版未带 message.id 的 ACP 记录曾误把整轮多步累计和写进 context_tokens（动辄 > 1.05M 捅穿进度条），跳过这种脏值
+    const explicit = Number(u?.context_tokens);
+    const sum = promptTokens(u);
+    const legacyDirty = !ev.message?.id && Number.isFinite(explicit) && explicit > 1048576 && explicit === sum;
+    if (legacyDirty) return null;
+    const n = Number.isFinite(explicit) && explicit > 0 ? explicit : sum;
     if (Number.isFinite(n) && n > 0) return { n };
   }
   return null;

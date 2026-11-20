@@ -203,13 +203,13 @@ server.listen(CFG.port, "127.0.0.1", () => {
   if (UI_HOST !== "127.0.0.1") uiServer.listen(CFG.port, UI_HOST);
   else log("⚠️ 这台设备上 127.0.0.2 连不通，界面改走 127.0.0.1（应用启动时探测，见 Env.checkHost）");
   // 浏览器直接开这个地址只拿得到静态页，/api 按来源校验一律 403；界面要从应用里开（0.6.9 审计 195-G.6）
-  log(`claude-apk 网关 v3 已启动  http://127.0.0.1:${CFG.port}（界面请从 cccodroid 应用里打开）`);
+  log(`hachimia 网关 v3 已启动  http://127.0.0.1:${CFG.port}（界面请从 hachimia 应用里打开）`);
   log(`  运行时 ${CFG.runtime}`);
   log(`  工作区 ${CFG.workspace}`);
   log(`  前端   ${PATHS.web}  存在=${fs.existsSync(PATHS.web)}`);
-  log(`  密钥   ${API_KEY ? "已配置" : "缺失"}`);
+  log(`  凭据   ${API_KEY ? "已配置 API Key" : (PROVIDER.login ? "Google OAuth 登录态" : "缺失")}`);
   log(`  模型   ${SETTINGS.model}   权限 ${SETTINGS.permissionMode}`);
-  if (!fs.existsSync(PATHS.claude)) log(`  ⚠️ 未找到 claude: ${PATHS.claude}`);
+  if (!fs.existsSync(PATHS.agy) && !fs.existsSync(PATHS.claude)) log(`  ⚠️ 未找到 agy: ${PATHS.agy}`);
   if (!fs.existsSync(PATHS.loader)) log(`  ⚠️ 未找到 glibc loader: ${PATHS.loader}`);
   if (process.env.CCAPP_EXEC === "loader") {
     // 经加载器（targetSdk 36）：APK 里的 ld.so 必须和工具包里的 libc 同版本，不同就是 APK 先升了、工具包还没跟上
@@ -217,19 +217,22 @@ server.listen(CFG.port, "127.0.0.1", () => {
     try { same = fs.readFileSync(PATHS.loader).equals(fs.readFileSync(path.join(PATHS.glibcLib, "ld-linux-aarch64.so.1"))); } catch {}
     log(`  执行方式 经加载器 · ld.so ${same ? "与工具包一致" : "⚠️ 与工具包里的不一致，claude 可能起不来：更新工具包"}`);
   }
-  log(`  历史会话 ${listSessions(500).length} 个`);
-  try { reapOrphans(); } catch (e) { log("孤儿进程清理失败: " + e.message); }
-  // 上次被结束时留下的隐藏临时文件（原子写换名前、导入没导完、上传没传完）：清掉一小时前的（FIND-016）
-  try { const n = sweepTemps([CFG.home, UPLOAD_DIR]); if (n) log(`清掉 ${n} 个上次留下的临时文件`); } catch (e) { log("临时文件清理失败: " + e.message); }
-  try { expireTrash(); } catch (e) { log("回收站清理失败: " + e.message); }
-  // 只在启动时清一次的话，长期不重启的应用里过期回收站永远不清（195-A.9）；每天一次，unref 不拦着退出
-  setInterval(guarded("回收站清理", expireTrash), 24 * 3600e3).unref();
-  try { customRefresh(); } catch (e) { log("自定义组件入口重写失败: " + e.message); }
-  try { cleanOrphans(); } catch (e) { log("旧工具包残留清理失败: " + e.message); }
-  try { startWorkIsland(); } catch (e) { log("工作岛启动失败: " + e.message); }
-  migrateHookPause().catch((e) => log("转换 hooks 暂停失败: " + e.message));
-  ensureSessionRetention().catch((e) => log("补会话保留期失败: " + e.message));
-  try { startAutoClean(); } catch (e) { log("存储自动清理启动失败: " + e.message); }
+  // 启动后的巡检与清理延后 150ms：不阻塞冷启动第一波 /__proof、/api/status 与 /api/events（避免首启偶发超时触发「网关离线」）
+  setTimeout(() => {
+    log(`  历史会话 ${listSessions(500).length} 个`);
+    try { reapOrphans(); } catch (e) { log("孤儿进程清理失败: " + e.message); }
+    // 上次被结束时留下的隐藏临时文件（原子写换名前、导入没导完、上传没传完）：清掉一小时前的（FIND-016）
+    try { const n = sweepTemps([CFG.home, UPLOAD_DIR]); if (n) log(`清掉 ${n} 个上次留下的临时文件`); } catch (e) { log("临时文件清理失败: " + e.message); }
+    try { expireTrash(); } catch (e) { log("回收站清理失败: " + e.message); }
+    // 只在启动时清一次的话，长期不重启的应用里过期回收站永远不清（195-A.9）；每天一次，unref 不拦着退出
+    setInterval(guarded("回收站清理", expireTrash), 24 * 3600e3).unref();
+    try { customRefresh(); } catch (e) { log("自定义组件入口重写失败: " + e.message); }
+    try { cleanOrphans(); } catch (e) { log("旧工具包残留清理失败: " + e.message); }
+    try { startWorkIsland(); } catch (e) { log("工作岛启动失败: " + e.message); }
+    migrateHookPause().catch((e) => log("转换 hooks 暂停失败: " + e.message));
+    ensureSessionRetention().catch((e) => log("补会话保留期失败: " + e.message));
+    try { startAutoClean(); } catch (e) { log("存储自动清理启动失败: " + e.message); }
+  }, 150).unref();
   // 托管桥（OpenAI 兼容端点）是应用的子进程：应用升级/被系统清掉时桥跟着没了，以前要等下一句消息才冷启动。
   // 启动后台预热一次，不阻塞网关；尊重停用状态，只恢复上个进程周期留下的故障锁。
   setTimeout(() => {

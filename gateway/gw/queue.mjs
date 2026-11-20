@@ -23,6 +23,7 @@ import { cleanMergeFrom } from "./merge.mjs";
 import { LOCAL_CMD_RE } from "./modelcmd.mjs";
 import { tamperPending } from "./tamper.mjs";
 import { RATE_LIMITS } from "./stream.mjs";
+import { getAcpPoolBg } from "./acp.mjs";
 
 // ── 生成与排队 ────────────────────────────────────────────────────────
 export const QUEUE = [];                 // 等着跑的消息：{ id, message, sessionId, follow, model, permissionMode, addDirs, at }
@@ -110,6 +111,7 @@ export function snapshot() {
     lastSessionId: LAST_SESSION ? LAST_SESSION.id : null,
     interrupted: INTERRUPTED,
     recoverWarns: RECOVER_WARNS,
+    acpBg: getAcpPoolBg(),
   };
 }
 export const publishState = () => { saveRunMark(); publish({ type: "state", ...snapshot() }); };

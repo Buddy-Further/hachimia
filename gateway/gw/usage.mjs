@@ -197,6 +197,10 @@ let usageImporting = null;
 let usageGen = 0;   // 清空统计时 +1：还在跑的补算按旧世代号丢弃结果，别把清掉的数据写回来（#119-5）
 function usageImport(extraOnly) {
   return usageImporting || (usageImporting = (async () => {
+    // 此前未记过任何实时数据时（如刚从旧版升级），把补算截点推进到当前，把历史会话里的 ACP 记录一并补齐
+    if (!extraOnly && !Object.keys(USAGE.quarters || {}).length && !Object.keys(USAGE.hours || {}).length) {
+      USAGE.since = Date.now();
+    }
     const gen = usageGen, since0 = USAGE.since;
     // extraOnly：老数据（v1）补上 c / mt / st 三项，别的照旧（实时记下的、后来删掉的会话也还在）
     const until = usageQuarter(since0);
@@ -230,8 +234,9 @@ function usageImport(extraOnly) {
           } else if (e.type === "assistant" && m.model && m.model !== "<synthetic>") {
             if (pending) { pending.t++; pending.md[m.model] = (pending.md[m.model] || 0) + 1; pending = null; }
             for (const c of m.content || []) if (c && c.type === "tool_use" && c.id && !seenTool.has(c.id)) { seenTool.add(c.id); usageBucket(quarters, q).tl++; }
-            // 同一条回复流式拆成好几行、每行都带 usage：按 message.id 只算一次（取最后一行的）
-            if (m.id && m.usage) msgs.set(m.id, [q, m.usage, m.model, e.sessionId]);
+            // 同一条回复流式拆成好几行、每行都带 usage：按 message.id 只算一次（取最后一行的）；旧版 ACP 记录没有 m.id 时用行 uuid 去重
+            const mid = m.id || e.uuid;
+            if (mid && m.usage) msgs.set(mid, [q, m.usage, m.model, e.sessionId]);
           }
         }
         // 子代理的 token 记在 <会话>/subagents/*.jsonl：实时统计（usageMeter 的 scanSubs）算它们，补算也要算，不然历史偏低（审查 B29）。

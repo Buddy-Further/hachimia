@@ -74,13 +74,18 @@ final class Env {
     }
 
     // ── 核身份（审查 S1）：端口全机共享，交出令牌之前先确认对面是真网关。协议见 gateway/gw/access.mjs 的 proof ──
+    private static final Object BOOT_LOCK = new Object();
     private static volatile long provedAt;
     private static volatile String boot = "";
+    private static volatile String bootCookie = "";
     /** 网关换了一个（启动号变了）时回调，参数是这次的 Cookie 值；MainActivity 拿去种进 WebView */
     static volatile java.util.function.Consumer<String> onBoot;
 
+    /** 当前已核身份网关对应的 Cookie 值（未核过时为空串） */
+    static String currentCookie() { return bootCookie; }
+
     /** 忘掉上次核到的启动号：下一次核身份一定回调 onBoot（界面刚接上 onBoot 时用，不然后台服务先核过了，Cookie 就种不上） */
-    static void resetBoot() { boot = ""; provedAt = 0; }
+    static void resetBoot() { synchronized (BOOT_LOCK) { boot = ""; bootCookie = ""; provedAt = 0; } }
 
     /** 网关作证应答的签名（gateway/gw/access.mjs witnessMac）：按启动随机数派生的钥匙、核到的启动号、监听地址 */
     static boolean witnessOk(String n, int anc, int top, String tok, String mac) {
@@ -96,37 +101,50 @@ final class Env {
 
     /** force：不吃 3 秒缓存。界面的 /api 请求前要用这一版（0.6.10 审计 199-1-04）：
      *  页面加载完以后网关被杀、端口被别的应用占住的空档里，3 秒缓存正好能放过冒牌的一两个请求 ——
-     *  里面可能就是用户刚敲的话。多跑一趟本机请求（几毫秒），换来每个 /api 都当场核一次。 */
+     *  里面可能就是用户刚敲的话。多跑一趟本机请求（几毫秒），换来每个 /api 都当场核一次。
+     *  冷启动高并发时偶发瞬时超时允许重试一次，避免误回 502 导致首启闪「网关离线」。 */
     static boolean proveGateway(boolean force) {
         if (!force && System.currentTimeMillis() - provedAt < 3000) return true;    // 刚核过：别每个请求都多跑一趟
         String t = key();
         if (t.isEmpty()) return false;
-        try {
-            byte[] nb = new byte[16];
-            new java.security.SecureRandom().nextBytes(nb);
-            String n = hex(nb);
-            java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL("http://" + HOST + ":" + PORT + "/__proof?n=" + n).openConnection();
-            c.setConnectTimeout(800); c.setReadTimeout(1500); c.setInstanceFollowRedirects(false); c.setUseCaches(false);
+        int tries = force ? 2 : 1;
+        for (int attempt = 0; attempt < tries; attempt++) {
             try {
-                if (c.getResponseCode() != 200) return false;
-                byte[] buf = new byte[256];
-                int len = 0;
-                try (java.io.InputStream in = c.getInputStream()) {
-                    for (int k; len < buf.length && (k = in.read(buf, len, buf.length - len)) > 0; ) len += k;
+                byte[] nb = new byte[16];
+                new java.security.SecureRandom().nextBytes(nb);
+                String n = hex(nb);
+                java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL("http://" + HOST + ":" + PORT + "/__proof?n=" + n).openConnection();
+                c.setConnectTimeout(1000); c.setReadTimeout(force ? 2500 : 1500); c.setInstanceFollowRedirects(false); c.setUseCaches(false);
+                try {
+                    if (c.getResponseCode() != 200) continue;
+                    byte[] buf = new byte[256];
+                    int len = 0;
+                    try (java.io.InputStream in = c.getInputStream()) {
+                        for (int k; len < buf.length && (k = in.read(buf, len, buf.length - len)) > 0; ) len += k;
+                    }
+                    String[] p = new String(buf, 0, len, java.nio.charset.StandardCharsets.UTF_8).trim().split(" ");
+                    if (p.length != 2 || !p[0].matches("[0-9a-f]{32}")) return false;
+                    String want = hmac(t, "proof:" + n + ":" + p[0] + ":" + HOST);   // 绑监听地址：冒牌的转发到 127.0.0.1 上的真网关，算出来的对不上
+                    if (!java.security.MessageDigest.isEqual(want.getBytes(), p[1].getBytes())) return false;
+                    // 先更新 boot/cookie 并通知 onBoot，最后再更新 provedAt，防止并发线程在 Cookie 种下前命中缓存
+                    synchronized (BOOT_LOCK) {
+                        if (!p[0].equals(boot)) {
+                            boot = p[0];
+                            bootCookie = hmac(t, "cookie:" + boot);
+                            java.util.function.Consumer<String> cb = onBoot;
+                            if (cb != null) cb.accept(bootCookie);
+                        }
+                        provedAt = System.currentTimeMillis();
+                    }
+                    return true;
+                } finally { c.disconnect(); }
+            } catch (Exception e) {
+                if (attempt + 1 < tries) {
+                    try { Thread.sleep(150); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); return false; }
                 }
-                String[] p = new String(buf, 0, len, java.nio.charset.StandardCharsets.UTF_8).trim().split(" ");
-                if (p.length != 2 || !p[0].matches("[0-9a-f]{32}")) return false;
-                String want = hmac(t, "proof:" + n + ":" + p[0] + ":" + HOST);   // 绑监听地址：冒牌的转发到 127.0.0.1 上的真网关，算出来的对不上
-                if (!java.security.MessageDigest.isEqual(want.getBytes(), p[1].getBytes())) return false;
-                provedAt = System.currentTimeMillis();
-                if (!p[0].equals(boot)) {
-                    boot = p[0];
-                    java.util.function.Consumer<String> cb = onBoot;
-                    if (cb != null) cb.accept(hmac(t, "cookie:" + boot));
-                }
-                return true;
-            } finally { c.disconnect(); }
-        } catch (Exception e) { return false; }
+            }
+        }
+        return false;
     }
 
     /** 代 WebView 取界面的页面与静态资源（审查 10-29 第六份 中3）。端口全机共享，网关崩溃到重拉的空档里别的应用能占住它；

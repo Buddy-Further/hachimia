@@ -449,7 +449,7 @@
 
   function summarizeTool(name, input) {
     if (!input) return "";
-    // agy 的 run_command 会带 toolSummary；Bash 带了说明（模型写的「停止抓包并统计目的地址」）：标题优先用说明
+    // agy 的 run_command 会带 toolSummary；Bash 带了说明：标题优先用说明
     if (typeof input.toolSummary === "string" && input.toolSummary.trim()) {
       const d = input.toolSummary.trim();
       return d.length > 90 ? d.slice(0, 90) + "…" : d;
@@ -458,18 +458,48 @@
       const d = input.description.trim();
       return d.length > 90 ? d.slice(0, 90) + "…" : d;
     }
-    const v = input.CommandLine || input.command || input.Path || input.file_path || input.path || input.pattern ||
-              input.query || input.url || input.Role || input.Prompt || input.prompt || input.description || input.skill || "";
+    if (name === "read_file" && input.Path) {
+      const rng = input.StartLine || input.EndLine ? `:${input.StartLine || 1}-${input.EndLine || ""}` : "";
+      const s = String(input.Path) + rng;
+      return s.length > 90 ? s.slice(0, 90) + "…" : s;
+    }
+    if (name === "invoke_subagent") {
+      const s = [input.Role || input.TypeName, input.Prompt].filter(Boolean).join(" · ");
+      return s.length > 90 ? s.slice(0, 90) + "…" : s;
+    }
+    if (name === "send_message") {
+      const s = [input.Recipient ? "→ " + String(input.Recipient).slice(0, 12) : "", input.Message].filter(Boolean).join(" · ");
+      return s.length > 90 ? s.slice(0, 90) + "…" : s;
+    }
+    if (name === "manage_task" || name === "manage_subagents") {
+      const s = [input.Action, input.TaskId || (Array.isArray(input.ConversationIds) ? input.ConversationIds.join(",") : "")].filter(Boolean).join(" ");
+      return s.length > 90 ? s.slice(0, 90) + "…" : s;
+    }
+    if (name === "schedule") {
+      const when = input.CronExpression || (input.DurationSeconds ? `${input.DurationSeconds}s` : "");
+      const s = [when, input.Prompt].filter(Boolean).join(" · ");
+      return s.length > 90 ? s.slice(0, 90) + "…" : s;
+    }
+    if (name === "ask_question" && Array.isArray(input.questions) && input.questions[0]?.question) {
+      const s = String(input.questions[0].question);
+      return s.length > 90 ? s.slice(0, 90) + "…" : s;
+    }
+    const v = input.CommandLine || input.command || input.Path || input.ScriptPath || input.file_path || input.path || input.pattern ||
+              input.query || input.url || input.Description || input.Role || input.Prompt || input.prompt || input.description || input.skill || "";
     const s = typeof v === "string" ? v : JSON.stringify(v);
     return s.length > 90 ? s.slice(0, 90) + "…" : s;
   }
+
+  const isAgentToolName = (n) => n === "Agent" || n === "Task" || n === "invoke_subagent" || n === "run_workflow";
+  const isAsyncAgentResult = (name, txt) => /^Async agent launched/.test(txt)
+    || (name === "invoke_subagent" && (/conversationId|running in (?:the )?background|launched/i.test(txt)));
 
   /** 收着的子代理过程里的一步：只记数据，不建 DOM。子代理正在跑时每一步都会来，十几个子代理各几百步，
    *  全建成卡片就是几千个节点常驻页面（展开过程时才 realize 成真卡片，见 ToolBlock 的 openSub）。
    *  孙代理的步骤挂在它下面同样记着；结果、汇报、状态都按调用顺序存，展开时原样重放 */
   function LazyCard(id, name, input, live) {
     const calls = [];
-    const c = { kind: "tool", lazy: true, id, name, input, live, calls, disposed: false, isAgent: name === "Agent" || name === "Task",
+    const c = { kind: "tool", lazy: true, id, name, input, live, calls, disposed: false, isAgent: isAgentToolName(name),
                 state: live ? "run" : "unknown", summary: summarizeTool(name, input), onChange: null };
     for (const k of ["result", "subText", "subProgress", "subDone", "stop", "fail", "finish", "subLazy"]) {
       c[k] = (...a) => {
@@ -478,7 +508,7 @@
         else calls.push([k, a]);
         if (k === "result") {
           c.state = a[0] ? "ok" : "err"; c.hasResult = true;
-          if (c.isAgent && a[0] && /^Async agent launched/.test(String(a[1] || "")) && !c.subEnded) {
+          if (c.isAgent && a[0] && isAsyncAgentResult(name, String(a[1] || "")) && !c.subEnded) {
             const fin = AG.byTool.get(id)?.status;
             c.state = fin && fin !== "running" ? (fin === "done" ? "ok" : "err") : "run";
           }
@@ -530,7 +560,7 @@
     const card = document.createElement("div");
     card.className = "tool";
     const cmdTitle = input && (typeof input.CommandLine === "string" ? input.CommandLine : typeof input.command === "string" ? input.command : "");
-    const openFile = input && (input.Path || input.file_path || input.notebook_path || "");
+    const openFile = input && (input.Path || input.ScriptPath || input.file_path || input.notebook_path || "");
     card.innerHTML =
       `<div class="tool-head"><span class="chev">▶</span><span class="tool-name">${esc(name)}</span>` +
       `<span class="tool-arg"${cmdTitle ? ` title="${esc(cmdTitle.slice(0, 500))}"` : ""}>${esc(summarizeTool(name, input))}</span>` +
@@ -540,8 +570,8 @@
     parent.appendChild(card);
     const st = card.querySelector(".tool-state"), bodyEl = card.querySelector(".tool-body");
     let result = null, built = false;
-    // 子代理（Agent / 旧名 Task）：卡片下面挂一块「子代理过程」，它的每一步是嵌套的工具卡，默认收起
-    const isAgent = name === "Agent" || name === "Task";
+    // 子代理（Agent / Task / agy invoke_subagent / run_workflow）：卡片下面挂一块「子代理过程」，默认收起
+    const isAgent = isAgentToolName(name);
     let sub = null;
     const subArea = () => {
       if (sub) return sub;
@@ -619,7 +649,7 @@
         if (live && !busReplay) { MO.play(st, "mo-tick", 1400); if (ok) MO.play(card, "mo-ok", 1400); }
         // 后台子代理：工具结果只是「已启动」，真正跑完靠 sub_done
         // 状态也记成在跑：不然步骤组的摘要按「完成」算（审查 #48 UI07-03）
-        if (isAgent && ok && /^Async agent launched/.test(result.text) && !(sub && sub.done)) {
+        if (isAgent && ok && isAsyncAgentResult(name, result.text) && !(sub && sub.done)) {
           // 联络簿比这张卡先到、已经记着它结束了（翻历史时常见）：直接按终态收，别挂成「后台运行」（#95 01-003）
           const fin = AG.byTool.get(id)?.status;
           if (fin && fin !== "running") api.subDone(fin === "done" ? "completed" : fin);

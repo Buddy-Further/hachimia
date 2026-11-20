@@ -679,7 +679,7 @@
   $("btn-cli-doctor").addEventListener("click", async () => {
     const box = $("cli-out");
     box.classList.remove("hidden");
-    box.textContent = t("正在运行 claude doctor…");
+    box.textContent = t("正在运行 Antigravity 诊断…");
     try {
       const r = await api("/api/cli?cmd=" + encodeURIComponent("doctor"));
       box.textContent = (r.out || "") + (r.err ? "\n" + r.err : "") || t("(无输出)");
@@ -689,12 +689,17 @@
   // ── 能力面板 ──────────────────────────────────────────────────────
   function cacheCapsFromInit(ev) {
     state.caps = state.caps || {}; state.capsErr = "";
-    state.caps.tools = ev.tools || state.caps.tools || [];
-    state.caps.skills = ev.skills || state.caps.skills || [];
-    state.caps.agents = ev.agents || state.caps.agents || [];
-    state.caps.mcpServers = ev.mcpServers || state.caps.mcpServers || [];
-    state.caps.slashCommands = (ev.slashCommands || []).filter((c) => !String(c).startsWith("__"))
-      .map((c) => (typeof c === "string" ? { name: c, cat: t("其他"), desc: "" } : c));
+    if (Array.isArray(ev.tools) && ev.tools.length) state.caps.tools = ev.tools;
+    if (Array.isArray(ev.skills) && ev.skills.length) state.caps.skills = ev.skills;
+    if (Array.isArray(ev.agents) && ev.agents.length) state.caps.agents = ev.agents;
+    if (Array.isArray(ev.plugins) && ev.plugins.length) state.caps.plugins = ev.plugins;
+    if (Array.isArray(ev.mcpServers) && ev.mcpServers.length) state.caps.mcpServers = ev.mcpServers;
+    if (ev.version) state.caps.version = ev.version;
+    if (ev.tier) state.caps.tier = ev.tier;
+    if (Array.isArray(ev.slashCommands) && ev.slashCommands.length) {
+      state.caps.slashCommands = ev.slashCommands.filter((c) => !String(typeof c === "string" ? c : c?.name || "").startsWith("__"))
+        .map((c) => (typeof c === "string" ? { name: c, cat: t("其他"), desc: "" } : c));
+    }
     renderCaps();
   }
 
@@ -718,8 +723,11 @@
   }
 
   // 工具的权限：规则优先（deny > ask > allow，Bash(git:*) 这种带括号的算「按规则」），否则看权限模式；只读的工具默认允许
-  const READ_TOOLS = new Set(["Read", "Grep", "Glob", "LS", "TodoWrite", "TodoRead", "Task", "Agent", "NotebookRead", "ExitPlanMode", "BashOutput", "KillShell", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet"]);
-  const EDIT_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
+  const READ_TOOLS = new Set([
+    "Read", "Grep", "Glob", "LS", "TodoWrite", "TodoRead", "Task", "Agent", "NotebookRead", "ExitPlanMode", "BashOutput", "KillShell", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet",
+    "read_file", "search_web", "ask_question", "manage_task", "manage_subagents", "define_subagent", "invoke_subagent", "send_message", "schedule", "run_workflow",
+  ]);
+  const EDIT_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit", "edit_file", "write_file"]);
   function toolPerm(name, mode, rules) {
     // mcp__服务名 这样的规则管这个服务下的全部工具
     const hit = (list) => (list || []).some((r) => r === name || (r.endsWith("*") && name.startsWith(r.slice(0, -1))) || (r.startsWith("mcp__") && !r.slice(5).includes("__") && name.startsWith(r + "__")));
@@ -730,7 +738,7 @@
     // 带括号的拒绝 / 询问规则在任何模式下都照样生效：不能因为是免确认模式或只读工具就标「允许」
     if (part(rules.deny) || part(rules.ask)) return "rule";
     if (mode === "bypassPermissions") return "allow";
-    if (mode === "plan" && (EDIT_TOOLS.has(name) || name === "Bash")) return "deny";
+    if (mode === "plan" && (EDIT_TOOLS.has(name) || name === "Bash" || name === "run_command" || name === "run_shell")) return "deny";
     if (mode === "acceptEdits" && EDIT_TOOLS.has(name)) return "allow";
     if (READ_TOOLS.has(name)) return "allow";
     if (part(rules.allow) || part(rules.deny)) return "rule";
@@ -742,7 +750,9 @@
 
   function renderCaps() {
     const c = state.caps || {};
-    setPageSub("caps", c.version ? t("Claude Code {ver} · 这一轮能用的", { ver: c.version }) : t("这一轮 Claude 能用的"));
+    const eng = c.engine === "claude" ? "Claude Code" : "Antigravity";
+    const subParts = [c.version ? `${eng} ${c.version}` : eng, c.tier || "", t("当前可用的能力")].filter(Boolean);
+    setPageSub("caps", subParts.join(" · "));
     const cmds = c.slashCommands || [];
     const mcp = (c.mcpServers || []).map((m) => typeof m === "string" ? { name: m } : m);
     const mcpOk = mcp.filter((m) => /^connected$/i.test(m.status || "")).length;

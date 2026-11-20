@@ -184,7 +184,8 @@
       setStatus(t("正在连接网关…")); refreshStatus();
     };
   }
-  async function refreshStatus() {
+  async function refreshStatus(opts) {
+    const bootRetry = (opts && opts.bootRetry) || 0;
     const ok = latest("status");   // 迟到的旧快照不许把厂商 / 安全模式 / 状态文字画回去（0.6.9 审计 195-BB.3）
     try {
       const s = await api("/api/status", { timeout: 10000 });
@@ -231,8 +232,8 @@
         `${t("厂商")}     ${provName(s)}\n` +
         `${t("上游")}     ${s.upstream}\n` +
         `${t("凭据")}     ${credTxt}\n` +
-        `${t("DNS 桥")}   ${s.bridge ? t("已连接") : t("未启动")}\n` +
-        `${t("模型")}     ${s.model || t("(由 claude 决定)")}\n` +
+        `${t("DNS 桥")}   ${s.bridge ? t("已连接") : (s.keyMode === "login" ? t("直连（无需）") : t("未启动"))}\n` +
+        `${t("模型")}     ${s.model || t("(由 Antigravity 决定)")}\n` +
         `${t("生成")}     ${s.busy ? t("进行中") : t("空闲")}${s.queued ? t(" · 排队 {n} 条", { n: s.queued }) : ""}\n` +
         `${t("工作区")}   ${s.workspace}`;
       if (es && !srv.connected) {
@@ -257,6 +258,12 @@
         $("status-box").textContent = t("请在 cccodroid 应用里打开");
         setStatus(t("请在 cccodroid 应用里打开"), "warn");
         return;
+      }
+      // 首次冷启动瞬时 502 / 网络抖动：静默重试，避免页面刚打开就闪红「网关离线」又立刻重连
+      if (bootRetry > 0 && e.status !== 403) {
+        await new Promise((r) => setTimeout(r, 500));
+        if (!ok()) return;
+        return refreshStatus({ bootRetry: bootRetry - 1 });
       }
       $("status-box").textContent = t("无法连接网关：{msg}", { msg: e.message });
       setStatus(t("网关离线：{msg} · 点这里重试", { msg: e.message }), "err");
@@ -559,7 +566,7 @@
     updateCtx(state.ctxUsed, state.ctxTotal);
     setStatus(t("正在连接网关…"));
 
-    await refreshStatus();
+    await refreshStatus({ bootRetry: 2 });
     // 本地不知道用哪条，就问网关「最近真正跑过哪条会话」—— 总比默默开个新会话强；
     // 用户在 /api/status 回来之前已经自己点了新对话 / 打开过会话，就不接（FIND-003，规则见 04 的 adoptLastSession）
     adoptLastSession(state.serverStatus?.lastSessionId);

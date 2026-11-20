@@ -6,7 +6,8 @@ import { SETTINGS, capList, settingsDiskCheck } from "./settings-store.mjs";
 import { PERM_MODES, PROVIDER, billAfterRun, keyOf, noteTokenDelta, providerById, providersDiskCheck } from "./providers.mjs";
 import { ALIAS_SEEN, effortLevelsOf, fetchModels, isLoginMode, modelsCached, normEffort } from "./models.mjs";
 import { agyEnv, bridgeSwitching, claudeAtLeast, claudeCmd, claudeEnv, currentModelInfo, ensureBridge, safeModePerm, settingsArgs } from "./claude.mjs";
-import { runAcpTurn } from "./acp.mjs";
+import { runAcpTurn, stopAcpBgTask } from "./acp.mjs";
+import { expandCustomCommand } from "./commands.mjs";
 import { tasksCheck } from "./goal.mjs";
 import { setLastInit } from "./caps.mjs";
 import { RUNS, SESSIONS, rememberSession, runFlag, runList } from "./runs.mjs";
@@ -376,18 +377,32 @@ export async function startRun(item) {
   if (useAcp) {
     const tBoot = Date.now();
     run.tBoot = tBoot;
+    run.bgList = [];
+    run.bgTasks = 0;
+    run.stopTask = (taskId) => {
+      const ok = stopAcpBgTask(run.sessionId, taskId);
+      run.bgList = (run.bgList || []).filter((x) => x.id !== taskId);
+      run.bgTasks = run.bgList.length;
+      publishState();
+      return ok;
+    };
     emit({ type: "phase", phase: "boot" });
     const acpEnv = { ...agyEnv({ model, provider: P }), CCAPP_RUN_ID: String(run.id), CCAPP_GW_PORT: String(CFG.port), CCAPP_GW_PID: String(process.pid) };
+    // 若用户触发的是自定义「常用指令」（commands/*.md），在发送给 agy 前展开 $ARGUMENTS
+    const cmdExp = expandCustomCommand(message, cwd);
+    if (cmdExp.expanded) log(`⌘ 展开常用指令 /${cmdExp.name}`);
+    const acpPrompt = cmdExp.text;
     // 消息里提到的图片（@路径）一并转成 image block 交给 ACP，避免多模态附件丢图
     let acpImages = [];
-    if (!message.trim().startsWith("/")) {
-      acpImages = await inlineImages(message, P, { tmpDir: acpEnv.TMPDIR, env: acpEnv }).catch(() => []);
+    if (!acpPrompt.trim().startsWith("/")) {
+      acpImages = await inlineImages(acpPrompt, P, { tmpDir: acpEnv.TMPDIR, env: acpEnv }).catch(() => []);
     }
     const acpRes = await runAcpTurn({
       bin: cliBin,
       cwd,
       env: acpEnv,
-      prompt: message,
+      prompt: acpPrompt,
+      displayPrompt: message,
       images: acpImages,
       sessionId: run.sessionId,
       model,
@@ -396,8 +411,10 @@ export async function startRun(item) {
       authType: P.authType || (P.login ? "oauth-personal" : "gemini-api-key"),
       apiKey: KEY || "",
       mcpServers: [],
+      addDirs: item.addDirs || [],
       run,
       emit,
+      onBgChange: () => publishState(),
       timeoutMs: item.timeoutMs || 0,
       askPermission: async ({ tool, toolCallId, input, hasAlways }) => {
         if (run.unattended || run.auto) return { behavior: "deny" };
@@ -438,7 +455,10 @@ export async function startRun(item) {
             log(`${allow ? "✓ 允许" : "✗ 拒绝"} ACP 工具 ${tool}${a.always ? "（始终）" : ""}${a.interrupt ? "（并停止）" : ""}`);
             emit({ type: "perm_resolved", id, behavior: allow ? "allow" : "deny", always: !!a.always, interrupt: !!a.interrupt });
             if (a.interrupt) { holdLane(run); run.aborted = true; }
-            done({ behavior: allow ? "allow" : "deny", always: !!a.always, interrupt: !!a.interrupt });
+            const act = permModeAction(allow ? "allow" : "deny", a.mode, run.permMode);
+            if (act === "global") setPermMode(a.mode);
+            else if (act === "run") run.setMode?.(a.mode);
+            done({ behavior: allow ? "allow" : "deny", always: !!a.always, interrupt: !!a.interrupt, answers: a.answers });
             return true;
           };
           log(`⏸ 等确认 ACP 工具 ${tool}`);
@@ -451,10 +471,29 @@ export async function startRun(item) {
       run.sessionId = acpRes.sessionId;
       rememberSession(acpRes.sessionId);
     }
-    const ctxWin = Number(currentModelInfo(model, P).context_window) || 0;
+    const ctxWin = Number(acpRes.usage?.context_window) || Number(currentModelInfo(model, P).context_window) || 0;
     const usageOut = acpRes.usage
       ? { ...acpRes.usage, ...(ctxWin > 0 ? { context_window: ctxWin } : {}) }
       : undefined;
+    // 记入用量统计与厂商账本（供用量页、顶栏速览卡与额度明细显示）
+    {
+      const u = acpRes.usage || {};
+      const cTok = Number(u.cache_read_input_tokens) || 0;
+      const iTok = (Number(u.input_tokens) || 0) + cTok + (Number(u.cache_creation_input_tokens) || 0);
+      const oTok = Number(u.output_tokens) || 0;
+      const d = {};
+      if (usageIsPrompt(message)) d.m = 1;
+      if (acpRes.ok) d.t = 1;
+      if (acpRes.toolCount > 0) d.tl = acpRes.toolCount;
+      if (iTok > 0) d.i = iTok;
+      if (oTok > 0) d.o = oTok;
+      if (cTok > 0) d.c = cTok;
+      if (Object.keys(d).length) {
+        usageAdd(d, run.sessionId, acpRes.model || model || "antigravity");
+        if (iTok > 0 || oTok > 0 || cTok > 0) noteTokenDelta(P.id, { i: iTok, o: oTok, c: cTok });
+      }
+      if (!P.login) billAfterRun(P.id);
+    }
     return endRun(run, {
       failed: !acpRes.ok && !run.aborted,
       resultText: acpRes.resultText || "",
@@ -1240,9 +1279,17 @@ export async function routeRun(req, res, u, p) {
       abortRun(run, { hold: false });
       return sendJson(res, 200, { ok: true, whole: true });
     }
-    if (!run || !run.stopTask || !run.stopTask(String(b.taskId || ""))) return sendJson(res, 409, { error: "gone", message: tz("这个后台任务已经结束了") });
-    log(`■ 停后台任务 ${String(b.taskId).slice(0, 12)}`);
-    return sendJson(res, 200, { ok: true });
+    if (run && run.stopTask && run.stopTask(String(b.taskId || ""))) {
+      log(`■ 停后台任务 ${String(b.taskId).slice(0, 12)}`);
+      return sendJson(res, 200, { ok: true });
+    }
+    // ACP 常驻池里空闲挂着的后台任务：直接按 sessionId 取消并刷新状态
+    if (!run && b.sessionId && stopAcpBgTask(String(b.sessionId), String(b.taskId || ""))) {
+      publishState();
+      log(`■ 停 ACP 后台任务 ${String(b.taskId || "").slice(0, 12)}`);
+      return sendJson(res, 200, { ok: true });
+    }
+    return sendJson(res, 409, { error: "gone", message: tz("这个后台任务已经结束了") });
   }
   if (req.method === "POST" && p === "/api/abort") {
     const b = JSON.parse((await readBody(req)) || "{}");
