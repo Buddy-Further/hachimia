@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { CFG, PATHS } from "../gw/config.mjs";
-import { runAcpTurn } from "../gw/acp.mjs";
+import { runAcpTurn, translateAcpUpdate } from "../gw/acp.mjs";
 import { agyEnv, syncAgySettings } from "../gw/claude.mjs";
 import { normalizeModels } from "../gw/models.mjs";
 
@@ -112,6 +112,34 @@ test("hachimia ACP 端到端流程：握手、认证、流式输出、权限回�
   assert.equal(lines.length, 2);
   assert.equal(lines[0].type, "user");
   assert.equal(lines[1].type, "assistant");
+});
+
+test("translateAcpUpdate：v2 风格整条 agent_message / agent_thought 照收，summary 旧字段照收，重复整条不叠加", () => {
+  const st = { text: "", thinking: "", tools: new Map(), usage: null };
+  const ev = [];
+  const emit = (e) => ev.push(e);
+  // 官方 1.5.13 实测：思考以 agent_thought_chunk 到（能显示），正文可能以整条 agent_message 到（旧版翻译器漏掉 → 只有思考没有正文）
+  translateAcpUpdate({ sessionUpdate: "agent_thought_chunk", content: { type: "text", text: "想一下" } }, st, emit);
+  translateAcpUpdate({ sessionUpdate: "agent_message", content: [{ type: "text", text: "正文来了" }] }, st, emit);
+  assert.equal(st.thinking, "想一下");
+  assert.equal(st.text, "正文来了");
+  assert.deepEqual(ev.map((e) => e.type), ["thinking_delta", "text_delta"]);
+  // 已流式收到正文时，同一条整条消息不重复叠加
+  translateAcpUpdate({ sessionUpdate: "agent_message", content: { type: "text", text: "正文来了" } }, st, emit);
+  assert.equal(st.text, "正文来了");
+  // 旧草稿的 summary 字段也认
+  translateAcpUpdate({ sessionUpdate: "agent_message_chunk", summary: { type: "text", text: "，续" } }, st, emit);
+  assert.equal(st.text, "正文来了，续");
+  // 整条思考同理
+  translateAcpUpdate({ sessionUpdate: "agent_thought", summary: { type: "text", text: "补想" } }, st, emit);
+  assert.equal(st.thinking, "想一下");
+  // usage_update 种类照算用量
+  translateAcpUpdate({ sessionUpdate: "usage_update", usage: { inputTokens: 9, outputTokens: 4 } }, st, emit);
+  assert.deepEqual(st.usage, { input_tokens: 9, output_tokens: 4 });
+  // 已知可忽略的种类不产生事件、不炸
+  const before = ev.length;
+  translateAcpUpdate({ sessionUpdate: "user_message_chunk", content: { type: "text", text: "回声" } }, st, emit);
+  assert.equal(ev.length, before);
 });
 
 test("syncAgySettings & agyEnv：在 Gemini API Key 与 Google 订阅模式间切换", () => {

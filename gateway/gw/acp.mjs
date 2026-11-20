@@ -194,18 +194,36 @@ export function translateAcpUpdate(params, state, emit) {
   const kind = upd.sessionUpdate || upd.type || "";
 
   if (kind === "agent_message_chunk" || kind === "text_delta") {
-    const text = acpTextOf(upd.content ?? upd.text);
+    const text = acpTextOf(upd.content ?? upd.summary ?? upd.text);
     if (text) {
       state.text += text;
       emit({ type: "text_delta", text });
     }
     return;
   }
+  // 整条消息（v2 风格 upsert，不走 chunk；旧草稿的字段名叫 summary）：只在还没
+  // 流式收到正文时整段采用，已经收到过的以 chunk 累积为准，避免重复渲染
+  if (kind === "agent_message") {
+    const text = acpTextOf(upd.content ?? upd.summary ?? upd.text);
+    if (text && !state.text) {
+      state.text = text;
+      emit({ type: "text_delta", text });
+    }
+    return;
+  }
 
   if (kind === "agent_thought_chunk" || kind === "thinking_delta") {
-    const text = acpTextOf(upd.content ?? upd.text);
+    const text = acpTextOf(upd.content ?? upd.summary ?? upd.text);
     if (text) {
       state.thinking += text;
+      emit({ type: "thinking_delta", text });
+    }
+    return;
+  }
+  if (kind === "agent_thought") {
+    const text = acpTextOf(upd.content ?? upd.summary ?? upd.text);
+    if (text && !state.thinking) {
+      state.thinking = text;
       emit({ type: "thinking_delta", text });
     }
     return;
@@ -250,7 +268,7 @@ export function translateAcpUpdate(params, state, emit) {
     return;
   }
 
-  if (kind === "usage" || upd.usage) {
+  if (kind === "usage" || kind === "usage_update" || upd.usage) {
     const u = upd.usage || upd;
     const ctx = Number(u.inputTokens ?? u.promptTokens ?? u.input_tokens ?? 0);
     const out = Number(u.outputTokens ?? u.completionTokens ?? u.output_tokens ?? 0);
@@ -263,7 +281,13 @@ export function translateAcpUpdate(params, state, emit) {
 
   if (kind === "current_mode_update" && upd.currentModeId) {
     emit({ type: "mode_changed", mode: upd.currentModeId });
+    return;
   }
+
+  // 已知但有意忽略的种类（不回显、不影响本轮正文），之外的记进日志：
+  // 真机上 agy 发来新种类时，日志里能直接看到名字，不用再猜
+  const IGNORED = new Set(["user_message", "user_message_chunk", "available_commands_update", "config_option_update", "session_info_update", "notice", "compaction_update", "compaction_summary_chunk", "permission_confirmation"]);
+  if (!IGNORED.has(kind)) log(`[agy-acp] 未识别的 update 种类：${kind}`);
 }
 
 /**
