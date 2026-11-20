@@ -241,6 +241,32 @@ SWALLOW_HOOKS.push((sid, msg, kind) => {
     runEmit(run, { type: "note", key: "sfx-swallow", text: tz("上游在回答结尾报了错（{msg}），已按说完处理；如果回答不完整，发一句「继续」", { msg }) });
 });
 
+/** ACP 新会话拿到会话号时记账（B6）：claude 路径的 onInit 做三件记账，
+ *  ACP 分支以前只做了 rememberSession。跟发消息靠 RUN_SESSIONS 找会话号，
+ *  没有它，首轮进行中跟发的消息会另起一个新会话、把对话拆散。 */
+export function noteAcpInit(run, sessionId) {
+  if (!run || !sessionId) return;
+  run.sessionId = sessionId;
+  RUN_SESSIONS.set(run.id, sessionId);
+  if (RUN_SESSIONS.size > 500) RUN_SESSIONS.delete(RUN_SESSIONS.keys().next().value);
+  markIncomplete(sessionId, run.id);
+  for (const e of run.log || []) if (e.type === "run_start" && !e.sessionId) e.sessionId = sessionId;
+  rememberSession(sessionId);
+  saveRunMark();
+}
+
+/** ACP 回合走到结果时清「未完成」标记（B7）：claude 路径在 onResult 里清，ACP 分支以前全程不清，
+ *  成功后历史页还永久挂「上一轮没有正常结束」。用户主动停止（aborted）的不清，留着给「继续」卡。 */
+export function clearAcpTurnMarkers(run, acpRes) {
+  const sid = run?.sessionId || acpRes?.sessionId;
+  if (!sid || run?.aborted) return;
+  clearIncomplete(sid);
+  if (acpRes?.ok && run?.intrPending) {
+    run.intrPending = false;
+    clearInterrupted(sid);
+  }
+}
+
 export async function startRun(item) {
   const { sid0, pdef0, P } = pickProvider(item);
   const KEY = keyOf(P);
@@ -416,6 +442,11 @@ export async function startRun(item) {
     if (!acpPrompt.trim().startsWith("/")) {
       acpImages = await inlineImages(acpPrompt, P, { tmpDir: acpEnv.TMPDIR, env: acpEnv }).catch(() => []);
     }
+    // ACP init 事件一到就记账（B6）：别等整轮跑完才有会话号，首轮进行中跟发的消息要靠它续进同一会话
+    const acpEmit = (ev) => {
+      if (ev?.type === "init" && ev.sessionId) noteAcpInit(run, ev.sessionId);
+      emit(ev);
+    };
     const acpRes = await runAcpTurn({
       bin: cliBin,
       cwd,
@@ -432,7 +463,7 @@ export async function startRun(item) {
       mcpServers: [],
       addDirs: item.addDirs || [],
       run,
-      emit,
+      emit: acpEmit,
       onBgChange: () => publishState(),
       timeoutMs: item.timeoutMs || 0,
       askPermission: async ({ tool, toolCallId, input, hasAlways }) => {
@@ -488,8 +519,11 @@ export async function startRun(item) {
     });
     if (acpRes.sessionId) {
       run.sessionId = acpRes.sessionId;
+      RUN_SESSIONS.set(run.id, acpRes.sessionId);
       rememberSession(acpRes.sessionId);
+      saveRunMark();
     }
+    clearAcpTurnMarkers(run, acpRes);   // ACP 回合走到结果：清「未完成」标记与中断卡（B7）
     const ctxWin = Number(acpRes.usage?.context_window) || Number(currentModelInfo(model, P).context_window) || 0;
     const usageOut = acpRes.usage
       ? { ...acpRes.usage, ...(ctxWin > 0 ? { context_window: ctxWin } : {}) }

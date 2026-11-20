@@ -25,6 +25,12 @@ import { noteAuthTier } from "./login.mjs";
 
 export const ACP_PROTOCOL_VERSION = 1;
 const ACP_IDLE_TTL_MS = Number(process.env.CCAPP_ACP_IDLE_MS) > 0 ? Number(process.env.CCAPP_ACP_IDLE_MS) : 10 * 60e3;
+/** session/prompt 的默认超时：不传 timeoutMs 时不再无限等待（B12）。
+ *  其它 ACP 请求默认 120s，唯独最关键的 prompt 是无限等待，agent 假死会永久占住车道。
+ *  默认 30 分钟（环境变量 CCAPP_ACP_PROMPT_TIMEOUT_MS 可覆盖，单位毫秒），显式传 timeoutMs 优先。 */
+export const ACP_DEFAULT_PROMPT_TIMEOUT_MS = Number(process.env.CCAPP_ACP_PROMPT_TIMEOUT_MS) > 0
+  ? Number(process.env.CCAPP_ACP_PROMPT_TIMEOUT_MS)
+  : 30 * 60 * 1000;
 const TOOL_OUT_MAX = 20000;
 
 // 按 sessionId 保活的常驻 ACP 客户端池：同一会话同配置直接复用进程，避免每轮重启 agy
@@ -54,7 +60,9 @@ export function getAcpPoolBg(sessionId) {
   return out;
 }
 
-/** 停止某个 ACP 会话的后台任务（无单任务取消协议时触发 session/cancel 或回收空闲进程） */
+/** 停止某个 ACP 会话的后台任务：只删本地登记，绝不发全会话 session/cancel。
+ *  ACP 没有单任务取消协议，发 session/cancel 会把正在跑的主轮次一并取消（B9）；
+ *  空闲且无后台任务时直接回收进程即可，agent 侧的任务随进程回收一起结束。 */
 export function stopAcpBgTask(sessionId, taskId) {
   const entry = sessionId && ACP_POOL.get(sessionId);
   if (!entry) return false;
@@ -62,9 +70,6 @@ export function stopAcpBgTask(sessionId, taskId) {
     entry.bgTasks.delete(taskId);
   } else if (!taskId) {
     entry.bgTasks?.clear();
-  }
-  if (!entry.client.closed) {
-    try { entry.client.notify("session/cancel", { sessionId }); } catch {}
   }
   if (!entry.busy && (!entry.bgTasks || entry.bgTasks.size === 0)) {
     closeAcpSession(sessionId);
@@ -510,9 +515,13 @@ export function translateAcpUpdate(params, state, emit) {
 
   // 恢复会话时 agy 会把历史消息重放成 update（整条 agent_message 和各类 chunk）：
   // prompt 还没发出去之前到的事件都是历史，不算这一轮，不累积也不转给界面，
-  // 同时把重放期间见过的 toolCallId 记入 knownToolIds，防止异步拖尾更新串进下一轮
+  // 同时把重放期间见过的 toolCallId 记入 knownToolIds，防止异步拖尾更新串进下一轮；
+  // 重放消息的 messageId 也记下来，prompt 发出后迟到的同 id 重放照样丢弃（B3）
   if (state.promptSent === false) {
     state.replaySeenAt = Date.now();
+    if ((kind === "agent_message" || kind === "agent_thought") && upd.messageId) {
+      (state.replayMessageIds ||= new Set()).add(String(upd.messageId));
+    }
     if (kind === "tool_call" || kind === "tool_call_update") {
       const tid = String(upd.toolCallId || upd.id || "");
       if (tid) state.knownToolIds?.add(tid);
@@ -520,9 +529,25 @@ export function translateAcpUpdate(params, state, emit) {
     return;
   }
 
+  // prompt 发出后才到的、prompt 前已见过的重放：按 messageId 丢弃（B3）
+  const replayIds = state.replayMessageIds;
+  const updMsgId = upd.messageId ? String(upd.messageId) : "";
+  if (updMsgId && replayIds?.has(updMsgId) && (kind === "agent_message" || kind === "agent_message_chunk" || kind === "agent_thought" || kind === "agent_thought_chunk")) {
+    return;
+  }
+
+  // 同一条消息整条与 chunk 双发时的去重账本（B1/B2）：按 messageId 记
+  // 「整条已采用 → 后到的同文 chunk 跳过」「chunk 已累积 → 后到的同文整条跳过/只补差额」
+  const fullTextIds = (state.fullTextIds ||= new Set());
+  const chunkTextById = (state.chunkTextById ||= new Map());
+  const fullThinkingIds = (state.fullThinkingIds ||= new Set());
+  const chunkThinkingById = (state.chunkThinkingById ||= new Map());
+
   if (kind === "agent_message_chunk" || kind === "text_delta") {
     const text = acpTextOf(upd.content ?? upd.summary ?? upd.text);
     if (text) {
+      if (updMsgId && fullTextIds.has(updMsgId)) return; // 整条已采用，这条 chunk 是重复投递
+      if (updMsgId) chunkTextById.set(updMsgId, (chunkTextById.get(updMsgId) || "") + text);
       state.text += text;
       emit({ type: "text_delta", text });
     }
@@ -533,7 +558,21 @@ export function translateAcpUpdate(params, state, emit) {
   if (kind === "agent_message") {
     const text = acpTextOf(upd.content ?? upd.summary ?? upd.text);
     log(`[agy-acp] agent_message messageId=${upd.messageId || "-"} text=${(text || "").slice(0, 60).replace(/\n/g, " ")}`);
-    if (text && !state.text) {
+    if (!text) return;
+    if (updMsgId) {
+      if (fullTextIds.has(updMsgId)) return;
+      const chunkAcc = chunkTextById.get(updMsgId) || "";
+      if (chunkAcc === text) { fullTextIds.add(updMsgId); return; } // chunk 已把整条送完了
+      if (chunkAcc && text.startsWith(chunkAcc)) { // 整条比已收 chunk 多：只补没收到的差额
+        const rest = text.slice(chunkAcc.length);
+        if (rest) { state.text += rest; emit({ type: "text_delta", text: rest }); }
+        fullTextIds.add(updMsgId);
+        return;
+      }
+      if (chunkAcc && chunkAcc.startsWith(text)) { fullTextIds.add(updMsgId); return; } // 整条是已收 chunk 的前缀
+      fullTextIds.add(updMsgId);
+    }
+    if (!state.text) {
       state.text = text;
       emit({ type: "text_delta", text });
     }
@@ -543,6 +582,8 @@ export function translateAcpUpdate(params, state, emit) {
   if (kind === "agent_thought_chunk" || kind === "thinking_delta") {
     const text = acpTextOf(upd.content ?? upd.summary ?? upd.text);
     if (text) {
+      if (updMsgId && fullThinkingIds.has(updMsgId)) return;
+      if (updMsgId) chunkThinkingById.set(updMsgId, (chunkThinkingById.get(updMsgId) || "") + text);
       state.thinking += text;
       emit({ type: "thinking_delta", text });
     }
@@ -550,7 +591,21 @@ export function translateAcpUpdate(params, state, emit) {
   }
   if (kind === "agent_thought") {
     const text = acpTextOf(upd.content ?? upd.summary ?? upd.text);
-    if (text && !state.thinking) {
+    if (!text) return;
+    if (updMsgId) {
+      if (fullThinkingIds.has(updMsgId)) return;
+      const chunkAcc = chunkThinkingById.get(updMsgId) || "";
+      if (chunkAcc === text) { fullThinkingIds.add(updMsgId); return; }
+      if (chunkAcc && text.startsWith(chunkAcc)) {
+        const rest = text.slice(chunkAcc.length);
+        if (rest) { state.thinking += rest; emit({ type: "thinking_delta", text: rest }); }
+        fullThinkingIds.add(updMsgId);
+        return;
+      }
+      if (chunkAcc && chunkAcc.startsWith(text)) { fullThinkingIds.add(updMsgId); return; }
+      fullThinkingIds.add(updMsgId);
+    }
+    if (!state.thinking) {
       state.thinking = text;
       emit({ type: "thinking_delta", text });
     }
@@ -1056,23 +1111,35 @@ export async function runAcpTurn({
   if (run) {
     run.child = client.child;
     run.preSpawn = false;
+    // 停止只停当前 prompt，不销毁保活进程：进程留在池里供下轮复用（B10）。
+    // 进程回收只由空闲超时 / 显式 closeAcpSession / 网关关闭负责。
     run.cancelAcp = () => {
       if (activeSessionId) client.notify("session/cancel", { sessionId: activeSessionId });
-      destroyClient();
     };
+    // set_mode 被 agent 拒绝时返回 false 并发 error 事件，不再静默返回 true（B11）。
+    // 返回 Promise<boolean>：调用方 await 它才能知道是否真切过去了。
     run.setMode = (mode) => {
       permMode = mode;
       state.permMode = mode;
       run.permMode = mode;
       if (activeSessionId && !client.closed) {
         const modeId = mapUiModeToAcp(mode, sessModes?.availableModes);
-        if (modeId) client.request("session/set_mode", { sessionId: activeSessionId, modeId }, 5000).catch(() => {});
+        if (!modeId) return Promise.resolve(false);
+        return client.request("session/set_mode", { sessionId: activeSessionId, modeId }, 5000)
+          .then(() => true)
+          .catch((e) => {
+            emit({ type: "error", message: tz("切换权限模式失败（agent 拒绝了 {mode}）：{msg}", { mode, msg: String(e?.message || e) }) });
+            return false;
+          });
       }
-      return true;
+      return Promise.resolve(true);
     };
   }
 
   let usedLoad = false;
+  // 本轮进来时用户指着的旧会话号；agent 不支持 resume/load 时会被静默换成新会话（B8），要明示
+  const requestedSessionId = activeSessionId;
+  let sessionSwitched = false;
 
   try {
     if (!reused) {
@@ -1153,6 +1220,11 @@ export async function runAcpTurn({
         }, 30000);
         activeSessionId = sessRes?.sessionId || activeSessionId || crypto.randomUUID();
       }
+      // 旧会话没续上、悄悄换了新会话号：明示给用户，别静默抛弃旧会话（B8）
+      if (requestedSessionId && activeSessionId && activeSessionId !== requestedSessionId) {
+        sessionSwitched = true;
+        emit({ type: "note", key: "acp-session-switched", text: tz("旧会话无法恢复（Agent 不支持恢复或恢复失败），已新建会话继续。本轮写进了新会话，旧会话的历史仍保留在本地记录中。") });
+      }
       sessModels = sessRes?.models || null;
       sessModes = sessRes?.modes || null;
       sessConfig = Array.isArray(sessRes?.configOptions) ? sessRes.configOptions : null;
@@ -1218,10 +1290,16 @@ export async function runAcpTurn({
       }
     }
 
-    // 若走的是 session/load 回落路径且收到了重放通知，短暂等待尾部异步重放排空再开闸
-    if (usedLoad && state.replaySeenAt > 0) {
-      const waitEnd = Date.now() + 1200;
-      while (Date.now() < waitEnd && Date.now() - state.replaySeenAt < 180) {
+    // 若走的是 session/load 回落路径，排空异步重放再开闸（B3）：
+    // 以前只在「load 返回时已经见过重放」才等，重放在 load 返回后才开始到时不等直接发 prompt，
+    // 重放随后到达即混进本轮。现在 load 后必等：至少等 600ms 让迟到重放落地，
+    // 期间有重放就按 200ms 静默期顺延，最多等 1500ms，避免长会话每次续跑都拖太久。
+    if (usedLoad) {
+      const drainStart = Date.now();
+      const waitEnd = drainStart + 1500;
+      while (Date.now() < waitEnd) {
+        const quietMs = Date.now() - state.replaySeenAt;
+        if (Date.now() - drainStart >= 600 && quietMs >= 200) break;
         await new Promise((r) => setTimeout(r, 60));
       }
     }
@@ -1245,7 +1323,7 @@ export async function runAcpTurn({
     const promptRes = await client.request("session/prompt", {
       sessionId: activeSessionId,
       prompt: contentBlocks,
-    }, timeoutMs > 0 ? timeoutMs : 0);
+    }, timeoutMs > 0 ? timeoutMs : ACP_DEFAULT_PROMPT_TIMEOUT_MS);
 
     // 补采 promptRes.usage（整轮累计统计：保留单步 usage_update 的真实 context_tokens，不拿多步累加值冲爆上下文条）
     if (promptRes?.usage) {
@@ -1329,11 +1407,12 @@ export async function runAcpTurn({
       ...(state.usage ? { usage: state.usage } : {}),
     });
 
-    canKeep = keepAlive && !client.closed && !run?.aborted && !!activeSessionId;
+    canKeep = keepAlive && !client.closed && !!activeSessionId;
 
     return {
       ok: true,
       sessionId: activeSessionId,
+      sessionSwitched,
       model: activeModel,
       toolCount: state.tools.size,
       resultText: state.text,
@@ -1345,6 +1424,23 @@ export async function runAcpTurn({
   } catch (err) {
     const msg = String(err?.message || err);
     const detail = client.stderr ? `\n${client.stderr.slice(-800)}` : "";
+    // 回合中途失败/被取消：提问与已流出的正文也要落盘，别让整轮凭空消失（B5）。
+    // 只有 prompt 已发出去才落盘：prompt 没发出去说明问题没递到 agent，用户重发时不应多出一份。
+    if (activeSessionId && state.promptSent) {
+      const isCompactCmd = /^\/compact(?:\s|$)/i.test(String(prompt || "").trim());
+      if (!isCompactCmd || state.text || state.tools.size) {
+        persistAcpTurn({
+          cwd,
+          sessionId: activeSessionId,
+          userText: displayPrompt != null ? displayPrompt : prompt,
+          assistantText: state.text,
+          thinking: state.thinking,
+          tools: [...state.tools.values()],
+          model: model || sessModels?.currentModelId || "antigravity",
+          usage: state.usage,
+        });
+      }
+    }
     if (!run?.aborted) {
       emit({ type: "error", message: tz("Antigravity CLI 执行出错：{msg}", { msg }) + detail });
     }
@@ -1352,6 +1448,7 @@ export async function runAcpTurn({
       ok: false,
       failed: !run?.aborted,
       sessionId: activeSessionId,
+      sessionSwitched,
       error: msg,
       durationMs: Date.now() - t0,
     };

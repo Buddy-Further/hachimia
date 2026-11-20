@@ -401,10 +401,15 @@ export function abortRun(run, { hold = true } = {}) {
   // 还没起进程（在等桥、拉模型清单、起端侧模型、核验程序…）：这些等待不全能中断，等它们回来才收尾的话，
   // 这段时间槽一直占着、界面一直「生成中」。现在就收尾；等待回来后 startRun 看到 aborted / ended 不再起进程（0.6.9 审计 200-7-07）
   if (!run.child && run.preSpawn) { log(`${runTag(run)} ⏹ 起进程前停止，立即收尾`); endRun(run, { durationMs: 0 }); return true; }
-  if (typeof run.cancelAcp === "function") {
+  // ACP 轮次：cancelAcp 只发 session/cancel 停当前 prompt，保活进程要留给下轮复用（B10），
+  // 不能像 claude 那样 killTree 整个进程树；5 秒后还没收尾也只强制收尾，不杀进程。
+  const acpStop = typeof run.cancelAcp === "function";
+  if (acpStop) {
     try { run.cancelAcp(); } catch {}
+    // agent 若不理 session/cancel：10 秒后只收尾、不杀进程；prompt 本身还有 B12 的默认超时兜底
+    setTimeout(() => { if (!run.ended) forceEnd(run); }, 10000).unref();
   }
-  if (run.child) {
+  if (!acpStop && run.child) {
     const c = run.child;
     killTree(c);
     // setsid / nohup 双 fork 出去的已经不在进程树、也不在 claude 的进程组里，killTree 够不着：按这一轮的编号清掉（FIND-044）。
