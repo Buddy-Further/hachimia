@@ -37,8 +37,10 @@ export const PATHS = {
   // 只给起 claude 的地方用：写进持久脚本的路径（custom.mjs 等）仍用上面两个，那些脚本在终端里跑、要跟着工具包走
   claudeLoader: process.env.CCAPP_GW_LOADER || process.env.CCAPP_LOADER || path.join(CFG.runtime, "glibc", "lib", "ld-linux-aarch64.so.1"),
   claudeLib: process.env.CCAPP_GW_GLIBC_LIB || process.env.CCAPP_GLIBC_LIB || path.join(CFG.runtime, "glibc", "lib"),
-  agy: process.env.CCAPP_AGY || process.env.CCAPP_CLAUDE || path.join(CFG.home, ".local", "share", "hachimia", "agy", "current", "agy"),
-  claude: process.env.CCAPP_CLAUDE || process.env.CCAPP_AGY || path.join(CFG.runtime, "claude"),
+  agy: process.env.CCAPP_AGY || path.join(CFG.home, ".local", "share", "hachimia", "agy", "current", "agy"),
+  // agy 与 claude 是两条独立路径，互不兜底：CCAPP_AGY 绝不能喂给 PATHS.claude，CCAPP_CLAUDE
+  // 也绝不能喂给 PATHS.agy——设备上两者曾指向同一文件，导致 isAgyOnlyMode() 恒为 false（A7）。
+  claude: process.env.CCAPP_CLAUDE || path.join(CFG.runtime, "claude"),
   // cccodroid：给 claude 预加载的小库，把被安卓 seccomp 拦下的调用改成返回 ENOSYS
   // （Android 14 拦 epoll_pwait2，claude 不挂它一启动就被 SIGSYS 打死）
   preload: process.env.CCAPP_CLAUDE_PRELOAD || "",

@@ -1088,6 +1088,13 @@ export async function runAcpTurn({
 
       // 2. authenticate（若 agent 声明了 authMethods 且我们指定了认证方式）
       const authMethods = Array.isArray(initRes?.authMethods) ? initRes.authMethods : [];
+      // agent 声明了认证方式、却不含网关要用的那一种时，不得静默跳过、用默认/错误的
+      // 认证跑下去——当场失败并报出双方的 id（A16）。agent 什么都没声明时保持旧行为
+      // （跳过），那种 agent 不靠 ACP authenticate 认证。
+      if (authType && authMethods.length && !authMethods.some((m) => m.id === authType)) {
+        const declared = authMethods.map((m) => m.id).filter(Boolean).join(", ") || "(无)";
+        throw new Error(`[agy-acp] agent 未声明认证方式 ${authType}（已声明：${declared}），无法按该方式认证`);
+      }
       if (authType && authMethods.some((m) => m.id === authType)) {
         const authParams = { methodId: authType };
         if (authType === "gemini-api-key" && apiKey) {
@@ -1096,8 +1103,13 @@ export async function runAcpTurn({
         try {
           await client.request("authenticate", authParams, 20000);
         } catch (e) {
-          // 已通过 keyring 或环境变量认证时部分版本可能返回无需重复认证，记录日志后继续
-          log(`[agy-acp] authenticate(${authType}): ${e.message}`);
+          // 已通过 keyring 或环境变量认证时，部分版本会报“已认证过”——这种情况才继续；
+          // 其他报错（key 错、过期、被拒）必须当场失败，不能只记一行日志继续跑（A16）。
+          if (/already (authenticated|authorized|logged in|signed in)|authentication (not required|not needed)/i.test(e.message || "")) {
+            log(`[agy-acp] authenticate(${authType})：已认证过，继续`);
+          } else {
+            throw new Error(`[agy-acp] authenticate(${authType}) 失败：${e.message}`);
+          }
         }
       }
 
