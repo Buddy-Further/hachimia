@@ -49,5 +49,5 @@ export function gwRuntimeBlocked() {
   if (!bad.length) return "";
   log(`⚠️ [网关运行库] files/gw/glibc 和安装包对不上：${bad.slice(0, 6).join(", ")}`);
   APP?.restart(`gw/glibc/${bad[0]}（网关运行库和安装包对不上）`);
-  return tz("网关自己的运行库被改过，这一轮没有启动 Claude Code。网关会在空闲时重启、按安装包还原，稍后再发送。");
+  return tz("网关自己的运行库被改过，这一轮没有启动 Antigravity CLI。网关会在空闲时重启、按安装包还原，稍后再发送。");
 }

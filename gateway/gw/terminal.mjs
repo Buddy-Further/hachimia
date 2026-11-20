@@ -109,6 +109,27 @@ export function resolveTermCwd(want) {
 /** 终端进程退出的代码：被信号结束时按 128+信号号报（以前不管什么信号都报 128，看不出是 TERM 还是 KILL，FIND-045） */
 const exitCodeOf = (code, sig) => code ?? (sig ? 128 + (os.constants.signals[sig] || 0) : null);
 
+/**
+ * 手动登录终端要敲的命令 + 给用户的提示（D-02）。
+ * agy 没有区分个人/企业的登录子命令，选哪种账号由用户在 agy 登录界面里点：
+ * 个人选「Google OAuth」，企业选「Use a Google Cloud project」→「Continue with Google Cloud」
+ * （见 Antigravity 官方认证文档）。所以这里不能靠换命令区分，只能把 method 原样传进来、
+ * 再把该点的入口写进提示——以前前端把 enterprise 压成 true、网关又一律敲 `SSH_CONNECTION=1 agy`，
+ * 企业登录就静默变成了“自己在界面里选”，用户按个人流程走完才发现登错了账号。
+ * 没装 agy 时不敲任何命令：以前退化成另一个产品的登录命令。
+ * 返回 { cmd: 要敲的命令（含 \r）或 null, hint: 打印到终端的提示 }。
+ */
+export function loginTermCommand(login, hasAgy) {
+  const enterprise = login === "enterprise" || login === "console" || login === "business";
+  if (!hasAgy) return { cmd: null, hint: tz("Antigravity CLI (agy) 未安装。请先到 设置 → 更新 安装，再回来登录。") };
+  return {
+    cmd: "SSH_CONNECTION=1 agy\r",
+    hint: enterprise
+      ? tz("企业账号登录：在 agy 登录界面选择「Use a Google Cloud project」→「Continue with Google Cloud」，用企业账号完成授权。")
+      : tz("个人账号登录：在 agy 登录界面选择「Google OAuth」，用个人 Google 账号完成授权。"),
+  };
+}
+
 function termNew({ cols, rows, login, cwd: want } = {}) {
   for (const [id, t] of TERMS) if (!t.alive) TERMS.delete(id);   // 已退出的不占名额
   // 满了先清掉已退出的（留着只是给用户看最后的输出）
@@ -122,7 +143,8 @@ function termNew({ cols, rows, login, cwd: want } = {}) {
   // want：从项目页「在终端打开」带来的目录；不是目录就退到工作区（工作区也不可用再退 home），落哪儿会说一声
   const { cwd, note: cwdNote } = resolveTermCwd(want);
   // login：给手动登录用的终端。环境和账户登录一样清掉第三方厂商的地址 / 密钥 / 模型，
-  // 开好后替用户敲下 claude auth login —— 授权码由用户贴给 claude 自己的提示，网关只当字节通道
+  // 开好后替用户敲下 SSH_CONNECTION=1 agy（Remote SSH OAuth 流程），并把该点的登录入口
+  // 写进终端提示——授权码由用户贴给 agy 自己的提示，网关只当字节通道
   const env = termEnv();
   if (login) for (const k of Object.keys(env)) if (/^ANTHROPIC_|^CCAPP_KEY_FILE$/.test(k)) delete env[k];
   const seq = nextTermSeq();
@@ -132,11 +154,6 @@ function termNew({ cols, rows, login, cwd: want } = {}) {
   const child = spawn(pc[0], [...pc.slice(1), String(rows), String(cols), shell], {
     cwd, env, detached: true, stdio: ["pipe", "pipe", "pipe", "pipe"],
   });
-  if (login) {
-    const hasAgy = !!(PATHS.agy && fs.existsSync(PATHS.agy));
-    const cmd = hasAgy ? "SSH_CONNECTION=1 agy\r" : ("claude auth login" + (login === "console" ? " --console" : "") + "\r");
-    setTimeout(() => { try { child.stdin.write(cmd); } catch {} }, 400);
-  }
   const t = {
     id, title: `${path.basename(shell) === "bash" ? "bash" : "sh"} ${seq}`, cols, rows,
     created: Date.now(), alive: true, code: null, child,
@@ -151,6 +168,13 @@ function termNew({ cols, rows, login, cwd: want } = {}) {
   child.stdout.on("data", (d) => out(t.dec.write(d)));
   child.stderr.on("data", (d) => out(d.toString()));     // 只有 ptyhost 自己的报错走这里
   if (cwdNote) out(`\r\n[${tz("目录不存在：{dir}，已改用 {cwd}", { dir: cwdNote, cwd })}]\r\n`);
+  if (login) {
+    // 先写提示、再敲命令：shell 起好约 400ms 后才敲，提示先进回放环，用户重连也看得到
+    const { cmd, hint } = loginTermCommand(login, !!(PATHS.agy && fs.existsSync(PATHS.agy)));
+    setTimeout(() => {
+      try { out(`\r\n[${hint}]\r\n`); if (cmd) child.stdin.write(cmd); } catch {}
+    }, 400);
+  }
   child.stdin.on("error", () => {});
   child.stdio[3]?.on("error", () => {});
   const ended = (code) => {

@@ -23,7 +23,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const HOME = process.env.HOME;
-const REPO = "greyoak111/hachimia";
+const REPO = "Buddy-Further/hachimia";
 // 旧开发端（li.dsh.claudecli）的工具链目录在就用它；否则是 cccodroid 终端：aapt2 在 PATH，钥匙在 ~/.bldtools（和 build.sh 一致）
 const F = "/data/user/0/li.dsh.claudecli/files", P = `${F}/toolchain/dshtc/prefix`, OLD = fs.existsSync(P);
 const BLD = process.env.BLDTOOLS || (OLD ? `${F}/bldtools` : path.join(HOME, ".bldtools"));

@@ -550,7 +550,7 @@
   async function changePermMode(mode) {
     // 不能只看标签一样就不发：标签可能是旧的（重放过旧事件），用户要收紧时必须真送到网关（安全通告 GHSA-2w6p）
     if (!mode || (mode === state.permissionMode && mode === "bypassPermissions")) return;
-    if (mode === "bypassPermissions" && !confirm(t("切到「全部放行」？\n\nClaude 将不再询问，可以直接改写、删除文件，运行任意命令，访问网络。只在你信任当前任务、且出了事能承受的时候用。"))) {
+    if (mode === "bypassPermissions" && !confirm(t("切到「全部放行」？\n\nAntigravity 将不再询问，可以直接改写、删除文件，运行任意命令，访问网络。只在你信任当前任务、且出了事能承受的时候用。"))) {
       // 取消：下拉框回到全局设置，不能被 chip 的运行模式带跑（0.6.9 审计 195-B.9）
       $("set-perm").value = state.settings.permissionMode || state.permissionMode;
       return;

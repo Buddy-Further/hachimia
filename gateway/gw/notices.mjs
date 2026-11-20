@@ -14,7 +14,7 @@ import { NEXT, readBody, sendJson } from "./http.mjs";
 import { privCall } from "./usage.mjs";
 
 const SOURCES = (process.env.CCAPP_NOTICES_URL ? [process.env.CCAPP_NOTICES_URL] : [])
-  .concat(["https://raw.githubusercontent.com/greyoak111/hachimia/main/notices/notices.json"]);
+  .concat(["https://raw.githubusercontent.com/Buddy-Further/hachimia/main/notices/notices.json"]);
 // 与组件索引同一把公钥（gw/components.mjs）；Claude Code 验证记录（gw/ccverified.mjs）也用它。测试（CCAPP_TEST=1）时可换成测试钥匙
 export const PUBKEY = crypto.createPublicKey(!LIVE && process.env.CCAPP_TEST_PUBKEY ? process.env.CCAPP_TEST_PUBKEY :
   "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA4u1V3UuRVZgXwqXXQaQIBaefPf2PCGqKqvsna9Pgzzs=\n-----END PUBLIC KEY-----\n");

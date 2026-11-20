@@ -1,8 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFile } from "node:child_process";
-import crypto from "node:crypto";
-import { CFG, GLIBC_PRELOAD, PATHS, PREFIX, glibcEnv, loadPgp, log, tz } from "./config.mjs";
+import { CFG, HERE, PATHS, PREFIX, log, tz } from "./config.mjs";
 import { verifiedInfo } from "./ccverified.mjs";
 import { ledger } from "./claude.mjs";
 import { onSealUnknown } from "./claudeseal.mjs";
@@ -10,16 +9,25 @@ import { NEXT, readBody, sendJson } from "./http.mjs";
 import { termEnv } from "./terminal.mjs";
 import { ccMem, privCall } from "./usage.mjs";
 
-// ── 开发端（非 cccodroid 布局）：没有 Java 那一层，更新和 Shizuku 状态由网关自己做 ──────────
-// cccodroid 里这些在 App 进程（Updater / ShizukuSetup）；开发端只有一个 runtime/claude 二进制，priv 走 rish。
+// ── 开发端（非 hachimia 布局）：没有 Java 那一层，更新和 Shizuku 状态由网关自己做 ──────────
+// hachimia 里这些在 App 进程（Updater / ShizukuSetup）；开发端只有一个 agy 二进制，priv 走 rish。
+// 更新项就是设置页里标的 Antigravity CLI (agy)：查官方 agy 版本清单、装官方 install.sh，
+// 绝不能从旧的 Claude Code 下载站拉程序（D-03：以前这里装的和标的不是同一种程序）。
 
 const DEV_UPD_FILE = path.join(CFG.home, "ccapp-update.json");
-const CC_BASE = "https://downloads.claude.ai/claude-code-releases";
+// 官方 agy 安装脚本（android/assets/scripts/install-agy.mjs）：拉官方 install.sh，装进
+// ~/.local/share/hachimia/agy/<版本>/ 并更新 current 软链，正好是 PATHS.agy 指的地方
+const INSTALL_AGY_SCRIPT = path.join(HERE, "..", "android", "assets", "scripts", "install-agy.mjs");
 const devUpd = {
   auto: true, channel: "stable", lastCheck: 0, checking: false, error: "",
-  claude: { id: "claude", name: "Claude Code", current: "", latest: "", state: "unknown", message: "", done: 0, total: 0 },
+  agy: { id: "agy", name: "Antigravity CLI (agy)", current: "", latest: "", state: "unknown", message: "", done: 0, total: 0 },
 };
-try { Object.assign(devUpd, JSON.parse(fs.readFileSync(DEV_UPD_FILE, "utf8")), { checking: false, error: "" }); devUpd.claude.state = devUpd.claude.state === "installing" ? "unknown" : devUpd.claude.state; } catch {}
+try {
+  Object.assign(devUpd, JSON.parse(fs.readFileSync(DEV_UPD_FILE, "utf8")), { checking: false, error: "" });
+  // 旧版持久化是 { claude: {...} }：id/name 换成 agy，版本号下次检查时按 agy 重读
+  if (!devUpd.agy && devUpd.claude) { devUpd.agy = { ...devUpd.claude, id: "agy", name: "Antigravity CLI (agy)" }; delete devUpd.claude; }
+  devUpd.agy.state = devUpd.agy.state === "installing" ? "unknown" : devUpd.agy.state;
+} catch {}
 const devUpdSave = () => { try { fs.writeFileSync(DEV_UPD_FILE, JSON.stringify(devUpd)); } catch {} };
 const cmpVer = (a, b) => {
   const x = String(a).split(/[^0-9]+/).map(Number), y = String(b).split(/[^0-9]+/).map(Number);
@@ -27,13 +35,19 @@ const cmpVer = (a, b) => {
   return 0;
 };
 
-/** 跑某个 claude 二进制的 --version（新下载的那个在换上去之前先这样试跑一次） */
-function claudeVersionOf(bin) {
+/** 已装 agy 的版本：直接跑 agy --version；跑不起来就读 current 软链指的版本目录名 */
+function agyVersionOf() {
   return new Promise((ok) => {
-    const pre = GLIBC_PRELOAD ? ["--preload", GLIBC_PRELOAD] : [];
-    execFile(PATHS.claudeLoader, ["--library-path", PATHS.claudeLib, ...pre, bin, "--version"], { timeout: 30000, env: glibcEnv() }, (e, out) => {
-      const m = String(out || "").match(/\d+\.\d+\.\d+/);
-      ok(m ? m[0] : "");
+    const bin = PATHS.agy;
+    if (!bin || !fs.existsSync(bin)) {
+      try { ok(path.basename(fs.realpathSync(path.join(CFG.home, ".local", "share", "hachimia", "agy", "current")))); return; } catch {}
+      return ok("");
+    }
+    execFile(bin, ["--version"], { timeout: 15000 }, (e, out, err) => {
+      const m = String(out || err || "").match(/\d+\.\d+\.\d+/);
+      if (m) return ok(m[0]);
+      try { ok(path.basename(fs.realpathSync(path.join(path.dirname(bin), "..", "current")))); }
+      catch { ok(""); }
     });
   });
 }
@@ -43,22 +57,22 @@ let devUpdAgain = false;
 async function devUpdCheck() {
   if (devUpd.checking) { devUpdAgain = true; return; }
   devUpd.checking = true; devUpd.error = "";
-  const c = devUpd.claude, ch = devUpd.channel;
+  const c = devUpd.agy, ch = devUpd.channel;
   try {
-    if (!c.current || c.state !== "installing") c.current = await claudeVersionOf(PATHS.claude);
-    const r = await fetch(`${CC_BASE}/${ch}`, { signal: AbortSignal.timeout(20000) });
-    const v = (await r.text()).trim();
+    if (!c.current || c.state !== "installing") c.current = await agyVersionOf();
+    // agy 官方清单只有一个最新版（stable / latest 渠道在这里是同一份清单，见 claudeVersions）
+    const vs = await claudeVersions();
     if (devUpd.channel !== ch) { devUpdAgain = true; return; }
-    if (!/^\d+\.\d+\.\d+/.test(v)) throw new Error(tz("版本号不对：{v}", { v: v.slice(0, 40) }));
+    if (!vs.ok || !vs.latest) throw new Error(vs.message || tz("取不到 Antigravity CLI 版本列表"));
+    const v = vs.latest;
     c.latest = v; c.latestCh = ch;
-    // 已装版本要和所选渠道「一致」：从 latest 切回 stable 时版本号变小，以前判成「已是最新」就一直停在 latest 上
     if (c.state !== "installing") {
       const d = cmpVer(v, c.current);
       c.state = d === 0 ? "uptodate" : "available";
-      c.message = d < 0 && c.current ? `切回 ${devUpd.channel} 渠道：将换成 ${v}（比当前的 ${c.current} 旧）` : devUpd.channel === "latest" ? "latest 渠道" : "";
+      c.message = devUpd.channel === "latest" ? "latest 渠道" : "";
     }
     devUpd.lastCheck = Date.now();
-  } catch (e) { devUpd.error = tz("连不上 downloads.claude.ai：{err}", { err: e.message }); }
+  } catch (e) { devUpd.error = e.message; }
   finally {
     devUpd.checking = false; devUpdSave();
     if (devUpdAgain) { devUpdAgain = false; setImmediate(devUpdCheck); }
@@ -66,68 +80,48 @@ async function devUpdCheck() {
 }
 
 /**
- * 换新版：下到 claude.part（断点续传）→ 按官方清单核 sha256 → 试跑 --version → 旧的改名 claude.prev（留一版可回退）→ 新的换上。
- * 正在跑的 claude 已经映射了旧文件，换名不影响它；下一轮对话起用新版。
+ * 换新版：跑仓库里的 install-agy.mjs（官方 https://antigravity.google/cli/install.sh），
+ * 装进 ~/.local/share/hachimia/agy/<版本>/ 并更新 current 软链（PATHS.agy 指的地方）。
+ * 装完按 agy --version 核对版本；对不上就报 error，不留一个半吊子版本。
+ * version 不给就装清单里的最新版；给了（版本选单点的）就装指定版。
  */
-async function devUpdInstall() {
-  const c = devUpd.claude;
-  if (c.state === "installing" || !c.latest) return;
-  if (c.latestCh && c.latestCh !== devUpd.channel) return;   // 查到的是换渠道之前那个渠道的版本
+async function devUpdInstall(version) {
+  const c = devUpd.agy;
+  if (c.state === "installing" || (!version && !c.latest)) return;
+  if (!version && c.latestCh && c.latestCh !== devUpd.channel) return;   // 查到的是换渠道之前那个渠道的版本
+  const want = version || c.latest;
+  if (!/^(stable|latest|\d+\.\d+\.\d+(-[0-9A-Za-z.+-]{1,40})?)$/.test(want)) {
+    c.state = "error"; c.message = tz("版本号不对：{v}", { v: String(want).slice(0, 40) }); devUpdSave(); return;
+  }
   c.state = "installing"; c.message = ""; c.done = 0; c.total = 0;
-  const want = c.latest;   // 开装时定死：装的途中换渠道会改 c.latest，清单、程序、试跑核对要是同一个版本（DeepSeek 复核 11-04）
-  const part = PATHS.claude + ".part", tag = PATHS.claude + ".part.sha256";
+  devUpdSave();
   try {
-    // 清单要过 Anthropic 的 PGP 签名（同 install-claude.mjs）：只靠 TLS 的话，装了别的根证书的代理能连清单带程序一起换掉（11-03 审查 L-11）
-    const get = async (u) => { const r = await fetch(u, { signal: AbortSignal.timeout(20000) }); if (!r.ok) throw new Error("HTTP " + r.status + " " + u); return Buffer.from(await r.arrayBuffer()); };
-    const manBuf = await get(`${CC_BASE}/${want}/manifest.json`);
-    const { ANTHROPIC_KEYS, verifyDetached } = await loadPgp();
-    try { verifyDetached(manBuf, (await get(`${CC_BASE}/${want}/manifest.json.sig`)).toString("utf8"), ANTHROPIC_KEYS); }
-    catch (e) { throw new Error(tz("官方清单的签名验不过：{msg}", { msg: e.message })); }
-    const man = JSON.parse(manBuf.toString("utf8"));
-    if (man.version && man.version !== want) throw new Error(tz("清单内容不对"));
-    const plat = man.platforms && man.platforms["linux-arm64"];
-    if (!plat || !/^[a-f0-9]{64}$/.test(plat.checksum)) throw new Error(tz("清单里没有 linux-arm64"));
-    c.total = plat.size;
-    let have = 0;
-    try { if (fs.readFileSync(tag, "utf8").trim() === plat.checksum) have = fs.statSync(part).size; } catch {}
-    if (!have) { fs.rmSync(part, { force: true }); fs.writeFileSync(tag, plat.checksum); }
-    for (let attempt = 1; have < plat.size; attempt++) {
-      try {
-        const r = await fetch(`${CC_BASE}/${want}/linux-arm64/claude`, { headers: have ? { range: `bytes=${have}-` } : {} });
-        if (r.status !== 200 && r.status !== 206) throw new Error("HTTP " + r.status);
-        if (r.status === 200) { have = 0; fs.rmSync(part, { force: true }); }
-        const out = fs.openSync(part, "a");
-        try { for await (const chunk of r.body) { fs.writeSync(out, chunk); have += chunk.length; c.done = have; } }
-        finally { fs.closeSync(out); }
-      } catch (e) {
-        if (attempt >= 8) throw e;
-        c.message = `网络中断（${e.message}），${attempt * 3} 秒后续传…`;
-        await new Promise((ok) => setTimeout(ok, attempt * 3000));
-        have = fs.existsSync(part) ? fs.statSync(part).size : 0;
-      }
+    if (!fs.existsSync(INSTALL_AGY_SCRIPT)) throw new Error(tz("找不到 agy 安装脚本（{p}）", { p: INSTALL_AGY_SCRIPT }));
+    const out = await new Promise((resolve, reject) => {
+      execFile(process.execPath, [INSTALL_AGY_SCRIPT, want], {
+        timeout: 10 * 60_000, maxBuffer: 4 << 20,
+        env: { ...process.env, HOME: CFG.home, TMPDIR: process.env.TMPDIR || path.join(CFG.home, ".cache") },
+      }, (e, stdout, stderr) => {
+        const tail = String((stdout || "") + "\n" + (stderr || "")).trim().split("\n").slice(-5).join("；");
+        if (e) reject(new Error(tail || e.message));
+        else resolve(String(stdout || ""));
+      });
+    });
+    const v = await agyVersionOf();
+    if (want !== "stable" && want !== "latest" && v !== want) {
+      throw new Error(tz("新版试跑失败（--version 得到「{v}」）", { v: v || "?" }));
     }
-    c.message = "校验 sha256…";
-    const h = crypto.createHash("sha256");
-    for await (const b of fs.createReadStream(part)) h.update(b);
-    const got = h.digest("hex");
-    if (got !== plat.checksum) { fs.rmSync(part, { force: true }); throw new Error(tz("sha256 不符（期望 {want}…，实得 {got}…）", { want: plat.checksum.slice(0, 12), got: got.slice(0, 12) })); }
-    fs.chmodSync(part, 0o755);
-    const v = await claudeVersionOf(part);
-    if (v !== want) throw new Error(tz("新版试跑失败（--version 得到「{v}」）", { v }));
-    fs.rmSync(PATHS.claude + ".prev", { force: true });
-    fs.renameSync(PATHS.claude, PATHS.claude + ".prev");
-    fs.renameSync(part, PATHS.claude);
-    fs.rmSync(tag, { force: true });
-    log(`Claude Code 已更新 ${c.current} → ${v}`);
-    c.current = v; c.state = "uptodate"; c.message = `已更新到 ${v}（下一轮对话起生效；旧版留在 claude.prev）`;
+    log(`Antigravity CLI 已更新 ${c.current} → ${v || want}`);
+    if (out) log("[agy 安装] " + String(out).trim().split("\n").slice(-3).join("；"));
+    c.current = v || want; c.state = "uptodate"; c.message = `已更新到 ${c.current}（下一轮对话起生效）`;
   } catch (e) {
     c.state = "error"; c.message = e.message;
   } finally { devUpdSave(); }
 }
 
 function devUpdStatus() {
-  const { claude, ...rest } = devUpd;
-  return { ok: true, ...rest, items: [claude] };
+  const { agy, ...rest } = devUpd;
+  return { ok: true, ...rest, items: [agy] };
 }
 
 // 自动：启动 1 分钟后、之后每 30 分钟看一眼，距上次检查超过 6 小时就查；有新版且开着自动就装
@@ -135,7 +129,7 @@ if (!PREFIX) {
   const tick = async () => {
     if (!devUpd.auto || Date.now() - devUpd.lastCheck < 6 * 3600_000) return;
     await devUpdCheck();
-    if (devUpd.auto && devUpd.claude.state === "available") devUpdInstall();
+    if (devUpd.auto && devUpd.agy.state === "available") devUpdInstall();
   };
   setTimeout(tick, 60_000);
   setInterval(tick, 30 * 60_000);
@@ -178,7 +172,7 @@ export function devPrivStatus() {
 async function devApp(op, b) {
   if (op === "upd_status") {
     if (!devUpd.lastCheck && !devUpd.checking) devUpdCheck();
-    else if (!devUpd.claude.current) devUpd.claude.current = await claudeVersionOf(PATHS.claude);
+    else if (!devUpd.agy.current) devUpd.agy.current = await agyVersionOf();
     return devUpdStatus();
   }
   if (op === "upd_check") { devUpdCheck(); await new Promise((r) => setTimeout(r, 200)); return devUpdStatus(); }
@@ -187,7 +181,7 @@ async function devApp(op, b) {
     if (typeof b.auto === "boolean") devUpd.auto = b.auto;
     // 换渠道 = 明说要那个渠道的版本：查完对不上就直接换（自动更新关着也换）
     if ((b.channel === "stable" || b.channel === "latest") && b.channel !== devUpd.channel) {
-      const want = devUpd.channel = b.channel, c = devUpd.claude;
+      const want = devUpd.channel = b.channel, c = devUpd.agy;
       // 等到按新渠道查完再换：旧渠道的检查可能还在途，它的结果不算（#136）
       (async () => {
         for (let i = 0; i < 30 && c.latestCh !== want && devUpd.channel === want; i++) {
@@ -201,10 +195,10 @@ async function devApp(op, b) {
     return devUpdStatus();
   }
   if (op === "upd_apply") {
-    if (b.item !== "claude") return { ok: false, message: tz("开发端只管 Claude Code（应用本体由你在本机构建安装）") };
-    if (devUpd.claude.state !== "available" && devUpd.claude.state !== "error") return { ok: false, message: tz("没有可装的新版，先检查更新") };
-    devUpdInstall();
-    return { ok: true, message: tz("开始更新 Claude Code") };
+    if (b.item !== "agy") return { ok: false, message: tz("开发端只管 Antigravity CLI (agy)（应用本体由你在本机构建安装）") };
+    if (devUpd.agy.state !== "available" && devUpd.agy.state !== "error") return { ok: false, message: tz("没有可装的新版，先检查更新") };
+    devUpdInstall(b.version);
+    return { ok: true, message: tz("开始更新 Antigravity CLI (agy)") };
   }
   return { ok: false, message: tz("开发端不支持：{op}", { op }) };
 }
@@ -261,7 +255,7 @@ export async function routeDevside(req, res, u, p) {
   if (req.method === "GET" && p === "/api/priv/status") return sendJson(res, 200, await privCall({ op: "status" }));
   if (req.method === "POST" && p === "/api/priv/request") return sendJson(res, 200, await privCall({ op: "request" }));
   if (req.method === "POST" && p === "/api/priv/open") return sendJson(res, 200, await privCall({ op: "open_manager" }));
-  // 特权命令记录：cccodroid 的 Priv.java 每执行一条就往 home/priv-audit.jsonl 记一行。最新的在前
+  // 特权命令记录：hachimia 的 Priv.java 每执行一条就往 home/priv-audit.jsonl 记一行。最新的在前
   if (req.method === "GET" && p === "/api/priv/audit") {
     const f = path.join(CFG.home, "priv-audit.jsonl"), items = [];
     for (const ff of [f, f + ".1"]) {
@@ -281,7 +275,7 @@ export async function routeDevside(req, res, u, p) {
     const b = JSON.parse((await readBody(req)) || "{}");
     return sendJson(res, 200, await privCall({ op: "keepalive", enable: b.enable !== false }, 60000));
   }
-  // 更新（APK / 工具包 / Claude Code）与 Shizuku 一键安装激活：都在应用进程里做，这里只转话
+  // 更新（APK / 工具包 / Antigravity CLI）与 Shizuku 一键安装激活：都在应用进程里做，这里只转话
   if (p.startsWith("/api/app/")) {
     const op = p.slice(9);
     const OPS = ["upd_status", "upd_check", "upd_apply", "upd_set", "upd_verify", "upd_repair", "share_logs", "factory_reset", "share_file", "apk_install", "shz_install", "shz_activate", "shz_pair", "shz_autostart", "shz_repair", "open_app_settings", "freeze_ack", "notify_status", "notify_set", "notify_settings", "dev_status", "dev_set", "a11y_settings"];

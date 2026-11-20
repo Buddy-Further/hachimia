@@ -659,7 +659,7 @@ export async function startRun(item) {
   const ucp = ucPending(sealed() ? UC_SEALED : null), procs = leftoverProcs(new Map([...RUNS].filter(([k]) => k !== run.id).map(([k, r]) => [String(k), r.childStart ?? null])));
   if (ucp || procs.length) {
     if (run.unattended || run.auto) {
-      const msg = tz("Claude Code 的用户级配置有改动还没确认，或者之前的对话留下了后台进程，这次没有运行。打开 cccodroid 发一条消息，在弹出的卡片里确认后再试。");
+      const msg = tz("Antigravity CLI 的用户级配置有改动还没确认，或者之前的对话留下了后台进程，这次没有运行。打开 hachimia 发一条消息，在弹出的卡片里确认后再试。");
       log(`⏭ 用户级配置 / 留下的进程没确认，${run.auto ? "空闲压缩" : "无人值守的这一轮"}不跑`);
       if (!run.auto) emit({ type: "error", message: tr(LAST_LANG, msg) });
       return endRun(run, run.auto ? { durationMs: 0 } : { failed: true, finalText: msg });
@@ -711,7 +711,7 @@ export async function startRun(item) {
     if (gwBad) { emit({ type: "error", message: tr(LAST_LANG, gwBad) }); return endRun(run, { failed: true }); }
     const seal = await claudeSeal();
     if (seal.ok === false) {
-      emit({ type: "error", message: tr(LAST_LANG, seal.pending ? "这个版本的 Claude Code 还没有官方签名清单，这一轮没有启动。正在联网补核，过一两分钟再发送；一直不行就到 设置 → 更新 里重新安装。" : "Claude Code 程序和官方签名清单对不上，可能被改过，这一轮没有启动。到 设置 → 更新 里重新安装后再试。") });
+      emit({ type: "error", message: tr(LAST_LANG, seal.pending ? "这个版本的 Antigravity CLI 还没有官方签名清单，这一轮没有启动。正在联网补核，过一两分钟再发送；一直不行就到 设置 → 更新 里重新安装。" : "Antigravity CLI 程序和官方签名清单对不上，可能被改过，这一轮没有启动。到 设置 → 更新 里重新安装后再试。") });
       return endRun(run, { failed: true });
     }
     if (run.aborted) { log("⏹ 核验 Claude Code 时停止"); return endRun(run, { durationMs: 0 }); }
@@ -781,7 +781,7 @@ export async function startRun(item) {
   if (!P.local && !sealStillValid()) {
     log(`${runTag(run)} ⚠️ [Claude Code 核验] 核过之后程序文件又变了，停掉这一轮`);
     tamperRecord("claude", ["claude: changed right after it was verified"]);
-    emit({ type: "error", message: tr(LAST_LANG, "Claude Code 程序和官方签名清单对不上，可能被改过，这一轮没有启动。到 设置 → 更新 里重新安装后再试。") });
+    emit({ type: "error", message: tr(LAST_LANG, "Antigravity CLI 程序和官方签名清单对不上，可能被改过，这一轮没有启动。到 设置 → 更新 里重新安装后再试。") });
     abortRun(run);
   }
   if (item.timeoutMs > 0) run.limitTimer = setTimeout(() => { run.timedOut = true; log(`${runTag(run)} ⏱ 超过时长上限 ${Math.round(item.timeoutMs / 60000)} 分钟，停止`); abortRun(run); }, item.timeoutMs);

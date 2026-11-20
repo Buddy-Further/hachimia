@@ -39,7 +39,7 @@ import org.json.JSONObject;
  */
 final class Updater {
     static final String TAG = "hachimia-upd";
-    static final String REPO = "greyoak111/hachimia";
+    static final String REPO = "Buddy-Further/hachimia";
     /** hachimia 暂无镜像线路（cccodroid 的镜像只放 cccodroid 的文件，用不上），置空：更新只走 GitHub。
      *  将来架了镜像再填上，fetchLists / checkApp / devkitMirror 会自动启用 */
     static final String MIRROR = null;

@@ -84,12 +84,14 @@
     for (const a of TERM.inst.values()) termDetach(a);   // 收起了就不占连接，下次打开重连回放
   }
 
-  /** 手动登录：开一个新终端，网关替你敲好 SSH_CONNECTION=1 agy acp --login；授权码贴给 claude 自己的提示 */
+  /** 手动登录：开一个新终端，网关替你敲好 SSH_CONNECTION=1 agy，并在终端里提示该点的登录入口
+   *  （个人选 Google OAuth，企业选 Use a Google Cloud project）；method 原样透传，网关按它区分提示。
+   *  授权码贴给 agy 自己的提示 */
   async function openLoginTerm(method) {
     MO.cancel(termEl); termEl.classList.remove("hidden"); raisePane("term");
     try { await loadXterm(); } catch (e) { toast(t("终端组件加载失败：{msg}", { msg: e.message }), true); return; }
     try { const r = await api("/api/term/list"); TERM.list = (r.terms || []).filter((x) => x.alive || TERM.inst.has(x.id)); } catch {}
-    await newTerm({ login: method === "console" ? "console" : true });
+    await newTerm({ login: method });
   }
 
   async function newTerm(opts = {}) {
