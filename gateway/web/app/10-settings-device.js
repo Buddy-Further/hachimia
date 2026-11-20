@@ -240,10 +240,10 @@
       const prog = it.state === "downloading" && it.total ? `（${fmtSize(it.done) || "0 MB"} / ${fmtSize(it.total)} · ${Math.floor(it.done * 100 / it.total)}%）`
         : (it.state === "installing" || it.state === "verifying") && it.total ? `（${Math.floor(it.done * 100 / it.total)}%）` : "";
       const cls = it.state === "error" || it.state === "damaged" || it.state === "missing" ? "err" : it.state === "uptodate" ? "ok" : it.state === "unknown" ? "" : "warn";
-      const btn = it.state === "missing" ? t("安装…") : it.state === "available" ? (it.id === "claude" ? t("更新") : t("下载并安装"))
+      const btn = it.state === "missing" ? t("安装") : it.state === "available" ? (it.id === "claude" ? t("更新") : t("下载并安装"))
         : it.state === "ready" ? t("安装") : it.state === "damaged" ? t("修复") : it.state === "error" && it.latest ? t("重试") : "";
-      // 工具包：随时可以逐个核对文件；坏了就「修复」（重装同一版本）
-      const act = it.state === "damaged" ? "repair" : it.state === "missing" ? "pick" : "";
+      // 工具包：随时可以逐个核对文件；坏了就「修复」（重装同一版本）；agy 未安装时直接走 upd_apply 安装最新官方版
+      const act = it.state === "damaged" ? "repair" : "";
       const verifyBtn = it.id === "devkit" && it.current && ["uptodate", "unknown", "error", "damaged"].includes(it.state)
         ? `<button class="btn sm ghost" data-item="devkit" data-act="verify">${t("校验")}</button>` : "";
       // 从本地文件装（离线、或者已经用电脑下好了）：外壳弹系统文件选择器，认身份、替换都在外壳里做
@@ -277,7 +277,7 @@
     const m = document.createElement("div");
     m.id = "ccv-pick";
     m.innerHTML = `<div class="sheet-panel mp-panel">
-      <div class="mp-head"><b>${t("Claude Code 版本")}</b><button class="mp-x" type="button" aria-label="${t("关闭")}">${uiI("x")}</button></div>
+      <div class="mp-head"><b>${t("Antigravity CLI (agy) 版本")}</b><button class="mp-x" type="button" aria-label="${t("关闭")}">${uiI("x")}</button></div>
       <div class="mp-lbl">${t("跟随渠道（自动更新跟着它走）")}</div><div class="ccv-ch"><div class="tiny">${t("读取中…")}</div></div>
       <div class="mp-lbl">${t("固定到某一版（自动更新不再改它）")}</div>
       <label class="searchbox mp-sb"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input class="mp-q" type="search" inputmode="decimal" autocomplete="off" placeholder="${t("搜索版本号")}"></label>
@@ -338,7 +338,7 @@
     if (act === "uninstall") {
       const msg = item === "devkit"
         ? t("卸载开发工具包？\n\n会删掉整个工具包，连同装在里面的组件、加装的模块、你用 pip / npm -g / pkg 装的东西，然后回到首次安装，重新选下载来源和模块。\n\n会话、工作区、登录和设置都保留。正在跑的终端会被关掉。")
-        : t("卸载 Claude Code？\n\n删掉已下载的 Claude Code 程序，之后不会自动装回。要用时在这里点「安装…」，自己选版本（stable、latest 或具体版本号）。\n\n登录、会话和设置都保留；没装的时候发消息会提示先安装。");
+        : t("卸载 Antigravity CLI (agy)？\n\n删掉已下载的 agy 程序，之后不会自动装回。要用时在这里点「安装」重新下载。\n\n登录、会话和设置都保留；没装的时候发消息会提示先安装。");
       if (!confirm(msg)) return;
       CCApp.uninstall(item);
       return;

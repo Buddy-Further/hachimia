@@ -11,7 +11,7 @@ import { PUBKEY, loadSigned, saveSigned } from "./notices.mjs";
 
 // CCAPP_CLAUDE_VERIFIED_URL：只用这一个地址（测试用）
 const SOURCES = process.env.CCAPP_CLAUDE_VERIFIED_URL ? [process.env.CCAPP_CLAUDE_VERIFIED_URL]
-  : ["https://cccodroid.net/claude-code/verified.json", "https://raw.githubusercontent.com/greyoak111/cccodroid/main/claude-code/verified.json"];
+  : ["https://raw.githubusercontent.com/greyoak111/hachimia/main/claude-code/verified.json"];
 const EVERY = 3 * 3600e3;
 export const VERIFIED_CACHE = path.join(CFG.home, ".cache", "cccodroid", "claude-verified.json");
 

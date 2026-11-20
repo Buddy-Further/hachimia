@@ -377,14 +377,21 @@ export async function startRun(item) {
     const tBoot = Date.now();
     run.tBoot = tBoot;
     emit({ type: "phase", phase: "boot" });
+    const acpEnv = { ...agyEnv({ model, provider: P }), CCAPP_RUN_ID: String(run.id), CCAPP_GW_PORT: String(CFG.port), CCAPP_GW_PID: String(process.pid) };
+    // 消息里提到的图片（@路径）一并转成 image block 交给 ACP，避免多模态附件丢图
+    let acpImages = [];
+    if (!message.trim().startsWith("/")) {
+      acpImages = await inlineImages(message, P, { tmpDir: acpEnv.TMPDIR, env: acpEnv }).catch(() => []);
+    }
     const acpRes = await runAcpTurn({
       bin: cliBin,
       cwd,
-      env: { ...agyEnv({ model, provider: P }), CCAPP_RUN_ID: String(run.id), CCAPP_GW_PORT: String(CFG.port), CCAPP_GW_PID: String(process.pid) },
+      env: acpEnv,
       prompt: message,
-      images: [],
+      images: acpImages,
       sessionId: run.sessionId,
       model,
+      effort,
       permMode,
       authType: P.authType || (P.login ? "oauth-personal" : "gemini-api-key"),
       apiKey: KEY || "",
@@ -392,29 +399,68 @@ export async function startRun(item) {
       run,
       emit,
       timeoutMs: item.timeoutMs || 0,
-      askPermission: async ({ tool, input, options }) => {
+      askPermission: async ({ tool, toolCallId, input, hasAlways }) => {
         if (run.unattended || run.auto) return { behavior: "deny" };
-        const allow = await askCard(run, emit, {
-          key: "acp-perm",
-          tool,
-          input,
-          guard: { cat: "acp", what: tool },
-          what: `Antigravity 工具确认：${tool}`,
-          yes: "✓ 允许",
-          no: "✗ 拒绝",
+        // 标准工具权限确认卡片（不挂 guard，免得误判成「碰到了密钥或登录凭据」）
+        return new Promise((resolve) => {
+          const id = "acp-perm-" + crypto.randomBytes(6).toString("hex");
+          const suggestions = hasAlways ? [{ type: "addRules", rules: [{ toolName: tool }] }] : [];
+          const p = {
+            id,
+            tool,
+            toolUseId: toolCallId || undefined,
+            input: input || {},
+            suggestions,
+            at: Date.now(),
+            runId: run.id,
+            sessionId: run.sessionId || null,
+          };
+          const timer = setTimeout(() => {
+            if (!run.perms?.has(id)) return;
+            log(`${runTag(run)} ⏹ ACP 权限确认超时：${tool}`);
+            emit({ type: "perm_resolved", id, behavior: "deny", expired: true });
+            done({ behavior: "deny" });
+          }, PERM_WAIT_MS);
+          timer.unref?.();
+          const done = (v) => {
+            if (!run.perms?.delete(id)) return;
+            clearTimeout(timer);
+            if (!run.perms.size) run.answerPerm = null;
+            publishState();
+            resolve(v);
+          };
+          run.perms = run.perms || new Map();
+          run.perms.set(id, p);
+          const prevAnswer = run.answerPerm;
+          run.answerPerm = (pid, a) => {
+            if (pid !== id || !run.perms?.has(id)) return prevAnswer ? prevAnswer(pid, a) : false;
+            const allow = a.behavior === "allow";
+            log(`${allow ? "✓ 允许" : "✗ 拒绝"} ACP 工具 ${tool}${a.always ? "（始终）" : ""}${a.interrupt ? "（并停止）" : ""}`);
+            emit({ type: "perm_resolved", id, behavior: allow ? "allow" : "deny", always: !!a.always, interrupt: !!a.interrupt });
+            if (a.interrupt) { holdLane(run); run.aborted = true; }
+            done({ behavior: allow ? "allow" : "deny", always: !!a.always, interrupt: !!a.interrupt });
+            return true;
+          };
+          log(`⏸ 等确认 ACP 工具 ${tool}`);
+          emit({ type: "perm_request", ...permView(p) });
+          publishState();
         });
-        return { behavior: allow ? "allow" : "deny" };
       },
     });
     if (acpRes.sessionId) {
       run.sessionId = acpRes.sessionId;
       rememberSession(acpRes.sessionId);
     }
+    const ctxWin = Number(currentModelInfo(model, P).context_window) || 0;
+    const usageOut = acpRes.usage
+      ? { ...acpRes.usage, ...(ctxWin > 0 ? { context_window: ctxWin } : {}) }
+      : undefined;
     return endRun(run, {
       failed: !acpRes.ok && !run.aborted,
       resultText: acpRes.resultText || "",
       durationMs: acpRes.durationMs || (Date.now() - tBoot),
       costUsd: 0,
+      ...(usageOut ? { usage: usageOut } : {}),
     });
   }
 

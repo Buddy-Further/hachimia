@@ -141,26 +141,23 @@ if (!PREFIX) {
   setInterval(tick, 30 * 60_000);
 }
 
-// cccodroid：Claude Code 若是官方清单拿不到时靠 npm 签名装上的（版本目录里有 .npm-only），或者版本目录里还没存签过名的清单
-// （0.6.3 以前装的；网关每轮起 claude 前靠它核程序，见 claudeseal.mjs），连得上官方清单时补核一次 sha256、存下清单
-// （install-claude.mjs --recheck）。启动 2 分钟后、之后每 6 小时看一眼
+// hachimia：已装的 agy 版本目录里若有 .mismatch 或需要复核，定期跑 install-agy.mjs --recheck 核对 sha256
 if (PREFIX && process.env.CCAPP_BIN) {
-  const dest = path.join(CFG.home, ".local", "share", "cccodroid", "claude");
-  const script = path.join(process.env.CCAPP_BIN, "..", "scripts", "install-claude.mjs");
+  const dest = path.join(CFG.home, ".local", "share", "hachimia", "agy");
+  const script = path.join(process.env.CCAPP_BIN, "..", "scripts", "install-agy.mjs");
   const recheck = () => {
     let pending = false;
-    try { pending = fs.readdirSync(dest).some((d) => /^\d/.test(d) && fs.existsSync(path.join(dest, d, "claude")) && (fs.existsSync(path.join(dest, d, ".npm-only")) || fs.existsSync(path.join(dest, d, ".mismatch")) || !fs.existsSync(path.join(dest, d, "manifest.json.sig")))); } catch {}
+    try { pending = fs.readdirSync(dest).some((d) => /^\d/.test(d) && fs.existsSync(path.join(dest, d, "agy")) && (fs.existsSync(path.join(dest, d, ".mismatch")) || !fs.existsSync(path.join(dest, d, "manifest.json")))); } catch {}
     if (!pending || !fs.existsSync(script)) return;
     execFile(path.join(PREFIX, "bin", "node"), [script, "--recheck"], { env: termEnv(), timeout: 600000 }, (e, out) => {
       const msg = String(out || "").trim();
-      if (msg) log("[claude 补核] " + msg.replace(/\n/g, "；"));
-      if (e && e.code === 3) ledger("verify", false, "Claude Code 与官方清单不符（npm 来源）", msg);
-      else if (/^✓/m.test(msg)) ledger("verify", true, "Claude Code 已按官方清单补核", msg);
+      if (msg) log("[agy 补核] " + msg.replace(/\n/g, "；"));
+      if (e && e.code === 3) ledger("verify", false, "Antigravity CLI 与本地清单 sha256 不符", msg);
+      else if (/^✓/m.test(msg)) ledger("verify", true, "Antigravity CLI 已完成 sha256 校验", msg);
     });
   };
   setTimeout(recheck, 120_000);
   setInterval(recheck, 6 * 3600_000);
-  // 起 claude 前发现版本目录里没有签名清单（claudeseal.mjs）：别等 6 小时。发行版补核拿到清单之前不起，用户在等，一分钟内最多补核一次
   let lastAsk = 0;
   onSealUnknown(() => { if (Date.now() - lastAsk < 60_000) return; lastAsk = Date.now(); setTimeout(recheck, 1000); });
 }
@@ -212,31 +209,28 @@ async function devApp(op, b) {
   return { ok: false, message: tz("开发端不支持：{op}", { op }) };
 }
 
-// ── Claude Code 版本选单：有哪些版本 + 官方 stable / latest 各是哪一版 ─────────────────────────
-// 版本列表取 npm 镜像（Anthropic 每一版都发到 npm）；stable / latest 以官方为准（含 cccodroid.net 对官方的镜像），
-// 官方和两个镜像都取不到时留空，不拿 npm 的 dist-tags 顶（两边是否始终同步没核实过）。
-// 装哪一版都由 install-claude.mjs 按官方清单 / PGP / npm 签名把关
+// ── Antigravity CLI (agy) 版本清单：查官方 android manifest + 本机已装版本目录 ──
 let ccVersions = { at: 0, data: null };
 async function claudeVersions(force) {
   if (!force && ccVersions.data && Date.now() - ccVersions.at < 600e3) return ccVersions.data;
-  const get = async (u, ms = 12000) => { const r = await fetch(u, { signal: AbortSignal.timeout(ms), headers: { Accept: "application/vnd.npm.install-v1+json" } }); if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); };
-  const channel = async (ch) => {
-    for (const b of ["https://downloads.claude.ai/claude-code-releases", "https://cccodroid.net/claude-code", "https://dl.cccodroid.net/claude-code"]) {
-      try { const v = (await get(`${b}/${ch}`, 8000)).trim(); if (/^\d+\.\d+\.\d+/.test(v)) return v; } catch {}
-    }
-    return "";
-  };
-  let versions = [], err = "";
-  for (const reg of ["https://registry.npmmirror.com", "https://registry.npmjs.org"]) {
-    try {
-      const j = JSON.parse(await get(`${reg}/@anthropic-ai%2fclaude-code-linux-arm64`, 20000));
-      versions = Object.keys(j.versions || {}).filter((v) => /^\d+\.\d+\.\d+$/.test(v));
-      if (versions.length) break;
-    } catch (e) { err = e.message; }
-  }
-  versions.sort((a, b) => cmpVer(b, a));
-  const [stable, latest] = await Promise.all([channel("stable"), channel("latest")]);
-  const data = { ok: versions.length > 0 || !!stable, versions, stable, latest, message: versions.length ? "" : tz("取不到版本列表：{err}", { err }) };
+  const manifestBase = process.env.HACHIMIA_AGY_MANIFEST_BASE || "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests";
+  const arch = process.arch === "arm64" ? "arm64" : "amd64";
+  const url = `${manifestBase}/android_${arch}.json`;
+  let latest = "", err = "";
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(12000) });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    if (typeof j?.version === "string" && /^\d+\.\d+\.\d+/.test(j.version)) latest = j.version.trim();
+  } catch (e) { err = e.message; }
+  const set = new Set();
+  if (latest) set.add(latest);
+  const dest = path.join(CFG.home, ".local", "share", "hachimia", "agy");
+  try {
+    for (const d of fs.readdirSync(dest)) if (/^\d+\.\d+\.\d+/.test(d)) set.add(d);
+  } catch {}
+  const versions = [...set].sort((a, b) => cmpVer(b, a));
+  const data = { ok: versions.length > 0, versions, stable: latest, latest, message: versions.length ? "" : tz("取不到 Antigravity CLI 版本列表：{err}", { err }) };
   if (data.ok) ccVersions = { at: Date.now(), data };
   return data;
 }

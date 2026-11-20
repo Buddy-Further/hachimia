@@ -603,11 +603,11 @@
     if (box.childElementCount) { box.classList.remove("hidden"); setupMode(true); return; }   // 接回去的首屏：卡片已经画过、监听也挂过
     box.innerHTML = `<p><strong>${esc(t("开始之前，先接上模型（两条路选一条）："))}</strong></p>
       <div class="setup-paths">
-        <div class="setup-path"><b>${esc(t("用 Claude 账户登录"))}</b>
-          <div class="tiny">${esc(t("有 Claude Pro / Max 订阅，或 Anthropic Console 账户：在浏览器里授权一次就好，不用填 Key。"))}</div>
+        <div class="setup-path"><b>${esc(t("用 Google Antigravity 账户登录"))}</b>
+          <div class="tiny">${esc(t("使用 Google 个人账户（Free / Pro / Ultra）或企业账号：在浏览器里授权一次就好，不用填 Key。"))}</div>
           <button class="btn sm" data-p="login">${esc(t("去登录"))}</button></div>
-        <div class="setup-path"><b>${esc(t("填 API Key"))}</b>
-          <div class="tiny">${esc(t("用 Anthropic 的 Key，或 DeepSeek、智谱 GLM、通义千问、Kimi 等兼容接口的 Key，按用量付费。"))}</div>
+        <div class="setup-path"><b>${esc(t("填 Gemini API Key"))}</b>
+          <div class="tiny">${esc(t("使用 Google AI Studio 的 Gemini API Key 或自定义兼容端点，按量计费。"))}</div>
           <button class="btn sm" data-p="key">${esc(t("去选接口、填 Key"))}</button></div>
       </div>
       <div class="tiny">${esc(t("两条路都在 ☰ → 设置 → 接口，以后随时能换。"))}</div>`;
@@ -618,8 +618,11 @@
       if (!p) return;
       openDrawer("settings");
       const sel = $("set-provider");
-      if (p === "login" && [...sel.options].some((o) => o.value === "anthropic")) {
-        sel.value = "anthropic";
+      if (p === "login" && [...sel.options].some((o) => o.value === "antigravity")) {
+        sel.value = "antigravity";
+        sel.dispatchEvent(new Event("change"));
+      } else if (p === "key" && [...sel.options].some((o) => o.value === "gemini-key")) {
+        sel.value = "gemini-key";
         sel.dispatchEvent(new Event("change"));
       }
       setTimeout(() => sel.scrollIntoView({ block: "center" }), 50);

@@ -224,15 +224,15 @@ public class BrowserPane extends LinearLayout {
             String own = ui.getString(night ? "accent_dark" : "accent_light", "");
             if (own.matches("#[0-9a-f]{6}")) return Color.parseColor(own);
         }
-        String skin = ui.getString("skin", "native");
+        String skin = ui.getString("skin", "shise");
         boolean qs = "qiusuo".equals(skin);
         String[] keys = { "bg", "card", "field", "line", "fg", "dim", "hint", "accent" };
         String own = "shise".equals(skin) ? ui.getString(night ? "pal_dark" : "pal_light", "")
             : "goucheng".equals(skin) && !night ? ui.getString("gc_pal_light", "") : "";   // 构成浅色调过纸色（MainActivity.gcPal）
         String[] v = own.matches("#[0-9a-f]{6}(,#[0-9a-f]{6}){7}") ? own.split(",")
-            : "shise".equals(skin)     // 还没算过（刚切过来、界面没起来）：M3 的默认紫
-            ? (night ? new String[] { "#141218", "#1d1b20", "#2b2930", "#49454f", "#e6e0e9", "#cac4d0", "#938f99", "#d0bcff" }
-                     : new String[] { "#fef7ff", "#f7f2fa", "#ece6f0", "#cac4d0", "#1d1b20", "#49454f", "#79747e", "#6750a4" })
+            : "shise".equals(skin)     // 还没算过（首次启动 / 界面没起来）：AGY 极光蓝莫奈色板
+            ? (night ? new String[] { "#101318", "#171c24", "#212834", "#3b4454", "#e3e8f0", "#b8c3d4", "#8693a6", "#8ab4f8" }
+                     : new String[] { "#f8faff", "#f0f4fc", "#e6edf9", "#c8d3e6", "#161b24", "#424c5c", "#6c788a", "#1a73e8" })
             : "goucheng".equals(skin)
             ? (night ? new String[] { "#151412", "#1f1d1a", "#2a2723", "#4a453d", "#f0e6d2", "#c9bea7", "#9a8f7c", "#f0473b" }
                      : new String[] { "#f3eee3", "#faf7ef", "#e9e2d2", "#cdc2aa", "#1a1a1a", "#4f483d", "#6b6255", "#c8211b" })

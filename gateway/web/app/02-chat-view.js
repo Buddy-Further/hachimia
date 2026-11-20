@@ -110,7 +110,7 @@
   function mkMsg(role, label, parent) {
     const el = document.createElement("div");
     el.className = `msg ${role}`;
-    const name = label || (role === "user" ? t("你") : role === "sys" ? t("命令") : "Claude");
+    const name = label || (role === "user" ? t("你") : role === "sys" ? t("命令") : "Antigravity");
     el.innerHTML = `<div class="who"><span class="dot"></span>${esc(name)}</div><div class="bubble" dir="auto"></div>`;
     (parent || liveEl).appendChild(el);
     return el.querySelector(".bubble");
@@ -449,13 +449,17 @@
 
   function summarizeTool(name, input) {
     if (!input) return "";
-    // Bash 带了说明（模型写的「停止抓包并统计目的地址」）：标题用说明，命令本身展开卡片在参数里看（群反馈 11-06）
-    if ((name === "Bash" || name === "PowerShell") && typeof input.description === "string" && input.description.trim()) {
+    // agy 的 run_command 会带 toolSummary；Bash 带了说明（模型写的「停止抓包并统计目的地址」）：标题优先用说明
+    if (typeof input.toolSummary === "string" && input.toolSummary.trim()) {
+      const d = input.toolSummary.trim();
+      return d.length > 90 ? d.slice(0, 90) + "…" : d;
+    }
+    if ((name === "Bash" || name === "PowerShell" || name === "run_command" || name === "run_shell") && typeof input.description === "string" && input.description.trim()) {
       const d = input.description.trim();
       return d.length > 90 ? d.slice(0, 90) + "…" : d;
     }
-    const v = input.command || input.file_path || input.path || input.pattern ||
-              input.url || input.prompt || input.description || input.skill || "";
+    const v = input.CommandLine || input.command || input.Path || input.file_path || input.path || input.pattern ||
+              input.query || input.url || input.Role || input.Prompt || input.prompt || input.description || input.skill || "";
     const s = typeof v === "string" ? v : JSON.stringify(v);
     return s.length > 90 ? s.slice(0, 90) + "…" : s;
   }
@@ -525,10 +529,12 @@
     let disposed = false;
     const card = document.createElement("div");
     card.className = "tool";
+    const cmdTitle = input && (typeof input.CommandLine === "string" ? input.CommandLine : typeof input.command === "string" ? input.command : "");
+    const openFile = input && (input.Path || input.file_path || input.notebook_path || "");
     card.innerHTML =
       `<div class="tool-head"><span class="chev">▶</span><span class="tool-name">${esc(name)}</span>` +
-      `<span class="tool-arg"${input && typeof input.command === "string" ? ` title="${esc(input.command.slice(0, 500))}"` : ""}>${esc(summarizeTool(name, input))}</span>` +
-      (input && /^\//.test(input.file_path || input.notebook_path || "") ? `<a class="fpath tool-open" href="#" data-path="${esc(input.file_path || input.notebook_path)}" title="${t("在查看器中打开")}">↗</a>` : "") +
+      `<span class="tool-arg"${cmdTitle ? ` title="${esc(cmdTitle.slice(0, 500))}"` : ""}>${esc(summarizeTool(name, input))}</span>` +
+      (/^\//.test(openFile) ? `<a class="fpath tool-open" href="#" data-path="${esc(openFile)}" title="${t("在查看器中打开")}">↗</a>` : "") +
       `<span class="tool-state ${live ? "run" : "unknown"}">${live ? t("运行中") : t("状态未知")}</span></div>` +
       `<div class="tool-body"></div>`;
     parent.appendChild(card);

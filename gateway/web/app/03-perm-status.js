@@ -37,22 +37,29 @@
     let h = "";
     switch (p.tool) {
       case "Bash":
-        h = `<pre class="perm-cmd">${esc(i.command || "")}</pre>` + (i.description ? `<div class="perm-sub">${esc(i.description)}</div>` : "");
+      case "run_command":
+      case "run_shell":
+        h = `<pre class="perm-cmd">${esc(i.CommandLine || i.command || "")}</pre>` + (i.toolSummary || i.description ? `<div class="perm-sub">${esc(i.toolSummary || i.description)}</div>` : "");
         break;
       case "Edit":
-        h = `<div class="perm-path">${esc(i.file_path || "")}</div>` + permDiffHtml(i.old_string, i.new_string);
+      case "edit_file":
+        h = `<div class="perm-path">${esc(i.Path || i.file_path || "")}</div>` + permDiffHtml(i.Target ?? i.old_string, i.Replacement ?? i.new_string);
         break;
       case "MultiEdit":
         h = `<div class="perm-path">${esc(i.file_path || "")}</div>` + (i.edits || []).slice(0, 8).map((e) => permDiffHtml(e.old_string, e.new_string)).join("");
         break;
-      case "Write": {
+      case "Write":
+      case "write_file": {
         // 内容很大时网关只发了前一段（inputCut 里是原来的行数，195-B.4）
-        const c = String(i.content || ""), ls = c.split("\n"), n = p.inputCut?.content?.lines || ls.length;
-        h = `<div class="perm-path">${esc(i.file_path || "")}</div><pre class="perm-diff">${ls.slice(0, 30).map((l) => `<span class="add">+ ${esc(l)}</span>`).join("\n")}${n > 30 ? "\n" + esc(t("…（共 {n} 行）", { n })) : ""}</pre>`;
+        const c = String(i.Content ?? i.content ?? ""), ls = c.split("\n"), n = p.inputCut?.content?.lines || ls.length;
+        h = `<div class="perm-path">${esc(i.Path || i.file_path || "")}</div><pre class="perm-diff">${ls.slice(0, 30).map((l) => `<span class="add">+ ${esc(l)}</span>`).join("\n")}${n > 30 ? "\n" + esc(t("…（共 {n} 行）", { n })) : ""}</pre>`;
         break;
       }
-      case "Read": case "Glob": case "Grep":
-        h = `<div class="perm-path">${esc(i.file_path || i.path || "")}</div>` + (i.pattern ? `<pre class="perm-cmd">${esc(i.pattern)}</pre>` : "");
+      case "Read": case "Glob": case "Grep": case "read_file":
+        h = `<div class="perm-path">${esc(i.Path || i.file_path || i.path || "")}</div>` + (i.pattern ? `<pre class="perm-cmd">${esc(i.pattern)}</pre>` : "");
+        break;
+      case "search_web":
+        h = `<pre class="perm-cmd">${esc(i.query || "")}</pre>`;
         break;
       case "NotebookEdit":
         h = `<div class="perm-path">${esc(i.notebook_path || "")}</div><pre class="perm-cmd">${esc(String(i.new_source || "").slice(0, 3000))}</pre>`;
@@ -104,6 +111,7 @@
     if (c === "device:clipboard") return t("要读剪贴板");
     if (c === "device:share") return t("要把文件分享到别的应用");
     if (c === "project") return t("这个项目带了打开就会自动运行的配置（钩子、MCP 服务器等）");
+    if (c === "acp") return t("Antigravity 工具请求授权：{w}", { w: g.what });
     // what 是「英文类别: 命中的那段路径」，界面只显示路径那段
     const w = String(g.what || ""), k = w.indexOf(": ");
     if (c.startsWith("prompt:")) return t("要改管着提示词或安全检查的文件：{w}", { w: k > 0 ? w.slice(k + 2) : w });

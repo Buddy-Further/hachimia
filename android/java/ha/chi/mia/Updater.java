@@ -966,7 +966,7 @@ final class Updater {
     }
 
     /** 发布证书（证书 DER 的 SHA-256，同 Apk.signer）。换钥匙时新旧都列上，过渡期后再删旧的 */
-    static final String[] SIGNERS = { "b70361595dd3d8d704dd210ed596fc577014ce2272884fb6980bf69623338fe0" };
+    static final String[] SIGNERS = { "d341c391a825bbb730397f009f7b8254b97a00db57cae254fa14aa3a2ff45a48" };
     private static boolean isSha(String h) { return h != null && h.matches("[0-9a-f]{64}"); }
 
     /** 下载来的 APK 必须是本应用、同一把签名钥匙。签名不同系统本来也拒装，这里先挡住，免得弹一个必失败的确认框 */
@@ -1079,7 +1079,7 @@ final class Updater {
         try {
             int rc = installer(claude).run(env.bin("bash").getPath(), new File(env.app, "scripts/install-agy.sh").getPath(), ver);
             refreshCurrent();
-            if (rc != 0) throw new IOException(Tr.t("install-claude.sh 返回 ") + rc);
+            if (rc != 0) throw new IOException(Tr.t("install-agy.sh 返回 ") + rc);
             env.claudeOffFlag().delete();        // 装上了：以后照常跟着更新走
             claude.set("uptodate", Tr.f("已更新到 {0}（下一轮对话起生效）", claude.current));
         } catch (Exception e) { claude.set("error", e.getMessage()); }

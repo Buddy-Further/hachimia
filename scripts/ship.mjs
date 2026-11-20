@@ -19,10 +19,11 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const HOME = process.env.HOME;
-const REPO = "greyoak111/cccodroid";
+const REPO = "greyoak111/hachimia";
 // 旧开发端（li.dsh.claudecli）的工具链目录在就用它；否则是 cccodroid 终端：aapt2 在 PATH，钥匙在 ~/.bldtools（和 build.sh 一致）
 const F = "/data/user/0/li.dsh.claudecli/files", P = `${F}/toolchain/dshtc/prefix`, OLD = fs.existsSync(P);
 const BLD = process.env.BLDTOOLS || (OLD ? `${F}/bldtools` : path.join(HOME, ".bldtools"));
@@ -103,7 +104,7 @@ const S = {
     // sh() 会 trim，第一行开头的空格没了，不能按固定 3 个字符切路径
     const dirty = git("status", "--porcelain").split("\n").filter(Boolean).map((l) => l.replace(/^[ MADRCUT?!]{1,2} /, "")).filter((f) => !allowed(f));
     if (dirty.length) throw new Error("工作区还有别的没提交的改动，先提交或收起：\n  " + dirty.join("\n  "));
-    for (const f of [`${BLD}/cccodroid-release.json`, `${BLD}/gh-token-cccodroid`]) if (!fs.existsSync(f)) throw new Error(`缺 ${f}`);
+    if (!fs.existsSync(`${BLD}/hachimia-release.json`)) throw new Error(`缺 ${BLD}/hachimia-release.json`);
     run("node", [path.join(ROOT, "scripts/test.mjs")], { cwd: ROOT });      // 网关测试不过就不发
     console.log(`  当前 ${cur.name}（${cur.code}）→ ${VER}`);
   },
@@ -152,7 +153,7 @@ const S = {
     state.sha = shaFile(APK); state.size = fs.statSync(APK).size;
     if (fs.readFileSync(APK).length !== state.size) throw new Error("APK 的 stat 大小和实际不一致（FUSE），等几秒重跑 verify");
     if (!DEV) {
-      if (!fs.existsSync(APK36)) throw new Error("没有 dist/cccodroid-36.apk，重打：--from build");
+      if (!fs.existsSync(APK36)) throw new Error("没有 dist/hachimia-36.apk，重打：--from build");
       const c = badging(APK36);
       if (c.pkg !== b.pkg || c.code !== b.code || c.name !== b.name || c.sdk !== 36) throw new Error(`36 包不对：${c.pkg} ${c.name}（${c.code}）targetSdk ${c.sdk}`);
       state.sha36 = shaFile(APK36); state.size36 = fs.statSync(APK36).size;
@@ -173,7 +174,7 @@ const S = {
   async check() {
     const tag = "v" + VER;
     const rel = JSON.parse(sh("gh", ["api", `repos/${REPO}/releases/tags/${tag}`]));
-    for (const [name, size, sha] of [["cccodroid.apk", state.size, state.sha], ["cccodroid-36.apk", state.size36, state.sha36]]) {
+    for (const [name, size, sha] of [["hachimia.apk", state.size, state.sha], ["hachimia-36.apk", state.size36, state.sha36]]) {
       const a = (rel.assets || []).find((x) => x.name === name);
       if (!a) throw new Error(`Release 上没有 ${name}`);
       if (a.size !== size) throw new Error(`Release 上的 ${name} ${a.size} 字节，本地 ${size}`);
@@ -192,11 +193,15 @@ const S = {
     console.log(`  ✓ ${rel.html_url}  下载哈希一致${rel.prerelease ? "（预发布）" : "，已是 Latest"}`);
   },
   async site() {
+    if (!process.env.HACHIMIA_SITE) {
+      console.log("  hachimia 暂无独立镜像站点，跳过 site 同步（更新直接走 GitHub Releases）");
+      return;
+    }
     // 1) 让 VPS 现在就重新生成（平时靠定时器，等不及）；钥匙只交路径，不读出来
     run("ssh", ["-F", "/dev/null", "-i", path.join(VPS_KEY, "id_ed25519"), "-o", "IdentitiesOnly=yes", "-o", `UserKnownHostsFile=${path.join(VPS_KEY, "known_hosts")}`,
       "-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=15", VPS, "systemctl start cccodroid-site.service"]);
-    // 2) 清 CF 上直链的缓存：不清的话 /dl/cccodroid.apk 还会给旧包（0.4.11 起每次都要手动清）
-    const files = ["/dl/cccodroid.apk", "/dl/cccodroid-36.apk", `/dl/v${VER}/cccodroid.apk`, `/dl/v${VER}/cccodroid-36.apk`, "/", "/known-issues"].map((f) => SITE + f);
+    // 2) 清 CF 上直链的缓存：不清的话 /dl/hachimia.apk 还会给旧包
+    const files = ["/dl/hachimia.apk", "/dl/hachimia-36.apk", `/dl/v${VER}/hachimia.apk`, `/dl/v${VER}/hachimia-36.apk`, "/", "/known-issues"].map((f) => SITE + f);
     run("cf", ["POST", "/zones/zone:cccodroid.net/purge_cache", JSON.stringify({ files })], { env: { ...process.env, CF_WRITE: "1" }, stdio: ["ignore", "ignore", "inherit"] });
     siteVerify();
   },
@@ -240,7 +245,7 @@ Object.assign(S, {
       spawnSync("sleep", ["2"]);
       sh("priv", ["am start -n ha.chi.mia/.MainActivity >/dev/null 2>&1"]);
       spawnSync("sleep", ["2"]);
-      if (/ResumedActivity.*cc\.codroid\//.test(sh("priv", ["dumpsys activity activities | grep ResumedActivity"]))) { console.log("  已打开"); return; }
+      if (/ResumedActivity.*ha\.chi\.mia\//.test(sh("priv", ["dumpsys activity activities | grep ResumedActivity"]))) { console.log("  已打开"); return; }
     }
     console.log("  没能自动打开，手动点开就好");
   },

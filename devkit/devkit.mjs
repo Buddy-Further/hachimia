@@ -30,10 +30,12 @@ import path from "node:path";
 import zlib from "node:zlib";
 import crypto from "node:crypto";
 import { execFileSync, execFile } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import * as xzNs from "./vendor/xz-decompress/dist/package/xz-decompress.js";
 const xz = xzNs.default ?? xzNs;
 
-const HERE = path.dirname(new URL(import.meta.url).pathname);
+const SELF = fileURLToPath(import.meta.url);
+const HERE = path.dirname(SELF);
 const MAN = JSON.parse(fs.readFileSync(path.join(HERE, "devkit.json"), "utf8"));
 const args = process.argv.slice(2);
 const cmd = args[0];
@@ -1009,7 +1011,7 @@ if (cmd === "modules") {
   // 逐块打包：每块一个子进程（各自的 tar / MANIFEST / first-run / 锁文件），版本按 plan 核对
   if (args.includes("--build")) for (const b of plan.blocks) {
     console.log(`\n━━ ${b.id}（${b.kind}，${b.packages.length} 包）`);
-    execFileSync(process.execPath, [new URL(import.meta.url).pathname, "build", "--block", b.id, "--plan", planFile,
+    execFileSync(process.execPath, [SELF, "build", "--block", b.id, "--plan", planFile,
       "--target", target, "--out", OUT, "--cache", CACHE], { stdio: "inherit" });
   }
   // 合并：跨块同一路径内容必须相同（共用小包是同一份文件）；alternatives 同组不能两块各给一个

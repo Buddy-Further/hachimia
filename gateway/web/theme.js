@@ -37,13 +37,16 @@
   const skinOf = (p) => (p.startsWith("qs-") ? "qiusuo" : p.startsWith("zy-") ? "zhuyue" : p.startsWith("gc-") ? "goucheng" : p.startsWith("ss-") ? "shise" : "native");
   const modeOf = (p) => p.replace(/^(qs|zy|gc|ss)-/, "");
   // 状态栏 / 导航栏底色要和页面底色一致（壳那边也有一份同样的表：BrowserPane.bg）
-  const BAR = { native: { dark: "#1f1e1d", light: "#faf9f5" }, qiusuo: { dark: "#151517", light: "#ffffff" }, zhuyue: { dark: "#111111", light: "#ffffff" }, goucheng: { dark: "#151412", light: "#f3eee3" }, shise: { dark: "#141218", light: "#fdf7ff" } };   // 拾色的两格由 shisePaint 按种子色改写
+  const BAR = { native: { dark: "#1f1e1d", light: "#faf9f5" }, qiusuo: { dark: "#151517", light: "#ffffff" }, zhuyue: { dark: "#111111", light: "#ffffff" }, goucheng: { dark: "#151412", light: "#f3eee3" }, shise: { dark: "#101318", light: "#f8faff" } };   // 拾色的两格由 shisePaint 按种子色改写
   const mq = window.matchMedia ? matchMedia("(prefers-color-scheme: dark)") : null;
   const app = () => (window.CCApp && typeof window.CCApp.nightMode === "function" ? window.CCApp : null);
 
-  let pref = "auto";
-  try { pref = localStorage.getItem(LS) || "auto"; } catch {}
-  if (!MODES.includes(pref)) pref = "auto";
+  // hachimia 默认外观：拾色（Material You 莫奈取色，AGY 极光蓝样式）+ 跟随系统深浅
+  const DEFAULT_PREF = "ss-auto";
+  const AGY_SEED = "#4285f4";
+  let pref = DEFAULT_PREF;
+  try { pref = localStorage.getItem(LS) || DEFAULT_PREF; } catch {}
+  if (!MODES.includes(pref)) pref = DEFAULT_PREF;
 
   let sysDark = null;   // 壳推过来的系统状态；null = 没推过
   function systemDark() {
@@ -174,16 +177,17 @@
     const [, C, H] = oklch(seed);
     // 容器色（气泡、选中块）彩度封顶：高彩度的种子（青、绿）在 90 色调上会艳得刺眼，M3 的容器本来就偏柔
     // 灰种子（黑白壁纸、灰色强调色）色相没有意义，补彩会落到红相整套发粉：彩度很低时就做成近乎无彩的一套
+    // AGY 拾色微调：中性色略带种子微冷调，深色底更深邃通透，主色明快清爽
     const gray = C < 0.02;
-    const p = tones(H, gray ? 0.012 : Math.max(C, 0.09)), pc = tones(H, gray ? 0.01 : Math.min(Math.max(C, 0.04), 0.07)), s = tones(H, gray ? 0.008 : 0.035), n = tones(H, 0.008), nv = tones(H, 0.018);
+    const p = tones(H, gray ? 0.012 : Math.max(C, 0.11)), pc = tones(H, gray ? 0.01 : Math.min(Math.max(C, 0.045), 0.075)), s = tones(H, gray ? 0.008 : 0.04), n = tones(H, gray ? 0.004 : 0.011), nv = tones(H, gray ? 0.008 : 0.02);
     const T = dark
-      ? { bg: n(6), bg2: n(10), bg3: n(12), bg4: n(17), c5: n(22), fg: n(90), fg2: nv(80), fg3: nv(62), strong: n(98), line: nv(30), ov: nv(30), outline: nv(60),
-          accent: p(80), onAccent: p(20), pc: pc(30), onPc: p(90), sc: s(30), onSc: s(90), dim: p(40),
+      ? { bg: n(4), bg2: n(8), bg3: n(11), bg4: n(15), c5: n(20), fg: n(92), fg2: nv(80), fg3: nv(62), strong: n(98), line: nv(26), ov: nv(28), outline: nv(56),
+          accent: p(78), onAccent: p(18), pc: pc(26), onPc: p(92), sc: s(26), onSc: s(92), dim: p(42),
           ok: OK(80), warn: WARN(80), tool: TOOL(80), purple: PURP(80), err: ERR(80), errBg: ERR(25), errLine: ERR(35), errFg: ERR(90) }
-      : { bg: n(98), bg2: n(96), bg3: n(94), bg4: n(92), c5: n(90), fg: n(10), fg2: nv(30), fg3: nv(50), strong: n(4), line: nv(88), ov: nv(80), outline: nv(50),
-          accent: p(40), onAccent: "#ffffff", pc: pc(90), onPc: p(10), sc: s(90), onSc: s(10), dim: p(80),
+      : { bg: n(99), bg2: n(96), bg3: n(94), bg4: n(91), c5: n(89), fg: n(10), fg2: nv(30), fg3: nv(48), strong: n(4), line: nv(88), ov: nv(80), outline: nv(50),
+          accent: p(42), onAccent: "#ffffff", pc: pc(92), onPc: p(12), sc: s(92), onSc: s(12), dim: p(78),
           ok: OK(40), warn: WARN(45), tool: TOOL(40), purple: PURP(40), err: ERR(40), errBg: ERR(92), errLine: ERR(80), errFg: ERR(25) };
-    T.tool2 = dark ? s(25) : s(95);   // 斜杠命令卡、系统消息：次要色的浅容器
+    T.tool2 = dark ? s(22) : s(95);   // 斜杠命令卡、系统消息：次要色的浅容器
     return T;
   }
   function shiseCss(T) {
@@ -254,7 +258,7 @@
   function shisePaint(skin) {
     let el = document.getElementById("shise-vars");
     if (skin !== "shise") { if (el && el.textContent) el.textContent = ""; return; }
-    const seed = accentPref() || wallSeed() || "#6750a4";
+    const seed = accentPref() || wallSeed() || AGY_SEED;
     if (seed !== SS.seed || !SS.light) {
       SS.seed = seed; SS.light = shiseScheme(seed, false); SS.dark = shiseScheme(seed, true);
       BAR.shise = { light: SS.light.bg, dark: SS.dark.bg };
@@ -276,7 +280,7 @@
   }
 
   function set(v) {
-    if (!MODES.includes(v)) v = "auto";
+    if (!MODES.includes(v)) v = DEFAULT_PREF;
     pref = v;
     try { localStorage.setItem(LS, v); } catch {}
     window.Theme.pref = v;

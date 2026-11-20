@@ -14,11 +14,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = path.join(ROOT, "gateway/web/changelog");
 const WN = path.join(ROOT, "android/assets/whatsnew");
-const REPO = "greyoak111/cccodroid";
+const REPO = "greyoak111/hachimia";
 
 const cmpVer = (a, b) => {
   const x = a.split(/[.-]/).map(Number), y = b.split(/[.-]/).map(Number);

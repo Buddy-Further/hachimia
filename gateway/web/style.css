@@ -2917,10 +2917,12 @@ html[data-skin="shise"] #btn-interject:active{background:var(--ss-pc);color:var(
 /* 用户气泡：主色容器，右下角收小（指向说话的人），字用 on-primary-container */
 html[data-skin="shise"] .msg.user .bubble{border:0;border-radius:20px 20px 6px 20px;color:var(--ss-on-pc)}
 html[data-skin="shise"][dir="rtl"] .msg.user .bubble{border-radius:20px 20px 20px 6px}
-/* 工具卡、子代理卡：tonal 卡片，无边 */
-html[data-skin="shise"] :is(.tool,.agc){border-color:transparent;border-radius:16px}
+/* 工具卡、子代理卡：AGY 拾色 tonal 卡片，细腻冷调微边提升层次 */
+html[data-skin="shise"] :is(.tool,.agc){border-color:color-mix(in srgb,var(--ss-ov) 45%,transparent);border-radius:16px}
 html[data-skin="shise"] .bubble :is(pre,blockquote,table){border-radius:12px}
+html[data-skin="shise"][data-theme="dark"] .bubble pre{border:1px solid color-mix(in srgb,var(--ss-ov) 40%,transparent)}
 html[data-skin="shise"] .bubble code{border-radius:6px}
+html[data-skin="shise"] #composer-inner:focus-within{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--accent) 55%,transparent)}
 /* 弹层与菜单：container 底 + 一档阴影（M3 的 elevation 2），菜单 12px、设置浮层 28px */
 html[data-skin="shise"] .pop-menu{background:var(--bg3);border-color:transparent;border-radius:12px;box-shadow:0 2px 6px 2px rgba(0,0,0,.15),0 1px 2px rgba(0,0,0,.3)}
 html[data-skin="shise"] .pop-menu button{border-radius:8px}

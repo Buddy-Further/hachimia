@@ -274,7 +274,7 @@ function restoreQueue(m, commit) {
 export function runEmit(run, ev) {
   if (run.ended) return;
   ev.runId = run.id;
-  if (ev.type === "delta" || ev.type === "thinking_delta") {
+  if (ev.type === "delta" || ev.type === "text_delta" || ev.type === "thinking_delta") {
     if (run.pend && run.pend.type === ev.type) run.pend.text += ev.text;
     else { flushPend(run); run.pend = ev; }
     if (!run.pendTimer) run.pendTimer = setTimeout(() => flushPend(run), 40);
@@ -308,11 +308,13 @@ function logCopy(ev) {
 // 有副作用的工具（改文件、跑命令；只读的 Read/Grep/WebFetch 不算）：中断时结果没回来，
 // 它到底执行了没有谁也不知道，得在「继续」卡上说清楚（FIND-039/049）。
 // MCP 工具副作用不可知，不列；漏报一个只是回到清单之外的旧行为，误报会吓人，所以只收确定的这几类
-const SIDE_TOOLS = new Set(["Bash", "PowerShell", "Write", "Edit", "MultiEdit", "NotebookEdit"]);
+const SIDE_TOOLS = new Set(["Bash", "PowerShell", "Write", "Edit", "MultiEdit", "NotebookEdit", "run_command", "run_shell", "write_file", "edit_file"]);
 /** 卡片上那一行：工具名 + 最能认出来的一句话（命令 / 文件路径） */
 function sideLabel(name, input) {
   const i = input && typeof input === "object" ? input : {};
-  const v = (typeof i.description === "string" && i.description.trim()) || i.command || i.file_path || i.notebook_path || "";
+  const v = (typeof i.toolSummary === "string" && i.toolSummary.trim())
+    || (typeof i.description === "string" && i.description.trim())
+    || i.CommandLine || i.command || i.Path || i.file_path || i.notebook_path || "";
   const s = typeof v === "string" ? v.replace(/\s+/g, " ").trim() : "";
   return name + (s ? " " + (s.length > 80 ? s.slice(0, 80) + "…" : s) : "");
 }
@@ -336,7 +338,7 @@ function record(run, ev) {
   // 下次启动的「继续」卡据此说清楚哪些操作的结果不知道 —— 点「继续」要不要重做，用户得先能判断
   const side = noteSide(run, ev);
   const last = run.log[run.log.length - 1];
-  if (last && last.type === ev.type && (ev.type === "delta" || ev.type === "thinking_delta")) last.text += ev.text;
+  if (last && last.type === ev.type && (ev.type === "delta" || ev.type === "text_delta" || ev.type === "thinking_delta")) last.text += ev.text;
   else if (last && last.type === "usage" && ev.type === "usage") run.log[run.log.length - 1] = { ...ev };
   else if (last && last.type === "phase" && ev.type === "phase") run.log[run.log.length - 1] = { ...ev };
   // 本轮输出 token 每秒一条，夹在增量中间合并不到：只留一条、原地改成最新的数（重放只要最后的值）
@@ -397,6 +399,9 @@ export function abortRun(run, { hold = true } = {}) {
   // 还没起进程（在等桥、拉模型清单、起端侧模型、核验程序…）：这些等待不全能中断，等它们回来才收尾的话，
   // 这段时间槽一直占着、界面一直「生成中」。现在就收尾；等待回来后 startRun 看到 aborted / ended 不再起进程（0.6.9 审计 200-7-07）
   if (!run.child && run.preSpawn) { log(`${runTag(run)} ⏹ 起进程前停止，立即收尾`); endRun(run, { durationMs: 0 }); return true; }
+  if (typeof run.cancelAcp === "function") {
+    try { run.cancelAcp(); } catch {}
+  }
   if (run.child) {
     const c = run.child;
     killTree(c);

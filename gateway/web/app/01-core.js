@@ -491,7 +491,7 @@ if (/[?&](t|k)=/.test(location.search) || /[#&]k=/.test(location.hash)) history.
   // ── 保存到（A4）：外壳有 CCApp.saveAs 时，下载 / 导出一律走系统「保存到」面板 ──
   //  不要存储权限，也不会把文件落进用户打不开的私有目录。结果由外壳回调 __ccSaved
   const canSaveAs = () => !!(window.CCApp && window.CCApp.saveAs);
-  const canShare = () => !!(state.serverStatus && state.serverStatus.product === "cccodroid");
+  const canShare = () => !!(state.serverStatus && (state.serverStatus.product === "hachimia" || state.serverStatus.product === "cccodroid"));
   function saveAs(path, mime) { window.CCApp.saveAs(path, path.split("/").pop(), mime || ""); }
   window.__ccSaved = guardHook("__ccSaved", (ok, msg) => {
     if (ok) return toast(t("已保存：{name}", { name: msg }));
