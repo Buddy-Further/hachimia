@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { execFile } from "node:child_process";
 import { CFG, PATHS, log } from "./config.mjs";
 import { isObj, loadState, saveState } from "./statefile.mjs";
 import { SETTINGS } from "./settings-store.mjs";
@@ -108,14 +109,86 @@ const LOGIN_MODELS = [
   ["claude-mythos-5", "Mythos 5（受限）"],
 ].map(([id, name]) => ({ id, name, context_window: 0, max_output_tokens: 0, input_modalities: ["text", "image"] }));
 
-// claude --effort 认的全部档位（claude --help 原文：low, medium, high, xhigh, max）。
-// 原生厂商的模型不带档位信息时就用这一套 —— 以前回落成 DeepSeek 的三档，medium/xhigh 凭空消失。
+// claude --effort 认的全部档位（claude --help 原文：low, medium, high, xhigh, max）；
+// agy acp thought_level 认 low / medium / high / xhigh。
 const CLAUDE_EFFORT = ["low", "medium", "high", "xhigh", "max"];
+const AGY_EFFORT = ["low", "medium", "high", "xhigh"];
 export function effortLevelsOf(model, p = PROVIDER) {
   // 清单可能来自用户可改的 ccapp-providers.json：supported_levels 不是数组时不能原样返回，
   // 否则调用方的 .includes/.join 会抛 TypeError（审查 11-05）
   const lv = model && model.effort && model.effort.supported_levels;
-  return Array.isArray(lv) ? lv : (p.nativeModels ? CLAUDE_EFFORT : ["low", "high", "max"]);
+  if (Array.isArray(lv)) return lv;
+  if (p && (p.group === "antigravity" || p.authStyle === "gemini-api-key")) return AGY_EFFORT;
+  return p.nativeModels ? CLAUDE_EFFORT : ["low", "high", "max"];
+}
+
+/** 解析 `agy models` 输出为归一化模型家族列表（将 -low/-medium/-high/-xhigh 归并到 effort.supported_levels） */
+export function parseAgyModelsOutput(raw) {
+  const clean = String(raw || "")
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l && !/Fetching available models|logging before google\.Init|please sign in/i.test(l));
+  const map = new Map();
+  const LV_ORDER = ["low", "medium", "high", "xhigh"];
+  for (const line of clean) {
+    const m = /^([A-Za-z0-9._:-]+)\s+(.+)$/.exec(line);
+    if (!m) continue;
+    const rawId = m[1], rawName = m[2].trim();
+    // 识别尾部思考档位后缀（仅当显示名也带 (Low|Medium|High|XHigh) 且非单档固定名如 gpt-oss-120b-medium 时归并）
+    const lm = /^(.+)-(low|medium|high|xhigh)$/.exec(rawId);
+    const nm = /^(.+?)\s*\((Low|Medium|High|XHigh)\)$/i.exec(rawName);
+    if (lm && nm && !/^gpt-oss-/i.test(rawId)) {
+      const baseId = lm[1], lv = lm[2].toLowerCase(), baseName = nm[1].trim();
+      let rec = map.get(baseId);
+      if (!rec) {
+        rec = {
+          id: baseId,
+          name: baseName,
+          context_window: 1048576,
+          max_output_tokens: 65536,
+          input_modalities: ["text", "image"],
+          effort: { supported_levels: [], default_level: "high" },
+        };
+        map.set(baseId, rec);
+      }
+      if (!rec.effort.supported_levels.includes(lv)) rec.effort.supported_levels.push(lv);
+    } else if (!map.has(rawId)) {
+      map.set(rawId, {
+        id: rawId,
+        name: rawName,
+        context_window: 1048576,
+        max_output_tokens: 65536,
+        input_modalities: ["text", "image"],
+        effort: null,
+      });
+    }
+  }
+  const out = [];
+  for (const rec of map.values()) {
+    if (rec.effort) {
+      rec.effort.supported_levels.sort((a, b) => LV_ORDER.indexOf(a) - LV_ORDER.indexOf(b));
+      rec.effort.default_level = rec.effort.supported_levels.includes("high")
+        ? "high"
+        : rec.effort.supported_levels[rec.effort.supported_levels.length - 1] || null;
+    }
+    out.push(rec);
+  }
+  return out;
+}
+
+function fetchAgyCliModels() {
+  const bin = PATHS.agy;
+  if (!bin || !fs.existsSync(bin)) return Promise.resolve([]);
+  return new Promise((resolve) => {
+    const env = { ...process.env, HOME: CFG.home, NO_COLOR: "1" };
+    delete env.GEMINI_API_KEY;
+    delete env.GOOGLE_GEMINI_BASE_URL;
+    execFile(bin, ["models"], { cwd: CFG.home, env, encoding: "utf8", timeout: 12000, maxBuffer: 2 << 20 }, (err, stdout, stderr) => {
+      if (err) return resolve([]);
+      resolve(parseAgyModelsOutput(`${stdout || ""}\n${stderr || ""}`));
+    });
+  });
 }
 
 // 从 result.modelUsage 学到的真实窗口（按模型 id 记，落盘）—— 官方账户拿不到 /models，只能这样补
@@ -307,7 +380,13 @@ async function fetchModelsOf(p, force, guess) {
   if (!force && c && c.at && Date.now() - c.at < 600000) return c.list;
 
   if (p.local) return keep(localModels(), false);   // 端侧：模型目录里有什么就是什么（每次现扫，刚放进去的文件马上能选）
-  if (isLoginMode(p)) return keep((p.fallbackModels && p.fallbackModels.length) ? p.fallbackModels : LOGIN_MODELS);
+  if (isLoginMode(p)) {
+    if (p.group === "antigravity" && PATHS.agy && fs.existsSync(PATHS.agy)) {
+      const liveList = await fetchAgyCliModels();
+      if (liveList.length) return keep(liveList);
+    }
+    return keep((p.fallbackModels && p.fallbackModels.length) ? p.fallbackModels : LOGIN_MODELS);
+  }
 
   // 写在配置里的内嵌清单（data:application/json,…）：本地解析，不发请求、不带密钥，网络那边的同主机限制不用放宽（#57）
   const inline = inlineModels(p.modelsUrl);
@@ -322,7 +401,9 @@ async function fetchModelsOf(p, force, guess) {
     try {
       const headers = {};
       if (key) {
-        if (p.modelsAuth === "x-api-key") {
+        if (p.modelsAuth === "x-goog-api-key" || p.authStyle === "gemini-api-key") {
+          headers["x-goog-api-key"] = key;
+        } else if (p.modelsAuth === "x-api-key") {
           headers["x-api-key"] = key;
           headers["anthropic-version"] = "2023-06-01";
         } else if (p.modelsAuth !== "none") {
@@ -351,7 +432,8 @@ async function fetchModelsOf(p, force, guess) {
     // 自定义端口没填清单地址：按接口地址猜几个同主机的 /models（第三方端口多半同时开着 OpenAI 形状的清单）。
     // 只试和接口同主机同端口的地址（照样过 modelsUrlOk），密钥不会被带去别处；猜中的记在这份配置名下，下次直接用
     const hit = GUESSED.get(sig);
-    for (const url of hit ? [hit] : guessModelsUrls(p.baseUrl)) {
+    const isGemini = p.authStyle === "gemini-api-key" || p.modelsAuth === "x-goog-api-key";
+    for (const url of hit ? [hit] : guessModelsUrls(p.baseUrl, { gemini: isGemini })) {
       if (!modelsUrlOk({ baseUrl: p.baseUrl, modelsUrl: url })) continue;
       const list = await pull(url);
       if (list) { GUESSED.set(sig, url); return keep(list); }
@@ -365,21 +447,26 @@ async function fetchModelsOf(p, force, guess) {
 }
 // 自定义端口猜中的清单地址（按配置指纹记；改了配置指纹就变，重新猜）
 const GUESSED = new Map();
-/** 由接口地址猜清单地址：去掉末尾的 /anthropic、/v1 之类，拼 /v1/models、/models；再试主机根上的 /v1/models */
-export function guessModelsUrls(baseUrl) {
+/** 由接口地址猜清单地址：Gemini 端点优先试 /v1beta/models；其余去掉末尾的 /anthropic、/v1 拼 /v1/models、/models */
+export function guessModelsUrls(baseUrl, { gemini = false } = {}) {
   let u; try { u = new URL(String(baseUrl || "")); } catch { return []; }
   const root = u.origin;
   let p = u.pathname.replace(/\/+$/, "");
   const out = [];
   const add = (x) => { if (!out.includes(x)) out.push(x); };
   for (let i = 0; i < 3; i++) {
-    const m = /\/(anthropic|claude|v1|messages)$/i.exec(p);
+    const m = /\/(anthropic|claude|v1beta|v1|messages)$/i.exec(p);
     if (!m) break;
     p = p.slice(0, -m[0].length);
+  }
+  if (gemini || /generativelanguage\.googleapis\.com/i.test(u.hostname)) {
+    add(root + p + "/v1beta/models");
+    add(root + "/v1beta/models");
   }
   add(root + p + "/v1/models");
   add(root + p + "/models");
   add(root + "/v1/models");
+  if (!gemini) add(root + p + "/v1beta/models");
   return out;
 }
 /** 分页的清单（Anthropic 官方 /v1/models 默认一页 20 个，带 has_more / last_id）：顺着 after_id 接着拉，最多 10 页。

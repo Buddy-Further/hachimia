@@ -32,9 +32,11 @@
         const st = p.login ? "" : (p.hasKey ? "" : (provEn() ? " · no key yet" : t(" · 未配 Key")));
         return `<option value="${esc(p.id)}">${tag}${esc(pLabel(p))}${st}</option>`;
       };
-      sel.innerHTML = ["antigravity", "claude", "third", "local", "custom"].filter((g) => g !== "local" || groups.local).map((g) =>
-        `<optgroup label="${GROUP_NAME[g]}">` + (groups[g] || []).map(opt).join("") +
-        (g === "custom" ? `<option value="__new__">${provEn() ? "+ Add a custom endpoint…" : t("＋ 新增自定义接口…")}</option>` : "") + `</optgroup>`).join("");
+      sel.innerHTML = ["antigravity", "claude", "third", "local", "custom"]
+        .filter((g) => g === "custom" || (groups[g] && groups[g].length))
+        .map((g) =>
+          `<optgroup label="${GROUP_NAME[g]}">` + (groups[g] || []).map(opt).join("") +
+          (g === "custom" ? `<option value="__new__">${provEn() ? "+ Add a custom endpoint…" : t("＋ 新增自定义接口…")}</option>` : "") + `</optgroup>`).join("");
       sel.value = state.provView;
       $("provider-count").textContent = t("{n} 个", { n: state.providers.length });
       const cur = state.providers.find((p) => p.id === r.active) || {};
@@ -170,8 +172,16 @@
     }));
   }
 
-  // ── 账户登录卡 ──
+  // ── 账户登录卡（Google 个人 / 企业 OAuth / Google Cloud ADC）──
   async function renderLoginCard(box, p) {
+    if (p.authStyle === "adc") {
+      box.innerHTML = `<div class="sub">${esc(pLabel(p))}</div>
+        <div class="prov-state ok">${t("使用本机 Google Cloud ADC（自动启用 AGY_ADC_AUTH=true）")}</div>
+        <div class="row-actions" id="login-actions">${useBtn(p)}</div>
+        <div class="tiny">${esc(pHint(p))}</div>`;
+      $("login-actions").onclick = (e) => { if (e.target.dataset?.act === "use") useProvider(p); };
+      return;
+    }
     box.innerHTML = `<div class="sub">${esc(pLabel(p))}</div>
       <div class="prov-state" id="login-state">${t("查询登录状态…")}</div>
       <div class="row-actions" id="login-actions"></div>
@@ -225,9 +235,9 @@
       if (mw[k] && (!mw[k].resetsAt || mw[k].resetsAt > now)) ws.push(["wk-" + k, t("每周 · {model}", { model: name }), mw[k]]);
     return ws.filter((x) => x[2]);
   }
-  /** 订阅额度：claude 每轮回报一次，网关记下最近一次（不另外查接口） */
+  /** 订阅额度：无 5h/周限额回报时（如 Google Antigravity 订阅）给出清晰提示，不再沿用旧 Claude 文案 */
   function quotaHtml(l) {
-    if (!l) return `<div class="quota tiny">${t("额度：发一条消息后显示（5 小时 / 每周）")}</div>`;
+    if (!l) return `<div class="quota tiny">${t("按 Google Antigravity 账户订阅档位使用，本机 Token 统计见「用量」页")}</div>`;
     const when = (sec) => {
       if (!sec) return "";
       const d = new Date(sec * 1000), now = new Date();
@@ -253,9 +263,10 @@
     let st = null;
     try { st = await api("/api/login/status"); } catch {}
     const box = $("quota-field"), l = st && st.loggedIn !== false && st.limits;
-    box.classList.toggle("hidden", !(st && st.loggedIn));
+    // 无 5h/周百分比限额（如 Google Antigravity 订阅）时收起旧限额槽，改由下方账本卡片展示真实 token 用量
+    box.classList.toggle("hidden", !(st && st.loggedIn && l));
     if (!l) {
-      $("quota-tiles").innerHTML = ""; $("quota-note").textContent = t("额度：发一条消息后显示（5 小时 / 每周）");
+      $("quota-tiles").innerHTML = ""; $("quota-note").textContent = "";
       // 退出 / 换了个还没额度数据的账户：用量看板和设置摘要里的周额度也得撤掉，别挂着上一个账户的数（#144-2）
       if (usDash.quota) { usDash.quota = null; usPaint(); paintSetUsage(); }
       return;
@@ -738,7 +749,7 @@
       <div class="prov-state" id="pc-result"></div>
       <div class="tiny">${t("端点")} <code>${esc(p.baseUrl)}</code>${p.defaultModel ? ` · ${t("默认模型")} <code>${esc(p.defaultModel)}</code>` : ""}
         ${webUrl(p.keyUrl) ? `<br><a href="${esc(p.keyUrl)}" target="_blank" rel="noopener">${t("去官网创建 Key ↗")}</a>` : ""}
-        <br>${esc(pHint(p) || t("Key 只存在本机应用私有目录，由 claude 的 apiKeyHelper 按需读取（不进环境变量），直连厂商的 Anthropic 兼容端点。"))}
+        <br>${esc(pHint(p) || t("Key 只存在本机应用私有目录，仅按需提供给 Antigravity CLI 连接对应端点。"))}
         <br>${t("建议到厂商控制台设个单日消费上限和余额提醒；怀疑 Key 泄漏了，就在那里作废、换个新的。")}</div>
       ${p.hasKey ? `<div id="pc-bill" class="bill"></div>` : ""}`;
     if (p.hasKey) loadBill(p);

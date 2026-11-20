@@ -488,25 +488,26 @@
     else $("en-sys").innerHTML = `<div class="prov-state err">${esc(t("查不到：{msg}（要先在上面开好 Shizuku）", { msg: r.message || t("失败") }))}</div>`;
   });
 
-  // ── 自定义接口卡（任何讲 Anthropic Messages 协议的端点）──
+  // ── 自定义接口卡（支持 Gemini 兼容端点与自定义代理）──
   function renderCustomCard(box, p) {
-    const v = p || { label: "", baseUrl: "", authStyle: "bearer", modelsUrl: "", defaultModel: "", fastModel: "" };
+    const v = p || { label: "", baseUrl: "", authStyle: "gemini-api-key", modelsUrl: "", defaultModel: "", fastModel: "" };
     box.innerHTML = `<div class="sub">${p ? esc(pLabel(p)) : t("新增自定义接口")}</div>
-      <input id="cc-label" placeholder="${t("名字（比如：公司网关）")}" value="${esc(v.label)}">
-      <input id="cc-base" placeholder="${t("端点地址，如")} https://example.com/anthropic" value="${esc(v.baseUrl)}">
+      <input id="cc-label" placeholder="${t("名字（比如：自建 Gemini 代理）")}" value="${esc(v.label)}">
+      <input id="cc-base" placeholder="${t("端点地址，如")} https://generativelanguage.googleapis.com" value="${esc(v.baseUrl)}">
       <select id="cc-auth">
-        <option value="bearer" ${v.authStyle !== "x-api-key" ? "selected" : ""}>${t("认证：Authorization: Bearer（多数第三方）")}</option>
-        <option value="x-api-key" ${v.authStyle === "x-api-key" ? "selected" : ""}>${t("认证：x-api-key（Anthropic 风格）")}</option>
+        <option value="gemini-api-key" ${v.authStyle === "gemini-api-key" ? "selected" : ""}>${t("认证：x-goog-api-key（Gemini / Antigravity）")}</option>
+        <option value="bearer" ${v.authStyle === "bearer" ? "selected" : ""}>${t("认证：Authorization: Bearer")}</option>
+        <option value="x-api-key" ${v.authStyle === "x-api-key" ? "selected" : ""}>${t("认证：x-api-key")}</option>
       </select>
-      <input id="cc-model" placeholder="${t("默认模型名（必填，claude 不认识第三方模型）")}" value="${esc(v.defaultModel || "")}">
+      <input id="cc-model" placeholder="${t("默认模型名（必填，如 gemini-3.8-flash）")}" value="${esc(v.defaultModel || "")}">
       <input id="cc-fast" placeholder="${t("快模型名（选填，子代理用；留空同上）")}" value="${esc(v.fastModel || "")}">
-      <input id="cc-models" placeholder="${t("模型清单地址（选填；不填会按接口地址自动查找 /models）")}" value="${esc(v.modelsUrl || "")}">
-      <input id="cc-ctx" inputmode="numeric" placeholder="${t("上下文窗口（选填，token 数，1k=1024；不填按 200k 算）")}" value="${v.contextWindow ? esc(String(v.contextWindow)) : ""}">
-      <textarea id="cc-more" rows="3" placeholder="${t("更多模型（选填，每行一个；名字后面可空一格写窗口，如 gpt-6.1-sol 1m）")}">${esc((v.extraModels || []).map((m) => m.id + (m.contextWindow ? " " + m.contextWindow : "")).join("\n"))}</textarea>
+      <input id="cc-models" placeholder="${t("模型清单地址（选填；Gemini 端点会自动探测 /v1beta/models）")}" value="${esc(v.modelsUrl || "")}">
+      <input id="cc-ctx" inputmode="numeric" placeholder="${t("上下文窗口（选填，token 数，如 1m；不填按默认算）")}" value="${v.contextWindow ? esc(String(v.contextWindow)) : ""}">
+      <textarea id="cc-more" rows="3" placeholder="${t("更多模型（选填，每行一个；名字后面可空一格写窗口，如 gemini-4-neon 1m）")}">${esc((v.extraModels || []).map((m) => m.id + (m.contextWindow ? " " + m.contextWindow : "")).join("\n"))}</textarea>
       <input id="pc-key" type="password" autocomplete="off"
         placeholder="${p && p.hasKey ? t("已保存（…{tail}），留空则不改", { tail: esc(p.keyTail) }) : t("粘贴 API Key")}">
       <label class="tiny" style="display:flex;gap:6px;align-items:flex-start"><input id="cc-inline" type="checkbox" style="width:auto;margin:2px 0 0"${v.inlineImages ? " checked" : ""}>
-        <span>${t("图片随消息一起发（兼容）：模型看不懂附图、照着乱编时再勾。有的第三方调用方式认不出 Read 读回来的图，勾上后附图会另带一份直接放进消息里。")}</span></label>
+        <span>${t("图片随消息一起发（兼容）：模型看不懂附图时勾选，附图会直接作为多模态块随消息发送。")}</span></label>
       <div class="row-actions">
         <button class="btn sm" data-act="save">${p ? t("保存") : t("添加")}</button>
         ${p ? `<button class="btn sm ghost" data-act="test">${t("测试")}</button>
@@ -515,20 +516,15 @@
       </div>
 ${p && p.plainHttp ? `<div class="tiny warn">${esc(t("这个地址是明文 http，密钥和对话内容会不加密地发到对方机器上；能用 https 就换成 https。"))}</div>` : ""}
       <div class="prov-state" id="pc-result"></div>
-            <div class="tiny">${t("要求对端讲 <b>Anthropic Messages</b> 协议（各家文档里写“Claude Code 接入”的那个地址）。")}
-        ${t("地址末尾不要带 <code>/v1</code>，claude 会自己补 <code>/v1/messages</code>。")}
-        <br>${t("建议到厂商控制台设个单日消费上限和余额提醒；怀疑 Key 泄漏了，就在那里作废、换个新的。")}</div>
-      <details class="cc-tpl"><summary>${t("示例模板（不是真实服务，换成服务商给你的）")}</summary>
-        <pre style="white-space:pre-wrap;word-break:break-all;margin:6px 0;font-size:12px;line-height:1.5">Base URL: https://api.example.com/anthropic
-Auth: Authorization: Bearer
-Default model: your-model-id
-Fast model: your-fast-model-id (optional)
-Models URL: https://api.example.com/v1/models (optional)
-Extra models (one per line):
-your-model-id 200k
-your-cheap-model 128k
-Context window: 200k (optional; only if the provider doesn't report one)</pre>
-        <div class="tiny">${t("第三方端口由你自己选择，应用不审核、不背书。对方能看到你的 Key、代码和对话，请只用你信任的服务；不要使用共享或转售的账户。")}</div>
+      <div class="tiny">${t("选择 <b>Gemini / Antigravity</b> 认证时会通过 <code>GOOGLE_GEMINI_BASE_URL</code> + <code>GEMINI_API_KEY</code> 驱动官方 <code>agy</code> CLI。")}
+        <br>${t("建议到服务商控制台设个消费上限；怀疑 Key 泄漏时请立即作废更换。")}</div>
+      <details class="cc-tpl"><summary>${t("示例模板（换成你自己的服务地址）")}</summary>
+        <pre style="white-space:pre-wrap;word-break:break-all;margin:6px 0;font-size:12px;line-height:1.5">Base URL: https://proxy.example.com
+Auth: x-goog-api-key (Gemini / Antigravity)
+Default model: gemini-3.8-flash
+Models URL: https://proxy.example.com/v1beta/models (optional)
+Context window: 1m</pre>
+        <div class="tiny">${t("第三方端口由你自己选择，应用不审核、不背书。对方能看到你的 Key、代码和对话，请只用你信任的服务。")}</div>
       </details>`;
     box.onclick = async (e) => {
       const act = e.target.dataset && e.target.dataset.act;

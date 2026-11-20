@@ -543,3 +543,130 @@ rl.on("line", (line) => {
     closeAcpSession("sess-full-wiring-1");
   }
 });
+
+test("providers：自定义 gemini-api-key 认证与纯 Antigravity 模式过滤 Claude 预设", async () => {
+  const { PATHS } = await import("../gw/config.mjs");
+  const { upsertProvider, providerById, isProviderVisible } = await import("../gw/providers.mjs");
+  const r = upsertProvider(null, {
+    label: "自建 Gemini",
+    baseUrl: "https://proxy.example.com",
+    authStyle: "gemini-api-key",
+    defaultModel: "gemini-3.8-flash",
+    apiKey: "AIzaFakeKey1234567890",
+  });
+  assert.equal(r.ok, true);
+  const saved = providerById(r.id);
+  assert.equal(saved.authStyle, "gemini-api-key");
+  assert.equal(saved.modelsAuth, "x-goog-api-key");
+
+  // 模拟纯 Antigravity 模式（有 agy、无 claude）：应隐藏 anthropic / deepseek 等无 Key 旧预设，保留 antigravity 与自定义接口
+  const fakeAgy = path.join(CFG.home, "fake-agy-bin");
+  fs.writeFileSync(fakeAgy, "#!/bin/sh\n", { mode: 0o755 });
+  const prevAgy = PATHS.agy, prevClaude = PATHS.claude;
+  PATHS.agy = fakeAgy;
+  PATHS.claude = path.join(CFG.home, "nonexistent-claude");
+  try {
+    assert.equal(isProviderVisible("antigravity", providerById("antigravity")), true);
+    assert.equal(isProviderVisible("gemini-key", providerById("gemini-key")), true);
+    assert.equal(isProviderVisible(r.id, saved), true);
+    assert.equal(isProviderVisible("anthropic", providerById("anthropic")), false);
+    assert.equal(isProviderVisible("anthropic-key", providerById("anthropic-key")), false);
+    assert.equal(isProviderVisible("deepseek", providerById("deepseek")), false);
+  } finally {
+    PATHS.agy = prevAgy;
+    PATHS.claude = prevClaude;
+  }
+});
+
+test("agy 接口协议：parseAgyModelsOutput 家族归并、customModelsConfig 同步、ADC 环境与 Gemini 清单猜测", async () => {
+  const { parseAgyModelsOutput, guessModelsUrls, effortLevelsOf } = await import("../gw/models.mjs");
+  const parsed = parseAgyModelsOutput(`
+ERROR: logging before google.Init: I1120 14:36:27.000 1 server_zerog.go:46] Initialized Android local timezone
+gemini-4-neon-high\tGemini 4 Neon (High)
+gemini-4-neon-xhigh\tGemini 4 Neon (XHigh)
+gemini-4-neon-low\tGemini 4 Neon (Low)
+claude-opus-5-5-medium\tClaude Opus 5.5 (Medium)
+claude-opus-5-5-high\tClaude Opus 5.5 (High)
+gpt-oss-120b-medium\tGPT-OSS 120B (Medium)
+`);
+  assert.equal(parsed.length, 3);
+  const neon = parsed.find((m) => m.id === "gemini-4-neon");
+  assert.deepEqual(neon.effort.supported_levels, ["low", "high", "xhigh"]);
+  assert.equal(neon.effort.default_level, "high");
+  const opus = parsed.find((m) => m.id === "claude-opus-5-5");
+  assert.deepEqual(opus.effort.supported_levels, ["medium", "high"]);
+  assert.ok(parsed.some((m) => m.id === "gpt-oss-120b-medium"));
+  assert.deepEqual(effortLevelsOf({}, { group: "antigravity", nativeModels: true }), ["low", "medium", "high", "xhigh"]);
+
+  const urls = guessModelsUrls("https://proxy.example.com/v1beta", { gemini: true });
+  assert.equal(urls[0], "https://proxy.example.com/v1beta/models");
+
+  // 自定义 Gemini 代理应把模型列表同步到 customModelsConfig，并支持 ADC 模式注入 AGY_ADC_AUTH
+  const settingsFile = path.join(CFG.home, ".gemini", "antigravity-cli", "settings.json");
+  const customProv = {
+    id: "custom-1", custom: true, login: false, authStyle: "gemini-api-key",
+    baseUrl: "https://my-gemini-proxy.example.com", defaultModel: "gemini-4-neon",
+    extraModels: [{ id: "gemini-3.8-flash" }], apiKey: "AIzaCustomKey999",
+  };
+  const envC = agyEnv({ provider: customProv });
+  assert.equal(envC.GEMINI_API_KEY, "AIzaCustomKey999");
+  assert.equal(envC.GOOGLE_GEMINI_BASE_URL, "https://my-gemini-proxy.example.com");
+  const stC = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
+  assert.equal(stC.modelProvider, "gemini");
+  assert.deepEqual(stC.customModelsConfig.customModels, [
+    { modelName: "gemini-api://my-gemini-proxy.example.com/models/gemini-4-neon", label: "gemini-4-neon" },
+    { modelName: "gemini-api://my-gemini-proxy.example.com/models/gemini-3.8-flash", label: "gemini-3.8-flash" },
+  ]);
+
+  const adcProv = { id: "antigravity-adc", group: "antigravity", login: true, authType: "agent-platform", authStyle: "adc" };
+  const envAdc = agyEnv({ provider: adcProv });
+  assert.equal(envAdc.AGY_ADC_AUTH, "true");
+  assert.equal(envAdc.GEMINI_API_KEY, undefined);
+  const stAdc = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
+  assert.equal("modelProvider" in stAdc, false);
+  assert.equal("customModelsConfig" in stAdc, false);
+});
+
+test("hachimia ACP：/compact 无正文无 compaction_update 时补发 compacting/compacted 并记录前后 token", async () => {
+  const { closeAcpSession, acpSessionFile } = await import("../gw/acp.mjs");
+  const tmp = fs.mkdtempSync(path.join(CFG.home, "hachimia-acp-cmp-"));
+  const mockBin = path.join(tmp, "mock-agy-cmp");
+  fs.writeFileSync(mockBin, `#!${process.execPath}
+const readline = require("node:readline");
+const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+const send = (o) => process.stdout.write(JSON.stringify(o) + "\\n");
+let n = 0;
+rl.on("line", (line) => {
+  const t = line.trim(); if (!t) return;
+  const msg = JSON.parse(t);
+  if (msg.method === "initialize") return send({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: 1, agentCapabilities: { loadSession: true } } });
+  if (msg.method === "session/new") return send({ jsonrpc: "2.0", id: msg.id, result: { sessionId: "sess-cmp-1" } });
+  if (msg.method === "session/set_mode" || msg.method === "session/set_config_option") return send({ jsonrpc: "2.0", id: msg.id, result: { ok: true } });
+  if (msg.method === "session/prompt") {
+    n++;
+    if (n === 1) {
+      send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-cmp-1", update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "ok" } } } });
+      send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-cmp-1", update: { sessionUpdate: "usage_update", used: 180000, size: 1048576 } } });
+      return send({ jsonrpc: "2.0", id: msg.id, result: { stopReason: "end_turn" } });
+    }
+    // 真实 agy acp 1.5.13 行为：/compact 只发 usage_update + end_turn，无正文无 compaction_update
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-cmp-1", update: { sessionUpdate: "usage_update", used: 22000, size: 1048576 } } });
+    return send({ jsonrpc: "2.0", id: msg.id, result: { stopReason: "end_turn", usage: { inputTokens: 20000, outputTokens: 400, totalTokens: 22000 } } });
+  }
+});
+`, { mode: 0o755 });
+
+  try {
+    const r1 = await runAcpTurn({ bin: process.execPath, args: [mockBin], cwd: CFG.workspace, env: process.env, prompt: "hello", keepAlive: true, emit: () => {} });
+    assert.equal(r1.ok, true);
+    const evs = [];
+    const r2 = await runAcpTurn({ bin: process.execPath, args: [mockBin], cwd: CFG.workspace, env: process.env, prompt: "/compact", sessionId: "sess-cmp-1", keepAlive: true, emit: (e) => evs.push(e) });
+    assert.equal(r2.ok, true);
+    assert.ok(evs.some((e) => e.type === "compacting"), "/compact 应发射 compacting");
+    assert.ok(evs.some((e) => e.type === "compacted" && e.pre === 180000 && e.post === 22000), "/compact 应补发 compacted 并带压缩前后 token");
+    const raw = fs.readFileSync(acpSessionFile(CFG.workspace, "sess-cmp-1"), "utf8");
+    assert.ok(raw.includes("上下文已压缩：180,000 → 22,000 tokens"), "压缩摘要应持久化到 jsonl 避免空白气泡");
+  } finally {
+    closeAcpSession("sess-cmp-1");
+  }
+});

@@ -666,6 +666,7 @@ export function translateAcpUpdate(params, state, emit) {
       if (post && post > 0) {
         state.usage = { ...(state.usage || {}), context_tokens: post };
       }
+      state.sawCompacted = true;
       emit({ type: "compacted", trigger: upd.trigger || "", pre, post });
     } else {
       emit({ type: "compacting" });
@@ -1221,9 +1222,13 @@ export async function runAcpTurn({
       }
     }
 
-    emit({ type: "phase", phase: "wait" });
+    const isCompactCmd = /^\/compact(?:\s|$)/i.test(String(prompt || "").trim());
+    const preCompactCtx = Number(poolEntry?.lastContextTokens) || 0;
+    if (isCompactCmd) emit({ type: "compacting" });
+    else emit({ type: "phase", phase: "wait" });
     // 从这里起的事件才算这一轮：之前的都是 agy 重放的历史（见 translateAcpUpdate 的守卫）
     state.promptSent = true;
+    state.sawCompacted = false;
     state.text = ""; state.thinking = ""; state.tools.clear();
     const promptRes = await client.request("session/prompt", {
       sessionId: activeSessionId,
@@ -1248,6 +1253,18 @@ export async function runAcpTurn({
       }
     }
 
+    // agy acp 1.5.13 执行 /compact 时不发 compaction_update 也不吐正文，只回 usage_update + end_turn：
+    // 主动补发 compacted 通知给前端刷新进度条与提示，避免显示空白气泡让人以为命令无效
+    if (isCompactCmd && !state.sawCompacted) {
+      const postCtx = Number(state.usage?.context_tokens) || null;
+      emit({
+        type: "compacted",
+        trigger: run?.auto ? "auto" : "manual",
+        pre: preCompactCtx > 0 ? preCompactCtx : null,
+        post: postCtx,
+      });
+    }
+
     // 若有工具在回合结束时还没收到终态 update，补发一次完成结果，避免前端卡片永远卡在「运行中」
     for (const tool of state.tools.values()) {
       if (!tool.done) {
@@ -1264,16 +1281,31 @@ export async function runAcpTurn({
     for (const tid of state.tools.keys()) state.knownToolIds.add(tid);
 
     // 持久化到本地 jsonl，供会话列表 / 历史查看 / 搜索 / 导出复用
-    persistAcpTurn({
-      cwd,
-      sessionId: activeSessionId,
-      userText: displayPrompt != null ? displayPrompt : prompt,
-      assistantText: state.text,
-      thinking: state.thinking,
-      tools: [...state.tools.values()],
-      model: activeModel,
-      usage: state.usage,
-    });
+    // /compact 无正文和工具时不写入空白对话行，仅保留最新上下文用量供重开会话读取
+    if (!isCompactCmd || state.text || state.tools.size) {
+      persistAcpTurn({
+        cwd,
+        sessionId: activeSessionId,
+        userText: displayPrompt != null ? displayPrompt : prompt,
+        assistantText: state.text,
+        thinking: state.thinking,
+        tools: [...state.tools.values()],
+        model: activeModel,
+        usage: state.usage,
+      });
+    } else if (state.usage?.context_tokens > 0) {
+      persistAcpAssistantOnly({
+        cwd,
+        sessionId: activeSessionId,
+        assistantText: preCompactCtx > 0
+          ? `上下文已压缩：${preCompactCtx.toLocaleString()} → ${state.usage.context_tokens.toLocaleString()} tokens`
+          : "上下文已压缩",
+        thinking: "",
+        tools: [],
+        model: activeModel,
+        usage: state.usage,
+      });
+    }
 
     emit({
       type: "result",
@@ -1326,6 +1358,7 @@ export async function runAcpTurn({
       entry.effort = effort;
       entry.permMode = permMode;
       entry.knownToolIds = state.knownToolIds;
+      entry.lastContextTokens = Number(state.usage?.context_tokens) || entry.lastContextTokens || 0;
       entry.bgTasks = bgTasks;
       entry.acpAgents = state.acpAgents || entry.acpAgents || new Map();
       entry.acpAgentsByConv = state.acpAgentsByConv || entry.acpAgentsByConv || new Map();

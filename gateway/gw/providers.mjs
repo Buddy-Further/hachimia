@@ -57,24 +57,37 @@ const PRESETS = {
     hint: "使用个人 Google 账户（Free / Pro / Ultra）登录 Antigravity CLI，通过官方 ACP 协议本地运行，网关不碰凭据。",
     hintEn: "Sign in with a personal Google account (Free / Pro / Ultra) via official Antigravity CLI ACP; the gateway never touches credentials.",
     fallbackModels: [
-      { id: "gemini-4-neon", name: "Gemini 4 Neon", context_window: 1048576, input_modalities: ["text", "image"] },
-      { id: "gemini-4-carbon", name: "Gemini 4 Carbon", context_window: 1048576, input_modalities: ["text", "image"] },
-      { id: "gemini-4-argon", name: "Gemini 4 Argon", context_window: 1048576, input_modalities: ["text", "image"] },
-      { id: "gemini-4-hydrogen", name: "Gemini 4 Hydrogen", context_window: 1048576, input_modalities: ["text", "image"] },
-      { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash", context_window: 1048576, input_modalities: ["text", "image"] },
-      { id: "gemini-3.1-pro", name: "Gemini 3.1 Pro", context_window: 1048576, input_modalities: ["text", "image"] },
+      { id: "gemini-4-neon", name: "Gemini 4 Neon", context_window: 1048576, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high", "xhigh"], default_level: "high" } },
+      { id: "gemini-4-carbon", name: "Gemini 4 Carbon", context_window: 1048576, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high"], default_level: "high" } },
+      { id: "gemini-4-argon", name: "Gemini 4 Argon", context_window: 1048576, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high"], default_level: "high" } },
+      { id: "gemini-4-hydrogen", name: "Gemini 4 Hydrogen", context_window: 1048576, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high", "xhigh"], default_level: "high" } },
+      { id: "gemini-pro-orchestrator-neon", name: "Orchestrator (Neon)", context_window: 1048576, input_modalities: ["text", "image"] },
+      { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash", context_window: 1048576, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high"], default_level: "high" } },
+      { id: "claude-opus-5-5", name: "Claude Opus 5.5", context_window: 1048576, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high"], default_level: "high" } },
+      { id: "claude-sonnet-5-5", name: "Claude Sonnet 5.5", context_window: 1048576, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high"], default_level: "high" } },
+      { id: "gpt-oss-120b-medium", name: "GPT-OSS 120B (Medium)", context_window: 1048576, input_modalities: ["text", "image"] },
     ],
   },
   "antigravity-enterprise": {
     label: "Google Cloud / Gemini Enterprise", labelEn: "Google Cloud / Gemini Enterprise", group: "antigravity", login: true, nativeModels: true,
     authType: "oauth-business", baseUrl: "https://aiplatform.googleapis.com", authStyle: "oauth", defaultModel: null,
     hint: "适用于企业 SSO / Google Cloud 项目（Gemini Enterprise 或 Pay As You Go），同样由官方 agy CLI 完成登录。",
-    hintEn: "For Gemini Enterprise / Google Cloud SSO or ADC authentication through the official agy CLI.",
+    hintEn: "For Gemini Enterprise / Google Cloud SSO authentication through the official agy CLI.",
     fallbackModels: [
-      { id: "gemini-4-neon", name: "Gemini 4 Neon", context_window: 1048576, input_modalities: ["text", "image"] },
-      { id: "gemini-4-carbon", name: "Gemini 4 Carbon", context_window: 1048576, input_modalities: ["text", "image"] },
-      { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash", context_window: 1048576, input_modalities: ["text", "image"] },
-      { id: "gemini-3.1-pro", name: "Gemini 3.1 Pro", context_window: 1048576, input_modalities: ["text", "image"] },
+      { id: "gemini-4-neon", name: "Gemini 4 Neon", context_window: 1048576, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high", "xhigh"], default_level: "high" } },
+      { id: "gemini-4-carbon", name: "Gemini 4 Carbon", context_window: 1048576, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high"], default_level: "high" } },
+      { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash", context_window: 1048576, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high"], default_level: "high" } },
+      { id: "claude-opus-5-5", name: "Claude Opus 5.5", context_window: 1048576, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high"], default_level: "high" } },
+    ],
+  },
+  "antigravity-adc": {
+    label: "Google Cloud ADC (Vertex / Agent Platform)", labelEn: "Google Cloud ADC (Agent Platform)", group: "antigravity", login: true, nativeModels: true,
+    authType: "agent-platform", baseUrl: "https://aiplatform.googleapis.com", authStyle: "adc", defaultModel: null,
+    hint: "使用本机 Application Default Credentials（自动注入 AGY_ADC_AUTH=true），适合无浏览器环境或 gcloud ADC 凭据。",
+    hintEn: "Uses local Google Cloud Application Default Credentials (exports AGY_ADC_AUTH=true) for Agent Platform / Vertex AI.",
+    fallbackModels: [
+      { id: "gemini-4-neon", name: "Gemini 4 Neon", context_window: 1048576, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high", "xhigh"], default_level: "high" } },
+      { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash", context_window: 1048576, input_modalities: ["text", "image"], effort: { supported_levels: ["low", "medium", "high"], default_level: "high" } },
     ],
   },
   "gemini-key": {
@@ -589,8 +602,23 @@ function loadProviders() {
   for (const [id, raw] of Object.entries(PROVIDERS_RAW.providers)) {
     if (!PRESETS[id] && raw && raw.baseUrl) providers[id] = composeProvider(id, raw);
   }
-  const active = providers[PROVIDERS_RAW.active] ? PROVIDERS_RAW.active : (PREFIX ? "anthropic" : "deepseek");
+  const active = providers[PROVIDERS_RAW.active] ? PROVIDERS_RAW.active : (PREFIX || isAgyOnlyMode() ? "antigravity" : "deepseek");
   return { active, providers };
+}
+
+/** 当前设备是否运行在纯 Antigravity 模式（有 agy、没有旧版 claude 可执行文件） */
+export function isAgyOnlyMode() {
+  return !!(PATHS.agy && fs.existsSync(PATHS.agy) && !(PATHS.claude && fs.existsSync(PATHS.claude)));
+}
+
+/** 判断某接口是否应该显示给当前客户端（纯 Antigravity 模式下隐藏无法驱动的 Claude/Anthropic-only 预设） */
+export function isProviderVisible(id, v) {
+  if (!v) return false;
+  if (!isAgyOnlyMode()) return true;
+  if (id === PROVIDER.id) return true;
+  if (v.group === "antigravity" || v.group === "local" || v.custom) return true;
+  if (String(v.apiKey || "").trim()) return true;
+  return false;
 }
 function saveProvidersRaw() {
   // 随机、独占且不跟随链接的临时文件；旧固定 .tmp 或碰撞文件都不能接收凭据。
@@ -699,8 +727,10 @@ export function upsertProvider(id, b, prepare) {
   for (const k of ["endpoint", "defaultModel", "fastModel"]) if (k in b) { if (str(b[k])) cur[k] = str(b[k]); else delete cur[k]; }
   if (!PRESETS[id]) {
     for (const k of ["label", "baseUrl", "modelsUrl"]) if (k in b) cur[k] = str(b[k]);
-    if ("authStyle" in b) cur.authStyle = b.authStyle === "x-api-key" ? "x-api-key" : "bearer";
-    cur.modelsAuth = cur.authStyle || "bearer";
+    if ("authStyle" in b) {
+      cur.authStyle = b.authStyle === "gemini-api-key" ? "gemini-api-key" : b.authStyle === "x-api-key" ? "x-api-key" : "bearer";
+    }
+    cur.modelsAuth = cur.authStyle === "gemini-api-key" ? "x-goog-api-key" : (cur.authStyle || "bearer");
     // 上下文窗口（自己声明）：上游清单不报窗口、或者根本没清单时，默认/快速模型就按它算（#67）
     if ("contextWindow" in b) {
       const n = Number(b.contextWindow);
@@ -807,18 +837,45 @@ export async function testProvider(id) {
   if (v.login) return { ok: false, message: tz("账户登录不用测密钥，看登录状态即可") };
   const key = String(v.apiKey || "").trim();
   if (!key) return { ok: false, message: tz("还没填密钥") };
-  const auth = v.authStyle === "x-api-key"
+  const isGemini = v.authStyle === "gemini-api-key" || v.modelsAuth === "x-goog-api-key";
+  const auth = isGemini
+    ? { "x-goog-api-key": key }
+    : v.authStyle === "x-api-key"
     ? { "x-api-key": key, "anthropic-version": "2023-06-01" }
     : { Authorization: `Bearer ${key}`, "anthropic-version": "2023-06-01" };
   // 拉清单用 modelsAuth，和平时拉清单（models.mjs fetchModels）同一套头：导入配置两者不同时以前会误报 401。
   // modelsAuth:"none" 的清单不带密钥，拉到了也说明不了密钥对不对，改成试发（0.6.9 审计 195-U.5）
-  const mAuth = v.modelsAuth === "x-api-key" ? { "x-api-key": key, "anthropic-version": "2023-06-01" }
+  const mAuth = v.modelsAuth === "x-goog-api-key" || isGemini ? { "x-goog-api-key": key }
+    : v.modelsAuth === "x-api-key" ? { "x-api-key": key, "anthropic-version": "2023-06-01" }
     : v.modelsAuth === "none" ? null : { Authorization: `Bearer ${key}` };
   try {
     let r, how, viaModels = false;
-    if (v.modelsUrl && mAuth && modelsUrlOk(v)) {
+    const effectiveModelsUrl = v.modelsUrl || (isGemini && v.baseUrl ? v.baseUrl.replace(/\/+$/, "") + "/v1beta/models" : "");
+    if (effectiveModelsUrl && mAuth && (v.modelsUrl ? modelsUrlOk(v) : true)) {
       how = "模型清单"; viaModels = true;
-      r = await fetchKeyed(v.modelsUrl, { headers: mAuth, signal: AbortSignal.timeout(15000) });
+      r = await fetchKeyed(effectiveModelsUrl, { headers: mAuth, signal: AbortSignal.timeout(15000) });
+      // 自定义 Gemini 代理如果没有 /v1beta/models（404），改用 Gemini generateContent 试发一条
+      if (isGemini && !v.modelsUrl && r.status === 404) {
+        try { await r.body?.cancel(); } catch {}
+        viaModels = false;
+        how = "试发一条消息";
+        const mid = encodeURIComponent(v.defaultModel || "gemini-3.8-flash");
+        r = await fetchKeyed(`${v.baseUrl.replace(/\/+$/, "")}/v1beta/models/${mid}:generateContent`, {
+          method: "POST",
+          headers: { ...auth, "content-type": "application/json" },
+          signal: AbortSignal.timeout(30000),
+          body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "hi" }] }], generationConfig: { maxOutputTokens: 1 } }),
+        });
+      }
+    } else if (isGemini) {
+      how = "试发一条消息";
+      const mid = encodeURIComponent(v.defaultModel || "gemini-3.8-flash");
+      r = await fetchKeyed(`${v.baseUrl.replace(/\/+$/, "")}/v1beta/models/${mid}:generateContent`, {
+        method: "POST",
+        headers: { ...auth, "content-type": "application/json" },
+        signal: AbortSignal.timeout(30000),
+        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "hi" }] }], generationConfig: { maxOutputTokens: 1 } }),
+      });
     } else {
       how = "试发一条消息";
       r = await fetchKeyed(v.baseUrl.replace(/\/+$/, "") + "/v1/messages", {
@@ -841,7 +898,7 @@ export async function testProvider(id) {
       const err = j && typeof j === "object" && (j.error || j.type === "error" || j.success === false) ? (j.error?.message || j.message || j.msg || (typeof j.error === "string" ? j.error : "")) : null;
       const shaped = j && typeof j === "object" && !Array.isArray(j) && err === null && (viaModels
         ? Array.isArray(j.data) || Array.isArray(j.models)
-        : j.type === "message" || Array.isArray(j.content));
+        : j.type === "message" || Array.isArray(j.content) || Array.isArray(j.candidates));
       if (shaped) {
         const n = viaModels ? normalizeModels(j).length : 0;
         return { ok: true, message: n ? tz("密钥有效（{how}，{n} 个模型）", { how, n }) : tz("密钥有效（{how}）", { how }) };
@@ -1154,7 +1211,9 @@ export function providerById(id) {
 }
 /** 各家能不能用（有钥匙 / 走登录 / 本机），给输入栏的模型面板按接口分组用。钥匙本身不出网关 */
 export function providerBrief() {
-  const ids = PROVIDERS_CFG ? Object.keys(PROVIDERS_CFG.providers) : [BUILTIN_PROVIDER.id];
+  const ids = PROVIDERS_CFG
+    ? Object.entries(PROVIDERS_CFG.providers).filter(([id, v]) => isProviderVisible(id, v)).map(([id]) => id)
+    : [BUILTIN_PROVIDER.id];
   if (!ids.includes(PROVIDER.id)) ids.unshift(PROVIDER.id);
   return ids.map((id) => {
     const p = providerById(id);
@@ -1212,7 +1271,9 @@ export async function routeProviders(req, res, u, p) {
   }
   // ── 厂商列表（供界面切换用）──
   if (req.method === "GET" && p === "/api/providers") {
-    const list = Object.entries(PROVIDERS_CFG.providers).map(([id, v]) => providerView(id, v));
+    const list = Object.entries(PROVIDERS_CFG.providers)
+      .filter(([id, v]) => isProviderVisible(id, v))
+      .map(([id, v]) => providerView(id, v));
     return sendJson(res, 200, {
       active: PROVIDER.id,
       configFile: PROVIDERS_FILE,

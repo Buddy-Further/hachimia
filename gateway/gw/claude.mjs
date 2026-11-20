@@ -705,22 +705,47 @@ export async function routeClaude(req, res, u, p) {
 
 
 // ── Antigravity CLI (agy) 环境与 ~/.gemini/antigravity-cli/settings.json 同步 ──
-// 按官方 Authenticate 文档：
+// 按官方 Authenticate & Settings 文档：
 //   · API Key 模式：在 ~/.gemini/antigravity-cli/settings.json 写 {"modelProvider":"gemini"}，
 //     并注入 GEMINI_API_KEY（以及可选 GOOGLE_GEMINI_BASE_URL）。
-//   · 订阅登录模式：移除 modelProvider 键并清掉 GEMINI_API_KEY，否则 agy 启动会报缺少 GEMINI_API_KEY。
+//   · 自定义 Gemini 端点：同步写入 customModelsConfig.customModels（gemini-api://<base>/models/<id>）。
+//   · 订阅登录 / ADC 模式：移除 modelProvider 与 customModelsConfig 并清掉 GEMINI_API_KEY。
 export function syncAgySettings(p = PROVIDER, key = keyOf(p)) {
   const dir = path.join(CFG.home, ".gemini", "antigravity-cli");
   const file = path.join(dir, "settings.json");
   let obj = {};
   try { obj = JSON.parse(fs.readFileSync(file, "utf8")) || {}; } catch {}
   if (typeof obj !== "object" || Array.isArray(obj)) obj = {};
-  const isApiKey = !!(p && !p.login && (p.authStyle === "gemini-api-key" || p.authType === "gemini-api-key" || p.group === "antigravity") && key);
+  const isApiKey = !!(p && !p.login && (p.authStyle === "gemini-api-key" || p.authType === "gemini-api-key" || p.group === "antigravity" || p.custom) && key);
   let changed = false;
   if (isApiKey) {
     if (obj.modelProvider !== "gemini") { obj.modelProvider = "gemini"; changed = true; }
+    // 自定义端点声明的模型写入官方 customModelsConfig，供 agy 识别非默认模型名
+    const baseClean = String(p.baseUrl || "").trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+    const isCustomEp = !!baseClean && !/^generativelanguage\.googleapis\.com$/i.test(baseClean);
+    const modelIds = [...new Set([
+      p.defaultModel,
+      p.fastModel,
+      ...((Array.isArray(p.extraModels) ? p.extraModels : []).map((m) => (typeof m === "string" ? m : m?.id))),
+    ].filter((x) => typeof x === "string" && x.trim()))];
+    if (isCustomEp && modelIds.length) {
+      const nextCustom = {
+        customModels: modelIds.map((id) => ({
+          modelName: `gemini-api://${baseClean}/models/${id}`,
+          label: id,
+        })),
+      };
+      if (JSON.stringify(obj.customModelsConfig) !== JSON.stringify(nextCustom)) {
+        obj.customModelsConfig = nextCustom;
+        changed = true;
+      }
+    } else if ("customModelsConfig" in obj) {
+      delete obj.customModelsConfig;
+      changed = true;
+    }
   } else {
     if ("modelProvider" in obj) { delete obj.modelProvider; changed = true; }
+    if ("customModelsConfig" in obj) { delete obj.customModelsConfig; changed = true; }
   }
   if (changed) {
     try {
@@ -754,7 +779,9 @@ export function agyEnv(o = {}) {
   delete env.GEMINI_API_KEY;
   delete env.GOOGLE_GEMINI_BASE_URL;
   delete env.AGY_ADC_AUTH;
-  if (key && !p.login) {
+  if (p.authType === "agent-platform" || p.authStyle === "adc") {
+    env.AGY_ADC_AUTH = "true";
+  } else if (key && !p.login) {
     env.GEMINI_API_KEY = key;
     if (p.baseUrl && !/^https:\/\/generativelanguage\.googleapis\.com\/?$/i.test(p.baseUrl)) {
       env.GOOGLE_GEMINI_BASE_URL = p.baseUrl;

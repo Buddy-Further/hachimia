@@ -14,11 +14,12 @@ import { RUNS, SESSIONS, rememberSession, runFlag, runList } from "./runs.mjs";
 import { SWALLOW_HOOKS } from "./streamfix.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
 import { clearIncomplete, markIncomplete } from "./incomplete.mjs";
-import { END_HOOKS, INTERRUPTED, QUEUE, RUN_LANE, RUN_SESSIONS, abortRun, clearInterrupted, endRun, holdLane, idleArm, idleDisarm, laneOfItem, permView, publishState, runEmit, runTag, saveRunMark, setInterrupted, setPermMode, sidForItem } from "./queue.mjs";
+import { END_HOOKS, INTERRUPTED, QUEUE, RUN_LANE, RUN_SESSIONS, abortRun, clearInterrupted, endRun, enqueue, holdLane, idleArm, idleDisarm, laneOfItem, permView, publishState, runEmit, runTag, saveRunMark, setInterrupted, setPermMode, sidForItem } from "./queue.mjs";
 import { LOCAL_CMD_RE, handleLocalCommand } from "./modelcmd.mjs";
 import { ensureLlama, localCustomActive, localRunAttach } from "./local.mjs";
 import { deviceMcpConfig, privCall, usageAdd, usageIsPrompt, usageMeter } from "./usage.mjs";
-import { TASKS_HINT, contextWindowOf, toolsHint, translate, hookBlocked } from "./stream.mjs";
+import { TASKS_HINT, contextWindowOf, effectiveAutoCompact, toolsHint, translate, hookBlocked } from "./stream.mjs";
+import { latestContextTokens } from "./transcript.mjs";
 import { archiveHint } from "./archive.mjs";
 import { autoTitle } from "./autotitle.mjs";
 import { SUBAGENT_HINT, agentBook, takeAgentNote, putAgentNote, onShared, privateAgentsBase } from "./agents.mjs";
@@ -54,6 +55,8 @@ import { runPromptFile, sealBlockMessage, sealCleanup, sealPrepare, sealRecheck 
 // 密钥、会自动执行的文件、破甲这些，批准一次只放行同一个工具对同一个目标，不能一把解锁同类所有文件（0.6.9 审计 199 11-07）
 const guardKey = (p) => (/^device:/.test(p.guard.cat) ? p.guard.cat : `${p.tool}\0${p.guard.cat}\0${p.guard.what}`);
 const HUMAN_TOOLS = new Set(["AskUserQuestion", "ExitPlanMode"]);
+// ACP 网关级自动压缩防抖记录：sessionId -> { at, post }，避免连续死循环压缩
+const ACP_AUTOCOMPACT = new Map();
 // 空闲中后台任务自己跑完、claude 却一直没起新一轮：这么久没动静才关 stdin 收尾（我们发过 stop_task 的 6 秒）。环境变量只给测试用
 const IDLE_CLOSE_MS = Number(process.env.CCAPP_IDLE_CLOSE_MS) || 120000;
 
@@ -132,8 +135,8 @@ export function execIntent(item, ctx) {
   // 项目默认的模型名是给项目那家的（没指定家就是全局那家），全局默认的是给全局那家的；对不上的不作数，走这家自己的默认
   const fallM = (P.id === (pdef0.provider || PROVIDER.id) ? pdef0.model : "") || (P.id === PROVIDER.id ? SETTINGS.model : "");
   let model = (item.model || (ownM != null ? ownM : fallM) || P.defaultModel || (P.explicit ? "" : CFG.model) || "").trim();
-  // 原生厂商只认 claude 自家的模型名；别家的名字（切厂商前留下的）宁可不传，交给 claude 自己选
-  if (P.nativeModels && model && !/^(gemini-|claude-|opus|sonnet|haiku|fable|auto|default|best)/i.test(model)) model = "";
+  // 原生厂商只认自家模型名；别家的名字（切厂商前留下的）宁可不传，交给 CLI 自己选
+  if (P.nativeModels && model && !/^(gemini-|claude-|gpt-|opus|sonnet|haiku|fable|auto|default|best)/i.test(model)) model = "";
   model = model.replace(/[\x00-\x1f\x7f]/g, "").slice(0, 200);
   if (!["low", "medium", "high", "xhigh", "max"].includes(effort)) effort = "";
   if (effort && !P.local) {
@@ -283,7 +286,22 @@ export async function startRun(item) {
     local[1] = local[1].toLowerCase();   // /MODEL 也是网关的（复核 v067b-4）
     log(`⌘ 本地命令 /${local[1]}`);   // 参数不记：诊断包说了不含消息内容（审查 v0.5.20 08-001）
     return handleLocalCommand(local[1], (local[2] || "").trim(),
-      (text, cmd) => endRun(run, { localCommand: cmd || local[1], resultText: text, durationMs: 0, costUsd: 0 }), run.sessionId, () => run.aborted);
+      async (text, cmd) => {
+        const resEnd = endRun(run, { localCommand: cmd || local[1], resultText: text, durationMs: 0, costUsd: 0 });
+        // 用户通过 /autocompact <n> 设了压缩线且当前会话上下文已超线：ACP 模式下立即自动排一次 /compact
+        const acLine = (cmd === "autocompact" || local[1] === "autocompact") && (local[2] || "").trim() ? effectiveAutoCompact() : null;
+        if (acLine && run.sessionId && (P.group === "antigravity" || P.authStyle === "gemini-api-key" || (PATHS.agy && fs.existsSync(PATHS.agy) && !fs.existsSync(PATHS.claude)))) {
+          try {
+            const sf = findSessionFile(run.sessionId);
+            const curCtx = sf ? await latestContextTokens(sf.file) : 0;
+            if (curCtx >= acLine) {
+              log(`🗜 /autocompact 立即触发压缩：会话 ${run.sessionId.slice(0, 8)} 当前 ${curCtx} ≥ 压缩线 ${acLine}`);
+              enqueue({ message: "/compact", sessionId: run.sessionId, auto: "autocompact" });
+            }
+          } catch {}
+        }
+        return resEnd;
+      }, run.sessionId, () => run.aborted);
   }
 
   const lost = lostProvider(item, sid0, pdef0);
@@ -300,7 +318,8 @@ export async function startRun(item) {
     emit({ type: "error", message: tr(LAST_LANG, tz("未配置 API 密钥。请在设置里填入 {name} 的密钥。", { name: P.label || P.id })) });
     return endRun(run, { failed: true });
   }
-  const useAcp = !P.local && (P.group === "antigravity" || P.authStyle === "gemini-api-key" || P.authType === "oauth-personal" || P.authType === "oauth-business" || process.env.CCAPP_PROTOCOL === "acp");
+  const agyOnly = !!(PATHS.agy && fs.existsSync(PATHS.agy) && !(PATHS.claude && fs.existsSync(PATHS.claude)));
+  const useAcp = !P.local && (agyOnly || P.group === "antigravity" || P.authStyle === "gemini-api-key" || P.authStyle === "adc" || P.authType === "oauth-personal" || P.authType === "oauth-business" || P.authType === "agent-platform" || process.env.CCAPP_PROTOCOL === "acp");
   const cliBin = useAcp ? (PATHS.agy || PATHS.claude) : PATHS.claude;
   if (!fs.existsSync(cliBin)) {
     emit({ type: "error", message: tr(LAST_LANG, useAcp
@@ -494,13 +513,33 @@ export async function startRun(item) {
       }
       if (!P.login) billAfterRun(P.id);
     }
-    return endRun(run, {
+    const endRes = endRun(run, {
       failed: !acpRes.ok && !run.aborted,
       resultText: acpRes.resultText || "",
       durationMs: acpRes.durationMs || (Date.now() - tBoot),
       costUsd: 0,
       ...(usageOut ? { usage: usageOut } : {}),
     });
+    // ACP 网关级自动压缩（agy 不读取 CLAUDE_CODE_AUTO_COMPACT_WINDOW，由网关按用户设定的压缩线自动发 /compact）
+    const usedCtx = Number(usageOut?.context_tokens) || 0;
+    const isCompactMsg = /^\/compact(?:\s|$)/i.test(message.trim());
+    if (acpRes.ok && !run.aborted && run.sessionId) {
+      if (isCompactMsg || run.auto === "autocompact" || run.auto === "idle") {
+        ACP_AUTOCOMPACT.set(run.sessionId, { at: Date.now(), post: usedCtx });
+      } else if (!message.trim().startsWith("/") && !run.auto) {
+        const acLine = effectiveAutoCompact();
+        const prevAc = ACP_AUTOCOMPACT.get(run.sessionId);
+        const cooled = !prevAc || (Date.now() - prevAc.at > 60000) || (usedCtx > (prevAc.post || 0) + 10000);
+        if (acLine && usedCtx >= acLine && cooled) {
+          log(`🗜 ACP 自动压缩触发：会话 ${run.sessionId.slice(0, 8)} 上下文 ${usedCtx} ≥ 压缩线 ${acLine}`);
+          ACP_AUTOCOMPACT.set(run.sessionId, { at: Date.now(), post: usedCtx });
+          enqueue({ message: "/compact", sessionId: run.sessionId, auto: "autocompact" });
+        } else if (usedCtx > 0) {
+          idleArm(run.sessionId, { mainCtx: usedCtx, cache1h: true });
+        }
+      }
+    }
+    return endRes;
   }
 
   const argv = [

@@ -155,11 +155,20 @@
     const a = it.dataset.act;
     if (a === "new") return $("btn-new").click();
     if (a === "caps") return openPage("caps");
+    if (a === "usage") return openPage("usage");
     if (a === "attach") return pickFiles();
     if (a === "camera") return $("cam-input").click();
     if (a === "shot" || a === "shot5") return screenshot(a === "shot5" ? 5 : 0);
     if (a === "browse") return openFiles();
     if (a === "model" || a === "effort") return openModelPicker();
+    if (a === "compact") return send("/compact");
+    // 带参数的 Antigravity 工作流斜杠命令：填入输入框并聚焦，方便补充目标/需求再发送
+    if (["plan", "goal", "grill-me", "teamwork", "boost", "schedule", "learn"].includes(a)) {
+      inputEl.value = "/" + a + " " + (inputEl.value ? inputEl.value.trimStart() : "");
+      autoGrow(); syncInterject(); inputEl.focus();
+      try { const p = inputEl.value.length; inputEl.setSelectionRange(p, p); } catch {}
+      return;
+    }
     send("/" + a);
   });
 

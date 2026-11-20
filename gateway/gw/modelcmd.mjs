@@ -64,7 +64,8 @@ export async function handleLocalCommand(name, arg, reply, sid, stopped = () => 
     const persisted = saveSettings();
     log(`⌘ /autocompact → ${n || "(默认)"}`);
     return reply(
-      (n ? `自动压缩线已设为 **${fmt(n)} tokens**，下一轮起生效。` : "自动压缩线已恢复默认（由 Antigravity 按模型窗口决定），下一轮起生效。") +
+      (n ? `自动压缩线已设为 **${fmt(n)} tokens**。上下文达到该阈值时将自动执行 \`/compact\`（若当前已超过会立即触发）。`
+        : "自动压缩线已恢复默认（由 Antigravity 按模型窗口决定）。") +
       (n && win && n > win ? `\n\n> **注意**：比当前模型的窗口（${fmt(win)}）还大，实际会先撞上窗口上限。` : "") +
       (persisted ? "" : "\n\n> **注意**：设置没能写入磁盘，只在本次运行内生效；重启后会恢复。"),
       "autocompact"

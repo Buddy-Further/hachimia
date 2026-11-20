@@ -827,11 +827,13 @@
         if (ev.cid) view.cidRuns.set(ev.cid, ev.runId);
         view.lastRunId = ev.runId;
         if (runViews.has(ev.runId)) return;
-        if (ev.auto !== "idle" && ev.auto !== "bg") { renderUser(ev.text, liveEl); tagRun(liveEl.lastElementChild, ev.runId); }
+        if (ev.auto !== "idle" && ev.auto !== "bg" && ev.auto !== "autocompact") { renderUser(ev.text, liveEl); tagRun(liveEl.lastElementChild, ev.runId); }
         const av = AssistantView(liveEl, true);
         tagRun(av.msgEl, ev.runId);
-        if (ev.text && ev.text.trim().startsWith("/")) av.msgEl.classList.add("sys");
-        if (ev.auto === "idle") av.note(t("会话闲置快一小时，提示缓存快过期了，先自动压缩上下文，下一条消息就不用把整段历史重算一遍。不需要可以在设置里关掉。"), true);
+        // 仅本地设置/压缩类短命令用 .sys 样式；/plan /goal /grill-me /teamwork /boost 等工作流命令保持正常对话气泡
+        if (ev.text && /^\/(model|models|effort|autocompact|compact|login)\b/i.test(ev.text.trim())) av.msgEl.classList.add("sys");
+        if (ev.auto === "idle") av.note(t("会话闲置快一小时，先自动压缩上下文以节省后续开销。不需要可以在设置里关掉。"), true);
+        if (ev.auto === "autocompact") av.note(t("上下文已达到自动压缩线，正在自动压缩历史…"), true);
         if (ev.auto === "bg") av.note(t("后台任务完成，已自动回报："), true);
         const timer = RunTimer(ev.startedAt);
         timer.attach(av);
@@ -839,7 +841,7 @@
         runViews.set(ev.runId, { av, startedAt: ev.startedAt, timer, out: 0 });
         statLive(ev.runId);
         // 只有本窗口刚发的消息才强制回到底部；别的会话 / 别的窗口开始的轮次别把正在翻历史的人拽走（0.6.9 审计 196-聊天.4）
-        scrollDown(!busReplay && ((!!ev.cid && view.cids.has(ev.cid)) || ev.auto === "bg"));
+        scrollDown(!busReplay && ((!!ev.cid && view.cids.has(ev.cid)) || ev.auto === "bg" || ev.auto === "autocompact"));
         return;
       }
       case "inject": {
