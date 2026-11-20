@@ -9,7 +9,12 @@ import { agyEnv, syncAgySettings } from "../gw/claude.mjs";
 import { normalizeModels } from "../gw/models.mjs";
 
 // 构造一个模拟官方 `agy acp` 行为的 stdio JSON-RPC 2.0 桩脚本
+// 每次调用生成唯一会话 id：acp.mjs 落盘是 appendFileSync 永不截断，
+// 同池的 fix-b-acp-turn mock 用固定 "agy-sess-001" 先写 6 行；
+// 若本用例也用固定 id，断言 lines.length === 4 会读到 6+4=10 行而挂。
+// 唯一 id 让本用例的 jsonl 文件天然私有，断言一字不动。
 function makeMockAgy(dir) {
+  const sid = "agy-sess-e2e-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
   const script = path.join(dir, "mock-agy");
   fs.writeFileSync(script, `#!${process.execPath}
 const readline = require("node:readline");
@@ -43,10 +48,10 @@ rl.on("line", (line) => {
   if (msg.method === "session/new") {
     send({
       jsonrpc: "2.0", id: msg.id,
-      result: { sessionId: "agy-sess-001", models: { currentModelId: "gemini-4-neon", availableModels: [{ modelId: "gemini-4-neon" }] } },
+      result: { sessionId: "${sid}", models: { currentModelId: "gemini-4-neon", availableModels: [{ modelId: "gemini-4-neon" }] } },
     });
     // 官方 1.5.13 恢复会话时会先重放历史消息：这些不算本轮正文
-    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "agy-sess-001", update: { sessionUpdate: "agent_message", messageId: "msg-old-1", content: { type: "text", text: "【历史】之前聊过的东西" } } } });
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "${sid}", update: { sessionUpdate: "agent_message", messageId: "msg-old-1", content: { type: "text", text: "【历史】之前聊过的东西" } } } });
     return;
   }
   if (msg.method === "session/set_config_option" || msg.method === "session/set_mode") {
@@ -85,12 +90,12 @@ rl.on("line", (line) => {
   }
 });
 `, { mode: 0o755 });
-  return script;
+  return { script, sessionId: sid };
 }
 
 test("hachimia ACP 端到端流程：握手、认证、工具 ok/text 契约、权限回调与含 tool_result 的 jsonl 落盘", async () => {
   const tmp = fs.mkdtempSync(path.join(CFG.home, "hachimia-acp-"));
-  const mockBin = makeMockAgy(tmp);
+  const { script: mockBin, sessionId: e2eSid } = makeMockAgy(tmp);
   const events = [];
   const res = await runAcpTurn({
     bin: process.execPath,
@@ -113,7 +118,7 @@ test("hachimia ACP 端到端流程：握手、认证、工具 ok/text 契约、�
   });
 
   assert.equal(res.ok, true, res.error || JSON.stringify(events));
-  assert.equal(res.sessionId, "agy-sess-001");
+  assert.equal(res.sessionId, e2eSid);
   assert.equal(res.resultText, "已完成执行！");
   assert.ok(!events.some((e) => e.type === "text_delta" && String(e.text).includes("历史")), "重放的历史不能进本轮正文");
   assert.ok(events.some((e) => e.type === "init" && e.protocol === "acp"));
@@ -135,7 +140,7 @@ test("hachimia ACP 端到端流程：握手、认证、工具 ok/text 契约、�
 
   // 验证本地 jsonl 持久化文件包含 tool_use + tool_result + assistant，且 transcriptItems 可完整还原
   const projDir = path.join(PATHS.projects, String(CFG.workspace).replace(/[^A-Za-z0-9]/g, "-"));
-  const jsonlPath = path.join(projDir, "agy-sess-001.jsonl");
+  const jsonlPath = path.join(projDir, e2eSid + ".jsonl");
   assert.ok(fs.existsSync(jsonlPath), "ACP transcript jsonl should be persisted");
   const lines = fs.readFileSync(jsonlPath, "utf8").trim().split("\n").map((l) => JSON.parse(l));
   assert.equal(lines.length, 4);
@@ -147,7 +152,7 @@ test("hachimia ACP 端到端流程：握手、认证、工具 ok/text 契约、�
 
 test("hachimia ACP 会话常驻保活池：同会话第二轮直接复用进程不重走 initialize", async () => {
   const tmp = fs.mkdtempSync(path.join(CFG.home, "hachimia-acp-pool-"));
-  const mockBin = makeMockAgy(tmp);
+  const mockBin = makeMockAgy(tmp).script;
   try {
     const r1 = await runAcpTurn({
       bin: process.execPath,
