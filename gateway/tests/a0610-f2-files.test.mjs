@@ -160,12 +160,17 @@ test("C.7 共享存储没权限时回 403 和能照着做的提示，而不是 4
   const f = path.join(dir, "a.txt");
   fs.writeFileSync(f, "x");
   fs.chmodSync(dir, 0o000);
+  // root 下 chmod 000 拦不住 realpathSync：对 deny-dir 之下的路径注入 EACCES，
+  // safeFilePath 走同一条 deniedCode → 403 分支。只匹配该目录之下，finally 撤掉。
+  const origRealpath = fs.realpathSync;
+  fs.realpathSync = (p, ...a) => { if (String(p) === dir || String(p).startsWith(dir + path.sep)) throw Object.assign(new Error("EACCES: permission denied, " + p), { code: "EACCES" }); return origRealpath(p, ...a); };
   try {
     const r = await raw(`/api/file?path=${q(f)}`);
     assert.equal(r.status, 403);
     const j = await r.json();
     assert.match(String(j.message || ""), /所有文件访问/);
   } finally {
+    fs.realpathSync = origRealpath;
     fs.chmodSync(dir, 0o700);
     fs.rmSync(dir, { recursive: true, force: true });
   }

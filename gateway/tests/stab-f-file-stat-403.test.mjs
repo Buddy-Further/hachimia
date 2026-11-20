@@ -28,6 +28,10 @@ test("FIND-029 没有权限的路径回 403 和权限提示，不再是 404", as
   const f = path.join(locked, "a.txt");
   fs.writeFileSync(f, "x");
   fs.chmodSync(locked, 0o000);
+  // root 下 chmod 000 拦不住 realpathSync：对 locked 之下的路径注入 EACCES，
+  // stat 路由与 safeFilePath 走同一条 deniedCode → 403 分支。只匹配 locked 之下，finally 撤掉。
+  const origRealpath = fs.realpathSync;
+  fs.realpathSync = (p, ...a) => { if (String(p) === locked || String(p).startsWith(locked + path.sep)) throw Object.assign(new Error("EACCES: permission denied, " + p), { code: "EACCES" }); return origRealpath(p, ...a); };
   try {
     const r = await get("/api/file/stat?path=" + encodeURIComponent(f));
     assert.equal(r.status, 403, JSON.stringify(r.body));
@@ -37,6 +41,7 @@ test("FIND-029 没有权限的路径回 403 和权限提示，不再是 404", as
     const rd = await get("/api/file?path=" + encodeURIComponent(f));
     assert.equal(rd.status, 403);
   } finally {
+    fs.realpathSync = origRealpath;
     fs.chmodSync(locked, 0o755);
   }
   const ok = await get("/api/file/stat?path=" + encodeURIComponent(f));
