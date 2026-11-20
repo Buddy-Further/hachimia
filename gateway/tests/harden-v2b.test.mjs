@@ -127,7 +127,7 @@ test("pkg 落盘：目录经链接指到前缀外面就不往里放；指回前�
 test("自定义组件：解压按实际写入量封顶、只读目录删得掉、命令目录里的 FIFO 不卡死", async () => {
   const { _customForTest: C } = await import("../gw/custom.mjs");
   const base = fs.mkdtempSync(path.join(CFG.home, "cust-"));
-  // 登记的大小能造假：不看包里说多少，只看分区实际少了多少
+  // 登记的大小能造假：不看包里说多少，只看目标目录树实际写了多少（runCapped 按目录树已分配字节 + 文件数计量）
   const out = path.join(base, "x"); fs.mkdirSync(out);
   const t0 = Date.now();
   // sh、head 用绝对路径：runCapped 用的是终端那套 PATH（假 PREFIX/bin、/system/bin），Linux CI 上两样都找不到，
@@ -142,10 +142,12 @@ test("自定义组件：解压按实际写入量封顶、只读目录删得掉�
   const ok = await C.runCapped(SH, ["-c", `${HEAD} -c 1024 /dev/zero > ${out}/small`], out, 16 << 20);
   assert.equal(ok.code, 0, "没超的照常");
   // 只读目录：普通 rmSync 删不动，rmTree 要删掉
+  // root 下权限位拦不住删除（ci-investigate-install.md §3.4，E1：rmSync 删只读目录树成功），前提断言只在非 root 下成立；核心断言无条件
   const ro = path.join(base, "ro"), deep = path.join(ro, "a", "b");
   fs.mkdirSync(deep, { recursive: true }); fs.writeFileSync(path.join(deep, "f"), "x");
   fs.chmodSync(deep, 0o555); fs.chmodSync(path.join(ro, "a"), 0o555);
-  assert.throws(() => fs.rmSync(ro, { recursive: true, force: true }), "前提：只读目录普通删除会失败");
+  if (typeof process.getuid === "function" && process.getuid() !== 0)
+    assert.throws(() => fs.rmSync(ro, { recursive: true, force: true }), "前提：只读目录普通删除会失败");
   C.rmTree(ro);
   assert.equal(fs.existsSync(ro), false);
   // FIFO：读开头不能阻塞

@@ -8,7 +8,7 @@ import path from "node:path";
 import { PREFIX } from "../gw/config.mjs";
 import { COMP_DIR, compRecord, _compForTest } from "../gw/components.mjs";
 
-const { compWriteRecord, compRecFile, compSwitch } = _compForTest;
+const { compWriteRecord, compRecFile, compSwitch, compInjectMoveError, compClearMoveError } = _compForTest;
 const STAGE = path.join(COMP_DIR, ".staging");
 const IDS = ["up0610", "co0610", "rb0610", "fi0610"];
 const LOCKED = path.join(PREFIX, "lib/locked0610");
@@ -74,9 +74,15 @@ test("升级搬一半失败：旧版文件原样放回，记录退回 ok，备�
   compWriteRecord("rb0610", { id: "rb0610", version: "1.0.0", state: "ok", base: "dk0610", at: 1,
     files: ["bin/rb-tool", "share/rb0610/a.txt"], shared: [] });
   fs.mkdirSync(LOCKED, { recursive: true });
-  fs.chmodSync(LOCKED, 0o555);            // 新版有个文件要放进这里：rename 必失败
+  fs.chmodSync(LOCKED, 0o555);            // 非 root 下新版文件 rename 进这里必失败；root 下权限位不拦（ci-investigate-install.md §2 E1），
+  // 所以触发失败不靠 chmod，靠下面的故障注入：搬 lib/locked0610/x.txt 时钩子抛同 shape 的 EACCES。断言一字不动。
   const root = tree("rb0610", { "bin/rb-tool": "v2", "share/rb0610/a.txt": "new-a", "lib/locked0610/x.txt": "x" });
-  await assert.rejects(() => compSwitch("rb0610", BUILD("2.0.0"), root), /EACCES|EPERM/);
+  compInjectMoveError((rel) => rel === "lib/locked0610/x.txt");
+  try {
+    await assert.rejects(() => compSwitch("rb0610", BUILD("2.0.0"), root), /EACCES|EPERM/);
+  } finally {
+    compClearMoveError();
+  }
   assert.equal(read("bin/rb-tool"), "v1", "旧版程序放回来了");
   assert.equal(read("share/rb0610/a.txt"), "old-a", "旧版数据放回来了");
   const rec = compRecord("rb0610");

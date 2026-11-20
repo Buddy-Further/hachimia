@@ -103,6 +103,7 @@ function compWriteRecord(id, rec) {
 }
 export const _compForTest = { compWriteRecord, compRecordInfo, compRecFile, compDropDanglingDocs, compSweepDanglingDocs,
   compState, compVerCmp, compOlder, compInstall, compSwitch, compRecover, compClearStage, compMcpSpec,
+  compInjectMoveError, compClearMoveError,
   compRecovering: () => compRecovering };   // 只给测试用：恢复单飞当前登记（复核第三轮 §1）
 
 function compFetch(src, quick) {
@@ -470,7 +471,13 @@ export function compRun(job, cmd, args, opts = {}) {
 
 /** 把暂存区里的 usr/ 树逐个搬进 $PREFIX；返回搬进去的相对路径（文件与软链）。
  *  每 256 条让出一次事件循环（组件安装报告 §3：数千文件的包搬移时 /__proof 也能答），
- *  beat 把进度写进心跳文件（应用看门狗据它放宽「证明不了自己」的时限）。 */
+ *  beat 把进度写进心跳文件（应用看门狗据它放宽「证明不了自己」的时限）。
+ *  测试钩子 injectMoveError：root 下 rename 进 0555 目录不抛 EACCES，测试无法靠真实权限位
+ *  触发「搬一半失败」（ci-investigate-install.md §2，E1 对照）；钩子默认关闭，命中时在 rename 前
+ *  抛与真实 rename 同 shape 的 EACCES，只影响测试路径，生产行为不变。 */
+let _compMoveError = null;   // (rel) => boolean | null
+function compInjectMoveError(pred) { _compMoveError = typeof pred === "function" ? pred : null; }
+function compClearMoveError() { _compMoveError = null; }
 async function compMoveIn(stageUsr, rel = "", moved = [], skipped = [], orphans = new Set(), beat = () => {}) {
   const ents = fs.readdirSync(path.join(stageUsr, rel), { withFileTypes: true });
   for (let i = 0; i < ents.length; i++) {
@@ -487,6 +494,11 @@ async function compMoveIn(stageUsr, rel = "", moved = [], skipped = [], orphans 
     // 工具包已有的同名文件不覆盖（组件只带底座里没有的包，撞名多半是共用的目录索引之类）
     let exists = false; try { fs.lstatSync(dst); exists = true; } catch {}
     if (exists && !orphans.has(r)) { skipped.push(r); continue; }
+    if (_compMoveError && _compMoveError(r)) {
+      const e = new Error(`EACCES: permission denied, rename '${src}' -> '${dst}'`);
+      e.code = "EACCES";
+      throw e;
+    }
     fs.renameSync(src, dst);
     moved.push(r);
     await breathe();   // 单次 rename 也可能被存储卡住：按时间让出，别只按条数（复核 P2-13）
