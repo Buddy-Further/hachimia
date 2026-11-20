@@ -183,6 +183,10 @@ const used = new Map();   // key → 出处
 const A = [];
 for (const f of jsFiles) {
   for (const l of scanJs(fs.readFileSync(path.join(WEB, f), "utf8"))) {
+    // t()/tk() 包着的静态字符串就是在用的键：不含汉字的键（"API Key"、"{p}：{n}"、"「{n}」{w}"）
+    // 也要先登记，否则会被误报成孤儿删掉（mig/residue C-01 曾误删这 3 个，见 fix-mig-residue.test.mjs）。
+    // 只认普通字符串字面量：模板块（kind "`"）里的 ${} 插值不是静态键，走下面原有逻辑。
+    if (l.wrapped && !l.dynamic && l.kind !== "`" && !/\$\{/.test(l.raw)) { if (!used.has(l.text)) used.set(l.text, `${f}:${l.line}`); continue; }
     if (!HAN.test(l.text)) continue;
     // 模板里已经用 t("…") 译过的部分不算未接入：把 t("…")/t('…') 摘掉再找中文
     if (l.wrapped && /\$\{/.test(l.raw)) continue;
@@ -202,6 +206,29 @@ for (const f of ["server.mjs", ...fs.readdirSync(path.join(WEB, "..", "gw")).fil
 }
 const html = scanHtml(fs.readFileSync(path.join(WEB, "index.html"), "utf8"));
 for (const k of html.keys) if (!used.has(k.key)) used.set(k.key, `index.html:${k.line} ${k.from}`);
+
+// ── 动态查键 ─────────────────────────────────────────────────────────────
+// t(变量)、sendJson 的 message 翻译（http.mjs 会 tr(reqLang, message)）、L()/warnRecover()
+// 这类别名、COMMAND_META 的 desc/cat，都是运行时才把字符串当键查词典，上面按字面量
+// t("…")/tz("…") 的登记扫不到。词典键只要以字符串字面量形式出现在已扫描的源码
+// （注释不算，scanJs 会跳过）或 index.html 的内联脚本里，就先算在用，不当孤儿删：
+// 删了非中文界面就回退成中文，f1 那类断言也会直接失败；mig/residue C-01 初版 sweep
+// 曾误删 17 个这样的键（caps/feedback/queue/commands/fonts/index.html 各处）。
+// 只认已在 en 词典里的键：英文错误码（"bad name"、"EEXIST" 之类）不进 used，免得
+// 反过来报一堆假缺译。代价：极少数只出现在日志字面量里的死键会被多留着——
+// 删键是破坏性操作，宁可多留，不可误删；真想删，确认运行时确实没人查它再手动删。
+{
+  const enDict = loadDict("en") || {};
+  const lits = new Set();
+  const gwFiles = ["server.mjs", ...fs.readdirSync(path.join(WEB, "..", "gw")).filter((x) => x.endsWith(".mjs")).map((x) => "gw/" + x)];
+  for (const f of jsFiles) for (const l of scanJs(fs.readFileSync(path.join(WEB, f), "utf8"))) lits.add(l.text);
+  for (const f of gwFiles) for (const l of scanJs(fs.readFileSync(path.join(WEB, "..", f), "utf8"))) lits.add(l.text);
+  // index.html 的内联脚本（scanHtml 会整块抹掉）：I18N.t(msg) 这类变量查键的字面量来源
+  for (const m of fs.readFileSync(path.join(WEB, "index.html"), "utf8").matchAll(/<script>([\s\S]*?)<\/script>/g)) {
+    for (const l of scanJs(m[1])) lits.add(l.text);
+  }
+  for (const k of lits) if (Object.hasOwn(enDict, k) && !used.has(k)) used.set(k, "dynamic-literal");
+}
 
 if (args.includes("--all")) {
   console.log(`已接入的键 ${used.size} 个；未接入：app.js ${A.length} 处，index.html ${html.issues.length} 处\n`);

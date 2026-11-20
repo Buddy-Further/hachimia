@@ -7,7 +7,7 @@
 1. **等长包名与品牌隔离**
    - 包名：`cc.codroid`（10 字符）→ **`ha.chi.mia`**（10 字符，全仓 111 个文件及 `android/java/ha/chi/mia`、`android/tests/ha/chi/mia`、`android/prebuilt/gwpin-ha.chi.mia.json` 已同步）。
    - 应用名：`cccodroid` → **`hachimia`**（`versionName="0.1.0"`，`versionCode="1"`）。
-   - 网关默认端口：`8791` → **`8793`**，共享目录 `/sdcard/hachimia`，CLI 安装目录 `~/.local/share/hachimia/agy/current/agy`——可与 `cccodroid` 同机共存不冲突。
+   - 网关默认端口：`8791` → **`9793`**，共享目录 `/sdcard/hachimia`，CLI 安装目录 `~/.local/share/hachimia/agy/current/agy`——可与 `cccodroid` 同机共存不冲突。
 
 2. **Android 宿主层（安装 / 更新 / 权限 / 保护）**
    - 新增 `android/assets/scripts/install-agy.mjs`、`install-agy.sh` 与原生包装脚本 `android/assets/bin/agy`，通过 `https://antigravity.google/cli/install.sh`（支持 `--skip-path --skip-aliases`、`--check`、`--recheck`）安装并维护本地 SHA-256 清单。

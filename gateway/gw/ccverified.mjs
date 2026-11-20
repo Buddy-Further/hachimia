@@ -1,7 +1,7 @@
-// ── Claude Code 真机验证记录：哪些版本在 cccodroid 上验过、哪些有已知问题 ─────────────────────────
+// ── Claude Code 真机验证记录：哪些版本在 hachimia 上验过、哪些有已知问题 ─────────────────────────
 //
 // 来源：仓库 claude-code/verified.json，维护者用 scripts/verify-claude.mjs 在真机上跑、scripts/claude-verified.mjs 签名发布
-// （与应用内通知同一把钥匙、同一条路：官网验过签才镜像）。这里先取官网、取不到取 GitHub，只认签名对得上的。
+// （与应用内通知同一把钥匙、同一条路：直接从 GitHub raw 取）。这里只取 GitHub raw，只认签名对得上的。
 // 用处：版本选单标「已验证」/ 有问题的原因（/api/claude/versions 带上）；验过签的那份存到
 // home/.cache/cccodroid/claude-verified.json，Java 的自动更新读它——渠道走到有问题的版本时先不自动装。
 import path from "node:path";
@@ -36,7 +36,7 @@ export function refreshVerified(force = false) {
     for (const u of SOURCES) {
       try {
         const { j, body, sig } = await fetchOne(u);
-        // 官网每半小时同步，两个来源可能一新一旧：只往新的换
+        // GitHub raw 有几分钟缓存，两个来源可能一新一旧：只往新的换
         if (!data || !(String(j.updated || "") < String(data.updated || ""))) {
           data = j;
           saveSigned(VERIFIED_CACHE, body, sig);

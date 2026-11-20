@@ -2,6 +2,8 @@
 
 English | [中文](download-sources.zh-CN.md)
 
+> **Archived — this describes cccodroid's mirror system, not hachimia's.** hachimia has no mirror: downloads come only from GitHub Releases (APK, devkit, component index and packages) plus the upstream sources named below. The trust-anchor rule and the download techniques (segmented parallel download, slow-source switching) still apply; the per-item source chains naming cccodroid.net / dl.cccodroid.net are historical as of the last verification (2026-10-20, v0.2.19).
+
 cccodroid fetches eight kinds of things from the network, most of them from more than one place. This guide records where each one comes from, why we trust it, where the code lives, and how to check it after a change.
 
 **The rule: trust first, download second.** Every item has a trust anchor that does not depend on where the bytes came from: a hash pinned in the APK, or a signing key pinned in code. A mirror is just another route to the same file and needs no trust of its own. Adding a source never weakens security as long as its content is still checked against the anchor. Conversely, **no change may ever turn something fetched from a mirror into the anchor itself.**

@@ -26,7 +26,7 @@ export const CFG = {
   model: process.env.CCAPP_MODEL || "gemini-3.8-flash",
 };
 
-// 前缀布局（cccodroid）：工具链是原生 Termux 前缀，claude 是官方原版二进制，
+// 前缀布局（hachimia）：工具链是原生 Termux 前缀，claude 是官方原版二进制，
 // 由宿主 App 用环境变量告诉我们位置；没设就按旧布局（runtime/ 下）找。
 export const PREFIX = process.env.CCAPP_PREFIX || "";
 export const NO_BRIDGE = !!PREFIX || process.env.CCAPP_NO_BRIDGE === "1";
@@ -41,7 +41,7 @@ export const PATHS = {
   // agy 与 claude 是两条独立路径，互不兜底：CCAPP_AGY 绝不能喂给 PATHS.claude，CCAPP_CLAUDE
   // 也绝不能喂给 PATHS.agy——设备上两者曾指向同一文件，导致 isAgyOnlyMode() 恒为 false（A7）。
   claude: process.env.CCAPP_CLAUDE || path.join(CFG.runtime, "claude"),
-  // cccodroid：给 claude 预加载的小库，把被安卓 seccomp 拦下的调用改成返回 ENOSYS
+  // hachimia：给 claude 预加载的小库，把被安卓 seccomp 拦下的调用改成返回 ENOSYS
   // （Android 14 拦 epoll_pwait2，claude 不挂它一启动就被 SIGSYS 打死）
   preload: process.env.CCAPP_CLAUDE_PRELOAD || "",
   node: path.join(CFG.runtime, "node", "node"),

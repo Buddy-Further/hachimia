@@ -1,5 +1,5 @@
 // 签名发布的公共部分（notice.mjs、claude-verified.mjs 共用）：
-// PUB_DRY=1 只签名自验、把内容打出来（演练用）；PUB_LOCAL=1 签名写文件并本地提交、不推送。正常：用组件索引那把 ed25519 钥匙签名 → 用 App 里的公钥自验 → 写文件与 .sig → 提交推送 main → 触发官网生成器 → 等 cccodroid.net 上的副本与本地逐字节一致
+// PUB_DRY=1 只签名自验、把内容打出来（演练用）；PUB_LOCAL=1 签名写文件并本地提交、不推送。正常：用组件索引那把 ed25519 钥匙签名 → 用 App 里的公钥自验 → 写文件与 .sig → 提交推送 main → 等 GitHub raw 上的副本与本地逐字节一致（raw 有几分钟缓存；SITE_KICK 配了就每 5 分钟触发一次外部刷新脚本，没有也不影响等待本身）
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
@@ -23,7 +23,7 @@ export function loadPublished(F, empty, ok) {
   return d;
 }
 
-/** @param file 仓库里的相对路径  @param data 要发布的对象  @param msg 提交说明  @param site cccodroid.net 上的地址 */
+/** @param file 仓库里的相对路径  @param data 要发布的对象  @param msg 提交说明  @param site GitHub raw 上的地址 */
 export async function signAndPublish({ file, data, msg, site }) {
   const F = path.join(ROOT, file);
   const body = Buffer.from(JSON.stringify(data, null, 1) + "\n");
@@ -57,9 +57,9 @@ export async function signAndPublish({ file, data, msg, site }) {
   git("push", "-q", "origin", "HEAD:main");
   console.log(`✓ 已推送 ${git("rev-parse", "--short", "HEAD")}`);
 
-  if (!process.env.SITE_KICK) console.log("  没给 SITE_KICK：等官网 30 分钟的定时同步");
+  if (!process.env.SITE_KICK) console.log("  没给 SITE_KICK：只等 GitHub raw 缓存刷新（一般几分钟）");
   for (let i = 0; i < 40; i++) {
-    // 生成器从 raw.githubusercontent.com 取，那边缓存几分钟：第一次触发可能还拿到旧的，每 5 分钟再触发一次
+    // GitHub raw 有几分钟缓存：第一次可能还拿到旧的，每 5 分钟再触发一次 SITE_KICK（配了的话）
     if (process.env.SITE_KICK && i % 10 === 0) execFileSync("sh", [process.env.SITE_KICK], { stdio: "inherit" });
     try {
       const r = await fetch(`${site}?t=${Date.now()}`, { signal: AbortSignal.timeout(20000) });
@@ -67,5 +67,5 @@ export async function signAndPublish({ file, data, msg, site }) {
     } catch {}
     await sleep(30000);
   }
-  die(`20 分钟官网还没同步到这一版（看 cccodroid-site.service 的日志）`);
+  die(`20 分钟 GitHub raw 还没同步到这一版（raw 缓存一般只有几分钟，稍后再跑一次 publish 核对）`);
 }

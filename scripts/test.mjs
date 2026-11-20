@@ -63,8 +63,8 @@ if (!curl) { console.error("找不到 curl"); process.exit(1); }
 const writable = (d) => { try { fs.accessSync(d, fs.constants.W_OK); return true; } catch { return false; } };
 const base = process.env.TMPDIR || (writable(os.tmpdir()) ? os.tmpdir() : path.join(os.homedir(), ".cache"));
 fs.mkdirSync(base, { recursive: true });
-const tmpRoot = fs.mkdtempSync(path.join(base, "cccodroid-test-")); // 只放各池日志
-const poolTmps = []; // 每池一个平级 cccodroid-test-*（registry-flock fixture 要求 basename 以此开头）
+const tmpRoot = fs.mkdtempSync(path.join(base, "hachimia-test-")); // 只放各池日志
+const poolTmps = []; // 每池一个平级 hachimia-test-*（registry-flock fixture 要求 basename 以此开头）
 
 // 网关给子进程的 PATH 只有假 $PREFIX/bin、$CCAPP_BIN、/system/bin（见 gw/claude.mjs 的 claudeEnv）。
 // 真机上 sleep / mkdir / cat / gzip 这些由 /system/bin 的 toybox 兜底；CI 的 Ubuntu 没有 /system/bin，
@@ -72,7 +72,7 @@ const poolTmps = []; // 每池一个平级 cccodroid-test-*（registry-flock fix
 // 在假前缀里补一份基础命令，造出与真机前缀相近的环境。tar / sh / git / curl / flock 由各测试自己链接，不放这里。
 const BASIC = ["awk","basename","cat","chmod","cp","cut","date","df","dirname","du","env","find","grep","gzip","head","id","ln","ls","mkdir","mktemp","mv","readlink","realpath","rm","sed","seq","sleep","sort","stat","tail","tee","touch","tr","uname","uniq","wc","xargs","zcat"];
 
-// 在 cccodroid 里跑时环境里有二十几个 CCAPP_* 指着真数据：一个不留全删，再只设测试要的（审查 L18）。
+// 在 hachimia 里跑时环境里有二十几个 CCAPP_* 指着真数据：一个不留全删，再只设测试要的（审查 L18）。
 // 网关给 claude 注入的 CLAUDE_CODE_* / ANTHROPIC_*（上下文窗口、接口地址…）也会漏进被测的 claudeEnv，一并去掉（11-01 独立审查）
 // 沙箱 egress 代理变量（HTTP_PROXY/HTTPS_PROXY/ALL_PROXY 及小写）也会透进测试子进程：claudeEnv 判 viaProxy 为真就跳过
 // streamfix，U.6 因此挂（D 报告 §B：清掉这 6 个变量后 2/2 通过）。只在测试子进程环境里过滤，不动生产代码
@@ -81,7 +81,7 @@ const PROXY_VARS = new Set(["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_prox
 const clean = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(CCAPP_|CLAUDE_CODE_|ANTHROPIC_)/.test(k) && !PROXY_VARS.has(k)));
 
 function setupEnv(i) {
-  const tmp = fs.mkdtempSync(path.join(base, "cccodroid-test-"));
+  const tmp = fs.mkdtempSync(path.join(base, "hachimia-test-"));
   poolTmps.push(tmp);
   const home = path.join(tmp, "home"), prefix = path.join(tmp, "usr"), workspace = path.join(tmp, "workspace");
   fs.mkdirSync(home, { recursive: true });

@@ -744,7 +744,7 @@ export async function startRun(item) {
   let prep = null;
   if (sealed() && !P.local) {
     try { prep = sealPrepare({ cwd, runId: run.id, outputStyle: SETTINGS.outputStyle || "" }); }
-    catch (e) { log(`[封口] 准备回填失败：${e.message}`); prep = { block: { found: [{ name: "(cccodroid)", hits: [{ line: 0, excerpt: e.message }] }] } }; }
+    catch (e) { log(`[封口] 准备回填失败：${e.message}`); prep = { block: { found: [{ name: "(hachimia)", hits: [{ line: 0, excerpt: e.message }] }] } }; }
     if (prep.block) {
       log(`${runTag(run)} ⛔ [封口] 命中破甲特征，不跑：${prep.block.found.slice(0, 4).map((f) => f.name).join(", ")}`);
       const msg = tr(LAST_LANG, sealBlockMessage(prep.block));
@@ -953,8 +953,8 @@ export async function startRun(item) {
         interactive: !!r.requires_user_interaction, agentId: r.agent_id || null, at: Date.now(),
         runId: run.id, sessionId: run.sessionId || null,   // 并行时通知要知道是哪个会话的
       };
-      // 敏感操作再确认（guard/cc-guard.mjs 的 ask）：reason 形如 cccodroid-guard|类别|说明
-      const gm = r.decision_reason_type === "hook" && /^cccodroid-guard\|([^|]+)\|(.*)$/s.exec(String(r.decision_reason || ""));
+      // 敏感操作再确认（guard/cc-guard.mjs 的 ask）：reason 形如 hachimia-guard|类别|说明
+      const gm = r.decision_reason_type === "hook" && /^hachimia-guard\|([^|]+)\|(.*)$/s.exec(String(r.decision_reason || ""));
       if (gm) { p.guard = { cat: gm[1].slice(0, 80), what: gm[2].slice(0, 200) }; p.reason = null; }
       if (run.unattended) {
         log(`✗ 无人值守，自动拒绝 ${p.tool} ${argLen(p.input)}`);

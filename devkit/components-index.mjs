@@ -5,7 +5,7 @@
 // 每个构建按底座（工具包 gz 的 sha256）区分；已有的 components.json 里别的底座的构建会保留，
 // 这样工具包升级前后的用户都能装到匹配自己那一版的组件（livehime 浏览器组件同一个思路）。
 // 资产文件名：<id>-<版本>-for-<底座前 12 位>.tar.gz
-// 社区组件不走这里，走 greyoak111/cccodroid-components 仓库的 CI（同一把签名钥匙）
+// 社区组件不走这里，走 hachimia-components 仓库的 CI（同一把签名钥匙）
 import fs from "node:fs";
 import path from "node:path";
 

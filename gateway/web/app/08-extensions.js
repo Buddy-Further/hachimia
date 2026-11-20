@@ -696,7 +696,7 @@
       return;
     }
     $("ext-s-count").textContent = (r.items || []).length;
-    // 发行版：skill 经检查后以插件「user」交给 Claude Code，斜杠调用时名字带 user: 前缀（见 gw/seal.mjs）
+    // 发行版：skill 经检查后以插件「user」交给 Antigravity，斜杠调用时名字带 user: 前缀（见 gw/seal.mjs）
     // 模式（F5）：开 / 只露名字（省上下文）/ 只能你用斜杠调用 / 关。发行版的技能由网关打包交给 claude，只认开 / 关
     const modes = r.sealed ? [["on", t("开")], ["off", t("关")]] : [["on", t("开")], ["name-only", t("只露名字")], ["user-invocable-only", t("只能你调用")], ["off", t("关")]];
     const modeSel = (s) => s.orphan ? "" : `<select class="sk-mode" data-id="${esc(s.dir)}" aria-label="${esc(t("技能模式"))}">${modes.map(([v, l]) => `<option value="${v}"${(s.mode || "on") === v ? " selected" : ""}>${esc(l)}</option>`).join("")}</select>`;

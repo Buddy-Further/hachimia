@@ -92,7 +92,7 @@ test("199 11-07：敏感操作批准一次只放行同一个目标——同类�
   SETTINGS.permissionMode = "default";
   const s = crypto.randomUUID();
   const g = (id, cat, what, tool = "Read") => ({ type: "control_request", request_id: id, request: { subtype: "can_use_tool", tool_name: tool, input: { file_path: "/x" }, tool_use_id: "tu-" + id,
-    decision_reason_type: "hook", decision_reason: `cccodroid-guard|${cat}|${what}` } });
+    decision_reason_type: "hook", decision_reason: `hachimia-guard|${cat}|${what}` } });
   // 等 stdin 上的回应再发下一条（以前按 sleep 卡时间，全量跑负载高时批准还没落就发了下一条）：
   // 读到带那条请求号的回应为止
   const rd = (id) => ({ raw: `while read l; do case "$l" in *'"${id}"'*) break;; esac; done` });

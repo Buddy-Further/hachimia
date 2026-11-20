@@ -48,7 +48,7 @@ export function guardHooks(app = APP) {
     // 核不过：这一层不能换成别的，也不能整层不挂。挂一个一律拦下的（PreToolUse 退出码 2 = 不许用），等空闲重启按安装包还原
     log("⚠️ [应用文件] guard / breach.mjs 和安装包对不上，敏感工具这一轮一律拦下");
     app?.restart("guard/cc-guard.mjs 或 gw/breach.mjs（和安装包对不上）");
-    const deny = "process.stderr.write('cccodroid: the safety check could not be verified against the installed package; this tool is blocked until the app restores it.');process.exit(2)";
+    const deny = "process.stderr.write('hachimia: the safety check could not be verified against the installed package; this tool is blocked until the app restores it.');process.exit(2)";
     return [{ matcher, hooks: [{ type: "command", command: q(process.execPath) + " -e " + q(deny), timeout: 10 }] }];
   }
   return [{ matcher, hooks: [{ type: "command", command: q(process.execPath) + " --input-type=module -e " + q(src), timeout: 10 }] }];
@@ -234,7 +234,7 @@ export function claudeEnv(o = {}) {
     // —— 那个目录在这台设备上根本不存在，回落过去就是一句 ENOENT。
     // 之前只靠从网关继承，网关怎么起的（MainActivity 还是 gw-swap.sh）就决定了有没有，
     // 太脆；这里自己钉死，claude 及其所有工具子进程就都有可写临时目录了。
-    // cccodroid：用 $PREFIX/tmp —— 等长改写后，二进制里写死的默认临时目录正好就是它
+    // hachimia：用 $PREFIX/tmp —— 等长改写后，二进制里写死的默认临时目录正好就是它
     TMPDIR: PREFIX ? (fs.mkdirSync(path.join(PREFIX, "tmp"), { recursive: true }), path.join(PREFIX, "tmp")) : CFG.home,
     // 文件检查点：-p 模式默认不记，打开后每条用户消息前给 Edit/Write 要动的文件留底，「回退到这里」靠它（见 rewindFiles）
     CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING: "1",
@@ -392,7 +392,7 @@ export function claudeArgv(extra) {
   return ["--library-path", PATHS.claudeLib, ...pre, PATHS.claude, ...extra];
 }
 
-/** seccomp 监督器：cccodroid 在 APK 原生库目录（libccenosysrun.so，Env.java 经 CCAPP_ENOSYS_RUN 交来），开发端在 files/devbin */
+/** seccomp 监督器：hachimia 在 APK 原生库目录（libccenosysrun.so，Env.java 经 CCAPP_ENOSYS_RUN 交来），开发端在 files/devbin */
 let ENOSYS_RUN;
 export function enosysRun() {
   if (ENOSYS_RUN !== undefined) return ENOSYS_RUN;
@@ -495,7 +495,7 @@ export function killRunProcs(runId, sinceTicks = null) {
  *  认法：本 uid、PPID=1，且环境里带 CCAPP_RUN=1（claudeEnv 打的标记，子孙都继承），
  *  或命令行就是我们的 claude（打标记之前的版本留下的）。连子孙一起、按进程组杀（同 killTree）。
  *  环境里的 CCAPP_GW_PID（run.mjs）指向的网关还活着、且比它起得早的不收：那是活网关名下用 setsid 脱出去的，不是上一任留下的。
- *  只在 cccodroid 做：开发端换网关（gw-swap.sh）时上一任的运行还要接着用。 */
+ *  只在 hachimia 做：开发端换网关（gw-swap.sh）时上一任的运行还要接着用。 */
 export function reapOrphans() {
   if (!PREFIX) return;
   const uid = process.getuid(), victims = [];
@@ -810,8 +810,10 @@ export function agyEnv(o = {}) {
     HOME: CFG.home,
     TMPDIR: PREFIX ? (fs.mkdirSync(path.join(PREFIX, "tmp"), { recursive: true }), path.join(PREFIX, "tmp")) : CFG.home,
     TERMINFO_DIRS: PREFIX ? path.join(PREFIX, "share", "terminfo") : (process.env.TERMINFO_DIRS || ""),
+    // 自定义组件入口写在 ~/.cccodroid/bin（custom.mjs），ACP 轮次也要认：只留 ~/.hachimia/bin 的话
+    // 那个目录是空的，模型按裸命令名调自定义组件会解析不到（R-10 方案 a：先加回 PATH，不做数据迁移）
     PATH: PREFIX
-      ? [process.env.CCAPP_BIN && path.join(process.env.CCAPP_BIN, "..", "pre"), path.join(PREFIX, "bin"), path.join(CFG.home, ".hachimia", "bin"), process.env.CCAPP_BIN, "/system/bin", "/system/xbin"].filter(Boolean).join(":")
+      ? [process.env.CCAPP_BIN && path.join(process.env.CCAPP_BIN, "..", "pre"), path.join(PREFIX, "bin"), path.join(CFG.home, ".hachimia", "bin"), path.join(CFG.home, ".cccodroid", "bin"), process.env.CCAPP_BIN, "/system/bin", "/system/xbin"].filter(Boolean).join(":")
       : process.env.PATH,
     CCAPP_PROVIDER: p.id || "antigravity",
     CCAPP_RUN: "1",

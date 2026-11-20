@@ -312,7 +312,7 @@ final class Env {
         catch (Exception e) { return new org.json.JSONObject(); }
     }
 
-    /** 官方 Claude Code：install-claude.sh 装好后写下的版本指针 */
+    /** Antigravity CLI：install-agy.sh 装好后写下的版本指针 */
     File claude() { return new File(home, ".local/share/hachimia/agy/current/agy"); }
 
     boolean claudeReady() { return loader ? claude().isFile() : claude().canExecute(); }

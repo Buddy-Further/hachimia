@@ -32,7 +32,7 @@ jobs:
         with:
           node-version: "22"
       - name: 网关测试
-        # KEEP_TEST_TMP=1：测试失败时保留池日志（/tmp/cccodroid-test-*/pool-*.log），供下面的 artifact 步骤上传；
+        # KEEP_TEST_TMP=1：测试失败时保留池日志（/tmp/hachimia-test-*/pool-*.log），供下面的 artifact 步骤上传；
         # runner 默认会删掉它们。只影响日志留存，不影响测试执行与判定。
         env:
           KEEP_TEST_TMP: "1"
@@ -51,7 +51,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4.6.2
         with:
           name: test-pool-logs-${{ github.run_id }}
-          path: /tmp/cccodroid-test-*/pool-*.log
+          path: /tmp/hachimia-test-*/pool-*.log
           if-no-files-found: ignore
           retention-days: 7
 

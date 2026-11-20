@@ -88,6 +88,6 @@ test("E-06 模块下载不再请求已死的 dl.cccodroid.net 镜像", { skip: S
   assert.ok(fs.existsSync(path.join(PREFIX, MODREL, ".ok")), "模块应装好（.ok 在）");
   assert.ok(hits >= 2, "本地服务应至少被请求两次（第一次 404 逼换源）");
   const logged = fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8") : "";
-  // 注意：临时目录名本身就叫 cccodroid-test-*，只查镜像域名，别误伤路径
+  // 注意：临时目录名本身就叫 hachimia-test-*，只查镜像域名，别误伤路径
   assert.ok(!logged.includes("dl.cccodroid.net"), "下载全程不应请求 cccodroid 镜像，实际请求：\n" + logged);
 });

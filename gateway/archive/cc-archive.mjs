@@ -18,7 +18,7 @@ for (let i = 0; i < args.length; i++) {
   else if (a === "-h" || a === "--help") { console.log("node cc-archive.mjs --title \"题名\" [--same] [--misc] [--status 进行中|已完成|搁置] [--chapter N]"); process.exit(0); }
 }
 const run = process.env.CCAPP_RUN_ID, port = Number(process.env.CCAPP_GW_PORT);
-if (!run || !port) { console.error("cc-archive: not running inside a cccodroid session (CCAPP_RUN_ID / CCAPP_GW_PORT missing)"); process.exit(2); }
+if (!run || !port) { console.error("cc-archive: not running inside a hachimia session (CCAPP_RUN_ID / CCAPP_GW_PORT missing)"); process.exit(2); }
 if (!opt.title) { console.error("cc-archive: --title is required"); process.exit(2); }
 let token = "";
 const home = process.env.CCAPP_HOME || process.env.HOME || "";

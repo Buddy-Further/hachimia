@@ -38,7 +38,7 @@ import rikka.shizuku.Shizuku;
 /**
  * Shizuku 一条龙：下载 → 安装 → 激活 → 授权 →（重启后）自动重新激活。
  *
- * 激活走"无线调试"（安卓 11+，不用电脑）。Shizuku 自己的做法也是这样，只是这里由 cccodroid 代劳：
+ * 激活走"无线调试"（安卓 11+，不用电脑）。Shizuku 自己的做法也是这样，只是这里由 hachimia 代劳：
  *   1. 用户在 开发者选项 → 无线调试 → 使用配对码配对设备，弹出 6 位码；
  *      我们用 NSD 找到本机的配对服务端口（_adb-tls-pairing._tcp），用户在通知栏的输入框里填码 —— 不用来回切应用；
  *   2. 工具包里的 adb：adb pair 127.0.0.1:端口 码 → adb connect 127.0.0.1:连接端口（_adb-tls-connect._tcp）；

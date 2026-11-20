@@ -17,7 +17,7 @@ const LEGACY = /(^|\n)\[safe\]\n\tdirectory = \*\n/;
 
 /** 按项目目录重写托管块。dirs：项目目录（绝对路径） */
 export function syncGitSafe(dirs) {
-  if (!PREFIX) return;                      // 只管 cccodroid 自己的 HOME
+  if (!PREFIX) return;                      // 只管 hachimia 自己的 HOME
   const gc = path.join(CFG.home, ".gitconfig");
   let cur = "";
   try { cur = fs.readFileSync(gc, "utf8"); } catch (e) { if (e.code !== "ENOENT") return log(`[git] 读 .gitconfig 失败：${e.code || e.message}`); }

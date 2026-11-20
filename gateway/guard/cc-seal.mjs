@@ -37,13 +37,13 @@ if (!sealed()) { process.stdout.write([...ours, ...user].map(q).join(" ") + "\n"
   // 只是打个版本（自检就这么问）：不为它联网补核、一等十分钟；没核过照样不起，当场报（0.6.9 审计 195-M.4 guard 半，v4pro 复核）
   const versionOnly = user.length === 1 && (user[0] === "--version" || user[0] === "-v");
   if (cs.pending && !versionOnly && fs.existsSync(inst)) {
-    process.stderr.write("cccodroid: 这个版本还没有官方签名清单，正在联网补核… / no signed manifest yet, fetching the official one…\n");
+    process.stderr.write("hachimia: 这个版本还没有官方签名清单，正在联网补核… / no signed manifest yet, fetching the official one…\n");
     spawnSync(process.execPath, [inst, "--recheck"], { stdio: ["ignore", 2, 2], timeout: 600000 });
     cs = await check();
   }
   if (cs.ok === false) {
     const m = cs.pending ? tz("这个版本的 Claude Code 还没有官方签名清单，这一轮没有启动。正在联网补核，过一两分钟再发送；一直不行就到 设置 → 更新 里重新安装。") : tz("Claude Code 程序核验没过，这次没有运行：{why}", { why: String(cs.why || "") });
-    process.stderr.write("cccodroid: " + m + "\ncccodroid: " + tr("en", m) + "\n");
+    process.stderr.write("hachimia: " + m + "\nhachimia: " + tr("en", m) + "\n");
     process.exit(4);
   }
 }
@@ -60,8 +60,8 @@ if (isSession) {
     if (a === "--") break;
     const flag = a.split("=")[0];
     if (DENY.includes(flag)) {
-      process.stderr.write(`cccodroid: ${flag} 在发行版里不能用（Claude Code 的配置由 cccodroid 检查后代为加载）。\n` +
-        `cccodroid: ${flag} is not available in the release build (cccodroid loads your Claude Code config after checking it).\n`);
+      process.stderr.write(`hachimia: ${flag} 在发行版里不能用（Claude Code 的配置由 hachimia 检查后代为加载）。\n` +
+        `hachimia: ${flag} is not available in the release build (hachimia loads your Claude Code config after checking it).\n`);
       process.exit(2);
     }
   }
@@ -72,9 +72,9 @@ if (isSession) {
   let style = "";
   try { style = JSON.parse(readSmallFile(path.join(process.env.HOME || "", "ccapp-settings.json"), 1 << 20) || "{}").outputStyle || ""; } catch {}
   try { prep = sealPrepare({ cwd, runId: "term-" + process.ppid + "-" + Date.now(), outputStyle: style }); }
-  catch (e) { process.stderr.write("cccodroid: " + e.message + "\n"); process.exit(3); }
+  catch (e) { process.stderr.write("hachimia: " + e.message + "\n"); process.exit(3); }
   if (prep.block) { const m = sealBlockMessage(prep.block); process.stderr.write(m + "\n\n" + tr("en", m) + "\n"); process.exit(3); }
   out = [...ours, ...prep.args, ...(prep.settings && Object.keys(prep.settings).length ? ["--settings", JSON.stringify(prep.settings)] : []), ...user];
 }
-try { out = sealArgv(out); } catch (e) { process.stderr.write("cccodroid: " + e.message + "\n"); process.exit(2); }
+try { out = sealArgv(out); } catch (e) { process.stderr.write("hachimia: " + e.message + "\n"); process.exit(2); }
 process.stdout.write(out.map(q).join(" ") + "\n");
