@@ -3396,4 +3396,9 @@ window.I18N_DICT["fr"] = {
   "授权码没能写进 agy（登录进程的 stdin 已关闭），请重新发起登录。": "The authorization code could not be written to agy (the login process's stdin is closed). Please start login again.",
   "登录类厂商不用填 API Key，登录走官方流程；这次填的密钥没有保存。": "Login-based providers don't need an API key; sign in through the official flow. The key you entered was not saved.",
   "已在排队，跳过这次重复执行": "Already queued; skipping this duplicate run",
+  "请在应用里打开": "Open this in the app",
+  "要 npx（hachimia 的工具包里有）": "Needs npx (included in the hachimia toolkit)",
+  "这个版本没有原生层，只记 CPU 时间（电量、亮屏要 hachimia）。": "This build has no native layer, so only CPU time is recorded (battery and screen-on need hachimia).",
+  "Antigravity CLI 程序被改过，已拒绝启动；": "The Antigravity CLI program was modified and was not started; ",
+  "Antigravity CLI 杂物": "Antigravity CLI housekeeping files",
 };

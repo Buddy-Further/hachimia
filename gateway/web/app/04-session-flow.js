@@ -692,7 +692,7 @@
   function setConn(ok) {
     srv.connected = ok;
     // 浏览器从 127.0.0.1 / localhost 打开：网关在线，只是来源不对，别说「断开」盖掉「请在应用里打开」（195-G.6 真机）
-    if (!ok) setStatus(srv.foreign ? t("请在 cccodroid 应用里打开") : t("与网关断开，正在重连…（生成不受影响）"), "warn");
+    if (!ok) setStatus(srv.foreign ? t("请在应用里打开") : t("与网关断开，正在重连…（生成不受影响）"), "warn");
     // 刚问过、网关确实不在：每次重拨失败不要把「网关离线」又盖回「生成不受影响」。
     // 45 秒盖住最长的 30 秒退避；连上（onopen）就清零，重新按原文案说（FIND-018）
     if (!ok && !srv.foreign && Date.now() - gwDeadAt < 45000) setStatus(t("网关离线"), "err");
@@ -1123,7 +1123,7 @@
       const files = e.files || [];
       const preview = (items) => items.slice(0, 3).join(", ") + (items.length > 3 ? " …" : "");
       let action;
-      if (e.src === "claude") action = t("Claude Code 程序被改过，已拒绝启动；") + preview(files);
+      if (e.src === "claude") action = t("Antigravity CLI 程序被改过，已拒绝启动；") + preview(files);
       else if (e.src === "app") action = t("应用文件被改过，已按安装包还原：") + preview(files);
       else {
         // runtime 也包含程序快照写回、等待空闲重启等；同一事件可能合并两类文件。

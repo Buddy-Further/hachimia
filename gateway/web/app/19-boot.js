@@ -264,8 +264,8 @@
         clearTimeout(busWatch); busWatch = 0;
         if (es) { try { es.close(); } catch {} es = null; }
         clearStatusRetry();
-        $("status-box").textContent = t("请在 cccodroid 应用里打开");
-        setStatus(t("请在 cccodroid 应用里打开"), "warn");
+        $("status-box").textContent = t("请在应用里打开");
+        setStatus(t("请在应用里打开"), "warn");
         return;
       }
       // 首次冷启动瞬时 502 / 网络抖动：静默重试，避免页面刚打开就闪红「网关离线」又立刻重连

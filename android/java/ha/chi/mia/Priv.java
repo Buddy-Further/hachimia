@@ -185,7 +185,7 @@ final class Priv {
             android.app.PendingIntent.FLAG_IMMUTABLE | android.app.PendingIntent.FLAG_UPDATE_CURRENT);
         nm.notify(41, new android.app.Notification.Builder(ctx, "front")
             .setSmallIcon(android.R.drawable.ic_secure)
-            .setContentTitle(text == null || text.isEmpty() ? "cccodroid" : text)
+            .setContentTitle(text == null || text.isEmpty() ? "hachimia" : text)
             .setContentText(Tr.t("点此回到 hachimia"))
             .setContentIntent(pi).setAutoCancel(true).setTimeoutAfter(120_000).build());
         return "notification";

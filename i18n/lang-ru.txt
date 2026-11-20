@@ -3395,3 +3395,9 @@
 3393	The authorization code could not be written to agy (the login process's stdin is closed). Please start login again.
 3394	Login-based providers don't need an API key; sign in through the official flow. The key you entered was not saved.
 3395	Already queued; skipping this duplicate run
+// TODO i18n (rem/copy)：以下为英文原文回退，待译成 ru
+3396	Open this in the app
+3397	Needs npx (included in the hachimia toolkit)
+3398	This build has no native layer, so only CPU time is recorded (battery and screen-on need hachimia).
+3399	The Antigravity CLI program was modified and was not started; 
+3400	Antigravity CLI housekeeping files
