@@ -210,7 +210,7 @@
   }
   async function restoreAndOpen(id) {
     const r = await post("/api/trash/restore", { ids: [id] }).catch((e) => ({ failed: [{ error: e.message }] }));
-    if (r && r.failed && r.failed.length) return toast(t("恢复失败：{msg}", { msg: r.failed[0].error === "exists" ? t("同名会话已存在") : r.failed[0].error }), true);
+    if (r && r.failed && r.failed.length) return toast(t("恢复失败：{msg}", { msg: restoreFailMsg(r.failed[0].error) }), true);
     toast(t("已恢复")); loadSessions(); lineageDirty();
     openSession(id);
   }
@@ -1300,15 +1300,17 @@
   }
 
   function renderQueue() {
-    const q = srv.queue;
+    const q = srv.queue, held = q.filter((it) => it.held);
     queueStrip.classList.toggle("hidden", !q.length);
     const busy = isBusy();
     queueStrip.innerHTML = q.length ? `
       <div class="q-head">
-        <span>${q.some((it) => it.held)
-          ? q.some((it) => it.intr)
-            ? t("上一轮被系统中断，{n} 条排队的消息已挂起，不会自动发出 · 点 ⚡ 发出", { n: q.filter((it) => it.held).length })
-            : t("点了停止，{n} 条已挂起，不会自动发出 · 点 ⚡ 发出", { n: q.filter((it) => it.held).length })
+        <span>${held.length
+          ? held.some((it) => it.storageHold)
+            ? `${t("已暂停")} · ${t("读取历史失败：{msg}", { msg: "I/O" })}`
+            : held.some((it) => it.intr)
+              ? t("上一轮被系统中断，{n} 条排队的消息已挂起，不会自动发出 · 点 ⚡ 发出", { n: held.length })
+              : t("点了停止，{n} 条已挂起，不会自动发出 · 点 ⚡ 发出", { n: held.length })
           : busy ? t("待发 {n} 条 · 当前这一轮结束后依次发出", { n: q.length })
           // 真到并行上限才这么说；否则是这个会话上一轮还挂着（等后台任务 / 收尾），别让人以为开了好几个会话
           : atCap() ? t("同时在跑的会话已到上限（{max} 个），有空位就依次发出 · 待发 {n} 条", { max: srv.max, n: q.length })

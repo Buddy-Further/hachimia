@@ -11,11 +11,11 @@ import { CFG, LIVE, log, tz } from "./config.mjs";
 import { isObj, loadState, saveState, writeAtomic } from "./statefile.mjs";
 import { guarded } from "./crashguard.mjs";
 import { dec, NEXT, readBody, sendJson } from "./http.mjs";
-import { END_HOOKS, QUEUE, RECOVER_HOOKS, START_GUARDS, enqueue } from "./queue.mjs";
+import { END_HOOKS, INTERRUPTED, QUEUE, RECOVER_HOOKS, START_GUARDS, enqueue, forgetRecoveryHandoff, wasResumed } from "./queue.mjs";
 import { capList } from "./settings-store.mjs";
 import { RUNS, TRASH_HOOKS, maxParallel } from "./runs.mjs";
 import { publish } from "./bus.mjs";
-import { NAMES, findSessionFile, saveNames } from "./sessions.mjs";
+import { NAMES, sessionPresence, saveNames } from "./sessions.mjs";
 import { trashSession } from "./sessionops.mjs";
 import { projectById } from "./projects.mjs";
 import { isLoginMode } from "./models.mjs";
@@ -45,7 +45,7 @@ function followSysTz(now) {
 
 const FILE = path.join(CFG.home, "ccapp-sched.json");
 const RUNS_FILE = path.join(CFG.home, "ccapp-sched-runs.json");
-const schedDefault = () => ({ tasks: [], dailyBudget: 0, missed: [], sids: [], lastTick: 0, allowLogin: false, spent: {}, monthly: {}, monthlySeeded: false, retries: [] });   // dailyBudget：美元，0 = 不限；retries：待执行失败重试（F-7，落盘，重启后恢复）
+const schedDefault = () => ({ tasks: [], dailyBudget: 0, missed: [], pending: [], sids: [], lastTick: 0, allowLogin: false, spent: {}, monthly: {}, monthlySeeded: false, retries: [] });   // dailyBudget：美元，0 = 不限；retries：待执行失败重试（F-7，落盘，重启后恢复）
 // allowLogin：用订阅账户（官方登录态）跑定时任务。默认关——无人值守使用以 Anthropic 条款为准，要用户自己确认后打开
 // tasks 必须是数组：是 {} / 字符串时 tick 每 30 秒抛一次，5 秒后启动的那次就把网关带走，重启再崩（P1-11）
 const schedShape = (j) => {
@@ -54,6 +54,11 @@ const schedShape = (j) => {
   const d = { ...schedDefault(), ...j };
   d.tasks = (Array.isArray(j.tasks) ? j.tasks : []).filter((t) => isObj(t) && typeof t.id === "string" && (t.freq === undefined || isObj(t.freq)));
   d.missed = Array.isArray(j.missed) ? j.missed.filter((m) => isObj(m) && typeof m.taskId === "string") : [];
+  const pendingIds = new Set();
+  d.pending = (Array.isArray(j.pending) ? j.pending : []).filter((o) => {
+    if (!isObj(o) || typeof o.taskId !== "string" || !Number.isFinite(o.at) || o.at <= 0 || pendingIds.has(o.taskId)) return false;
+    pendingIds.add(o.taskId); return true;
+  });
   d.sids = Array.isArray(j.sids) ? j.sids.filter((x) => typeof x === "string") : [];
   d.spent = isObj(j.spent) ? j.spent : {};
   d.monthly = isObj(j.monthly) ? j.monthly : {};
@@ -71,12 +76,12 @@ let RUNLOG = loadState(RUNS_FILE, {
   fallback: () => [],
 }).data;
 /** 返回这次是否写成；调用方要据它回 500，别写失败了还回 ok（195-N.1） */
-const save = () => {
+const store = () => {
   const ok = saveState(FILE, DB);
   if (!ok) log("定时任务保存失败（存储满了或没有权限）");
-  pushNext();
   return ok;
 };
+const save = () => { const ok = store(); pushNext(); return ok; };
 /** 换了全局接口：没单独指定接口的定时任务，模型名是给原来那家的，清掉（195-E.1）。返回清了几个 */
 export function clearFollowingTaskModels() {
   let n = 0;
@@ -99,8 +104,7 @@ function pushNext() {
 }
 const saveRuns = () => { RUNLOG = RUNLOG.slice(-500); return writeAtomic(RUNS_FILE, JSON.stringify(RUNLOG)); };
 const byId = (id) => DB.tasks.find((t) => t.id === id) || null;
-// 失败后的重试定时器（按任务 id）：用户关掉、暂停、删除时要撤掉，否则到点照跑（审查 H4）。
-// 不能在 fire 里看 t.on 拦：「只跑一次」「跑满次数」的任务失败那一刻 on 已经是 false，重试本来就该跑
+// 失败后的重试定时器（按任务 id）。只撤 timer 不够：有的轮次还在忙等 / 队列里，有的还没走到结束钩子。
 // F-7：待执行重试同时落盘到 DB.retries（ccapp-sched.json），网关重启后启动恢复重新排上，
 // 不再只活在内存 RETRY Map 里。
 const RETRY = new Map();
@@ -113,6 +117,22 @@ const dropPersistedRetry = (id) => {
   if ((DB.retries || []).some((r) => r.taskId === id)) { DB.retries = DB.retries.filter((r) => r.taskId !== id); save(); }
 };
 const cancelRetry = (id) => { clearTimeout(RETRY.get(id)); RETRY.delete(id); dropPersistedRetry(id); };
+// 只在用户成功关掉或暂停时换代，重新启用不会复活旧投递。重启后队列仍挂起，未交接的计划随关停一起从盘上撤掉。
+// once / count 在收尾自动关任务不换代，否则最后一轮的普通故障也不能重试。
+const cancelEpochs = new WeakMap();
+const cancelEpoch = (t) => cancelEpochs.get(t) ?? 0;
+function cancelPending(t) { cancelEpochs.set(t, cancelEpoch(t) + 1); cancelRetry(t.id); }
+function dropPending(t) { DB.pending = DB.pending.filter((o) => o.taskId !== t.id); }
+const paused = (t) => t.pausedUntil > Date.now();
+// due、自动补跑、自动重试受开关约束；手动试跑 / 立刻跑 / 人工补跑 / 恢复挂起项是独立的一次投递。
+function skipBeforeStart(t, ctx) {
+  if (!t) return tz("排队时任务被关掉或删了");
+  if (ctx.trial || !["due", "missed", "retry"].includes(ctx.reason)) return null;
+  if (ctx.reason !== "retry" && !t.on) return tz("排队时任务被关掉或删了");
+  if (paused(t)) return tz("暂停中");
+  if (ctx.epoch !== cancelEpoch(t)) return tz("按设置跳过这一次");
+  return null;
+}
 const scheduleRetry = (id, attempt, delayMs) => {
   clearTimeout(RETRY.get(id));
   const at = Date.now() + delayMs;
@@ -276,17 +296,53 @@ export function schedSessions() {
   }
   return out;
 }
-function addRun(rec) {
-  RUNLOG.push(rec);
+function addRun(rec, durable = false) {
+  const before = RUNLOG;
+  if (durable) RUNLOG = [...RUNLOG, rec]; else RUNLOG.push(rec);
+  const saved = saveRuns();
+  if (durable && !saved) { RUNLOG = before; return false; }
   // 月度聚合单独存：RUNLOG 只留最近 500 条，跳过也会占名额，月度统计会被截断（197-5.11）
   const k = monthKey(rec.at);
   const b = DB.monthly[k] || (DB.monthly[k] = { cost: 0, runs: 0, ok: 0, err: 0, skip: 0 });
   if (rec.st === "skip") b.skip++; else b.runs++;
   if (rec.st === "ok") b.ok++; else if (rec.st === "err") b.err++;
   b.cost = Math.round(((b.cost || 0) + (+rec.cost || 0)) * 1e6) / 1e6;
-  saveRuns(); save();
+  save();
   publish({ type: "sched", op: "run", taskId: rec.taskId });
-  return rec;
+  return saved;
+}
+
+// pending 是计时器与队列的交接账本：每个任务最多等一个计划，身份是 (taskId, at)，不是本次启动的时间。
+const HANDED_OFF = new WeakMap();   // occurrence → 是否已有开跑证据（false 只是已入队）
+const OBSERVED = new WeakMap();   // 本进程内写失败重试仍按原派发理由；从盘上恢复的一律按错过处理
+const matchesOccurrence = (o, sched) => sched?.taskId === o.taskId && sched.scheduledAt === o.at;
+function retireOccurrence(o) {
+  if (!DB.pending.includes(o)) return false;
+  const before = DB.pending;
+  DB.pending = before.filter((x) => x !== o);
+  if (store()) { forgetRecoveryHandoff(o.taskId, o.at); return true; }
+  DB.pending = before;
+  return false;
+}
+function settleOccurrence(t, o, { ask = false, consumeSkip = false } = {}) {
+  const { on, skipNext, skipAt } = t, missed = DB.missed;
+  if (consumeSkip) { t.skipNext = false; t.skipAt = 0; }
+  if (t.freq?.kind === "once" && t.nextAt == null) t.on = false;
+  const added = ask && !missed.some((m) => m.taskId === o.taskId && m.at === o.at);
+  if (added) DB.missed = [...missed, { taskId: o.taskId, at: o.at }];
+  if (!retireOccurrence(o)) { Object.assign(t, { on, skipNext, skipAt }); DB.missed = missed; return false; }
+  if (added) publish({ type: "sched", op: "missed" });
+  return true;
+}
+function settleHandoff(o, t, started) {
+  // 已开跑的一次性计划交接完即收口；只是排进队列的仍等用户放行或删除。
+  return started && t ? settleOccurrence(t, o) : retireOccurrence(o);
+}
+function skipOccurrence(t, o, msg, consumeSkip = false) {
+  if (!DB.pending.includes(o)) return;
+  // 日志先写；若进程在销账前退出，以计划时刻去重，不把已经跳过的计划再补跑。
+  const already = RUNLOG.some((r) => r.taskId === o.taskId && r.scheduledAt === o.at);
+  if (already || addRun({ taskId: o.taskId, at: o.at, scheduledAt: o.at, st: "skip", msg }, true)) settleOccurrence(t, o, { consumeSkip });
 }
 function note(t, title, text, sessionId, ok) { publish({ type: "sched_note", taskId: t.id, title, text: String(text || "").slice(0, 200), sessionId: sessionId || null, ok: !!ok }); }
 
@@ -312,17 +368,28 @@ function runningNow() {
   return out;
 }
 const WAITING = new Set();   // 到点了、正排队等别的对话跑完的任务 id：计时别把它当成「没排上 / 时间已过」（审查 B17）
-async function fire(t, { reason = "due", attempt = 0, trial = false } = {}) {
+async function fire(t, { reason = "due", attempt = 0, trial = false, occurrence } = {}) {
   if (trial) return fireNow(t, { reason, attempt, trial });
   // 同一个任务已经有一个到点等待者时不再叠一个：排期间隔 ≤30 分钟时，每个新计划时刻都会进 fireNow 的忙等，
   // 阻塞结束后同一任务会被连续执行多次（审查 11-05）
   // F-6：去重本身是对的，但这次计划不能静默丢掉：记一条 skip 运行记录，用户才能查到为什么没跑。
   if (WAITING.has(t.id)) { log(`⏭ 定时任务「${t.name}」已在排队，跳过这次重复入队`); addRun({ taskId: t.id, at: Date.now(), st: "skip", msg: tz("已在排队，跳过这次重复执行") }); return null; }
   WAITING.add(t.id);
-  try { return await fireNow(t, { reason, attempt, trial }); } finally { WAITING.delete(t.id); }
+  try { return await fireNow(t, { reason, attempt, trial, occurrence }); } finally { WAITING.delete(t.id); }
 }
-async function fireNow(t, { reason, attempt, trial }) {
-  const skip = (msg) => { log(`⏭ 定时任务「${t.name}」跳过：${msg}`); if (!trial) addRun({ taskId: t.id, at: Date.now(), st: "skip", msg }); };
+async function fireNow(t, { reason, attempt, trial, occurrence }) {
+  const ctx = { taskId: t.id, reason, attempt, trial, epoch: cancelEpoch(t) };   // 在第一次 await 之前拍下
+  const skip = (msg, consumeSkip = false) => {
+    log(`⏭ 定时任务「${t.name}」跳过：${msg}`);
+    if (occurrence) skipOccurrence(t, occurrence, msg, consumeSkip);
+    else if (!trial) addRun({ taskId: t.id, at: Date.now(), st: "skip", msg });
+  };
+  const skipIfCancelled = () => {
+    if (occurrence && !DB.pending.includes(occurrence)) return true;
+    const why = skipBeforeStart(byId(t.id) === t ? t : null, ctx);
+    if (why) skip(why);
+    return !!why;
+  };
   // 指定的接口删了：不悄悄换成全局默认那家跑（全局可能是订阅账户，任务内容不该换家发出去）。
   // 放在最前：回落到订阅后下面「订阅账户默认关闭」会先挡住，可报的原因不对，打开了订阅也就挡不住了
   if (t.provider && !providerById(t.provider)) {
@@ -338,7 +405,10 @@ async function fireNow(t, { reason, attempt, trial }) {
   }
   if (!trial) {
     if (t.until?.kind === "date" && t.until.date && Date.now() > new Date(t.until.date + "T23:59:59").getTime()) { t.on = false; refreshNext(t); save(); return skip(tz("已过有效期，任务已关")); }
-    if (t.skipNext && reason === "due" && (!t.skipAt || t.skipAt <= t.nextAt)) { t.skipNext = false; t.skipAt = 0; save(); return skip(tz("按设置跳过这一次")); }
+    if (t.skipNext && reason === "due" && (!t.skipAt || t.skipAt <= (occurrence?.at ?? t.nextAt))) {
+      if (!occurrence) { t.skipNext = false; t.skipAt = 0; save(); }
+      return skip(tz("按设置跳过这一次"), true);
+    }
     if (usesLogin(t) && !DB.allowLogin) {
       skip(tz("用订阅账户跑定时任务默认关闭"));
       note(t, tz("定时任务已跳过"), tz("「{n}」要用订阅账户跑：到定时任务页底部「订阅账户」里打开（无人值守使用以 Anthropic 条款为准），或给任务换一个用 API Key 的接口", { n: t.name }), null, false);
@@ -362,13 +432,13 @@ async function fireNow(t, { reason, attempt, trial }) {
       const deadline = Date.now() + 30 * 60000;
       while (RUNS.size >= maxParallel()) {
         if (Date.now() > deadline) return skip(tz("有对话在跑，排队 30 分钟仍没轮到"));
-        if (byId(t.id) !== t || (reason === "due" && !t.on)) return skip(tz("排队时任务被关掉或删了"));
+        if (skipIfCancelled()) return;
         await new Promise((r) => setTimeout(r, 30000));
       }
     }
   }
-  // 排队那 30 秒里被删 / 被关、而别的对话又正好在醒来前结束：循环条件直接为假，循环里那道检查没走到（审查 B16）。入队前再看一眼
-  if (!trial && (byId(t.id) !== t || (reason === "due" && !t.on))) return skip(tz("排队时任务被关掉或删了"));
+  // 忙等醒来时槽可能刚空，或前面异步查过设备状态；真正入队前再核一次（B16）。
+  if (skipIfCancelled()) return;
   const p = t.projectId ? projectById(t.projectId) : null;
   // 项目删了：不悄悄退回工作区跑（「可以改项目目录里的文件」到了工作区就是能改工作区，#178-7）
   if (t.projectId && !p) {
@@ -388,9 +458,13 @@ async function fireNow(t, { reason, attempt, trial }) {
   }
   // 接着同一个对话、可那个对话已经删了：--resume 必失败（每次到点都失败、重试也一样，#173-3）。
   // 放下它，这次新开一个；任务详情里标出来
-  if (!trial && t.session === "same" && t.lastSid && !findSessionFile(t.lastSid)) {
-    log(`⏰ 定时任务「${t.name}」接着的对话 ${t.lastSid} 已不在，这次新开一个`);
-    t.lostSid = t.lastSid; t.lastSid = null; save();
+  if (!trial && t.session === "same" && t.lastSid) {
+    const at = sessionPresence(t.lastSid);
+    if (at === "unreadable") return skip(tz("读取历史失败：{msg}", { msg: "I/O" }));
+    if (at === "missing") {
+      log(`⏰ 定时任务「${t.name}」接着的对话 ${t.lastSid} 已不在，这次新开一个`);
+      t.lostSid = t.lastSid; t.lastSid = null; save();
+    }
   }
   const perm = t.perm === "proj" ? { permissionMode: "acceptEdits" }
     : t.perm === "custom" ? { permissionMode: "default", allowedTools: capList(String(t.tools || "").split(/[,，\n]/).map((x) => x.trim()).filter(Boolean), 200, 512, 8192) }
@@ -401,13 +475,15 @@ async function fireNow(t, { reason, attempt, trial }) {
     if (last) message = `${tz("（上一次的结果，供参考）")}\n${last.full}\n\n---\n\n${message}`;
   }
   const key = "s" + Date.now().toString(36) + (++keyN);
-  RUNNING.set(key, { taskId: t.id, startedAt: Date.now(), attempt, trial, reason });
+  RUNNING.set(key, { ...ctx, startedAt: Date.now() });
   const item = enqueue({
     internal: true, message, projectId: p ? p.id : null,
     sessionId: !trial && t.session === "same" && t.lastSid ? t.lastSid : null,
     model: t.model || null, effort: t.effort || null, provider: t.provider || null, ...perm,
-    unattended: true, timeoutMs: Math.max(1, +t.limitMin || 15) * 60000, limitCost: +t.limitCost || 0, sched: { taskId: t.id, key, ...(trial ? { trial: true } : {}) },
-  });
+    unattended: true, timeoutMs: Math.max(1, +t.limitMin || 15) * 60000, limitCost: +t.limitCost || 0,
+    sched: { taskId: t.id, key, ...(trial ? { trial: true } : {}), ...(occurrence ? { scheduledAt: occurrence.at } : {}) },
+  }, occurrence && (() => retireOccurrence(occurrence)));
+  if (!item) { RUNNING.delete(key); return; }   // 持久交接失败：下一次 tick 按未投递项处理
   log(`⏰ 定时任务「${t.name}」开跑（${reason}${trial ? "，试跑" : ""}）`);
   if (!trial) { t.lastFiredAt = Date.now(); save(); }
   return item;
@@ -416,18 +492,26 @@ async function fireNow(t, { reason, attempt, trial }) {
 // 入队之后、真开跑之前任务被删 / 被关：不跑了，记一笔跳过（DeepSeek 复核 中-2；入队前那道见 fireNow）
 START_GUARDS.push((q) => {
   if (!q.sched) return true;
+  const t = byId(q.sched.taskId);
   let ctx = RUNNING.get(q.sched.key);
-  // 网关重启后从队列恢复的条目（挂起、用户点了放行）：内存里的调度记录没了，按条目重建一份，
-  // 守卫照样核、结束照样记运行和次数（#132）。任务已经删了就不跑
-  if (!ctx) {
-    if (!byId(q.sched.taskId)) { log("⏭ 恢复的定时任务条目：任务已经删了，不跑"); return false; }
-    ctx = { taskId: q.sched.taskId, startedAt: Date.now(), attempt: 0, trial: !!q.sched.trial, reason: "recovered" };
+  // 重启恢复的队列全挂起，不会自动到达这里。用户点放行时按独立投递重建上下文（#132），不当成旧 due。
+  if (!ctx && t) {
+    ctx = { taskId: t.id, startedAt: Date.now(), attempt: 0, trial: !!q.sched.trial, reason: "recovered", epoch: cancelEpoch(t) };
     RUNNING.set(q.sched.key, ctx);
+  } else if (ctx && wasResumed(q)) {
+    // 用户明确放行了一个挂起项；普通提到队首不算新的手动投递。
+    ctx.reason = "manual";
+  }
+  const why = skipBeforeStart(t, ctx);
+  if (why) {
+    RUNNING.delete(q.sched.key);
+    log(`⏭ 定时任务${t ? "「" + t.name + "」" : ""}跳过：${why}`);
+    if (t) addRun({ taskId: t.id, at: Date.now(), st: "skip", msg: why });
+    return false;
   }
   if (ctx.trial) return true;
-  const t = byId(ctx.taskId);
   // 排队期间会话可能被改钉到官方账户：真开跑前按这一条实际会用的那家再核一次订阅许可
-  if (t && !DB.allowLogin && (() => { try { return isLoginMode(pickProvider(q).P); } catch { return false; } })()) {
+  if (!DB.allowLogin && (() => { try { return isLoginMode(pickProvider(q).P); } catch { return false; } })()) {
     RUNNING.delete(q.sched.key);
     const msg = tz("用订阅账户跑定时任务默认关闭");
     log(`⏭ 定时任务「${t.name}」跳过：${msg}`);
@@ -436,7 +520,7 @@ START_GUARDS.push((q) => {
     return false;
   }
   // 排队期间别的任务可能把当天预算花完了：真开跑前再核一次（#119-2）
-  if (t && DB.dailyBudget > 0 && costToday() >= DB.dailyBudget) {
+  if (DB.dailyBudget > 0 && costToday() >= DB.dailyBudget) {
     RUNNING.delete(q.sched.key);
     const msg = tz("今天的花费已到上限");
     log(`⏭ 定时任务「${t.name}」跳过：${msg}`);
@@ -444,34 +528,52 @@ START_GUARDS.push((q) => {
     note(t, tz("定时任务已跳过"), tz("「{n}」：今天的花费已到上限", { n: t.name }), null, false);
     return false;
   }
-  // 不是到点触发的（手动跑、重启后恢复的 reason:"recovered"）任务关着也放行：和手动跑一个意思，旧版缺 ctx 时也是直接放行
-  if (t && (ctx.reason !== "due" || t.on)) return true;
-  RUNNING.delete(q.sched.key);
-  const msg = tz("排队时任务被关掉或删了");
-  log(`⏭ 定时任务${t ? "「" + t.name + "」" : ""}跳过：${msg}`);
-  if (t) addRun({ taskId: t.id, at: Date.now(), st: "skip", msg });
-  return false;
+  return true;
 });
 
 // 网关连同那一轮被系统结束：END_HOOKS 没机会跑，运行记录里就像这次没发生过，「接着同一个对话」的下一次也接不上（195-AA.3）。
 // 启动恢复时补记一次失败运行，接着的对话写回 lastSid。按 run id 去重：标记没删掉、下次启动又给一遍时不重复记
-RECOVER_HOOKS.push((runs) => {
-  for (const r of runs) {
+RECOVER_HOOKS.push((runs, evidence) => {
+  // 队列先落盘、pending 还未销账时退出：以交接证据为准，不能再补跑。原队列依然按旧规则挂起。
+  const started = [...(evidence?.runs || runs), ...INTERRUPTED].map((r) => r.sched);
+  const queued = (evidence?.queue || []).map((q) => q.sched);
+  for (const s of evidence?.handoffs || []) (s.started ? started : queued).push(s);
+  const keep = [];
+  for (const o of DB.pending) {
+    const didStart = started.some((s) => matchesOccurrence(o, s));
+    if (!didStart && !queued.some((s) => matchesOccurrence(o, s))) continue;
+    HANDED_OFF.set(o, didStart);
+    // 销账写失败时请队列保留交接证据，即使相应的中断卡/队列项随后被清掉也不能自动补跑。
+    if (!settleHandoff(o, byId(o.taskId), didStart)) keep.push({ taskId: o.taskId, scheduledAt: o.at, started: didStart });
+  }
+  for (const r of [...runs, ...INTERRUPTED]) {
     if (!r.sched || !r.sched.taskId || r.sched.trial) continue;
     const t = byId(r.sched.taskId);
-    if (!t || RUNLOG.some((x) => x.runId === r.id)) continue;
+    if (!t) continue;
+    // 已经交给队列并开始的一次性计划，保留中断结果，不再另记成「时间已过」。
+    const when = r.sched.scheduledAt;
+    const once = Number.isFinite(when) && t.on && t.freq?.kind === "once" && t.nextAt == null && !DB.pending.some((o) => o.taskId === t.id && o.at !== when);
+    if (once) t.on = false;
+    if (RUNLOG.some((x) => x.runId === r.id)) { if (once) save(); continue; }
     log(`⏰ 定时任务「${t.name}」上一轮被系统结束，记一次失败`);
     // 时间记这一轮开始的时候；时长不知道（停机那段不能算进去），不写
     addRun({ taskId: t.id, at: r.startedAt || Date.now(), st: "err", msg: tz("网关被系统结束，这一轮没跑完"), runId: r.id, sid: r.sessionId || null, attempt: 0 });
     if (r.sessionId && t.session === "same") { t.lastSid = r.sessionId; delete t.lostSid; save(); }
   }
+  return keep;
 });
 
 // 会话进了回收站：接着它的任务放下 lastSid，详情里标「原来的对话已删除」，下一次新开（#173-3）
 TRASH_HOOKS.push((id) => {
-  let n = 0;
-  for (const t of DB.tasks) if (t.lastSid === id) { t.lostSid = id; t.lastSid = null; n++; }
-  if (n) { save(); publish({ type: "sched", op: "edit" }); }
+  const before = [];
+  for (const t of DB.tasks) if (t.lastSid === id) { before.push([t, t.lostSid]); t.lostSid = id; t.lastSid = null; }
+  if (!before.length) return;
+  // 回收站依据钩子的结果决定是否完成。写失败后保留重试依据，别把内存里的修改当成已落盘。
+  if (!store()) {
+    for (const [t, lostSid] of before) { t.lastSid = id; if (lostSid === undefined) delete t.lostSid; else t.lostSid = lostSid; }
+    throw new Error(tz("没保存上：存储满了或没有权限"));
+  }
+  publish({ type: "sched", op: "edit" });
 });
 
 // 一轮结束：记运行记录、改会话名、通知、重试
@@ -483,13 +585,14 @@ END_HOOKS.push((run, f) => {
   // 跑着的时候任务被删了：已经花掉的钱照样记进当天的预算日桶，不然后面的任务会在超额以后继续跑（#149-1）。
   // 试跑也记（197-5.10）
   if (!t) { if (cost > 0) { spend(ctx.startedAt, cost); save(); } return; }
+  const userStopped = run.userStopped === true;
   const dur = Date.now() - ctx.startedAt;
   const text = String(f.finalText || "").trim();
   let st = "ok", msg = text.split("\n").find((l) => l.trim()) || tz("（没有回复）");
   const over = run.overBudget || (t.limitCost > 0 && cost > t.limitCost);
   if (run.timedOut) { st = "err"; msg = tz("超过时长上限 {m} 分钟，已停", { m: t.limitMin || 15 }); }
   else if (run.overBudget) { st = "err"; msg = tz("花费 ${c}，超过单次上限 ${m}", { c: cost.toFixed(2), m: t.limitCost }); }
-  else if (run.aborted) { st = "err"; msg = tz("被停止"); }
+  else if (run.aborted || userStopped) { st = "err"; msg = tz("被停止"); }
   else if (f.failed || f.isError) { st = "err"; msg = text || tz("出错了"); }
   else if (t.limitCost > 0 && cost > t.limitCost) { st = "err"; msg = tz("花费 ${c}，超过单次上限 ${m}", { c: cost.toFixed(2), m: t.limitCost }); }
   if (run.denied?.length && st === "ok") msg += "  " + tz("（拒绝了 {n} 次要确认的操作）", { n: run.denied.length });
@@ -508,8 +611,11 @@ END_HOOKS.push((run, f) => {
   // 试跑花的钱也进日桶（197-5.10），再走原来的通知/提前返回
   spend(ctx.startedAt, cost); save();
   if (ctx.trial) { note(t, tz("试跑完成"), msg, sid, st === "ok"); return; }
-  // 这次成功了：之前失败排的 2 分钟重试作废，别再重复跑一遍（手动/计划成功都算）
-  if (st === "ok") cancelRetry(t.id);
+  // 主动停止也取消已经离开 timer、还在等待槽位的旧自动投递；不影响下一个正常计划时刻。
+  if (userStopped) { cancelPending(t); dropPending(t); }
+  else if (st === "ok") cancelRetry(t.id);
+  // 在 once / count 的自动关停前区分「本就关着的一次手动执行」和「允许自动重试的最后一轮」。
+  const mayRetry = !userStopped && ctx.epoch === cancelEpoch(t) && !paused(t) && (t.on || ctx.reason === "retry");
   // 不存成对话：这次的会话随后进回收站。运行记录和通知就别再指向它了（点了只会 404，#173-1）；完整结果看 full（#173-2）。
   // 接着同一个对话的不回收：下一次还要接着它，回收了就 --resume 失败（#173-3）。
   // 失败轮次也算：saveSession=false 说好的「只留运行记录」，以前失败时仍把会话留在主列表（197-2.5）
@@ -525,20 +631,49 @@ END_HOOKS.push((run, f) => {
   const want = t.notify === "none" ? false : t.notify === "fail" ? st !== "ok" : t.notify === "found" ? (st !== "ok" || found) : true;
   if (want) note(t, st === "ok" ? tz("定时任务完成：{n}", { n: t.name }) : tz("定时任务没成：{n}", { n: t.name }), msg, drop ? null : sid, st === "ok");
   // 超了花费上限不重试：重试就是再花一遍（#98 03-010）
-  if (st === "err" && !over && ctx.attempt < (+t.retry || 0)) {
+  if (st === "err" && mayRetry && !over && ctx.attempt < (+t.retry || 0)) {
     scheduleRetry(t.id, ctx.attempt + 1, 2 * 60000);
   }
 });
 
 // ── 计时 ──
+const skipsOccurrence = (t, o) => t.skipNext && (!t.skipAt || t.skipAt <= o.at);
+function dispatchOccurrence(t, o, missed) {
+  if (missed) {
+    log(`⏰ 定时任务「${t.name}」错过 ${new Date(o.at).toLocaleString()}（${t.missed || "ask"}）`);
+    const consumeSkip = skipsOccurrence(t, o);
+    if (t.missed === "skip") return skipOccurrence(t, o, tz("错过了（当时应用没在跑），按设置跳过"), consumeSkip);
+    if (t.missed !== "run") return settleOccurrence(t, o, { ask: true });
+    if (consumeSkip) return skipOccurrence(t, o, tz("按设置跳过这一次"), true);
+  }
+  fire(t, { reason: missed ? "missed" : "due", occurrence: o }).catch((e) => log("定时任务投递出错：" + e.message));
+}
 /** alarmAt：外壳的系统闹钟响时带的计划时刻（没有 = 0）。Doze 把它推迟了几分钟时，这次计划照常执行（0.6.9 审计 13-04） */
 function tick(alarmAt = 0) {
   const now = Date.now();
   followSysTz(now);
   const gap = DB.lastTick ? now - DB.lastTick : 0;
-  const live = new Set(runningNow().map((x) => x.taskId));
+  let occurrenceWriteFailed = false;
+  // 启动恢复的挂起队列没有 RUNNING 上下文，仍算已交接，别把一次性任务误报成过期。
+  const live = new Set([...runningNow().map((x) => x.taskId), ...QUEUE.map((q) => q.sched?.taskId)]);
+  const carried = new Set(DB.pending.map((o) => o.taskId));
+  for (const o of DB.pending) {
+    if (WAITING.has(o.taskId)) continue;
+    const t = byId(o.taskId);
+    if (!t) { retireOccurrence(o); continue; }
+    const didStart = HANDED_OFF.get(o) || [...RUNS.values(), ...INTERRUPTED].some((x) => matchesOccurrence(o, x.sched));
+    if (didStart || HANDED_OFF.has(o) || QUEUE.some((q) => matchesOccurrence(o, q.sched))) settleHandoff(o, t, didStart);
+    else if (RUNLOG.some((r) => r.taskId === o.taskId && r.scheduledAt === o.at)) settleOccurrence(t, o, { consumeSkip: skipsOccurrence(t, o) });
+    else if (!t.on || paused(t)) retireOccurrence(o);
+    else dispatchOccurrence(t, o, OBSERVED.get(o) ?? true);
+  }
   for (const t of DB.tasks) {
     if (!t.on) continue;
+    if (carried.has(t.id)) {
+      // 与原来的等待窗口一样：阻塞期间不累积第二次计划。
+      if (WAITING.has(t.id) && t.nextAt != null && t.nextAt <= now) refreshNext(t, now);
+      continue;
+    }
     if (t.nextAt == null) {
       // 正排队或正在跑：只跑一次的任务这时 nextAt 已是空的，别当成「时间已过」把它关掉记一笔跳过（审查 B17）
       if (WAITING.has(t.id) || live.has(t.id)) continue;
@@ -556,20 +691,18 @@ function tick(alarmAt = 0) {
     const byAlarm = alarmAt > 0 && t.nextAt === alarmAt && late <= 30 * 60000;
     if (byAlarm && late > 3 * 60000) log(`⏰ 定时任务「${t.name}」的闹钟被系统推迟了 ${Math.round(late / 60000)} 分钟，仍按到点执行`);
     // 晚了 3 分钟以上：应用没在跑 / 机器睡死了 —— 按「错过了」的设置来，不默默补跑
-    if (!byAlarm && (late > 3 * 60000 && gap > 3 * 60000 || late > 15 * 60000)) {
-      const when = t.nextAt;
-      if (t.missed === "run") {
-        // 「跳过下一次」指的正是这次错过的计划：消费掉标记，别让再下一次 due 被跳
-        if (t.skipNext && (!t.skipAt || t.skipAt <= when)) { t.skipNext = false; t.skipAt = 0; addRun({ taskId: t.id, at: when, st: "skip", msg: tz("按设置跳过这一次") }); }
-        else fire(t, { reason: "missed" });
-      }
-      else if (t.missed === "skip") { if (t.skipNext && (!t.skipAt || t.skipAt <= when)) { t.skipNext = false; t.skipAt = 0; } addRun({ taskId: t.id, at: when, st: "skip", msg: tz("错过了（当时应用没在跑），按设置跳过") }); }
-      else if (!DB.missed.some((m) => m.taskId === t.id && m.at === when)) { DB.missed.push({ taskId: t.id, at: when }); publish({ type: "sched", op: "missed" }); }
-      log(`⏰ 定时任务「${t.name}」错过 ${new Date(when).toLocaleString()}（${t.missed || "ask"}）`);
-    } else fire(t, { reason: "due" });
+    const missed = !byAlarm && (late > 3 * 60000 && gap > 3 * 60000 || late > 15 * 60000);
+    const o = { taskId: t.id, at: t.nextAt };
     refreshNext(t, now);
+    if (WAITING.has(t.id)) continue;
+    // 新计划收据和 nextAt 在同一次原子写中提交，失败不推进、不投递，也不报新的闹钟时刻。
+    DB.pending.push(o);
+    if (!store()) { DB.pending.pop(); t.nextAt = o.at; occurrenceWriteFailed = true; continue; }
+    OBSERVED.set(o, missed);
+    dispatchOccurrence(t, o, missed);
   }
-  DB.lastTick = now;
+  // 收据没写上，本拍还没处理完。保留上次 tick，否则短暂写错会把「错过/询问」变成新的到点执行。
+  if (!occurrenceWriteFailed) DB.lastTick = now;
   save();
 }
 // F-7 启动恢复：把盘上待执行的失败重试重新排上（任务已删的丢弃；已过期的立即排）。
@@ -706,7 +839,7 @@ export async function routeSched(req, res, u, p) {
     const t = byId(m.taskId);
     // 只有「跳过」标记早于这次错过时才消费；用户是在错过卡出现之后才设的跳过，要留给下一次计划
     if (t && t.skipNext && (!t.skipAt || t.skipAt <= m.at)) { t.skipNext = false; t.skipAt = 0; save(); }
-    if (t && b.act === "run") fire(t, { reason: "missed" });
+    if (t && b.act === "run") fire(t, { reason: "manual" });   // 人点的补跑，不是 tick 自动补跑
     else if (t) addRun({ taskId: t.id, at: m.at, st: "skip", msg: tz("错过了，没补跑") });
     return sendJson(res, 200, { ok: true });
   }
@@ -729,21 +862,22 @@ export async function routeSched(req, res, u, p) {
   if (!sub && req.method === "PATCH") {
     const b = await body();
     try { clean(b, {}); } catch (e) { return sendJson(res, 400, { error: e.message }); }
-    const before = { ...t };
+    const before = { ...t }, pending = DB.pending;
     Object.assign(t, clean(b, t));
     if (b.on === true) { t.pausedUntil = 0; t.skipNext = false; t.skipAt = 0; }
-    if (b.on === false) cancelRetry(t.id);
+    if (b.on === false) dropPending(t);
     refreshNext(t);
-    if (!save()) { for (const k of Object.keys(t)) delete t[k]; Object.assign(t, before); refreshNext(t); return sendJson(res, 500, { ok: false, error: "write_failed", message: tz("没保存上：存储满了或没有权限") }); }
+    if (!save()) { DB.pending = pending; for (const k of Object.keys(t)) delete t[k]; Object.assign(t, before); pushNext(); return sendJson(res, 500, { ok: false, error: "write_failed", message: tz("没保存上：存储满了或没有权限") }); }
+    if (b.on === false) cancelPending(t);
     return sendJson(res, 200, { ok: true, task: summary(t) });
   }
   if (!sub && req.method === "DELETE") {
     // 正在跑：删了的话这一次的记录、命名、通知、不存对话的回收都没人做了（#178-8）
     if (runningNow().some((x) => x.taskId === t.id)) return sendJson(res, 409, { error: tz("任务正在跑：等它跑完，或先在对话里停掉，再删") });
     cancelRetry(t.id);
-    const tasks0 = DB.tasks, missed0 = DB.missed;
-    DB.tasks = DB.tasks.filter((x) => x.id !== t.id); DB.missed = DB.missed.filter((x) => x.taskId !== t.id);
-    if (!save()) { DB.tasks = tasks0; DB.missed = missed0; return sendJson(res, 500, { ok: false, error: "write_failed", message: tz("没保存上：存储满了或没有权限") }); }
+    const tasks0 = DB.tasks, missed0 = DB.missed, pending = DB.pending;
+    DB.tasks = DB.tasks.filter((x) => x.id !== t.id); DB.missed = DB.missed.filter((x) => x.taskId !== t.id); dropPending(t);
+    if (!save()) { DB.tasks = tasks0; DB.missed = missed0; DB.pending = pending; pushNext(); return sendJson(res, 500, { ok: false, error: "write_failed", message: tz("没保存上：存储满了或没有权限") }); }
     log(`⏰ 删除定时任务「${t.name}」`);
     return sendJson(res, 200, { ok: true });
   }
@@ -759,13 +893,14 @@ export async function routeSched(req, res, u, p) {
     return sendJson(res, 200, { ok: !!item, id: item && item.id });
   }
   if (sub === "/pause" && req.method === "POST") {
-    const b = await body(), before = { ...t };
+    const b = await body(), before = { ...t }, pending = DB.pending;
     t.skipNext = b.mode === "skip";
-    t.skipAt = t.skipNext ? (t.nextAt || 0) : 0;   // 绑定到当前这一次计划，之后的补跑/改期不会误消费
+    t.skipAt = t.skipNext ? (t.nextAt || Date.now()) : 0;   // 绑定到下一次计划，不让之前的未交接项消费它
     t.pausedUntil = b.mode === "1d" ? Date.now() + 864e5 : b.mode === "1w" ? 7 * 864e5 + Date.now() : 0;
-    if (t.pausedUntil) cancelRetry(t.id);
+    if (t.pausedUntil) dropPending(t);
     refreshNext(t);
-    if (!save()) { for (const k of Object.keys(t)) delete t[k]; Object.assign(t, before); refreshNext(t); return sendJson(res, 500, { ok: false, error: "write_failed", message: tz("没保存上：存储满了或没有权限") }); }
+    if (!save()) { DB.pending = pending; for (const k of Object.keys(t)) delete t[k]; Object.assign(t, before); pushNext(); return sendJson(res, 500, { ok: false, error: "write_failed", message: tz("没保存上：存储满了或没有权限") }); }
+    if (t.pausedUntil) cancelPending(t);
     return sendJson(res, 200, { ok: true, task: summary(t) });
   }
   return NEXT;
