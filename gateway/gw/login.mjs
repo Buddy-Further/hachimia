@@ -12,10 +12,13 @@ import { RATE_LIMITS, clearRateLimits } from "./stream.mjs";
 
 // ── Google Antigravity 账户登录（OAuth 全程由官方 agy CLI 完成；网关只转递授权地址，不碰凭据）──
 //
-// 两条路，同一个进程：
-//   自动：设了 BROWSER 捕获脚本，agy acp --login 把 Google OAuth 链接交给它，
-//         由界面调起系统浏览器完成登录，回调回到 localhost 后 agy 自动落盘凭据。
-//   手动：浏览器无法回跳 localhost 时，界面可打开终端运行 `SSH_CONNECTION=1 agy`（Remote SSH OAuth），
+// 起裸交互式 agy（官方文档原话：「Headless mode uses your cached credentials. Authenticate
+// once with an interactive agy session first.」）：它驻留运行、自带 OAuth 回调监听，
+// 浏览器里登录完成后回调落回 agy 自己，凭据落盘，后续 acp 会话直接复用缓存凭据。
+// 以前走 `agy acp --login`：拿完授权地址就退出，没有回调接收方，浏览器登录成功
+// 登录态也带不回来。设了 BROWSER 捕获脚本：agy 打开 Google OAuth 链接时交给界面、
+// 由系统浏览器完成登录；agy 不认 $BROWSER 时从 stdout 里扫授权地址（pickAuthUrl）。
+//   兜底：浏览器无法回跳 localhost 时，界面可打开终端运行 `SSH_CONNECTION=1 agy`（Remote SSH OAuth），
 //         用户直接把授权码贴给 agy 自己的终端提示，网关不经手凭据。
 let LOGIN = null;
 const LOGIN_DIR = path.join(CFG.home, ".cache", "hachimia-login");
@@ -23,6 +26,14 @@ const SYS_SH = fs.existsSync("/system/bin/sh") ? "/system/bin/sh" : "/bin/sh";
 
 function agyBin() {
   return PATHS.agy || PATHS.claude;
+}
+
+/** 授权地址：优先认 Google 授权的特征（accounts.google.com / oauth），别抓第一个 https 链接
+ *  就当授权地址；末尾的标点（) ] . , 等）不是地址的一部分，去掉 */
+function pickAuthUrl(text) {
+  const urls = (String(text || "").match(/https:\/\/[^\s"'<>]+/g) || [])
+    .map((u) => u.replace(/[)\]}.,;:!?'"]+$/, ""));
+  return urls.find((u) => /accounts\.google\.com|oauth/i.test(u)) || urls[0] || "";
 }
 
 function authEnv(enterprise = false) {
@@ -48,8 +59,8 @@ async function loginStart(method = "personal") {
 
   const enterprise = method === "enterprise" || method === "console" || method === "business";
   const env = { ...authEnv(enterprise), BROWSER: browser };
-  const args = ["acp", "--login"];
-  const child = spawn(bin, args, { cwd: CFG.home, env, stdio: ["ignore", "pipe", "pipe"], detached: true });
+  // 裸交互式 agy（不带 acp --login）：驻留跑 TUI、自带 OAuth 回调监听，登录态才能落回来
+  const child = spawn(bin, [], { cwd: CFG.home, env, stdio: ["ignore", "pipe", "pipe"], detached: true });
   const L = LOGIN = { child, out: "", startedAt: Date.now(), done: false, ok: false, method, urlFile };
 
   const expire = setTimeout(() => {
@@ -74,20 +85,18 @@ async function loginStart(method = "personal") {
     if (L.done) return;
     L.done = true;
     L.ok = code === 0;
-    log("登录：" + (L.ok ? "成功" : "结束（退出码 " + code + "）"));
-    if (L.ok) {
-      AUTH_CACHE = null;
-      noteLoggedIn(true);
-      toFront("登录成功").then((r) => log("登录：回到前台 → " + (r.via || r.message || "?")));
-    }
+    log("登录：" + (L.ok ? "结束（退出码 0）" : "结束（退出码 " + code + "）"));
+    // 不在这里断言登录成功：以前 acp --login 拿完地址就以 0 退出，被当成登录成功是假绿。
+    // 是否真登上，以下一次 /api/login/status 的探测为准（close 后 need=true 会强制重探）。
+    if (L.ok) toFront("登录完成").then((r) => log("登录：回到前台 → " + (r.via || r.message || "?")));
   });
-  log("登录：已启动 agy acp --login (" + method + ")");
+  log("登录：已启动交互式 agy（Google OAuth，" + method + "）");
 
   return new Promise((resolve) => {
     const tick = setInterval(() => {
       let auto = "";
       try { auto = fs.readFileSync(urlFile, "utf8").trim(); } catch {}
-      const manual = (L.out.match(/https:\/\/\S+/) || [""])[0];
+      const manual = pickAuthUrl(L.out);
       if ((auto || manual) || L.done || Date.now() - L.startedAt > 20000) {
         clearInterval(tick);
         if (auto || manual) return resolve({ ok: true, url: auto || manual, manualUrl: manual, auto: !!auto });
@@ -206,7 +215,7 @@ export async function routeLogin(req, res, u, p) {
     let url = "";
     if (LOGIN && !LOGIN.done) {
       try { url = fs.readFileSync(LOGIN.urlFile, "utf8").trim(); } catch {}
-      if (!url) url = (LOGIN.out.match(/https:\/\/\S+/) || [""])[0];
+      if (!url) url = pickAuthUrl(LOGIN.out);
     }
     return sendJson(res, 200, {
       ...st,
@@ -218,6 +227,7 @@ export async function routeLogin(req, res, u, p) {
   }
   if (req.method === "POST" && p === "/api/login/cancel") {
     if (LOGIN && !LOGIN.done) try { killTree(LOGIN.child); } catch {}
+    AUTH_CACHE = null; AUTH_GOOD = null;   // 取消登录后别在 30 秒缓存里继续显旧的登录态
     return sendJson(res, 200, { ok: true });
   }
   if (req.method === "POST" && p === "/api/login/logout") {
