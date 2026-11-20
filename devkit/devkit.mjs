@@ -22,7 +22,7 @@
 //        node devkit.mjs resolve [--groups ...]          只列闭包和体积
 //        node devkit.mjs component <id> --target ha.chi.mia --base <工具包的 devkit.lock.json>
 //        node devkit.mjs component --recipe <配方目录> --target ha.chi.mia --base <…>
-//            外部配方（cccodroid-components 仓库的 recipes/<id>/recipe.json），见那边的 docs/recipe.md
+//            外部配方（hachimia-components 仓库的 recipes/<id>/recipe.json），见那边的 docs/recipe.md
 //            可选组件（见 devkit.json 的 components）：只打底座里没有的包，产出 out/component-<id>-<包名>.tar.gz
 // ─────────────────────────────────────────────────────────────────────
 import fs from "node:fs";

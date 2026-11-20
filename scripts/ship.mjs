@@ -34,9 +34,10 @@ const APK = path.join(ROOT, "dist/hachimia.apk");
 const APK36 = path.join(ROOT, "dist/hachimia-36.apk");
 const STEPS = ["preflight", "bump", "changelog", "commit", "build", "verify", "push", "release", "check", "site", "install"];
 const PUBLIC = ["push", "release", "check", "site"];
-// 官网：hachimia 暂无独立站点（E-09）。HACHIMIA_SITE 配了才走 site 同步（VPS 上的站点服务 + Cloudflare 直链）；
-// 没配时 S.site() 直接跳过（state.done.site 记 "skipped"，--check 不会再去核它）。cccodroid.net / 167.160.161.115
-// 是 cccodroid 的旧基础设施，hachimia 建站时再换成自己的。
+// 官网：hachimia 暂无独立站点（E-09）。HACHIMIA_SITE 配了才走 site 同步；没配时 S.site() 直接跳过
+// （state.done.site 记 "skipped"，--check 不会再去核它）。cccodroid.net / 167.160.161.115 是 cccodroid 的
+// 旧基础设施，site 同步已停用：就算配了 HACHIMIA_SITE，S.site() 也会直接报错停下，不会连这台旧 VPS。
+// hachimia 有自己的 VPS/站点之前不要改这里——涉及服务器归属与密钥，不是改个域名就能用的事。
 const SITE = process.env.HACHIMIA_SITE || "", VPS = "root@167.160.161.115", VPS_KEY = path.join(HOME, ".ssh/vps-keys/167.160.161.115-root");
 
 const argv = process.argv.slice(2);
@@ -201,6 +202,9 @@ const S = {
       state.siteSkipped = true;   // 主流程把 done.site 记成 "skipped"，别让 --check 以为这步真做过
       return;
     }
+    // 停用守卫：下面的 ssh / Cloudflare 目标仍是 cccodroid 的旧基础设施（167.160.161.115 / cccodroid.net），
+    // hachimia 没有自己的 VPS/站点之前不许走这条路。配了 HACHIMIA_SITE 也不放行，直接报错停下。
+    throw new Error("site 同步已停用：167.160.161.115 / cccodroid.net 是 cccodroid 的旧基础设施，hachimia 有自己的 VPS/站点之前不发 site");
     // 1) 让 VPS 现在就重新生成（平时靠定时器，等不及）；钥匙只交路径，不读出来
     run("ssh", ["-F", "/dev/null", "-i", path.join(VPS_KEY, "id_ed25519"), "-o", "IdentitiesOnly=yes", "-o", `UserKnownHostsFile=${path.join(VPS_KEY, "known_hosts")}`,
       "-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=15", VPS, "systemctl start cccodroid-site.service"]);

@@ -91,8 +91,9 @@ test("D-09 「全部放行」确认框写 Antigravity", () => {
   const s = read("gateway/web/app/03-perm-status.js");
   assert.doesNotMatch(s, /Claude 将不再询问/);
   assert.match(s, /Antigravity 将不再询问/);
-  // 新键的英文译文在 lang-en.js 里（D-05 词典批次补）；旧键变孤儿留在词典里——
-  // 不能删，lang-en.js 的键序就是各语言 txt 的行号，删了会错位
+  // 新键的英文译文在 lang-en.js 里（D-05 词典批次补）；旧键当时变孤儿留在词典里——
+  // 删键会让之后所有键的序号前移，必须同步重写 txt（D-05 的教训），mig/residue 的 C-01
+  // 已用 mig-c01-sweep.mjs 批量删掉全部孤儿键并重排（3129 键，0 孤儿），此后只许末尾追加
   const enSrc = read("gateway/web/lang-en.js");
   assert.match(enSrc, /Antigravity 将不再询问，可以直接改写、删除文件，运行任意命令，访问网络/);
   assert.match(enSrc, /Antigravity will stop asking/);

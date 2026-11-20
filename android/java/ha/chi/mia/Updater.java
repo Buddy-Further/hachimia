@@ -23,15 +23,15 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 /**
- * 三样东西的更新：应用本体（APK）、开发工具包（devkit）、官方 Claude Code。默认自动。
+ * 三样东西的更新：应用本体（APK）、开发工具包（devkit）、Antigravity CLI。默认自动。
  *
- *   Claude Code：装进新的版本目录再切 current 指针 —— 正在跑的 claude 用的还是旧文件，不受影响，所以全程静默。
+ *   Antigravity CLI：装进新的版本目录再切 current 指针 —— 正在跑的 claude 用的还是旧文件，不受影响，所以全程静默。
  *                （它自带的自动更新被 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC 关了，而且也不认我们的目录布局。）
  *   APK：下载、核对签名与本应用一致。有 Shizuku 且空闲、界面不在前台时静默装；否则发通知，点一下走系统安装确认。
  *   工具包：按已装的模块下（0.3.8 及以前的整包约 650 MB，升上来时装全部模块），会替换整个 $PREFIX。自动模式只在不计流量的网络上预先下载；
  *           下次冷启动且没有任务在跑时替换（或用户在设置页点"安装"）。用户自装进 $PREFIX 的东西会搬过去。
  *
- * 版本来源：GitHub Releases（v* 是 APK，devkit-* 是工具包）；Claude Code 走官方 downloads.claude.ai。
+ * 版本来源：GitHub Releases（v* 是 APK，devkit-* 是工具包）；Antigravity CLI 走官方 manifest。
  *
  * 先后顺序：工具包在下载或替换时，APK 不装（装 APK 会杀掉本进程，把工具包那边拦腰截断）——
  * 等工具包下完（已落盘、已校验）或装完再装 APK。已下好的工具包在新进程启动时接着装。
@@ -473,7 +473,7 @@ final class Updater {
         }
         try { checkClaude(); } catch (Exception e) { claude.set("error", Tr.t("检查 Antigravity CLI 更新失败：") + e.getMessage()); }
         prefs().edit().putLong("lastCheck", System.currentTimeMillis()).apply();
-        if (auto() && !manual && env.devkitReady()) autoApply();      // 首装期间不自动装任何东西，Claude Code 也由首装流程来装
+        if (auto() && !manual && env.devkitReady()) autoApply();      // 首装期间不自动装任何东西，Antigravity CLI 也由首装流程来装
         releaseApp();         // 工具包停在"已下载"没去装（比如有任务在跑）时，别让 APK 一直等着
     }
 
@@ -852,7 +852,7 @@ final class Updater {
     /** @param user 用户点的（或从通知点进来的）：APK 就走安装确认；工具包就去替换 */
     JSONObject apply(String id, boolean user) { return apply(id, user, ""); }
 
-    /** version：只对 Claude Code 有用 —— stable / latest / 具体版本号；空 = 当前渠道查到的最新版 */
+    /** version：只对 Antigravity CLI 有用 —— stable / latest / 具体版本号；空 = 当前渠道查到的最新版 */
     /** 指定的版本比已装的旧（降级）：经套接字谁都能发，降回有漏洞的旧版要用户点头（见 Priv「upd_apply」） */
     boolean claudeDowngrade(String version) {
         // 已装的版本现读：首装、终端里手动装过之后，内存里记的可能还是空的或旧的（10-31 八轮核验）

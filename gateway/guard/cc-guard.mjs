@@ -2,7 +2,7 @@
 // cc-guard.mjs —— 敏感操作再确认（PreToolUse 钩子）。网关起 claude 时经 --settings 挂上，权限模式是什么都会跑：
 // 碰到密钥 / 凭据文件、要改管着提示词和安全机制的文件、或要读屏、点按、读剪贴板、往外分享文件时回 permissionDecision:"ask"。
 // 「全部放行」下 claude 也会因此停下来问（实测 2.1.3xx：hook 的 ask 照样发 can_use_tool，decision_reason_type=hook），
-// 网关认出 reason 里的 cccodroid-guard 前缀，出一张「敏感操作」卡片，不按全部放行自动允许。
+// 网关认出 reason 里的 hachimia-guard 前缀，出一张「敏感操作」卡片，不按全部放行自动允许。
 //
 // 这是兜底，不是围墙：命令写得绕一点（base64、变量拼接）就认不出来。防的是 Claude 被网页 / 文件里藏的指令带偏，
 // 顺手去读密钥、操作别的应用这类「明面上」的动作。
@@ -63,7 +63,7 @@ const PROMPT = [
   [/(?:(?:^|[\s"'=:])(?:~|\$\{?HOME\}?)|\/files\/home)\/\.claude\/(?:skills|commands|plugins)\//, "user-level skills, commands and plugins (loaded into every session)"],
   [/\.ccapp-userconf\b|ccapp-userconf\.json\b/, "the record of confirmed Claude Code config"],
   // 整个 files/app 都是：界面脚本、TOOLS.md（拼进系统提示）、建档规范（模型自己会去读）也在里面（群友破甲清单 V-12/V-13）
-  [/(?:\/files|(?:~|\$\{?HOME\}?)\/\.\.)\/app(?=$|[\/\s"';|&)])/, "cccodroid gateway code"],
+  [/(?:\/files|(?:~|\$\{?HOME\}?)\/\.\.)\/app(?=$|[\/\s"';|&)])/, "hachimia gateway code"],
   // 网关自己的运行库（files/gw，安全 4 第 2 层）：网关的 node 和库、它起 claude 用的 glibc。改了网关会拒绝起 claude、重启后按安装包还原，这里先拦
   [/(?:\/files|(?:~|\$\{?HOME\}?)\/\.\.)\/gw(?:-stage)?(?=$|[\/\s"';|&)])/, "the gateway's own runtime"],
   [/\.cccodroid-env\.json\b/, "device facts in the system prompt"],
@@ -180,7 +180,7 @@ export function judge(tool, inp) {
 export function runHook() {
   const ask = (r) => process.stdout.write(JSON.stringify({ hookSpecificOutput: {
     hookEventName: "PreToolUse", permissionDecision: "ask",
-    permissionDecisionReason: `cccodroid-guard|${r.cat}|${r.what}`,
+    permissionDecisionReason: `hachimia-guard|${r.cat}|${r.what}`,
   } }));
   let r;
   try {
@@ -189,7 +189,7 @@ export function runHook() {
     const b = breachWrite(ev.tool_name, ev.tool_input);
     if (b) {
       process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny",
-        permissionDecisionReason: `cccodroid-guard|${b.cat}|${b.what}. cccodroid refuses to write this; it would block the next run.` } }));
+        permissionDecisionReason: `hachimia-guard|${b.cat}|${b.what}. hachimia refuses to write this; it would block the next run.` } }));
       process.exit(0);
     }
     r = judge(ev.tool_name, ev.tool_input);

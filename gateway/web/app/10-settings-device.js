@@ -175,7 +175,7 @@
   // 打开要在原生对话框里点头（再验一次锁屏存档）：没允许时开关按实际状态弹回去
   $("priv-auto").addEventListener("change", (e) => post("/api/app/shz_autostart", { enable: e.target.checked }).catch(() => {}).finally(() => setTimeout(loadPriv, 300)));
 
-  // ── 更新：应用本体 / 开发工具包 / Claude Code ──
+  // ── 更新：应用本体 / 开发工具包 / Antigravity CLI ──
     const UPD_TEXT = { uptodate: t("已是最新"), available: t("有新版本"), downloading: t("下载中"), ready: t("已下载，待安装"), installing: t("安装中"), error: t("出错"), unknown: t("未检查"), verifying: t("校验中"), damaged: t("已损坏"), missing: t("未安装") };
   let updPoll = null;
   let updFollowUntil = 0;

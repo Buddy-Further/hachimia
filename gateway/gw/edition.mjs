@@ -5,7 +5,7 @@
 // 实测（claude 2.1.311，假接口）：--setting-sources "" 挡住用户级、项目级的 CLAUDE.md / rules / 钩子 / skill / 输出风格 / .claude.json 的 MCP；
 // --settings 挂的 guard 照样生效；自动记忆不受它管，由 seal.mjs 指定目录并在起进程前检查。
 //
-// 开发版（cccodroid-dev）合并时把 SEALED 改成 false：开发者自己的 CLAUDE.md、记忆、钩子照常读，靠 userconf.mjs 的卡片把关。
+// 开发版（hachimia-dev）合并时把 SEALED 改成 false：开发者自己的 CLAUDE.md、记忆、钩子照常读，靠 userconf.mjs 的卡片把关。
 // 故意不做运行时开关（环境变量、设置项、标记文件都不认）：开关在哪，机主就能拨回去。
 let SEALED = true;
 export const sealed = () => SEALED;

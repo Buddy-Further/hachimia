@@ -2291,7 +2291,7 @@ public class MainActivity extends Activity {
     }
     private static String css(int c) { return String.format("#%06x", c & 0xffffff); }
 
-    /** 预览里的网页弹的对话框标明出处：别让它冒充 cccodroid 要密钥、要密码（审查 v0513b 低-22） */
+    /** 预览里的网页弹的对话框标明出处：别让它冒充 hachimia 要密钥、要密码（审查 v0513b 低-22） */
     private static String fromPage(String url, String msg) {
         if (url == null || isOwnGateway(url)) return msg;
         String h; try { h = Uri.parse(url).getHost(); } catch (Exception e) { h = null; }

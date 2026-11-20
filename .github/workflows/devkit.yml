@@ -1,6 +1,6 @@
 # 开发工具包：从 Termux 官方仓库构建，发布到 Release。
 # 推 tag devkit-YYYY.MM.DD 触发；App 按 devkit-sources.txt 里钉的 tag 下载。
-# 测试版（cccodroid-test，包名 cc.codtest）：在 test 分支上手动运行，填 target=cc.codtest、tag=testkit-YYYY.MM.DD，发成预发布。
+# 测试版（旧 cccodroid-test / cc.codtest 概念已废弃）：在 test 分支上手动运行，填 target、tag=testkit-YYYY.MM.DD，发成预发布。
 # 测试版的 tag 不能以 devkit- 开头 —— 正式版的更新检查会挑版本最高的 devkit-*，挑到别的包名的就会报"需要更新版本"。
 # 在公开 CI 上构建，任何人都能复现、核对每个包的来源（见 devkit.lock.json / SBOM.tsv）。
 name: devkit

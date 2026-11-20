@@ -433,7 +433,7 @@ final class Priv {
                 case "upd_apply": {
                     String item = req.optString("item"), ver = req.optString("version", "");
                     int pid = 0; try { pid = sock.getPeerCredentials().getPid(); } catch (IOException ignored) {}
-                    // 换渠道还没完（可能在等确认降级）：这时的版本信息是临时的，先不接装 Claude Code（10-31 七轮核验）
+                    // 换渠道还没完（可能在等确认降级）：这时的版本信息是临时的，先不接装 Antigravity CLI（10-31 七轮核验）
                     // 没装的不存在降级（卸载后重装：界面改完设置紧接着就发这条）
                     if (("claude".equals(item) || "agy".equals(item)) && Updater.get(ctx).switchingNow() && Updater.get(ctx).claudeInstalled()) {
                         resp = new JSONObject().put("ok", false).put("message", Tr.t("正在切换 Antigravity CLI 的版本设置，稍后再试"));
@@ -489,7 +489,7 @@ final class Priv {
                     break;
                 }
                 case "apk_install": {
-                    // 查看器里点「安装」：只在 cccodroid 前台时受理，还要用户在应用自己的确认框里点头，之后才轮到系统安装确认。
+                    // 查看器里点「安装」：只在 hachimia 前台时受理，还要用户在应用自己的确认框里点头，之后才轮到系统安装确认。
                     // 这条通道 Claude 和脚本也连得上：不这样拦，后台就能拿任意 APK 一遍遍弹系统安装框（11-09 用户定）
                     int pid = 0; try { pid = sock.getPeerCredentials().getPid(); } catch (IOException ignored) {}
                     if (!foreground()) { resp = new JSONObject().put("ok", false).put("message", Tr.t("请先把 hachimia 切到前台")); break; }

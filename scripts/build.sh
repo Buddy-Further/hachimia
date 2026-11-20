@@ -27,7 +27,7 @@ if [ -d "$P" ]; then
   AAPT2=${AAPT2:-"env LD_LIBRARY_PATH=$P/lib $P/bin/aapt2"}
   AJAR=${ANDROID_JAR:-$P/framework/android.jar}
 else
-  # cccodroid 终端（作者 11-05 起在开发版里发版）：工具都在 PATH，钥匙与 android.jar 在 ~/.bldtools
+  # hachimia 终端（作者 11-05 起在开发版里发版）：工具都在 PATH，钥匙与 android.jar 在 ~/.bldtools
   B=${BLDTOOLS:-$HOME/.bldtools}
   # 原生小库优先用旧开发端搬来的 GCC 10（~/.bldtools/cc4），产物和以前逐字节一致；没有才用 clang
   if [ -x "$B/cc4" ]; then CC_ANDROID=${CC_ANDROID:-$B/cc4}; else CC_ANDROID=${CC_ANDROID:-cc}; fi
@@ -60,7 +60,7 @@ mkdir -p "$A/assets/app/guard"; cp "$SRC/guard/"* "$A/assets/app/guard/"       #
 for f in "$SRC/web/"*; do case "$f" in *.bak*) ;; *) cp -R "$f" "$A/assets/app/web/";; esac; done
 # 死脚本不进包（E-10）：install-claude.* 是 Claude Code 时代的安装脚本，零调用者（Claude Code 安装已由 install-agy.* 接替），
 # 随包白白占 20 KB；同理 bin/claude 是旧的 Claude Code 启动器，没人执行它（claudeCmd 用的是装好的 agy 二进制）
-for f in "$A/assets/scripts/"*; do case "$(basename "$f")" in install-claude.mjs|install-claude.sh) ;; *) cp "$f" "$A/assets/app/scripts/";; esac; done
+for f in "$A/assets/scripts/"*; do case "$(basename "$f")" in install-claude.mjs) ;; *) cp "$f" "$A/assets/app/scripts/";; esac; done
 for f in "$A/assets/bin/"*; do case "$(basename "$f")" in claude) ;; *) cp "$f" "$A/assets/app/bin/";; esac; done
 cp "$ROOT/devkit/pgp.mjs" "$A/assets/app/bin/"     # OpenPGP 验签：pkg.mjs 与 devkit 构建共用这一份
 mkdir -p "$A/assets/app/pre"; cp "$A/assets/pre/"* "$A/assets/app/pre/"     # pkg / apt：PATH 最前，压过工具包里的旧替身

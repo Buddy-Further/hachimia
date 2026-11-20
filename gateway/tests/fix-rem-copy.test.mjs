@@ -95,8 +95,8 @@ test("rem/copy 18g 脉络导出页脚/文件名写 hachimia，网关白名单放
   assert.match(read("gateway/gw/profile.mjs"), /\/\^\(\?:cccodroid\|hachimia\)-lineage-/);
 });
 
-// ── 新 t() 键已进词典（只许追加；旧键留作孤儿，见 fix-d-copy.test.mjs 的说明）──
-test("rem/copy 5 条新文案键已追加进 lang-en.js（3396–3400）", () => {
+// ── 新 t() 键已进词典（只许追加；旧键曾留作孤儿，mig/residue 的 C-01 已批量清掉，见 fix-d-copy.test.mjs 的说明）──
+test("rem/copy 5 条新文案键已追加进 lang-en.js（C-01 重排后为 3122–3126）", () => {
   const s = read("gateway/web/lang-en.js");
   assert.match(s, /"请在应用里打开": "Open this in the app"/);
   assert.match(s, /"要 npx（hachimia 的工具包里有）": "Needs npx \(included in the hachimia toolkit\)"/);

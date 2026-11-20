@@ -3,7 +3,7 @@
 //
 // 怎么认：网关起 claude 时环境变量带 CCAPP_RUN_ID、CCAPP_GW_PID（run.mjs），子孙进程都继承；
 // 带着一个已经结束的轮次编号、还活着的，就是留下来的。抹掉环境（env -i）再起的认不出编号，
-// 退一步：被 init 收养（PPID=1）、属于本应用、环境里一个 CCAPP_ 变量都没有的，算「来源不明」（只在 cccodroid 里认，开发机上同 uid 的东西太杂）。
+// 退一步：被 init 收养（PPID=1）、属于本应用、环境里一个 CCAPP_ 变量都没有的，算「来源不明」（只在 hachimia 里认，开发机上同 uid 的东西太杂）。
 // 用户点过「保留」的按 pid + 启动时刻记住，不再问；它以后新起的子孙也一并不问（顺着 PPID 往上找到保留过的就算）。
 // 记录落盘（ccapp-leftover-kept.json），网关重启后照认；只认同一次开机（boot_id）、pid + 启动时刻 + 命令行都对得上的，
 // 换了开机或者 pid 被别的进程复用就不算。记录和 ccapp-userconf.json 一样在 home 里，同 uid 改得动，防的是忘了、不是防存心。
@@ -81,7 +81,7 @@ export function leftoverProcs(active) {
     if (keptLine(p)) continue;
     const rid = (p.env.find((e) => e.startsWith("CCAPP_RUN_ID=")) || "").slice(13);
     let kind = null;
-    // cccodroid 里只有一个网关，带编号的都算（旧版网关起的不带 CCAPP_GW_PID，环境变量也改得掉，所以不核）；
+    // hachimia 里只有一个网关，带编号的都算（旧版网关起的不带 CCAPP_GW_PID，环境变量也改得掉，所以不核）；
     // 开发机上同时跑着别的网关、几份测试（端口、home 都可能一样）：测试里只认本进程起的。
     // 开发机上的真网关（LIVE）也会把别的网关实例起的算进来——只是卡片多列几项，还要人点确认，不自动杀
     if (rid) {

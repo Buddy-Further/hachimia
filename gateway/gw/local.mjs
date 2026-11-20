@@ -520,7 +520,7 @@ function installLocalSkill() {
 }
 if (PREFIX && LIVE) installLocalSkill();
 
-/** 把应用界面叫回前台。cccodroid 由 App 进程做（Shizuku 或通知）；开发端直接 priv am start */
+/** 把应用界面叫回前台。hachimia 由 App 进程做（Shizuku 或通知）；开发端直接 priv am start */
 export function toFront(text) {
   if (PREFIX) return privCall({ op: "to_front", text }, 8000);
   return new Promise((ok) => execFile("priv", ["am start --activity-reorder-to-front -n li.dsh.claudecli/.MainActivity"],

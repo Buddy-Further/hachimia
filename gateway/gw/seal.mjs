@@ -493,7 +493,7 @@ export function sealPrepare({ cwd, runId, outputStyle = "" }) {
   for (const dir of skillsOff()) for (const r of [...uf.keys()]) if (r.startsWith(`skills/${dir}/`)) uf.delete(r);
   let userPlug = null;
   if (uf.size) {
-    const m = materialize("user", uf, JSON.stringify({ name: "user", version: "1.0.0", description: "cccodroid: your skills, commands, agents and output styles (checked copy)" }));
+    const m = materialize("user", uf, JSON.stringify({ name: "user", version: "1.0.0", description: "hachimia: your skills, commands, agents and output styles (checked copy)" }));
     if (m.found) found.push(...m.found); else userPlug = m.dir;
     if (m.skipped.length) notes.push(`skill 文件太大没回填：${m.skipped.slice(0, 4).join(", ")}`);
   }
@@ -592,5 +592,5 @@ export function sealCleanup(runId) {
 
 /** 给用户看的拒跑说明 */
 export function sealBlockMessage(block) {
-  return tz("这些 Claude Code 配置里有越权指令的特征（要模型无视规则、冒充系统消息这一类），cccodroid 不加载它们，这一轮没有运行。改掉或删掉下面的内容后再发：\n{list}", { list: describe(block.found, 8) });
+  return tz("这些 Claude Code 配置里有越权指令的特征（要模型无视规则、冒充系统消息这一类），hachimia 不加载它们，这一轮没有运行。改掉或删掉下面的内容后再发：\n{list}", { list: describe(block.found, 8) });
 }

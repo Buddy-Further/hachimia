@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ─────────────────────────────────────────────────────────────────────
-//  claude-verified.mjs —— 维护「哪些 Claude Code 版本在 cccodroid 上真机验过 / 哪些有问题」（经 cccodroid.net 发给所有用户）
+//  claude-verified.mjs —— 维护「哪些 Claude Code 版本在 hachimia 上真机验过 / 哪些有问题」（经 GitHub raw 发给所有用户）
 //
 //  node scripts/claude-verified.mjs list
 //  node scripts/claude-verified.mjs add <claude-verify-X.Y.Z.json …>     并进真机验证结果（scripts/verify-claude.mjs 在手机上跑出来的）
@@ -11,14 +11,14 @@
 //
 //  App 里：版本选单给验过的版本标「已验证」，有问题的标出原因、选之前要确认；
 //  渠道（stable / latest）走到有问题的版本时，自动更新先不装（用户自己点更新照样装）。
-//  每次改动都会签名（组件索引那把钥匙）→ 提交推送 main → 等 cccodroid.net/claude-code/verified.json 同步，同 notice.mjs。
+//  每次改动都会签名（组件索引那把钥匙）→ 提交推送 main → 等 GitHub raw 上的 claude-code/verified.json 同步，同 notice.mjs。
 // ─────────────────────────────────────────────────────────────────────
 import fs from "node:fs";
 import path from "node:path";
 import { ROOT, die, loadPublished, signAndPublish } from "./signed-pub.mjs";
 
 const FILE = "claude-code/verified.json", F = path.join(ROOT, FILE);
-const SITE = "https://cccodroid.net/claude-code/verified.json";
+const SITE = "https://raw.githubusercontent.com/Buddy-Further/hachimia/main/claude-code/verified.json";
 const VER = /^\d+\.\d+\.\d+$/;
 const argv = process.argv.slice(2);
 const opt = (k) => { const i = argv.indexOf(k); return i >= 0 ? argv.splice(i, 2)[1] : undefined; };

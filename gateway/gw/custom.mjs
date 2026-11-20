@@ -550,7 +550,7 @@ async function customInstall(b) {
     if (!CMD_RE.test(cmd)) return { ok: false, message: tz("命令名不合法：{c}", { c: cmd }) };
     if (seen.has(cmd)) return { ok: false, message: tz("命令名重复：{c}", { c: cmd }) };
     const clash = customCmdClash(cmd, id);
-    if (clash) return { ok: false, message: clash === "toolkit" ? tz("命令 {c} 工具包里已经有了，换个名字", { c: cmd }) : clash === "system" ? tz("命令 {c} 是系统或 cccodroid 自带的，换个名字", { c: cmd }) : clash === "busy" ? tz("命令 {c} 正在被另一个组件安装，稍后再试或换个名字", { c: cmd }) : tz("命令 {c} 被别的自定义组件占了", { c: cmd }) };
+    if (clash) return { ok: false, message: clash === "toolkit" ? tz("命令 {c} 工具包里已经有了，换个名字", { c: cmd }) : clash === "system" ? tz("命令 {c} 是系统或 hachimia 自带的，换个名字", { c: cmd }) : clash === "busy" ? tz("命令 {c} 正在被另一个组件安装，稍后再试或换个名字", { c: cmd }) : tz("命令 {c} 被别的自定义组件占了", { c: cmd }) };
     seen.add(cmd);
     entries.push({ rel: p.rel, cmd, kind: p.kind, gpu: !!e.gpu && p.kind === "glibc" && s.report.gpu, patchelf: !!e.patchelf && p.kind === "glibc" && !e.gpu });
   }

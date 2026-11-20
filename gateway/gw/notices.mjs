@@ -1,8 +1,8 @@
-// ── 应用内通知：维护者经 cccodroid.net 推一两句话给所有用户（出了什么问题、该怎么绕、哪版修了）─────
+// ── 应用内通知：维护者经 GitHub raw 推一两句话给所有用户（出了什么问题、该怎么绕、哪版修了）─────
 //
 // 来源：仓库 notices/notices.json，维护者在发布机上用组件索引那把 ed25519 钥匙签名（notices.json.sig），
-// 官网生成器验过签才镜像到 https://cccodroid.net/notices.json。这里先取官网、取不到取 GitHub，
-// 两边都只认签名对得上的那份 —— 官网被人改了也推不出假通知。
+// App 直接从 https://raw.githubusercontent.com/Buddy-Further/hachimia/main/notices/notices.json 取，
+// 只认签名对得上的那份 —— 仓库被人改了也推不出假通知。
 // 内容只当纯文本显示；链接只认 https。按 App 版本范围（minVer / maxVer）和有效期（from / until）筛选，
 // 「知道了」记在 home/.config/cccodroid/notices-seen.json，同一条不再显示。
 // 不发任何本机信息：就是一次普通的 GET，和检查更新一样。
@@ -67,7 +67,7 @@ export async function refreshNotices(force = false) {
     for (const u of SOURCES) {
       try {
         const { j, body, sig } = await fetchOne(u);
-        // 两个来源可能一新一旧（官网每半小时同步）：只往新的换
+        // 两个来源可能一新一旧（GitHub raw 有几分钟缓存）：只往新的换
         if (!data || !(String(j.updated || "") < String(data.updated || ""))) {
           data = j;
           saveSigned(CACHE, body, sig);

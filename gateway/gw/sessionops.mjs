@@ -772,7 +772,7 @@ export async function importSessions(file) {
     await zipExtract(file, man, tmp, { left: 16 << 20 });
     try { manifest = JSON.parse(fs.readFileSync(tmp, "utf8")); } finally { fs.rmSync(tmp, { force: true }); }
   } catch { throw new Error(tz("缺少 manifest.json，不是会话包")); }
-  if (manifest.format !== "cccodroid-sessions") throw new Error(tz("不是 cccodroid 会话包"));
+  if (manifest.format !== "cccodroid-sessions") throw new Error(tz("不是 hachimia 会话包"));
   if (!Array.isArray(manifest.sessions) || manifest.sessions.length > 5000) throw new Error(tz("会话包里的会话太多了，分几次导入"));
   // 条目按名字、按会话目录先分好：以前每个会话都把全部条目扫一遍，会话多、条目多时卡住网关（11-03 审查 L-3）
   const byName = new Map(), bySide = new Map();
