@@ -511,7 +511,7 @@ async function fetchModelsOf(p, force, guess) {
 }
 // 自定义端口猜中的清单地址（按配置指纹记；改了配置指纹就变，重新猜）
 const GUESSED = new Map();
-/** 由接口地址猜清单地址：Gemini 端点优先试 /v1beta/models；其余去掉末尾的 /anthropic、/v1 拼 /v1/models、/models */
+/** 由接口地址猜清单地址：Gemini 端点优先试 /v1beta/models；其余去掉末尾的 /anthropic、/v1 拼 /v1/models、/models；非 Gemini 最后再试同路径 /v1beta/models */
 export function guessModelsUrls(baseUrl, { gemini = false } = {}) {
   let u; try { u = new URL(String(baseUrl || "")); } catch { return []; }
   const root = u.origin;

@@ -5,11 +5,11 @@ import assert from "node:assert/strict";
 import { guessModelsUrls } from "../gw/models.mjs";
 import { modelsUrlOk } from "../gw/providers.mjs";
 
-test("猜清单地址：去掉 /anthropic、/v1 后缀，拼 /v1/models、/models，再试主机根", () => {
+test("猜清单地址：去掉 /anthropic、/v1 后缀，拼 /v1/models、/models，再试主机根；非 Gemini 最后再试同路径 /v1beta/models", () => {
   assert.deepEqual(guessModelsUrls("https://opencode.ai/inference/go/anthropic"),
-    ["https://opencode.ai/inference/go/v1/models", "https://opencode.ai/inference/go/models", "https://opencode.ai/v1/models"]);
-  assert.deepEqual(guessModelsUrls("https://api.x.com/v1/"), ["https://api.x.com/v1/models", "https://api.x.com/models"]);
-  assert.deepEqual(guessModelsUrls("https://relay.example.com"), ["https://relay.example.com/v1/models", "https://relay.example.com/models"]);
+    ["https://opencode.ai/inference/go/v1/models", "https://opencode.ai/inference/go/models", "https://opencode.ai/v1/models", "https://opencode.ai/inference/go/v1beta/models"]);
+  assert.deepEqual(guessModelsUrls("https://api.x.com/v1/"), ["https://api.x.com/v1/models", "https://api.x.com/models", "https://api.x.com/v1beta/models"]);
+  assert.deepEqual(guessModelsUrls("https://relay.example.com"), ["https://relay.example.com/v1/models", "https://relay.example.com/models", "https://relay.example.com/v1beta/models"]);
   assert.deepEqual(guessModelsUrls("https://a.com/api/anthropic/v1/messages")[0], "https://a.com/api/v1/models");
   assert.deepEqual(guessModelsUrls("not a url"), []);
 });
