@@ -39,7 +39,10 @@ function pickAuthUrl(text) {
 }
 
 function authEnv(enterprise = false) {
-  const env = agyEnv({ provider: { id: enterprise ? "antigravity-enterprise" : "antigravity", login: true, nativeModels: true } });
+  // 探针/登录用的环境：只组装变量，不同步 settings.json —— 查登录态是只读操作，
+  // 同步会删掉当前 API Key 模式的 modelProvider/customModelsConfig（A4）。
+  // 真切到订阅模式时，由下一轮真跑（run.mjs 的 agyEnv，默认同步）再翻转配置。
+  const env = agyEnv({ provider: { id: enterprise ? "antigravity-enterprise" : "antigravity", login: true, nativeModels: true }, sync: false });
   delete env.GEMINI_API_KEY;
   delete env.GOOGLE_GEMINI_BASE_URL;
   return env;

@@ -88,7 +88,11 @@ export function providerList() {
   }));
 }
 
-export function isLoginMode(p = PROVIDER) { return !!(p && p.login && !keyOf(p)); }
+export function isLoginMode(p = PROVIDER) {
+  // 登录类厂商（订阅登录）上有杂 key 也不得出登录态：key 字段对这类厂商本无意义，
+  // 存下它只是误操作；登录态只看 login 标志（C13）。杂 key 的拦截与清理见 providers.mjs 的 upsertProvider。
+  return !!(p && p.login);
+}
 
 // 登录态拉不了清单（那要用令牌，我们不碰），给一份静态的；厂商配置里写了 fallbackModels 就用那份。
 // 别名排前面：claude 自己把它解析成该系列的最新版，最不容易过时。
@@ -118,11 +122,38 @@ export function effortLevelsOf(model, p = PROVIDER) {
   // 否则调用方的 .includes/.join 会抛 TypeError（审查 11-05）
   const lv = model && model.effort && model.effort.supported_levels;
   if (Array.isArray(lv)) return lv;
+  // 固定档位模型（effort 信息缺失时也按名字认，见 fixedEffortOf）：档位是写死的，
+  // 不得回落到厂商全量档位，否则用户会调一个根本不存在的档位（C17）
+  const fixed = model ? fixedEffortOf(model.id, model.name) : null;
+  if (fixed) return fixed.supported_levels;
   if (p && (p.group === "antigravity" || p.authStyle === "gemini-api-key")) return AGY_EFFORT;
   return p.nativeModels ? CLAUDE_EFFORT : ["low", "high", "max"];
 }
 
-/** 解析 `agy models` 输出为归一化模型家族列表（将 -low/-medium/-high/-xhigh 归并到 effort.supported_levels） */
+/** 固定档位模型：名字里带档位、id 里没有可归并的 -档位 后缀时，档位是写死的，不是可调的。
+ *  (Thinking) 不是 effort 档位：返回空档位表；gpt-oss-120b-medium 这类单档固定名只报自己的档位。
+ *  id 或名字缺失时返回 null（不知道，别猜）。 */
+function fixedEffortOf(rawId, rawName) {
+  const id = String(rawId || ""), name = String(rawName || "");
+  if (/\(thinking\)\s*$/i.test(name) || /-thinking$/i.test(id)) return { supported_levels: [], default_level: null };
+  const nm = /^(.+?)\s*\((Low|Medium|High|XHigh)\)$/i.exec(name);
+  const lm = /^(.+)-(low|medium|high|xhigh)$/i.exec(id);
+  if (nm && lm && nm[2].toLowerCase() === lm[2].toLowerCase()) {
+    const lv = lm[2].toLowerCase();
+    return { supported_levels: [lv], default_level: lv };
+  }
+  return null;
+}
+
+/** 解析 `agy models` 输出为归一化模型家族列表（将 -low/-medium/-high/-xhigh 归并到 effort.supported_levels）。
+ *  只收模型行：标题、警告/错误行、旧格式的纯显示名行（没有可用 id）一律丢掉（C11）。
+ *  `agy models` 输出里没有窗口信息：context_window / max_output_tokens 记 0 = 未知，不写死 1M/64k，
+ *  否则 learnWindow 学到的真实窗口永远纠正不了它（C5）。 */
+const AGY_NOISE_LINE = /^(warning|error|info|debug|trace|failed|available models?|models?:|note:)/i;
+const AGY_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+// 没有连字符/数字的单词不可能是 agy 的模型 slug（标题与旧格式显示名的首词都长这样）；
+// 例外是登录态别名（opus/sonnet/haiku/fable），见 LOGIN_MODELS
+const AGY_ALIAS_IDS = new Set(["opus", "sonnet", "haiku", "fable"]);
 export function parseAgyModelsOutput(raw) {
   const clean = String(raw || "")
     .replace(/\r/g, "\n")
@@ -132,9 +163,13 @@ export function parseAgyModelsOutput(raw) {
   const map = new Map();
   const LV_ORDER = ["low", "medium", "high", "xhigh"];
   for (const line of clean) {
+    if (AGY_NOISE_LINE.test(line)) continue;
     const m = /^([A-Za-z0-9._:-]+)\s+(.+)$/.exec(line);
     if (!m) continue;
     const rawId = m[1], rawName = m[2].trim();
+    // id 里不能有冒号（"WARNING:"、"ERROR:" 之类），且得是带连字符/数字的 slug 或已知别名
+    if (!AGY_ID_RE.test(rawId)) continue;
+    if (!/[-0-9]/.test(rawId) && !AGY_ALIAS_IDS.has(rawId.toLowerCase())) continue;
     // 识别尾部思考档位后缀（仅当显示名也带 (Low|Medium|High|XHigh) 且非单档固定名如 gpt-oss-120b-medium 时归并）
     const lm = /^(.+)-(low|medium|high|xhigh)$/.exec(rawId);
     const nm = /^(.+?)\s*\((Low|Medium|High|XHigh)\)$/i.exec(rawName);
@@ -145,8 +180,8 @@ export function parseAgyModelsOutput(raw) {
         rec = {
           id: baseId,
           name: baseName,
-          context_window: 1048576,
-          max_output_tokens: 65536,
+          context_window: 0,
+          max_output_tokens: 0,
           input_modalities: ["text", "image"],
           effort: { supported_levels: [], default_level: "high" },
         };
@@ -154,13 +189,14 @@ export function parseAgyModelsOutput(raw) {
       }
       if (!rec.effort.supported_levels.includes(lv)) rec.effort.supported_levels.push(lv);
     } else if (!map.has(rawId)) {
+      // 未归并的行：固定档位模型（(Thinking)、gpt-oss-120b-medium 这类单档固定名）记下写死的档位（C17）
       map.set(rawId, {
         id: rawId,
         name: rawName,
-        context_window: 1048576,
-        max_output_tokens: 65536,
+        context_window: 0,
+        max_output_tokens: 0,
         input_modalities: ["text", "image"],
-        effort: null,
+        effort: fixedEffortOf(rawId, rawName),
       });
     }
   }
@@ -185,7 +221,9 @@ function fetchAgyCliModels() {
     delete env.GEMINI_API_KEY;
     delete env.GOOGLE_GEMINI_BASE_URL;
     execFile(bin, ["models"], { cwd: CFG.home, env, encoding: "utf8", timeout: 12000, maxBuffer: 2 << 20 }, (err, stdout, stderr) => {
-      if (err) return resolve([]);
+      // 非零退出也保留已打印的清单：部分失败/警告后 exit 1 时 stdout 里往往是完整清单，
+      // 丢掉它就只能回落到写死的 fallbackModels（C12；与 login.mjs 的 execAgyModels 同口径）。
+      // 没打印出任何模型行时 parse 出空列表，调用方再走 fallback。
       resolve(parseAgyModelsOutput(`${stdout || ""}\n${stderr || ""}`));
     });
   });
@@ -469,9 +507,30 @@ export function guessModelsUrls(baseUrl, { gemini = false } = {}) {
   if (!gemini) add(root + p + "/v1beta/models");
   return out;
 }
-/** 分页的清单（Anthropic 官方 /v1/models 默认一页 20 个，带 has_more / last_id）：顺着 after_id 接着拉，最多 10 页。
- *  不分页的厂商第一页里没有 has_more，原样返回；后面哪页出错就用已经拿到的（0.6.9 审计 195-U.7） */
+/** 分页的清单：顺着翻页标记接着拉，最多 10 页。
+ *  Anthropic 官方 /v1/models：data + has_more / last_id（after_id）。
+ *  Google Gemini /v1beta/models：models + nextPageToken（pageToken），未指定 pageSize 时每页 50 条（C8）。
+ *  不分页的厂商第一页里没有翻页标记，原样返回；后面哪页出错就用已经拿到的（0.6.9 审计 195-U.7） */
 async function morePages(url, headers, j) {
+  if (j && Array.isArray(j.models) && typeof j.nextPageToken === "string" && j.nextPageToken) {
+    const models = [...j.models];
+    let token = j.nextPageToken;
+    for (let i = 0; i < 9 && token; i++) {
+      try {
+        const u = new URL(url);
+        u.searchParams.set("pageToken", token);
+        const r = await fetchKeyed(u.href, { headers, signal: AbortSignal.timeout(15000) });
+        if (!r.ok) { try { await r.body?.cancel(); } catch {} break; }
+        const cur = await fetchJsonCapped(r);
+        if (!cur || !Array.isArray(cur.models)) break;
+        models.push(...cur.models);
+        token = typeof cur.nextPageToken === "string" ? cur.nextPageToken : "";
+      } catch (e) { log(`拉模型清单第 ${i + 2} 页出错: ${e.message}`); break; }
+    }
+    const out = { ...j, models };
+    if (!token) delete out.nextPageToken;
+    return out;
+  }
   if (!j || !Array.isArray(j.data)) return j;
   const data = [...j.data];
   let cur = j;
@@ -553,6 +612,16 @@ export function defaultCompactLine(win, p) {
   if (!p || p.nativeModels || p.local || !(win > 0)) return null;
   const n = Math.floor(Math.min(win * 0.8, win - 40000, 1000000) / 1000) * 1000;
   return n >= 100000 ? n : null;
+}
+/** ACP（agy）路径没设压缩线时的默认线：与 defaultCompactLine 同一套八成规则，
+ *  但原生厂商也适用 —— agy 不读 CLAUDE_CODE_AUTO_COMPACT_WINDOW，defaultCompactLine 对原生恒返回 null，
+ *  ACP 模式在默认配置下就没有任何阈值压缩保护（C9）。
+ *  ACP 由网关自己按线发 /compact，没有 claude 的 100k 下限；只要求给总结留 40k。
+ *  注意：触发回退（run.mjs 的 ACP 轮后比较）还不在本函数里，那一步在 B 片跟进；这里只提供默认值本身。 */
+export function defaultAcpCompactLine(win, p) {
+  if (!p || p.local || !(win > 0)) return null;
+  const n = Math.floor(Math.min(win * 0.8, win - 40000, 1000000) / 1000) * 1000;
+  return n >= 40000 ? n : null;
 }
 export function compactLineOf(set, win, p) {
   if (!set) return null;
