@@ -364,7 +364,7 @@ export async function startRun(item) {
     return endRun(run, { failed: true });
   }
   const agyOnly = !!(PATHS.agy && fs.existsSync(PATHS.agy) && !(PATHS.claude && fs.existsSync(PATHS.claude)));
-  const useAcp = !P.local && (agyOnly || P.group === "antigravity" || P.authStyle === "gemini-api-key" || P.authStyle === "adc" || P.authType === "oauth-personal" || P.authType === "oauth-business" || P.authType === "agent-platform" || process.env.CCAPP_PROTOCOL === "acp");
+  const useAcp = !P.local && (agyOnly || P.group === "antigravity" || P.authStyle === "gemini-api-key" || P.protocol === "gemini" || P.authStyle === "adc" || P.authType === "oauth-personal" || P.authType === "oauth-business" || P.authType === "agent-platform" || process.env.CCAPP_PROTOCOL === "acp");
   const cliBin = useAcp ? (PATHS.agy || PATHS.claude) : PATHS.claude;
   if (!fs.existsSync(cliBin)) {
     emit({ type: "error", message: tr(LAST_LANG, useAcp
