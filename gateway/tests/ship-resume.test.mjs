@@ -19,7 +19,7 @@ function setup() {
   fs.copyFileSync(SRC, path.join(root, "scripts/ship.mjs"));
   fs.writeFileSync(path.join(root, ".gitignore"), "dist/\n");
   git("init", "-q", "-b", "main"); git("add", "-A"); git("commit", "-qm", "base");
-  const apk = path.join(root, "dist/cccodroid.apk"), apk36 = path.join(root, "dist/cccodroid-36.apk");
+  const apk = path.join(root, "dist/hachimia.apk"), apk36 = path.join(root, "dist/hachimia-36.apk");
   fs.writeFileSync(apk, "A"); fs.writeFileSync(apk36, "B");
   const sha = (f) => crypto.createHash("sha256").update(fs.readFileSync(f)).digest("hex");
   const home = fs.mkdtempSync(path.join(process.env.CCAPP_TMP, "ship-home-")), w = path.join(home, ".work/ship", VER);
@@ -37,14 +37,14 @@ test("包换了：push 之前停下，verify 作废", () => {
   fs.writeFileSync(t.apk, "X");
   const r = t.run();
   assert.equal(r.status, 1);
-  assert.match(r.stderr, /push 之前核对：cccodroid\.apk 变了/);
+  assert.match(r.stderr, /push 之前核对：hachimia\.apk 变了/);
   assert.equal(t.state().done.verify, undefined);
 });
 
 test("36 包换了、提交变了：同样停下", () => {
   let t = setup();
   fs.writeFileSync(t.apk36, "Y");
-  assert.match(t.run().stderr, /cccodroid-36\.apk 变了/);
+  assert.match(t.run().stderr, /hachimia-36\.apk 变了/);
   t = setup();
   fs.writeFileSync(path.join(t.root, "x.txt"), "1"); t.git("add", "-A"); t.git("commit", "-qm", "later");
   assert.match(t.run().stderr, /提交变了/);

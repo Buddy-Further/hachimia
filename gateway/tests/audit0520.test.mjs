@@ -233,20 +233,23 @@ test("04-010 auth status 问不出结果：不当成未登录；有上次问出�
   } finally { PATHS.agy = prev; }
 });
 
-test("04-010 复核 #2：退出码 0 但解析不出 loggedIn 也不算未登录；JSON 后面夹着警告照样认", async () => {
+test("04-010 复核 #2：models 探测——退出 0 有输出算登录；问不出结果沿用上次并标旧；明说没登录才给确定的 false", async () => {
   const login = await import("../gw/login.mjs");
-  const prev = PATHS.agy, fake = path.join(CFG.home, "fake-auth.sh");
+  const prev = PATHS.agy, fake = path.join(CFG.home, "fake-agy-models.sh");
   const sh = fs.existsSync("/system/bin/sh") ? "/system/bin/sh" : "/bin/sh";
   try {
     PATHS.agy = fake;
-    fs.writeFileSync(fake, `#!${sh}\nprintf %s "{\\"loggedIn\\": true, \\"authMethod\\": \\"claude.ai\\"}"\necho\necho "warning: } something"\nexit 0\n`, { mode: 0o700 });
+    // 登录：exit 0 + 模型列表
+    fs.writeFileSync(fake, `#!${sh}\necho "gemini-3.1-pro"\necho "gemini-2.5-flash"\nexit 0\n`, { mode: 0o700 });
     const ok = await login.authStatus(true);
     assert.equal(ok.loggedIn, true, JSON.stringify(ok));
-    fs.writeFileSync(fake, `#!${sh}\necho "{garbled"\nexit 0\n`, { mode: 0o700 });
+    // 探测失败（非 sign-in 文案的网络错）：沿用上次问出的，标旧
+    fs.writeFileSync(fake, `#!${sh}\necho "network error while fetching models"\nexit 2\n`, { mode: 0o700 });
     const v = await login.authStatus(true);
     assert.equal(v.stale, true, JSON.stringify(v));
     assert.equal(v.loggedIn, true, "沿用上次问出的");
-    fs.writeFileSync(fake, `#!${sh}\necho "Not logged in"\nexit 1\n`, { mode: 0o700 });
+    // 未登录：官方 1.5.13 是 exit 1 + 这句（文案优先，不赌退出码）
+    fs.writeFileSync(fake, `#!${sh}\necho "Please sign in to view available models"\nexit 1\n`, { mode: 0o700 });
     const no = await login.authStatus(true);
     assert.equal(no.loggedIn, false);
     assert.equal(!!no.stale, false, "明说没登录就是确定的");

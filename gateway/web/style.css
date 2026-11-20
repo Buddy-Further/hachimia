@@ -943,6 +943,10 @@ a.weblink{overflow-wrap:anywhere}
 .quota-v{min-width:3em;text-align:right;font-variant-numeric:tabular-nums;font-size:12px}
 .prov-manual{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
 .prov-manual .mono{word-break:break-all;font-size:11px}
+.prov-code{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.prov-code input{flex:1;min-width:0;font-size:12px;padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg2);color:var(--fg)}
+.prov-code .btn{white-space:nowrap}
+#login-code-note{flex-basis:100%}
 
 /* ── 从右往左的语言（阿拉伯语）────────────────────────────────────────
    上面的排版用的是**逻辑属性**（inline-start / inline-end / text-align:start…），

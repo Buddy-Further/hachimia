@@ -184,7 +184,8 @@
     try { st = await api("/api/login/status"); } catch (e) { if (live()) mine.textContent = t("查询失败：{msg}", { msg: e.message }); return; }
     if (!live()) return;
     paintLoginState(st, p);
-    if (st.pending) watchLogin(p);
+    // 登录进行到一半又回到这张卡：把授权码贴入框也恢复出来（authorization code 还要等用户贴）
+    if (st.pending) { watchLogin(p); paintLoginFlow(st.url || "", state.loginMethod || "personal"); }
   }
   function paintLoginState(st, p) {
     const el = $("login-state"); if (!el) return;
@@ -192,6 +193,7 @@
     const staleNote = st.stale ? `<br><span class="tiny">${esc(t("（这是上次查询的状态，这次没问出来：{msg}）", { msg: st.error || "" }))}</span>` : "";
     if (st.loggedIn) {
       el.className = "prov-state ok";
+      const fl = $("login-flow"); if (fl) fl.innerHTML = "";   // 登上了：授权码贴入框功成身退
             el.innerHTML = (st.email ? t("✓ 已登录：<b>{email}</b>", { email: esc(st.email) }) : t("✓ 已登录")) +
         (st.plan ? ` · ${esc(st.plan)}` : "") + (st.org ? `<br><span class="tiny">${esc(st.org)}</span>` : "") +
         quotaHtml(st.limits) + staleNote;
@@ -306,8 +308,13 @@
     const f = $("login-flow");
     if (!f) return;
     f.innerHTML = (url
-      ? `<div class="tiny">${t("已在浏览器打开授权页。授权后浏览器会跳回本机，登录自动完成。")}
-        ${t("没自动打开？")}<a href="${esc(webUrl(url))}" target="_blank" rel="noopener">${t("点这里打开")}</a></div>`
+      ? `<div class="tiny">${t("已在浏览器打开授权页。授权完成后，把页面上的授权码贴到下面（浏览器不会跳回本应用，属正常）。")}
+        ${t("没自动打开？")}<a href="${esc(webUrl(url))}" target="_blank" rel="noopener">${t("点这里打开")}</a></div>
+        <div class="prov-code">
+          <input id="login-code" type="text" placeholder="${esc(t("粘贴授权码（或回调页完整网址）"))}" autocomplete="off" autocapitalize="off">
+          <button class="btn sm" id="btn-login-code">${t("提交授权码")}</button>
+          <div class="tiny" id="login-code-note"></div>
+        </div>`
       : `<div class="tiny">${t("登录还在进行，拿到授权地址后会自动打开。")}</div>`) +
       `<div class="prov-manual">
         <div class="tiny">${t("浏览器没跳回来（或在别的设备上授权）？在终端里登录：授权码由你直接贴给 agy，本应用不经手。")}</div>
@@ -319,11 +326,23 @@
       closeSettings();       // 终端窗格在设置模态下面，不关设置就点不着（审查 P2-6）
       openLoginTerm(method === "enterprise" ? "enterprise" : "personal");
     };
+    // 授权码转交：agy acp --login 打印授权地址后等在 stdin 上读码，这里把用户贴的码送回去
+    const cEl = $("login-code"), bEl = $("btn-login-code"), nEl = $("login-code-note");
+    if (!cEl) return;
+    bEl.onclick = async () => {
+      const code = cEl.value.trim();
+      if (!code) { nEl.textContent = t("先把授权码贴进来。"); return; }
+      bEl.disabled = true; cEl.disabled = true;
+      nEl.textContent = t("已提交，等 agy 完成登录…");
+      const r = await post("/api/login/code", { code }).catch((e) => ({ ok: false, message: e.message }));
+      if (!r.ok) { bEl.disabled = false; cEl.disabled = false; nEl.textContent = r.message || t("提交失败"); }
+    };
   }
   async function startLogin(p, method) {
     const mine = $("login-state"), live = () => mine.isConnected && state.provView === p.id;   // 同 renderLoginCard（审查 #52 D-06）
     mine.className = "prov-state";
     mine.textContent = t("正在启动登录…");
+    state.loginMethod = method;   // 重进卡片时 paintLoginFlow 要用（终端的入口按它区分 personal/enterprise）
     let r;
     try { r = await post("/api/login/start", { method }); } catch (e) { return toast(e.message, true); }
     if (!r.ok) {
