@@ -615,12 +615,17 @@ export function isAgyOnlyMode() {
  * 预置已声明的 authType 原样用；登录类（无声明，如 anthropic 订阅）→ oauth-personal；
  * API Key 类 → 该厂商自己的 `<id>-api-key`，绝不能默认 gemini-api-key——
  * 否则别家 key 会被当成 Gemini key 塞进 authenticate 的 _meta（且 agyEnv 早已不注 Gemini 变量，
- * 两边对不上）。端侧小模型不走 ACP，返回 null。 */
+ * 两边对不上）。端侧小模型不走 ACP，返回 null。
+ * 例外（rem-C2）：厂商明确声明 protocol:"gemini" 时，端点讲 Gemini 协议，
+ * 按 Gemini 认证（gemini-api-key），与 gemini-key / gemini-custom 预置同一路；
+ * 不声明 protocol 的自定义 bearer 端点仍是自己的 `<id>-api-key`，agy 没有
+ * 通用第三方 bearer 通道，authenticate 会被豁免跳过（见 acp.mjs）。 */
 export function acpAuthType(p) {
   if (!p) return null;
   if (p.authType) return p.authType;
   if (p.local) return null;
   if (p.login) return "oauth-personal";
+  if (p.protocol === "gemini") return "gemini-api-key";
   return `${p.id}-api-key`;
 }
 
@@ -671,6 +676,7 @@ function providerView(id, v) {
     id, label: v.label || id, labelEn: v.labelEn || "", group: v.group || "custom", custom: !!v.custom,
     login: !!v.login, nativeModels: !!v.nativeModels, local: !!v.local,
     baseUrl: v.baseUrl || "", modelsUrl: v.modelsUrl || "", authStyle: v.authStyle || "bearer",
+    protocol: v.protocol === "gemini" ? "gemini" : "",   // 端点协议声明（rem-C2）："gemini" = 讲 Gemini 协议，走 agy Gemini 通道；"" = 未声明
     endpoints: (v.endpoints || []).map((e) => ({ id: e.id, label: e.label, labelEn: e.labelEn || "" })), endpoint: v.endpoint || null,
     defaultModel: v.defaultModel || null, fastModel: v.fastModel || null, inlineImages: !!v.inlineImages, contextWindow: Number(v.contextWindow) || 0,
     extraModels: v.custom ? extraModelsOf(v) : [],
@@ -747,6 +753,14 @@ export function upsertProvider(id, b, prepare) {
     if ("authStyle" in b) {
       cur.authStyle = b.authStyle === "gemini-api-key" ? "gemini-api-key" : b.authStyle === "x-api-key" ? "x-api-key" : "bearer";
     }
+    // 端点讲什么协议（rem-C2）：只有厂商明确声明 protocol:"gemini" 才算 Gemini 协议，
+    // 才能走 agy 的 Gemini 通道（GEMINI_API_KEY + GOOGLE_GEMINI_BASE_URL + settings.json）。
+    // 别的协议值（"anthropic" 等）不是 agy 认的协议，不存——存了也只是误导；authStyle:bearer
+    // 不能用来猜协议。预置厂商不走这里（它们用 authStyle/authType 已声明协议）。
+    if ("protocol" in b) {
+      if (b.protocol === "gemini") cur.protocol = "gemini";
+      else delete cur.protocol;
+    }
     cur.modelsAuth = cur.authStyle === "gemini-api-key" ? "x-goog-api-key" : (cur.authStyle || "bearer");
     // 上下文窗口（自己声明）：上游清单不报窗口、或者根本没清单时，默认/快速模型就按它算（#67）
     if ("contextWindow" in b) {
@@ -781,7 +795,7 @@ export function upsertProvider(id, b, prepare) {
   }
   // 正在用这家的轮次已经拿了旧地址，密钥却是每次现读（apiKeyHelper / keyOf 按 id 取新的）：改连接会拼出「旧地址 + 新密钥」，
   // 和删除一样等它跑完（审查 B01）。只改默认型号、窗口、名字这些不碍事，照常放行
-  const conn = (v) => [v.apiKey, v.baseUrl, v.authStyle, v.endpoint].map((x) => String(x || "")).join("\0");
+  const conn = (v) => [v.apiKey, v.baseUrl, v.authStyle, v.protocol, v.endpoint].map((x) => String(x || "")).join("\0");
   if (!isNew && conn(PROVIDERS_RAW.providers[id] || {}) !== conn(cur) && [...RUNS.values()].some((r) => !r.ended && r.provider === id))
     return { error: "busy", status: 409, message: tz("这一家正在用，等这一轮跑完再改地址或密钥。") };
   // 登录类厂商上以前存下的杂 key：这次保存顺手清掉（否则 claudeEnv 会走 key 分支、不走登录态，见 C13）。

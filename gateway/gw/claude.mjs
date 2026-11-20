@@ -706,17 +706,28 @@ export async function routeClaude(req, res, u, p) {
 
 
 // ── Antigravity CLI (agy) 环境与 ~/.gemini/antigravity-cli/settings.json 同步 ──
-// 按官方 Authenticate & Settings 文档：
+// 按官方 Authenticate & Settings 文档（antigravity.google/docs/cli/install）：
 //   · API Key 模式：在 ~/.gemini/antigravity-cli/settings.json 写 {"modelProvider":"gemini"}，
 //     并注入 GEMINI_API_KEY（以及可选 GOOGLE_GEMINI_BASE_URL）。
 //   · 自定义 Gemini 端点：同步写入 customModelsConfig.customModels（gemini-api://<base>/models/<id>）。
 //   · 订阅登录 / ADC 模式：移除 modelProvider 与 customModelsConfig 并清掉 GEMINI_API_KEY。
+// agy 只认 Gemini 协议的 API Key 模式（modelProvider 只接受 "gemini"）：没有通用
+// 第三方 bearer 通道，Anthropic 协议的第三方厂商（DeepSeek/GLM 等）没有任何 key
+// 通道能进 agy 进程。唯一的例外是厂商明确声明 protocol:"gemini"——即端点讲
+// Gemini 协议（rem-C2 方案 a）：此时按 Gemini 方式受控注入，绝不用
+// authStyle:bearer 猜协议。C1 之前自定义厂商（group/custom）默认走这条 Gemini
+// 通道，C1 关掉后讲 Gemini 协议的自定义端点由“能用”变“无 key”，本函数恢复它。
+/** 厂商是否按 Gemini API Key 模式驱动 agy：authStyle/authType 已声明
+ *  gemini-api-key，或明确声明 protocol:"gemini"；登录类厂商永远不算。 */
+export function isGeminiApiKey(p, key) {
+  return !!(p && !p.login && (p.authStyle === "gemini-api-key" || p.authType === "gemini-api-key" || p.protocol === "gemini") && key);
+}
 export function syncAgySettings(p = PROVIDER, key = keyOf(p)) {
   const dir = path.join(CFG.home, ".gemini", "antigravity-cli");
   const file = path.join(dir, "settings.json");
   // 只有 Gemini 协议才算 API Key 模式：group/custom 不能当依据，否则自定义 Bearer 端点
-  // 也会被写成 modelProvider=gemini（C3）。登录类厂商（antigravity 订阅等）不走这里。
-  const isApiKey = !!(p && !p.login && (p.authStyle === "gemini-api-key" || p.authType === "gemini-api-key") && key);
+  // 也会被写成 modelProvider=gemini（C3）。protocol:"gemini" 是厂商的明确声明，算数（rem-C2）。
+  const isApiKey = isGeminiApiKey(p, key);
   // A14：解析失败时不得静默重置成 {} 再写回——那会丢掉用户原有配置。
   // 原文件保留不动，只记日志并返回 error；调用方（agyEnv）按旧配置继续跑。
   let obj;
@@ -815,9 +826,10 @@ export function agyEnv(o = {}) {
   delete env.AGY_ADC_AUTH;
   if (p.authType === "agent-platform" || p.authStyle === "adc") {
     env.AGY_ADC_AUTH = "true";
-  } else if (key && !p.login && (p.authStyle === "gemini-api-key" || p.authType === "gemini-api-key")) {
+  } else if (isGeminiApiKey(p, key)) {
     // 只有 Gemini 协议才注入 GEMINI_API_KEY：第三方厂商（DeepSeek/GLM 等）的 key
-    // 绝不能冒充 Gemini key、baseUrl 也绝不能冒充 Gemini 端点（C1）
+    // 绝不能冒充 Gemini key、baseUrl 也绝不能冒充 Gemini 端点（C1）；但厂商明确
+    // 声明 protocol:"gemini" 时，端点讲的就是 Gemini 协议，恢复注入（rem-C2）。
     env.GEMINI_API_KEY = key;
     if (p.baseUrl && !/^https:\/\/generativelanguage\.googleapis\.com\/?$/i.test(p.baseUrl)) {
       env.GOOGLE_GEMINI_BASE_URL = p.baseUrl;

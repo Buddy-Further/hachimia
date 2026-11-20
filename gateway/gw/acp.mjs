@@ -1177,9 +1177,15 @@ export async function runAcpTurn({
       const authMethods = Array.isArray(initRes?.authMethods) ? initRes.authMethods : [];
       // 厂商自己的 api-key 类型（deepseek-api-key 等，见 providers.mjs 的 acpAuthType）不是
       // ACP 官方认证方法，agy 永远不会声明它：不得按 A16 抛错，也不得把别家 key 塞进
-      // authenticate 的 _meta（C2）。这种 key 由 agyEnv/settings 等带外通道交给 agy，这里跳过。
+      // authenticate 的 _meta（C2）。注意：这种 key 没有带外通道——agy 只认 Gemini 协议
+      // 的 API Key 模式，Anthropic 协议的第三方厂商在 agy-only ACP 下无 key 可跑（rem-C2；
+      // 旧注释称“key 由 agyEnv/settings 等带外通道交给 agy”是错的）。只有厂商明确声明
+      // protocol:"gemini" 时，key 才经 agyEnv（GEMINI_API_KEY + GOOGLE_GEMINI_BASE_URL）
+      // 与 settings.json（modelProvider=gemini）交给 agy，且 acpAuthType 会把它映射成
+      // gemini-api-key，不走这条豁免。这里跳过 authenticate，只是别让没通道的厂商
+      // 在认证这一步先报一个误导性的错；模型调用时 agy 仍会因无 key 而失败。
       const isVendorApiKey = typeof authType === "string" && authType !== "gemini-api-key" && /-api-key$/.test(authType);
-      if (isVendorApiKey) log(`[agy-acp] ${authType}：非 ACP 官方认证方法，跳过 authenticate（key 走带外通道）`);
+      if (isVendorApiKey) log(`[agy-acp] ${authType}：非 ACP 官方认证方法，跳过 authenticate（agy 无通用第三方 bearer 通道，见 rem-C2；仅 protocol:"gemini" 的厂商经 agyEnv/settings 交 key）`);
       // agent 声明了认证方式、却不含网关要用的那一种时，不得静默跳过、用默认/错误的
       // 认证跑下去——当场失败并报出双方的 id（A16）。agent 什么都没声明时保持旧行为
       // （跳过），那种 agent 不靠 ACP authenticate 认证。
