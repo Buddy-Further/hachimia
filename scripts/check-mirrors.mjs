@@ -11,7 +11,7 @@ let bad = 0;
 
 // APK：GitHub 最新正式版的两个安装包 hachimia.apk / hachimia-36.apk 都在，直链下回来的大小和资产一致
 try {
-  const rel = await (await get("https://api.github.com/repos/greyoak111/hachimia/releases/latest")).json();
+  const rel = await (await get("https://api.github.com/repos/Buddy-Further/hachimia/releases/latest")).json();
   const want = rel.assets.filter((x) => /^hachimia(-36)?\.apk$/.test(x.name));
   if (want.length < 2) { bad++; console.log(`✗ APK ${rel.tag_name}：只找到 ${want.map((a) => a.name).join(" ") || "（无）"}，缺 hachimia.apk / hachimia-36.apk`); }
   for (const a of want) {
@@ -33,7 +33,7 @@ try {
 
 // 预置组件索引：404 只是“还没发布”，警告，不算失败
 try {
-  const r = await fetch("https://github.com/greyoak111/hachimia/releases/download/components/components.json", { signal: AbortSignal.timeout(30000) });
+  const r = await fetch("https://github.com/Buddy-Further/hachimia/releases/download/components/components.json", { signal: AbortSignal.timeout(30000) });
   if (r.status === 404) console.log("⚠ 预置组件索引：尚未发布（需发布方补 components Release），跳过");
   else if (!r.ok) { bad++; console.log(`✗ 预置组件索引：HTTP ${r.status}`); }
   else {

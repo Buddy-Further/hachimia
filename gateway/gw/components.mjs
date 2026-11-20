@@ -33,7 +33,7 @@ import { writeAtomic } from "./statefile.mjs";
 // 那里的构建全是按 cccodroid 工具包打的，base 永远对不上 hachimia 工具包，一个都装不上。
 // 环境变量显式设空 = 停用该来源（?? 而不用 ||：空字符串就是“停用”，不是“用默认”）。
 const COMP_INDEX = process.env.CCAPP_COMPONENTS_INDEX ??
-  "https://github.com/greyoak111/hachimia/releases/download/components/components.json";
+  "https://github.com/Buddy-Further/hachimia/releases/download/components/components.json";
 // 社区组件：hachimia 尚无对应的社区仓库，默认停用；有了之后把地址填到这里（或用环境变量指过去）
 const COMP_COMMUNITY_INDEX = process.env.CCAPP_COMPONENTS_COMMUNITY_INDEX ?? "";
 // 索引签名公钥（ed25519）：每份索引旁边都有 <索引>.sig（对原始字节的签名，base64），验不过整份不用。

@@ -62,9 +62,11 @@ for (const f of REPO_FILES) {
     assert.match(s, /Buddy-Further\/hachimia/, `${f} 应含 Buddy-Further/hachimia`);
   });
 }
-test("D-08 不碰 scripts/publish-devkit.mjs（归 E）", () => {
-  // 只确认本分片没改它：该文件仍含旧地址，由 E 处理
-  assert.match(read("scripts/publish-devkit.mjs"), /greyoak111\/hachimia/);
+test("D-08 publish-devkit.mjs 已随发版前置统一到 Buddy-Further（rem/release-prep）", () => {
+  // 发版前置条件 2 要求三处地址统一：publish-devkit.mjs:30 的 REPO 已改为 Buddy-Further；
+  // 仅 git 提交身份（user.name=greyoak111，维护者个人身份）保留，未动
+  assert.match(read("scripts/publish-devkit.mjs"), /const REPO = "Buddy-Further\/hachimia"/);
+  assert.doesNotMatch(read("scripts/publish-devkit.mjs"), /greyoak111\/hachimia/);
 });
 
 // ── D-09：用户可见文案残留 ──
