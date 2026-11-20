@@ -3388,4 +3388,12 @@ window.I18N_DICT["ru"] = {
   "多代理协作": "Multi-agent teamwork",
   "深度编排": "Deep orchestration",
   "能力与工具": "Capabilities & tools",
+  "切换权限模式失败（agent 拒绝了 {mode}）：{msg}": "Failed to switch permission mode (agent rejected {mode}): {msg}",
+  "旧会话无法恢复（Agent 不支持恢复或恢复失败），已新建会话继续。本轮写进了新会话，旧会话的历史仍保留在本地记录中。": "Could not restore the previous session (the agent doesn't support resume, or resume failed), so a new session was started. This turn was written to the new session; the old session's history is still kept in local records.",
+  "压缩未确认：上下文没有下降（压缩前 {pre}，压缩后 {post}），请重试 /compact 或换新会话。": "Compaction not confirmed: context did not shrink (before {pre}, after {post}). Please retry /compact or start a new session.",
+  "企业登录：请在浏览器里用公司 Google 账号完成登录": "Enterprise login: please sign in with your company Google account in the browser",
+  "授权码没能写进 agy（stdin 已关闭），请重新发起登录。": "The authorization code could not be written to agy (stdin is closed). Please start login again.",
+  "授权码没能写进 agy（登录进程的 stdin 已关闭），请重新发起登录。": "The authorization code could not be written to agy (the login process's stdin is closed). Please start login again.",
+  "登录类厂商不用填 API Key，登录走官方流程；这次填的密钥没有保存。": "Login-based providers don't need an API key; sign in through the official flow. The key you entered was not saved.",
+  "已在排队，跳过这次重复执行": "Already queued; skipping this duplicate run",
 };

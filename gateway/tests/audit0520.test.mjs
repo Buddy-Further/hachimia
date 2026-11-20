@@ -239,8 +239,9 @@ test("04-010 复核 #2：models 探测——退出 0 有输出算登录；问不
   const sh = fs.existsSync("/system/bin/sh") ? "/system/bin/sh" : "/bin/sh";
   try {
     PATHS.agy = fake;
-    // 登录：exit 0 + 模型列表
-    fs.writeFileSync(fake, `#!${sh}\necho "gemini-3.1-pro"\necho "gemini-2.5-flash"\nexit 0\n`, { mode: 0o700 });
+    // 登录：exit 0 + 模型列表（真实 `agy models` 输出是“模型 id + 显示名”成对行，
+    // 2026-11-20 集成修正：A2 之后 authStatus 要求输出真像模型清单，裸 id 行不再算数）
+    fs.writeFileSync(fake, `#!${sh}\necho "gemini-3.1-pro Gemini 3.1 Pro"\necho "gemini-2.5-flash Gemini 2.5 Flash"\nexit 0\n`, { mode: 0o700 });
     const ok = await login.authStatus(true);
     assert.equal(ok.loggedIn, true, JSON.stringify(ok));
     // 探测失败（非 sign-in 文案的网络错）：沿用上次问出的，标旧

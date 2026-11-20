@@ -25,7 +25,9 @@ test("只清没单独指定接口的；指定了接口的、本来就跟随的�
   assert.deepEqual(db.tasks.map((t) => t.model), ["", "own-m"]);
   const src = fs.readFileSync(new URL("../gw/settings.mjs", import.meta.url), "utf8");
   const at = src.indexOf("SETTINGS.model = null;");
-  assert.ok(at > 0 && src.slice(at, at + 400).includes("clearFollowingModels()") && src.slice(at, at + 400).includes("clearFollowingTaskModels()"));
+  // 2026-11-20 集成修正：D-10 加了清 effort 的注释块，两处调用离锚点 446/475 字符，
+  // 行为未变（调用仍在换厂商分支内），窗口从 400 放宽到 800
+  assert.ok(at > 0 && src.slice(at, at + 800).includes("clearFollowingModels()") && src.slice(at, at + 800).includes("clearFollowingTaskModels()"));
 });
 
 test("195-O.2：压缩线按 claude 实际认的 100k～1M 夹住（旧设置里存的 20k 显示成 100k）", async () => {

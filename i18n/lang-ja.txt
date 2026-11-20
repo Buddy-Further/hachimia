@@ -3387,3 +3387,11 @@
 3385	Multi-agent teamwork
 3386	Deep orchestration
 3387	Capabilities & tools
+3388	Failed to switch permission mode (agent rejected {mode}): {msg}
+3389	Could not restore the previous session (the agent doesn't support resume, or resume failed), so a new session was started. This turn was written to the new session; the old session's history is still kept in local records.
+3390	Compaction not confirmed: context did not shrink (before {pre}, after {post}). Please retry /compact or start a new session.
+3391	Enterprise login: please sign in with your company Google account in the browser
+3392	The authorization code could not be written to agy (stdin is closed). Please start login again.
+3393	The authorization code could not be written to agy (the login process's stdin is closed). Please start login again.
+3394	Login-based providers don't need an API key; sign in through the official flow. The key you entered was not saved.
+3395	Already queued; skipping this duplicate run
