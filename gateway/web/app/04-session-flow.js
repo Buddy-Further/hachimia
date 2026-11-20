@@ -4,6 +4,26 @@
   let statLast = {}, statIv = 0, statRun = null;
   let cmpGen = 0;   // 第几次压缩：「正在压缩」和「已压缩」共用一行的键
   try { statLast = JSON.parse(localStorage.getItem(STAT_KEY) || "{}") || {}; } catch {}
+  const statButton = $("stat-chip"), statShort = statButton.querySelector(".stat-short");
+  // 保持存盘/实时统计的原格式；只在底栏显示层派生窄栏摘要。
+  new MutationObserver(() => {
+    const text = statEl.textContent;
+    if (statButton.title === text) return;
+    const bits = text.split(" · "), tokens = bits.find(s => /^↓.+ tok$/.test(s));
+    const short = tokens ? tokens.slice(0, -4) : bits[0].replace(/^(\d+[mh]) \d+[sm]$/, "$1");
+    if (statShort.textContent !== short) statShort.textContent = short;
+    statButton.hidden = !text;
+    statButton.title = text;
+    statButton.setAttribute("aria-label", t("用量") + " · " + text);
+    const detail = OV.at(statButton);
+    if (detail && !text) OV.close(detail);
+    else if (detail) detail.lastElementChild.textContent = text;
+  }).observe(statEl, { childList: true });
+  statButton.addEventListener("click", () => {
+    if (!statEl.textContent) return;
+    const detail = popMenu(statButton, [{ head: t("用量") }, { head: statEl.textContent }], "up", "hint-stat");
+    if (detail) detail.lastElementChild.dir = "ltr";
+  });
   function statPaint() {
     const rv = runViews.get(statRun);
     if (!rv) return statStop();
@@ -52,6 +72,7 @@
    *  实时区先遮着，到 sync 一次揭开（#88）。sync 迟迟不来：2.5 秒先揭开（重放特别长时边放边看，同以前）；
    *  15 秒还没来（连接断在重放中途、再没续上）就按到头收尾，别让用量一直攒着不上屏、新回复不吐字 */
   function beginReplay() {
+    if (scrollRaf) { cancelAnimationFrame(scrollRaf); scrollRaf = 0; } // 不让旧轮次排的工具跟底挡住新一轮重放的跟底
     busReplay = true;
     // 新一轮重放开始：上一代没等到 sync 的用量缓冲作废。留着的话下一次 sync 会把旧值当成
     // 「刚更新的实时用量」写进视图，还把随后正确的历史用量挡在外面（0.6.9 #191-3）
@@ -697,27 +718,44 @@
     // 45 秒盖住最长的 30 秒退避；连上（onopen）就清零，重新按原文案说（FIND-018）
     if (!ok && !srv.foreign && Date.now() - gwDeadAt < 45000) setStatus(t("网关离线"), "err");
   }
-  /** 回前台把界面状态和网关对一遍：SSE 看起来 OPEN、其实已经不再派发时，残留的「生成中」和停止键靠这个散掉（FIND-017）。
-   *  askedAt：对账发起时刻，之后才起的轮次不归这次快照管 */
-  function reconcileRunViews(askedAt) {
-    const live = new Set((srv.runs || []).map((r) => r.id));
-    for (const [runId, rv] of [...runViews]) {
-      // 网关那边还在跑；或快照之后才起的轮次，不归这次对账管
-      if (live.has(runId) || !(rv.startedAt && rv.startedAt < askedAt)) continue;
-      // 网关那边这一轮已经没了：按普通收尾停下（结果未知，不标失败），过程留在原地
-      rv.timer?.stop();
-      if (rv.av) { rv.av.finish(); if (rv.av.empty) rv.av.remove(); }
-      runViews.set(runId, { startedAt: rv.startedAt });
-      runSid.delete(runId);
-    }
-    if (statRun && !live.has(statRun)) { statStop(); statEl.textContent = statLast[view.sessionId] || ""; }
+  /** 回前台把界面状态和网关对一遍（FIND-017）。HTTP 快照可能先于 SSE 尾帧到：
+   *  忙闲和队列立即更新，气泡留给 SSE 收尾；如果流仍不派发，才超时退回历史。 */
+  const RESUME_TAIL_MS = 2000;
+  let resumeRead = 0, resumeTail = 0, stateRev = 0;
+  function reconcileRunViews(askedAt, gen) {
+    const live = new Set(srv.runs.map((r) => r.id));
+    const missing = [...runViews].filter(([id, rv]) => rv.av && rv.startedAt && rv.startedAt < askedAt && !live.has(id));
+    if (!missing.length) return;
+    resumeTail = setTimeout(() => {
+      resumeTail = 0;
+      if (gen !== view.gen || document.hidden) return;
+      const now = new Set(srv.runs.map((r) => r.id));
+      let recover = false;
+      for (const [id, rv] of missing) {
+        if (runViews.get(id) !== rv || now.has(id)) continue;   // 已收到 run_end，或新的状态里仍有这一轮
+        rv.timer?.stop();
+        rv.av.finish();
+        if (rv.av.empty) rv.av.remove();
+        runViews.set(id, { startedAt: rv.startedAt, out: rv.out });
+        runSid.delete(id);
+        for (const [pid, it] of PERMS) if (it.runId === id && !it.done) permDone(pid, "stopped");
+        if (statRun === id) { statStop(); statEl.textContent = statLast[view.sessionId] || ""; }
+        recover = true;
+      }
+      // 用原有整轮重放重新读历史，避免同一回复同时留在实时区和历史区。还没有会话号时保留已显示的内容。
+      if (recover && view.sessionId) connectBus(false);
+    }, RESUME_TAIL_MS);
   }
   document.addEventListener("visibilitychange", () => {
-    // 切回前台：WebView 在后台冻过，连接可能已经悄悄死了；SSE 看着活着也可能不再派发，
-    // 所以不管连接状态都拉一次快照对账，再按需重连（FIND-017）
+    const read = ++resumeRead;
+    clearTimeout(resumeTail); resumeTail = 0;
     if (document.hidden) return;
-    const askedAt = Date.now();
-    if (typeof api === "function") api("/api/state").then((s) => { if (s && typeof s === "object") { applyState(s); if (typeof reconcileRunViews === "function") reconcileRunViews(askedAt); } }).catch(() => {});
+    const askedAt = Date.now(), gen = view.gen, rev = stateRev;
+    api("/api/state").then((s) => {
+      if (!s || typeof s !== "object" || read !== resumeRead || gen !== view.gen || document.hidden) return;
+      if (rev === stateRev) applyState(s);   // 不用迟到的 HTTP 快照覆盖期间收到的 SSE 状态
+      reconcileRunViews(askedAt, gen);
+    }).catch(() => {});
     if (!es || es.readyState !== 1) connectBus(true);
   });
 
@@ -942,7 +980,7 @@
       case "sub_done":       TOOL_CARDS.get(ev.parent)?.subDone?.(ev.status); break;
       case "tool_result":
         if (ev.parent && !TOOL_CARDS.get(ev.parent)) break;   // 同上：父卡不在，结果也不攒进待贴表
-        toolResult(ev.id, ev.ok, ev.text); av.toolDone(ev.id); scrollDown(); break;
+        toolResult(ev.id, ev.ok, ev.text); av.toolDone(ev.id); queueToolFollow(); break;
       case "phase":          av.phase(ev); break;
       // 压缩中的状态会连来好几条：同一次压缩只留一行，压完原地换成结果（#67）
       case "compacting":     av.phase(null); av.noteK("cmp" + cmpGen, t("正在压缩上下文…")); scrollDown(); break;
@@ -1091,9 +1129,9 @@
     if (ev.usage?.context_tokens) liveCtx(ev.usage.context_tokens, ev.usage.context_window || state.ctxTotal);
 
     if (ev.localCommand && ev.resultText) {
-      av.finish();
-      if (av.empty) av.remove();
-            const b = mkMsg("sys", t("命令"), liveEl);
+      av?.finish();
+      if (av?.empty) av.remove();
+      const b = mkMsg("sys", t("命令"), liveEl);
       setHtml(b, `<div class="cmd-card"><div class="cmd-name">${esc("/" + ev.localCommand)}</div>${renderMd(ev.resultText)}</div>`);
       if (ev.localCommand === "context") parseContextText(ev.resultText);
       if (ev.localCommand === "model" || ev.localCommand === "effort") { loadSettings(); refreshSessModel(); }
@@ -1101,8 +1139,8 @@
       if (ev.localCommand === "autocompact") loadModels();
     } else {
       const bad = !!(ev.failed || ev.isError);
-      av.finish(cut, bad);
-      if (cut) { av.note(t("已中断")); agStopAll(ev.at); }
+      av?.finish(cut, bad);   // 超时对账可能已经收了气泡，仍要处理迟到的统计和轮次结果。
+      if (cut) { av?.note(t("已中断")); agStopAll(ev.at); }
       else if (ev.retired || bad) agStopAll(ev.at);   // 后台子代理随进程一起停了 / 这一轮失败
       const st = statBits(ev, rv.out);
       if (st) { statEl.textContent = st; statSave(ev.sessionId || view.sessionId, st); }
@@ -1169,6 +1207,7 @@
     }
   }
   function applyState(s) {
+    stateRev++;
     showTamper(s.tamper, true);
     showRecoverWarn(s.recoverWarns);
     srv.runs = s.runs || (s.run ? [s.run] : []);
