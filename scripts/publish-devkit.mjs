@@ -27,7 +27,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const HOME = process.env.HOME;
-const REPO = "greyoak111/hachimia";
+const REPO = "Buddy-Further/hachimia";
 const MARKET = process.env.MARKET || path.join(ROOT, "..", "hachimia-components");
 const KEYFILE = process.env.INDEX_SIGNING_KEY_FILE || (fs.existsSync("/data/user/0/li.dsh.claudecli/files/bldtools") ? "/data/user/0/li.dsh.claudecli/files/bldtools" : (process.env.BLDTOOLS || process.env.HOME + "/.bldtools")) + "/index-signing-ed25519.pem";
 const TEST_WT = process.env.TEST_WT || path.join(HOME, ".work/hachimia-testwt");

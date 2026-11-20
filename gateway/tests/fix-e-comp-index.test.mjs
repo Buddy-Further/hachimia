@@ -36,7 +36,7 @@ const fresh = () => import("../gw/components.mjs?i=" + ++n);
 
 test("E-01 索引地址：预置索引默认走 hachimia，社区索引与 cccodroid 镜像默认停用", () => {
   const src = fs.readFileSync(new URL("../gw/components.mjs", import.meta.url), "utf8");
-  assert.ok(src.includes("greyoak111/hachimia/releases/download/components/components.json"), "预置索引应默认指向 hachimia 的 components Release");
+  assert.ok(src.includes("Buddy-Further/hachimia/releases/download/components/components.json"), "预置索引应默认指向 hachimia 的 components Release（canonical 组织 Buddy-Further）");
   assert.ok(!src.includes("greyoak111/cccodroid/releases/download/components/components.json"), "不应再默认拉 cccodroid 的预置索引");
   assert.ok(!src.includes("greyoak111/cccodroid-components/releases/download/index/components.json"), "不应再默认拉 cccodroid 的社区索引");
   assert.ok(!src.includes("cccodroid.net/components/"), "不应再默认走 cccodroid.net 的组件镜像");
