@@ -24,6 +24,10 @@ export function syncGitSafe(dirs) {
   let body = cur.replace(LEGACY, "$1");
   const i = body.indexOf(BEGIN), j = body.indexOf(END);
   if (i >= 0 && j > i) body = body.slice(0, i) + body.slice(j + END.length).replace(/^\n/, "");
+  // G7：BEGIN 在、END 丢了（手改、损坏、写一半被中断）：旧块没有终点，上面那句切不掉它，旧的 safe.directory 永久残留，
+  // 被移出登记表的项目仍被 git 信任，新块还追加在后面造成新旧并存。托管块总由 syncGitSafe 追加在文件末尾，
+  // 所以 BEGIN 之后全是残块，整段去掉；BEGIN 之前用户自己的配置不动。
+  else if (i >= 0) body = body.slice(0, i);
   const list = [...new Set(dirs.filter((d) => typeof d === "string" && path.isAbsolute(d)).map((d) => d.replace(/\/+$/, "")))]
     // 换行、引号会把 git 配置写坏（也能借机塞别的配置项）：这种目录不列
     .filter((d) => d && !/[\n\r"\\]/.test(d));
