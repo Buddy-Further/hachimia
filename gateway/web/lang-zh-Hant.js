@@ -3401,4 +3401,5 @@ window.I18N_DICT["zh-Hant"] = {
   "这个版本没有原生层，只记 CPU 时间（电量、亮屏要 hachimia）。": "這個版本沒有原生層，只記 CPU 時間（電量、亮屏要 hachimia）。",
   "Antigravity CLI 程序被改过，已拒绝启动；": "Antigravity CLI 程式被改過，已拒絕啟動；",
   "Antigravity CLI 杂物": "Antigravity CLI 雜物",
+  "新建会话失败：Agent 没有返回会话号，请重试": "新建會話失敗：Agent 沒有返回會話號，請重試",
 };

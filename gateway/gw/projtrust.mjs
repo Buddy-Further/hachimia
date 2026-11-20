@@ -30,11 +30,25 @@ const breachNote = (raw) => {
   return h ? ` ｜ 破甲特征命中 L${h.line}: ${h.excerpt.slice(0, 60)}` : " ｜ 破甲特征命中";
 };
 
+// 与 saferead.mjs / components.mjs 的 readSmall 同口径（MIG-33）：stat 只取元数据，
+// 再 O_NOFOLLOW 打开、fstat 复核同一 inode，才从 fd 读内容——检查与读取之间文件被换
+// （软链/重命名替换）时读不到换进来的东西。
 function readSmall(f) {
   let st; try { st = fs.statSync(f); } catch { return null; }
   if (!st.isFile()) return null;
   if (st.size > MAX) return { raw: null, big: `${st.size}:${st.mtimeMs}` };
-  try { return { raw: fs.readFileSync(f, "utf8") }; } catch { return null; }
+  let fd = -1;
+  try {
+    fd = fs.openSync(f, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
+    const fst = fs.fstatSync(fd);
+    if (!fst.isFile() || fst.dev !== st.dev || fst.ino !== st.ino) return null;
+    if (fst.size > MAX) return { raw: null, big: `${fst.size}:${fst.mtimeMs}` };
+    const buf = Buffer.alloc(fst.size);
+    let off = 0;
+    while (off < buf.length) { const n = fs.readSync(fd, buf, off, buf.length - off, off); if (!n) break; off += n; }
+    return { raw: buf.subarray(0, off).toString("utf8") };
+  } catch { return null; }
+  finally { if (fd >= 0) try { fs.closeSync(fd); } catch {} }
 }
 
 function settingsRisks(file, raw, out) {

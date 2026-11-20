@@ -463,6 +463,8 @@ RECOVER_HOOKS.push((runs) => {
     log(`⏰ 定时任务「${t.name}」上一轮被系统结束，记一次失败`);
     // 时间记这一轮开始的时候；时长不知道（停机那段不能算进去），不写
     addRun({ taskId: t.id, at: r.startedAt || Date.now(), st: "err", msg: tz("网关被系统结束，这一轮没跑完"), runId: r.id, sid: r.sessionId || null, attempt: 0 });
+    // MIG-24：与 END_HOOKS 同口径排重试（attempt 恒为 0，retry>=1 才排；scheduleRetry 负责落盘）
+    if ((+t.retry || 0) > 0) scheduleRetry(t.id, 1, 2 * 60000);
     if (r.sessionId && t.session === "same") { t.lastSid = r.sessionId; delete t.lostSid; save(); }
   }
 });

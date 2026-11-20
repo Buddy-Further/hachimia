@@ -3401,4 +3401,5 @@ window.I18N_DICT["ar"] = {
   "这个版本没有原生层，只记 CPU 时间（电量、亮屏要 hachimia）。": "This build has no native layer, so only CPU time is recorded (battery and screen-on need hachimia).",
   "Antigravity CLI 程序被改过，已拒绝启动；": "The Antigravity CLI program was modified and was not started; ",
   "Antigravity CLI 杂物": "Antigravity CLI housekeeping files",
+  "新建会话失败：Agent 没有返回会话号，请重试": "Failed to create a session: the agent returned no session ID. Please try again.",
 };

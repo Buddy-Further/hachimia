@@ -3401,3 +3401,5 @@
 3398	This build has no native layer, so only CPU time is recorded (battery and screen-on need hachimia).
 3399	The Antigravity CLI program was modified and was not started; 
 3400	Antigravity CLI housekeeping files
+// TODO i18n (MIG-22)：以下为英文原文回退，待译成 fr
+3401	Failed to create a session: the agent returned no session ID. Please try again.

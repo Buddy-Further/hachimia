@@ -3400,3 +3400,4 @@
 3398	這個版本沒有原生層，只記 CPU 時間（電量、亮屏要 hachimia）。
 3399	Antigravity CLI 程式被改過，已拒絕啟動；
 3400	Antigravity CLI 雜物
+3401	新建會話失敗：Agent 沒有返回會話號，請重試

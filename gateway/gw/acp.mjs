@@ -38,6 +38,23 @@ const TOOL_OUT_MAX = 20000;
 // 按 sessionId 保活的常驻 ACP 客户端池：同一会话同配置直接复用进程，避免每轮重启 agy
 const ACP_POOL = new Map();
 
+/** 常驻 ACP 进程的收尾（MIG-19）：先 SIGTERM 整组（agy 派生的孙进程一起带走），
+ *  宽限期后仍活着再 SIGKILL 整组；组杀失败回落单进程。子进程以 detached:true 起，
+ *  是进程组长，负 pid 即整组。定时器 unref，不拖住网关退出。 */
+export const ACP_KILL_GRACE_MS = 3000;
+export function killAcpChild(child, graceMs = ACP_KILL_GRACE_MS) {
+  if (!child || !child.pid) return;
+  const killGroup = (sig) => {
+    try { process.kill(-child.pid, sig); return true; }
+    catch { try { child.kill(sig); } catch {} return false; }
+  };
+  killGroup("SIGTERM");
+  const t = setTimeout(() => {
+    if (child.exitCode === null && child.signalCode == null) killGroup("SIGKILL");
+  }, graceMs);
+  t.unref?.();
+}
+
 /** 销毁池中某个会话的常驻 ACP 进程 */
 export function closeAcpSession(sessionId) {
   const entry = sessionId && ACP_POOL.get(sessionId);
@@ -46,7 +63,7 @@ export function closeAcpSession(sessionId) {
   ACP_POOL.delete(sessionId);
   if (entry.idleTimer) clearTimeout(entry.idleTimer);
   try { entry.client.close(); } catch {}
-  try { entry.client.child?.kill?.("SIGTERM"); } catch {}
+  killAcpChild(entry.client.child);
 }
 
 /** 查询常驻 ACP 进程池中正在后台运行的任务列表（供前端顶部后台任务条展示） */
@@ -143,13 +160,35 @@ export function acpTextOf(content, depth = 0) {
   return "";
 }
 
-/** 合并工具输出：兼容增量追加与全量覆盖两种更新方式 */
-function mergeToolOutput(prev, next) {
+/** 合并工具输出：兼容增量追加与全量覆盖两种更新方式。
+ *  重叠增量（next 的前缀与 prev 的后缀重叠，如 abc + bcd）只补新尾巴，不拼重复（MIG-20）。 */
+export function mergeToolOutput(prev, next) {
   if (!next) return prev || "";
   if (!prev) return next;
   if (next === prev || prev.endsWith(next)) return prev;
   if (next.startsWith(prev)) return next;
+  const max = Math.min(prev.length, next.length);
+  for (let n = max; n > 0; n--) {
+    if (prev.endsWith(next.slice(0, n))) return prev + next.slice(n);
+  }
   return prev + (prev.endsWith("\n") ? "" : "\n") + next;
+}
+
+/** 权限选项按 kind/optionId 精确匹配（MIG-21）：子串匹配会把假想的 disallow/disallow_once
+ *  当成允许项自动放行。allow_always 与 reject 各自另有档位，不混进 allow_once 的候选。 */
+const acpOptKind = (o) => String(o?.kind || o?.optionId || "").trim().toLowerCase();
+const isAcpAllowOpt = (o) => /^(allow_once|allow)$/.test(acpOptKind(o));
+const isAcpAllowAlwaysOpt = (o) => /^allow_always$/.test(acpOptKind(o));
+const isAcpRejectOpt = (o) => /^(reject_once|reject_always|reject|deny|deny_once|deny_always)$/.test(acpOptKind(o));
+const isAcpDenyishOpt = (o) => isAcpRejectOpt(o) || /^disallow(_once|_always)?$/.test(acpOptKind(o));
+/** 挑自动放行用的允许项：精确匹配不到时，首选项不是已知档位（allow_always / reject / deny / disallow）
+ *  才兜底——把 allow_always 当 allow_once 点掉会误授永久放行；agent 只发 disallow 时更不能把它当允许点掉。 */
+export function pickAcpAllowOption(options) {
+  const list = Array.isArray(options) ? options : [];
+  const allow = list.find(isAcpAllowOpt);
+  if (allow) return allow;
+  const first = list[0];
+  return first && !isAcpAllowAlwaysOpt(first) && !isAcpDenyishOpt(first) ? first : undefined;
 }
 
 /** 将 ACP 模式名映射为前端识别的权限模式 */
@@ -276,15 +315,59 @@ export function createAcpClient({ bin, args = ["acp"], cwd, env, onNotification,
     handlers.onStderr?.(s);
   });
 
+  // ACP 要求 NDJSON，但 agent 可能吐多行 pretty-JSON：解析失败的行先缓冲，
+  // 括号平衡后再拼起来解析；拼不出的才丢弃，并把完整内容记进诊断日志（MIG-23）。
+  let jsonBuf = "";
+  const JSON_BUF_MAX = 1 << 20;
+  // 括号深度（跳过字符串内与转义字符）：>0 说明这段 JSON 还没收完
+  const jsonDepth = (s) => {
+    let depth = 0, inStr = false, esc = false;
+    for (const ch of s) {
+      if (inStr) { if (esc) esc = false; else if (ch === "\\") esc = true; else if (ch === '"') inStr = false; continue; }
+      if (ch === '"') inStr = true;
+      else if (ch === "{" || ch === "[") depth++;
+      else if (ch === "}" || ch === "]") depth--;
+    }
+    return depth;
+  };
+  const tryParseJson = (s) => { try { return JSON.parse(s); } catch { return undefined; } };
+  const handleJsonLine = (line) => {
+    const t = line.trim();
+    if (!t) return undefined;
+    let msg = tryParseJson(t);
+    if (msg !== undefined) { jsonBuf = ""; return msg; }
+    if (jsonBuf) {
+      // 上一段没拼完、新行自己却是完整 JSON：旧缓冲已是死内容，记下来再处理新行
+      const staled = jsonBuf;
+      jsonBuf = "";
+      const alone = tryParseJson(t);
+      if (alone !== undefined) {
+        log(`[acp] 丢弃的非 JSON stdout 内容: ${staled}`);
+        return alone;
+      }
+      jsonBuf = staled;
+    }
+    const candidate = jsonBuf ? jsonBuf + "\n" + t : t;
+    if (jsonDepth(candidate) > 0) {
+      if (candidate.length > JSON_BUF_MAX) {
+        log(`[acp] 非 JSON stdout 内容超长（${candidate.length} 字节），丢弃: ${candidate}`);
+        jsonBuf = "";
+        return undefined;
+      }
+      jsonBuf = candidate;
+      return undefined;
+    }
+    msg = tryParseJson(candidate);
+    if (msg !== undefined) { jsonBuf = ""; return msg; }
+    log(`[acp] 非 JSON stdout 行: ${candidate}`);
+    jsonBuf = "";
+    return undefined;
+  };
+
   const rl = readline.createInterface({ input: child.stdout, crlfDelay: Infinity });
   rl.on("line", (line) => {
-    const t = line.trim();
-    if (!t) return;
-    let msg;
-    try { msg = JSON.parse(t); } catch {
-      log(`[acp] 非 JSON stdout 行: ${t.slice(0, 160)}`);
-      return;
-    }
+    const msg = handleJsonLine(line);
+    if (msg === undefined || msg === null) return;
     // 1. 对我们请求的响应
     if (msg.id !== undefined && (Object.prototype.hasOwnProperty.call(msg, "result") || Object.prototype.hasOwnProperty.call(msg, "error"))) {
       const p = pending.get(msg.id);
@@ -321,6 +404,7 @@ export function createAcpClient({ bin, args = ["acp"], cwd, env, onNotification,
   });
   child.on("close", (code, signal) => {
     closed = true;
+    if (jsonBuf) { log(`[acp] 进程退出时仍有未拼完的 stdout 内容: ${jsonBuf}`); jsonBuf = ""; }
     rl.close();
     rejectAll(new Error(signal ? `agy acp terminated by ${signal}` : `agy acp exited with code ${code}`));
   });
@@ -1050,9 +1134,9 @@ export async function runAcpTurn({
     onRequest: async (method, params) => {
       if (method === "session/request_permission") {
         const options = Array.isArray(params.options) ? params.options : [];
-        const allowOpt = options.find((o) => /allow_once|allow/i.test(o.kind || o.optionId || "")) || options[0];
-        const allowAlwaysOpt = options.find((o) => /allow_always/i.test(o.kind || o.optionId || "")) || null;
-        const rejectOpt = options.find((o) => /reject_once|reject|deny/i.test(o.kind || o.optionId || ""));
+        const allowOpt = pickAcpAllowOption(options);
+        const allowAlwaysOpt = options.find(isAcpAllowAlwaysOpt) || null;
+        const rejectOpt = options.find(isAcpRejectOpt);
 
         if (permMode === "bypassPermissions" && allowOpt) {
           return { outcome: { outcome: "selected", optionId: allowOpt.optionId } };
@@ -1249,7 +1333,10 @@ export async function runAcpTurn({
           mcpServers,
           ...(canAddDirs && extraDirs.length ? { additionalDirectories: extraDirs } : {}),
         }, 30000);
-        activeSessionId = sessRes?.sessionId || activeSessionId || crypto.randomUUID();
+        // MIG-22：agent 不回会话号时当场报错——自造一个 agent 不认识的 UUID 只会让
+        // 下一轮 resume/load 必然失败、循环产生孤儿会话，不如停在这里明示。
+        if (!sessRes?.sessionId) throw new Error(tz("新建会话失败：Agent 没有返回会话号，请重试"));
+        activeSessionId = sessRes.sessionId;
       }
       // 旧会话没续上、悄悄换了新会话号：明示给用户，别静默抛弃旧会话（B8）
       if (requestedSessionId && activeSessionId && activeSessionId !== requestedSessionId) {
@@ -1536,6 +1623,7 @@ export async function runAcpTurn({
       entry.effort = effort;
       entry.permMode = permMode;
       entry.knownToolIds = state.knownToolIds;
+      entry.lastUsage = state.usage || entry.lastUsage || null;
       entry.lastContextTokens = Number(state.usage?.context_tokens) || entry.lastContextTokens || 0;
       entry.bgTasks = bgTasks;
       entry.acpAgents = state.acpAgents || entry.acpAgents || new Map();
@@ -1619,6 +1707,9 @@ export async function runAcpTurn({
         "agent_thought_chunk", "thinking_delta", "agent_thought",
         "tool_call", "tool_call_update", "plan", "compaction_update", "notice",
       ]);
+      // 空闲期只更新状态、不开 burst 的种类（MIG-16）：后台子代理/任务单独推来的
+      // 用量或模式更新，不值得开一次 run_start/run_end，也不落盘空正文回合。
+      const IDLE_STATE_KINDS = new Set(["usage", "usage_update", "current_mode_update"]);
 
       client.setHandlers({
         onStderr: (s) => { const line = s.trim(); if (line && !isBenignStderr(line)) log(`[agy-acp! idle] ${line.slice(0, 200)}`); },
@@ -1629,6 +1720,30 @@ export async function runAcpTurn({
           if (kind === "available_commands_update") {
             const cmds = Array.isArray(upd.availableCommands) ? upd.availableCommands : [];
             if (cmds.length) state.onCommands(cmds);
+            return;
+          }
+          // MIG-16：空闲期用量/模式更新只更新 entry 与界面，不开 burst——
+          // run_tokens 没有对应的轮次视图，不往外推；模式变化要记回 entry，下一轮复用才认。
+          if (IDLE_STATE_KINDS.has(kind)) {
+            entry.lastUsed = Date.now();
+            const st = {
+              usage: entry.lastUsage || null,
+              permMode: entry.permMode,
+              promptSent: true,
+              sessionId: activeSessionId,
+              cwd: entry.cwd,
+              knownToolIds: entry.knownToolIds,
+              tools: new Map(),
+            };
+            translateAcpUpdate(params, st, (ev) => {
+              if (ev.type === "run_tokens") return;
+              if (ev.type === "perm_mode") entry.permMode = ev.mode;
+              publish({ ...ev, sessionId: activeSessionId });
+            });
+            if (st.usage) {
+              entry.lastUsage = st.usage;
+              entry.lastContextTokens = Number(st.usage.context_tokens) || entry.lastContextTokens || 0;
+            }
             return;
           }
           if (!idleBurst && !IDLE_WAKE_KINDS.has(kind)) return;
@@ -1670,7 +1785,7 @@ export async function runAcpTurn({
         onRequest: async (method, params) => {
           if (method === "session/request_permission") {
             const options = Array.isArray(params?.options) ? params.options : [];
-            const allowOpt = options.find((o) => /allow_once|allow/i.test(o.kind || o.optionId || "")) || options[0];
+            const allowOpt = pickAcpAllowOption(options);
             if (entry.permMode === "bypassPermissions" && allowOpt) {
               return { outcome: { outcome: "selected", optionId: allowOpt.optionId } };
             }
@@ -1693,12 +1808,22 @@ export async function runAcpTurn({
         }, ACP_IDLE_TTL_MS);
         entry.idleTimer.unref?.();
       };
-      armIdleGc();
-      ACP_POOL.set(activeSessionId, entry);
-      // 最多保留 6 个空闲常驻会话，超出先清最久未用的
-      if (ACP_POOL.size > 6) {
-        const oldest = [...ACP_POOL.entries()].filter(([, v]) => !v.busy).sort((a, b) => a[1].lastUsed - b[1].lastUsed)[0];
-        if (oldest) closeAcpSession(oldest[0]);
+      // MIG-18：池里已有不同 client 的忙 entry（同会话另一轮还在跑）时，不覆盖——
+      // 覆盖会把旧 entry 的 idleTimer 回收守卫顶掉，旧进程成孤儿。本轮进程不进池，直接销毁；
+      // 闲置的旧 entry 则先关再登记，池里永远只留一个进程。
+      const prev = ACP_POOL.get(activeSessionId);
+      if (prev && prev !== entry && prev.busy) {
+        log(`[agy-acp] 会话 ${activeSessionId.slice(0, 8)} 旧轮仍在跑，本轮进程不进池、直接销毁`);
+        destroyClient();
+      } else {
+        if (prev && prev !== entry) closeAcpSession(activeSessionId);
+        armIdleGc();
+        ACP_POOL.set(activeSessionId, entry);
+        // 最多保留 6 个空闲常驻会话，超出先清最久未用的
+        if (ACP_POOL.size > 6) {
+          const oldest = [...ACP_POOL.entries()].filter(([, v]) => !v.busy).sort((a, b) => a[1].lastUsed - b[1].lastUsed)[0];
+          if (oldest) closeAcpSession(oldest[0]);
+        }
       }
     } else {
       destroyClient();

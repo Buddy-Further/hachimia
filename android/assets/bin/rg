@@ -3,7 +3,21 @@
 # 为什么要它：claude 经 glibc 加载器运行，它找自带 ripgrep 用的是 /proc/self/exe —— 那是加载器本身，调起来什么也搜不到，
 # Grep / Glob 不报错、一律返回「没找到」（2.1.311 实测）。所以起 claude 时设了 USE_BUILTIN_RIPGREP=0 让它按 PATH 找 rg：
 # 装了模块用工具包的 rg（PATH 里排在前面），没装就落到这里。启动方式和 bin/claude 一样。
+#
+# MIG-35：旧 Claude Code 自带的 rg 目标路径（$HOME/.local/share/cccodroid/claude/current/claude）在 agy 世界里
+# 不存在（agy 实际路径是 .../agy/current/agy），原来无条件 exec 它只会报加载器找不到文件。
+# 现在先查工具包「命令行增强」模块的 rg（$PREFIX/bin/rg，模块文件就落在 $PREFIX/<rel>，见 gw/modules.mjs），
+# 再查旧 Claude 路径（只在真实存在时用），两个都没有就明确报错退出 127，别让调用方拿到一句看不懂的加载器报错。
+# 「agy 是否调 rg」未验证：真机让 agy 跑一次需要搜索的任务，看 rg 是否被调用、是否报错（见 mig-fix-deep-p2b.md）。
 unset LD_PRELOAD
-PRE=${CCAPP_GLIBC_PRELOAD:-${CCAPP_CLAUDE_PRELOAD:-${CCAPP_NATIVE_LIB:-/nonexistent}/libccenosys.so}}
-exec "${CCAPP_LD:-$PREFIX/glibc/lib/ld-linux-aarch64.so.1}" --library-path "$PREFIX/glibc/lib" ${PRE:+--preload "$PRE"} \
-  --argv0 rg "$HOME/.local/share/cccodroid/claude/current/claude" "$@"
+if [ -x "$PREFIX/bin/rg" ]; then
+  exec "$PREFIX/bin/rg" "$@"
+fi
+CLAUDE_BIN="$HOME/.local/share/cccodroid/claude/current/claude"
+if [ -x "$CLAUDE_BIN" ]; then
+  PRE=${CCAPP_GLIBC_PRELOAD:-${CCAPP_CLAUDE_PRELOAD:-${CCAPP_NATIVE_LIB:-/nonexistent}/libccenosys.so}}
+  exec "${CCAPP_LD:-$PREFIX/glibc/lib/ld-linux-aarch64.so.1}" --library-path "$PREFIX/glibc/lib" ${PRE:+--preload "$PRE"} \
+    --argv0 rg "$CLAUDE_BIN" "$@"
+fi
+echo "rg: 未找到 ripgrep：工具包「命令行增强」未安装，且 Claude Code 自带的 rg 路径不存在。请到 扩展 → 工具包模块 安装「命令行增强」。" >&2
+exit 127
