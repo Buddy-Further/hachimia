@@ -45,7 +45,7 @@ function followSysTz(now) {
 
 const FILE = path.join(CFG.home, "ccapp-sched.json");
 const RUNS_FILE = path.join(CFG.home, "ccapp-sched-runs.json");
-const schedDefault = () => ({ tasks: [], dailyBudget: 0, missed: [], sids: [], lastTick: 0, allowLogin: false, spent: {}, monthly: {}, monthlySeeded: false });   // dailyBudget：美元，0 = 不限
+const schedDefault = () => ({ tasks: [], dailyBudget: 0, missed: [], sids: [], lastTick: 0, allowLogin: false, spent: {}, monthly: {}, monthlySeeded: false, retries: [] });   // dailyBudget：美元，0 = 不限；retries：待执行失败重试（F-7，落盘，重启后恢复）
 // allowLogin：用订阅账户（官方登录态）跑定时任务。默认关——无人值守使用以 Anthropic 条款为准，要用户自己确认后打开
 // tasks 必须是数组：是 {} / 字符串时 tick 每 30 秒抛一次，5 秒后启动的那次就把网关带走，重启再崩（P1-11）
 const schedShape = (j) => {
@@ -58,6 +58,7 @@ const schedShape = (j) => {
   d.spent = isObj(j.spent) ? j.spent : {};
   d.monthly = isObj(j.monthly) ? j.monthly : {};
   d.dailyBudget = Number.isFinite(+j.dailyBudget) ? Math.max(0, +j.dailyBudget) : 0;
+  d.retries = Array.isArray(j.retries) ? j.retries.filter((r) => isObj(r) && typeof r.taskId === "string" && Number.isFinite(+r.at)) : [];
   d.lastTick = Number.isFinite(+j.lastTick) ? +j.lastTick : 0;
   d.allowLogin = !!j.allowLogin;
   d.monthlySeeded = !!j.monthlySeeded;
@@ -100,8 +101,28 @@ const saveRuns = () => { RUNLOG = RUNLOG.slice(-500); return writeAtomic(RUNS_FI
 const byId = (id) => DB.tasks.find((t) => t.id === id) || null;
 // 失败后的重试定时器（按任务 id）：用户关掉、暂停、删除时要撤掉，否则到点照跑（审查 H4）。
 // 不能在 fire 里看 t.on 拦：「只跑一次」「跑满次数」的任务失败那一刻 on 已经是 false，重试本来就该跑
+// F-7：待执行重试同时落盘到 DB.retries（ccapp-sched.json），网关重启后启动恢复重新排上，
+// 不再只活在内存 RETRY Map 里。
 const RETRY = new Map();
-const cancelRetry = (id) => { clearTimeout(RETRY.get(id)); RETRY.delete(id); };
+const persistRetry = (id, at, attempt) => {
+  DB.retries = (DB.retries || []).filter((r) => r.taskId !== id);
+  DB.retries.push({ taskId: id, at, attempt });
+  save();
+};
+const dropPersistedRetry = (id) => {
+  if ((DB.retries || []).some((r) => r.taskId === id)) { DB.retries = DB.retries.filter((r) => r.taskId !== id); save(); }
+};
+const cancelRetry = (id) => { clearTimeout(RETRY.get(id)); RETRY.delete(id); dropPersistedRetry(id); };
+const scheduleRetry = (id, attempt, delayMs) => {
+  clearTimeout(RETRY.get(id));
+  const at = Date.now() + delayMs;
+  persistRetry(id, at, attempt);
+  RETRY.set(id, setTimeout(guarded("sched 重试", () => {
+    RETRY.delete(id); dropPersistedRetry(id);
+    const t = byId(id);
+    if (t) fire(t, { reason: "retry", attempt }).catch((e) => log("定时任务重试出错：" + e.message));
+  }), delayMs));
+};
 
 // ── 下次什么时候跑 ──
 // 时/分要在范围内：以前 99:99 能过正则，setHours 会自己进位成错误时间（200-16-04）。解析数据时按默认值兜底，保存时另用 hmOk 拒绝
@@ -295,7 +316,8 @@ async function fire(t, { reason = "due", attempt = 0, trial = false } = {}) {
   if (trial) return fireNow(t, { reason, attempt, trial });
   // 同一个任务已经有一个到点等待者时不再叠一个：排期间隔 ≤30 分钟时，每个新计划时刻都会进 fireNow 的忙等，
   // 阻塞结束后同一任务会被连续执行多次（审查 11-05）
-  if (WAITING.has(t.id)) { log(`⏭ 定时任务「${t.name}」已在排队，跳过这次重复入队`); return null; }
+  // F-6：去重本身是对的，但这次计划不能静默丢掉：记一条 skip 运行记录，用户才能查到为什么没跑。
+  if (WAITING.has(t.id)) { log(`⏭ 定时任务「${t.name}」已在排队，跳过这次重复入队`); addRun({ taskId: t.id, at: Date.now(), st: "skip", msg: tz("已在排队，跳过这次重复执行") }); return null; }
   WAITING.add(t.id);
   try { return await fireNow(t, { reason, attempt, trial }); } finally { WAITING.delete(t.id); }
 }
@@ -504,8 +526,7 @@ END_HOOKS.push((run, f) => {
   if (want) note(t, st === "ok" ? tz("定时任务完成：{n}", { n: t.name }) : tz("定时任务没成：{n}", { n: t.name }), msg, drop ? null : sid, st === "ok");
   // 超了花费上限不重试：重试就是再花一遍（#98 03-010）
   if (st === "err" && !over && ctx.attempt < (+t.retry || 0)) {
-    clearTimeout(RETRY.get(t.id));
-    RETRY.set(t.id, setTimeout(guarded("sched 重试", () => { RETRY.delete(t.id); if (byId(t.id) === t) fire(t, { reason: "retry", attempt: ctx.attempt + 1 }).catch((e) => log("定时任务重试出错：" + e.message)); }), 2 * 60000));
+    scheduleRetry(t.id, ctx.attempt + 1, 2 * 60000);
   }
 });
 
@@ -551,6 +572,21 @@ function tick(alarmAt = 0) {
   DB.lastTick = now;
   save();
 }
+// F-7 启动恢复：把盘上待执行的失败重试重新排上（任务已删的丢弃；已过期的立即排）。
+// 只在模块加载时跑一次；内存里已有同任务定时器时不重复排。
+function restoreRetries() {
+  if (!DB.retries?.length) return;
+  const list = [...DB.retries];
+  DB.retries = [];
+  for (const r of list) {
+    if (RETRY.has(r.taskId)) continue;
+    const t = byId(r.taskId);
+    if (!t) continue;
+    scheduleRetry(r.taskId, +r.attempt || 1, Math.max(0, +r.at - Date.now()));
+  }
+  save();
+}
+restoreRetries();
 if (LIVE) setTimeout(guarded("sched 首次 tick", () => { tick(); setInterval(guarded("sched tick", tick), 30000); }), 5000);
 
 // ── 校验 / 整理前端交来的任务 ──
@@ -561,7 +597,7 @@ function clean(b, old = {}) {
   s("name", 60); s("prompt", 8000); s("tools", 500); s("model", 80); s("effort", 20); s("provider", 40); s("quiet", 60);
   if ("projectId" in b) t.projectId = b.projectId && projectById(b.projectId) ? b.projectId : null;
   if (b.freq && KINDS.includes(b.freq.kind)) {
-    const f = b.freq, o = { kind: f.kind };
+    const f = b.freq, o = { ...(isObj(old.freq) ? old.freq : {}), kind: f.kind };   // F-5：部分 PATCH 未给的字段沿用 old.freq，别整体丢掉
     // 以前非法字段逐项静默丢掉：monthly 29–31 变成 1 号、weekly 空/小数永不跑、daily 99:99 归一成错时间（200-16-04）。
     // 只校验给了的字段，没给的那项仍沿用 old / 默认
     if ("time" in f) { if (!hmOk(f.time)) throw new Error(tz("时间要填 0–23 时、0–59 分")); o.time = f.time; }
@@ -583,12 +619,14 @@ function clean(b, old = {}) {
       if (a * 60 + b > c * 60 + d) throw new Error(tz("「每隔几小时」的开始时间要早于结束时间；跨午夜请拆成两个任务"));
     }
     if (f.kind === "once") {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(f.date || "") || isNaN(new Date(f.date + "T00:00:00"))) throw new Error(tz("只跑一次要填一个日期"));
-      o.date = f.date;
+      const date = f.date || o.date;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "") || isNaN(new Date(date + "T00:00:00"))) throw new Error(tz("只跑一次要填一个日期"));
+      o.date = date;
     } else if ("date" in f) { if (!/^\d{4}-\d{2}-\d{2}$/.test(f.date || "")) throw new Error(tz("日期格式是 YYYY-MM-DD")); o.date = f.date; }
     if (f.kind === "cron") {
-      if (typeof f.cron !== "string" || !f.cron.trim()) throw new Error(tz("cron 表达式要填五段：分 时 日 月 周"));
-      parseCron(f.cron); o.cron = f.cron.trim();
+      const expr = (typeof f.cron === "string" && f.cron.trim()) ? f.cron.trim() : o.cron;
+      if (!expr) throw new Error(tz("cron 表达式要填五段：分 时 日 月 周"));
+      parseCron(expr); o.cron = expr;
     } else if ("cron" in f && typeof f.cron === "string") { parseCron(f.cron); o.cron = f.cron.trim(); }
     t.freq = o;
   }
@@ -732,4 +770,4 @@ export async function routeSched(req, res, u, p) {
   }
   return NEXT;
 }
-export const _schedForTest = { fire, tick, clean, DB, runlog: () => RUNLOG, running: () => runningNow(), costToday, hasRetry: (id) => RETRY.has(id) };   // 只给测试用
+export const _schedForTest = { fire, tick, clean, DB, runlog: () => RUNLOG, running: () => runningNow(), costToday, hasRetry: (id) => RETRY.has(id), cancelRetry, restoreRetries };   // 只给测试用

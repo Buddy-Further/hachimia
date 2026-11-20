@@ -15,20 +15,28 @@ const GOAL_CLEAR = new Set(["clear", "stop", "off", "reset", "none", "cancel"]);
 // 现在从尾往前一块块读，读到能下结论为止（最多 GOAL_SCAN_MAX）；结果按文件记住，之后只看新追加的那段：
 // 新的一段里连 goal 这个词都没有，结论不会变，直接沿用，不用每 4 秒把大文件重扫一遍
 const GOAL_CHUNK = 1 << 20, GOAL_SCAN_MAX = 64 << 20, GOAL_TAIL_MAX = 4 << 20;
-const GOAL_CACHE = new Map();   // 文件 → { ino, size, g }
+const GOAL_CACHE = new Map();   // 文件 → { ino, size, mtimeMs, fp, g }
+// 同尺寸原地改写的指纹（F-4）：只读首尾各 1KB，不扫全文件；mtime 同毫秒内改写也能发现
+function goalFp(file, size) {
+  const head = readRange(file, 0, Math.min(1024, size));
+  const tail = size > 1024 ? readRange(file, size - Math.min(1024, size), Math.min(1024, size)) : "";
+  return (head || "") + "\n" + (tail || "");
+}
 export function goalStateOf(file) {
   let st; try { st = fs.statSync(file); } catch { return null; }
   const c = GOAL_CACHE.get(file);
   if (c && c.ino === st.ino && st.size >= c.size) {
-    if (st.size === c.size) return c.g;
-    if (st.size - c.size <= GOAL_TAIL_MAX) {
+    if (st.size === c.size) {
+      // 只比 ino+size 会漏掉同字节数原地改写：再核 mtime 与首尾指纹，都对上才算没变
+      if (st.mtimeMs === c.mtimeMs && goalFp(file, st.size) === c.fp) return c.g;
+    } else if (st.size - c.size <= GOAL_TAIL_MAX) {
       const add = readRange(file, c.size, st.size - c.size);
-      if (add != null && !add.includes("goal")) { c.size = st.size; return c.g; }
+      if (add != null && !add.includes("goal")) { c.size = st.size; c.mtimeMs = st.mtimeMs; return c.g; }
     }
   }
   let g = scanGoal(file, st.size);
   if (g === undefined) g = c && c.ino === st.ino ? c.g : null;   // 读满上限也没找到：有上次的结论就沿用，别读成「没有目标」
-  GOAL_CACHE.delete(file); GOAL_CACHE.set(file, { ino: st.ino, size: st.size, g });
+  GOAL_CACHE.delete(file); GOAL_CACHE.set(file, { ino: st.ino, size: st.size, mtimeMs: st.mtimeMs, fp: goalFp(file, st.size), g });
   if (GOAL_CACHE.size > 200) GOAL_CACHE.delete(GOAL_CACHE.keys().next().value);
   return g;
 }
@@ -97,10 +105,42 @@ export function goalCheck(sid) {
 }
 if (LIVE) setInterval(() => { for (const r of RUNS.values()) { goalCheck(r.sessionId); tasksCheck(r.sessionId); } }, 4000).unref?.();
 
+// F-2：ACP 下 /goal 的本地处理（agy 没有这个原生命令，网关也不翻译时完全失效）。
+// 只认行首 /goal（带或不带参数），返回参数原文（去首尾空白），不是 /goal 行返回 null。
+export function parseGoalPrompt(prompt) {
+  const m = /^\/goal(?:\s+([\s\S]*))?$/.exec(String(prompt || "").trim());
+  return m ? (m[1] || "").trim() : null;
+}
+function appendGoalLine(file, obj) {
+  try { fs.appendFileSync(file, JSON.stringify(obj) + "\n"); return true; } catch { return false; }
+}
+/** 把一条 /goal 命令写进会话文件（与 CLI 的 goal_status 附件同格式），返回 { text, goal }。
+ *  设定 → goal_status sentinel 附件；clear/stop/off/reset/none/cancel → 命令记录（scanGoal 认它为清除）；
+ *  无参数 → 只读当前状态，不写文件。调用方（acp.mjs）负责不把这条发给 agy。 */
+export function applyGoalCommand(file, args) {
+  const condition = String(args || "").trim();
+  const now = new Date().toISOString();
+  if (GOAL_CLEAR.has(condition.toLowerCase())) {
+    appendGoalLine(file, { type: "user", uuid: "goal-" + Date.now(), sessionId: "", timestamp: now,
+      message: { role: "user", content: "<command-name>/goal</command-name>\n<command-args>clear</command-args>" } });
+    return { text: "已清除目标", goal: null };
+  }
+  if (!condition) {
+    const g = goalStateOf(file);
+    return { text: g ? `当前目标：${g.condition}${g.active ? "（进行中）" : g.done ? "（已完成）" : ""}` : "当前没有设定目标", goal: g };
+  }
+  const cond = condition.slice(0, 600);
+  appendGoalLine(file, { type: "user", uuid: "goal-" + Date.now(), sessionId: "", timestamp: now,
+    message: { role: "user", content: `/goal ${cond}` } });
+  appendGoalLine(file, { type: "attachment", timestamp: now, attachment: { type: "goal_status", met: false, sentinel: true, condition: cond } });
+  return { text: `已设定目标：${cond}`, goal: goalStateOf(file) };
+}
+
 // 任务清单（TaskCreate / TaskUpdate）：claude 存在 ~/.claude/tasks/<会话号>/<编号>.json，--resume 沿用同一会话号，所以每轮换进程也接得上
 const TASKS_DIR = path.join(CFG.home, ".claude", "tasks");
 export function tasksOf(sid) {
-  if (!sid || !/^[0-9a-f-]{36}$/.test(sid)) return null;
+  // F-3：ACP 会话号不保证是 UUID（agy-sess-…/sess-… 均可），只按会话号形状放行（与 SID_RE 同口径，防目录穿越）
+  if (!sid || !/^(?!\.{1,2}$)[A-Za-z0-9._-]{1,200}$/.test(sid)) return null;
   const d = path.join(TASKS_DIR, sid);
   let names; try { names = fs.readdirSync(d).filter((n) => /^\d+\.json$/.test(n)); } catch { return null; }
   const list = [];
