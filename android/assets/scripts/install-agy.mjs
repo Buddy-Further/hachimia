@@ -5,6 +5,7 @@
 //    node install-agy.mjs [stable|latest|<版本号>]   安装或更新 agy
 //    node install-agy.mjs --check                    查询本机已装版本与在线可用性（输出 JSON）
 //    node install-agy.mjs --recheck                  核对已装版本目录内 agy 的 sha256 清单
+//  退出码：0 成功；1 一般失败；3 --recheck 发现不符；4 下载的 install.sh 与钉住的校验值不符（拒绝执行，见下）
 //
 //  官方 Android (bionic) 原生构建，直接运行在安卓内核上，无需 glibc 加载器或 proot。
 //  安装目录：$HOME/.local/share/hachimia/agy/<version>/agy + current 软链。
@@ -13,10 +14,14 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 const INSTALL_URL = process.env.HACHIMIA_AGY_INSTALL_URL || "https://antigravity.google/cli/install.sh";
 // 官方 install.sh 从这份 manifest 取版本号与下载地址（install.sh 本身不含版本变量，--check 直接问这里）
 const MANIFEST_BASE = process.env.HACHIMIA_AGY_MANIFEST_BASE || "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests";
+// P0-6/7：下载的 install.sh 执行前先对哈希（见下面安装流程里的校验；Google 不发布 install.sh 的签名或
+// 官方哈希，唯一能钉住的就是这份随 APK 发的文件，改一处就够；测试可用 HACHIMIA_AGY_PINS 指到别处）
+const PINS_PATH = process.env.HACHIMIA_AGY_PINS || path.join(path.dirname(fileURLToPath(import.meta.url)), "agy-install-pins.json");
 const PREFIX = process.env.PREFIX || "";
 const CURL = PREFIX ? path.join(PREFIX, "bin", "curl") : "curl";
 const SH = fs.existsSync(path.join(PREFIX, "bin", "bash"))
@@ -144,6 +149,28 @@ if (!fetched.ok) {
   die(`无法下载 Antigravity CLI 安装脚本（${fetched.err || "HTTP/网络错误"}）。请检查网络连接或代理设置后重试。`);
 }
 
+// P0-6/7：执行前先对哈希——只凭 TLS 下载并执行脚本是谁都能冒充的（上游主机被攻破就能发一个“配套”的坏
+// manifest，install.sh 内部的 sha512 校验拦不住它）。Google 不发布 install.sh 的签名或官方哈希，所以唯一能
+// 钉住的就是随 APK 发的 agy-install-pins.json 里的 sha256（2026-11-21 从 Google 下载、实测装出可用 1.5.13
+// 的那份 install.sh 的哈希）。对不上就拒绝执行（fail-closed，退出码 4），绝不回落到只凭 TLS。
+// 轮换风险（已接受）：上游一改脚本，旧版 App 在新校验值发下来之前都会拒绝安装，直到用户更新 App。
+let pins;
+try {
+  pins = JSON.parse(fs.readFileSync(PINS_PATH, "utf8"));
+} catch (e) {
+  die(`读不到 agy 安装脚本校验值文件（${PINS_PATH}）：${e.message}。拒绝执行未校验的安装脚本。`);
+}
+const wantPin = pins?.installSh?.sha256 || "";
+if (!/^[0-9a-f]{64}$/.test(wantPin)) {
+  die(`agy 安装脚本校验值文件（${PINS_PATH}）里没有合法的 installSh.sha256，拒绝执行未校验的安装脚本。`);
+}
+const installShSha256 = crypto.createHash("sha256").update(fetched.data).digest("hex");
+if (installShSha256 !== wantPin) {
+  console.error(`✗ 安装脚本校验值已变化，请等待新版本更新校验值（期望 ${wantPin.slice(0, 12)}…，实得 ${installShSha256.slice(0, 12)}…）。已拒绝执行下载的安装脚本，未安装任何东西。`);
+  process.exit(4);
+}
+say(`✓ 安装脚本 sha256 与钉住的校验值一致（${installShSha256.slice(0, 12)}…）`);
+
 const stage = fs.mkdtempSync(path.join(DEST, ".stage-"));
 const stageHome = path.join(stage, "home");
 const stageScript = path.join(stage, "install.sh");
@@ -228,6 +255,7 @@ try {
     name: "agy",
     version: ver,
     sha256: sum,
+    installShSha256,
     source: INSTALL_URL,
     installedAt: new Date().toISOString(),
   }, null, 2) + "\n");

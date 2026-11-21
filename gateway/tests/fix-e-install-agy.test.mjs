@@ -1,10 +1,14 @@
 // E-04 / E-11 / A5 / A10 / A11：install-agy.mjs 安装与校验。
 // 用本地 HTTP 服务冒充官方 install.sh 与 manifest、假 agy 二进制（--version 行为由环境变量控制），
 // 全程只动临时 HOME 下的 .local/share/hachimia/agy，不碰真机、不联网。
+// P0-6/7：install-agy.mjs 执行下载的 install.sh 之前先对 agy-install-pins.json 里钉住的 sha256；
+// 假脚本的哈希当然和仓库里那份不一样，所以 run() 默认给一个按假脚本现算的 pins 文件（HACHIMIA_AGY_PINS），
+// 钉住校验的测试再另外传错的 / 缺失的 pins 文件。
 // 运行：node scripts/test.mjs fix-e-install-agy
 import "../gw/config.mjs";
 import test, { after } from "node:test";
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import https from "node:https";
 import os from "node:os";
@@ -53,6 +57,12 @@ chmod +x "$dir/agy"
 `;
 
 const S = { manifest: JSON.stringify({ version: "1.5.99" }) };
+const PINS_GOOD = path.join(TLSDIR, "pins-good.json");
+fs.writeFileSync(PINS_GOOD, JSON.stringify({ installSh: { sha256: crypto.createHash("sha256").update(INSTALL_SH).digest("hex"),
+  source: "https://antigravity.google/cli/install.sh", updated: "2026-11-21" } }));
+const PINS_WRONG = path.join(TLSDIR, "pins-wrong.json");
+fs.writeFileSync(PINS_WRONG, JSON.stringify({ installSh: { sha256: "0".repeat(64),
+  source: "https://antigravity.google/cli/install.sh", updated: "2026-11-21" } }));
 const server = https.createServer({
   key: fs.readFileSync(path.join(TLSDIR, "srv.key")),
   cert: fs.readFileSync(path.join(TLSDIR, "srv.crt")),
@@ -72,7 +82,7 @@ const resetDest = () => fs.rmSync(DEST, { recursive: true, force: true });
 const run = (args, extraEnv = {}) => new Promise((resolve, reject) => {
   const child = spawn(process.execPath, [SCRIPT, ...args], {
     env: { ...process.env, HOME, PREFIX, CURL_CA_BUNDLE: CA_CRT, HACHIMIA_AGY_INSTALL_URL: B + "/install.sh",
-      HACHIMIA_AGY_MANIFEST_BASE: B + "/manifests", ...extraEnv },
+      HACHIMIA_AGY_MANIFEST_BASE: B + "/manifests", HACHIMIA_AGY_PINS: PINS_GOOD, ...extraEnv },
   });
   let stdout = "", stderr = "";
   child.stdout.on("data", (d) => { stdout += d; });
@@ -154,6 +164,45 @@ test("A11 对照：manifest 有版本号时 --check 正常返回 latest", { skip
   assert.equal(j.ok, true);
   assert.equal(j.installed, "1.5.13");
   assert.equal(j.latest, "1.5.99");
+});
+
+test("P0-6/7：下载的 install.sh 与钉住的校验值不符时，拒绝执行、退出码 4、不装任何东西", { skip: SKIP_TLS }, async () => {
+  resetDest();
+  const r = await run(["stable"], { FAKE_AGY_MODE: "good", HACHIMIA_AGY_PINS: PINS_WRONG });
+  assert.equal(r.status, 4, "校验值不符应用 distinct 的退出码 4 拒绝执行：\n" + r.stdout + r.stderr);
+  assert.match(r.stderr, /安装脚本校验值已变化，请等待新版本更新校验值/, " mismatch 要有一句用户看得懂的话");
+  assert.match(r.stderr, /期望 000000000000…，实得 [0-9a-f]{12}…/, "期望/实得哈希前缀要写出来");
+  assert.doesNotMatch(r.stdout, /安装完成/, "拒绝执行就不能报安装完成");
+  assert.equal(fs.existsSync(path.join(DEST, "current")), false, "不应切换 current");
+  assert.equal(fs.existsSync(path.join(DEST, "1.5.13")), false, "假安装脚本根本不该跑起来");
+  assert.deepEqual(stageLeftovers(), [], "拒绝执行发生在建暂存目录之前");
+});
+
+test("P0-6/7：校验值文件读不到时，同样拒绝执行未校验的脚本", { skip: SKIP_TLS }, async () => {
+  resetDest();
+  const r = await run(["stable"], { FAKE_AGY_MODE: "good", HACHIMIA_AGY_PINS: path.join(TLSDIR, "pins-missing.json") });
+  assert.notEqual(r.status, 0, "读不到校验值文件就不能执行脚本：\n" + r.stdout + r.stderr);
+  assert.match(r.stderr, /读不到 agy 安装脚本校验值文件/, "要说明是校验值文件的问题");
+  assert.equal(fs.existsSync(path.join(DEST, "current")), false, "不应切换 current");
+});
+
+test("P0-6/7：钉住的校验值只存在于 agy-install-pins.json 一个地方，脚本里没有写死的哈希", () => {
+  const pins = JSON.parse(fs.readFileSync(new URL("../../android/assets/scripts/agy-install-pins.json", import.meta.url), "utf8"));
+  assert.match(pins.installSh.sha256, /^[0-9a-f]{64}$/, "钉住的值应是 sha256");
+  assert.equal(pins.installSh.sha256, "62966c07365423bd4dc209355060744058fb30d60f5323e2d360e39de64e5042",
+    "初始钉住值应是 2026-11-21 从 Google 下载、实测装出可用 1.5.13 的那份 install.sh 的哈希");
+  assert.equal(pins.installSh.source, "https://antigravity.google/cli/install.sh");
+  const src = fs.readFileSync(SCRIPT, "utf8");
+  assert.doesNotMatch(src, /[0-9a-f]{64}/, "脚本里不应有写死的 64 位哈希：轮换只改 pins 文件");
+  assert.match(src, /HACHIMIA_AGY_PINS/, "测试要能用环境变量指到别的 pins 文件");
+  assert.match(src, /agy-install-pins\.json/, "默认从脚本旁边的 pins 文件读");
+});
+
+test("P0-6/7 对照：校验值对上时正常安装（HACHIMIA_AGY_PINS 覆盖生效）", { skip: SKIP_TLS }, async () => {
+  await goodInstall();
+  const m = JSON.parse(fs.readFileSync(path.join(DEST, "1.5.13", "manifest.json"), "utf8"));
+  assert.equal(m.installShSha256, crypto.createHash("sha256").update(INSTALL_SH).digest("hex"),
+    "本地清单应记下实际执行的 install.sh 的哈希（来源可查）");
 });
 
 test("A10：--recheck 时版本目录缺 manifest 或缺二进制，要计入损坏而不是直接跳过", { skip: SKIP_TLS }, async () => {
