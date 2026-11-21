@@ -112,6 +112,35 @@ test("同名既在顶层又在 projects[cwd]：skipped 里只出现一次（M2�
   assert.equal(skipped.filter((s) => s.name === "dup").length, 1, "顶层与 projects 循环共用一个 seen，不重复进 skipped（也不重复进 run.mjs 的日志行）");
 });
 
+test("同名既在停用名单又被外部加回：列表与详情都报已停用（M4）", async () => {
+  clean();
+  putAgy({ conflict: { command: "node", args: ["live.mjs"], disabled: false } });
+  saveExtOff({ mcp: { conflict: { command: "node", args: ["off.mjs"] } }, comp: [], mod: [] });
+  const dir = fs.mkdtempSync(path.join(CFG.home, "p02b-m4-"));
+  const argvLog = path.join(dir, "argv.log");
+  fs.writeFileSync(argvLog, "");
+  process.env.FAKE_AGY_ARGV_LOG = argvLog;
+  PATHS.agy = fakeAgy("NAME            TYPE   STATUS    COMMAND/URL\nconflict  stdio  enabled  node live.mjs\n", dir);
+  try {
+    const { listMcp, enableMcp } = _extForTest;
+    const li = await listMcp();
+    const e = li.find((m) => m.name === "conflict");
+    assert.ok(e, "列表里有它");
+    assert.equal(e.disabled, true, "停用名单赢过 live：列表显示已停用，不再和详情各说各话");
+    assert.equal(e.source, "off-list");
+    assert.equal(e.ok, false);
+    const g = await getMcp({ name: "conflict" });
+    assert.equal(g.ok, true);
+    assert.equal(g.disabled, true, "详情也报已停用");
+    assert.equal(g.source, "off-list");
+    assert.equal((await enableMcp("conflict")).ok, false, "文件里已有同名，启用拒绝");
+  } finally {
+    delete process.env.FAKE_AGY_ARGV_LOG;
+    PATHS.agy = origAgyBin;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("agy mcp list 解析：按真机探针表格，enabled/disabled 与命令/地址都对上", async () => {
   clean();
   putAgy({ "probe-echo": { command: "node", args: ["/tmp/agy-mcp-probe/echo.mjs"], disabled: false } });

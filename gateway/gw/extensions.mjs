@@ -184,7 +184,11 @@ async function listMcp() {
     if (cur) { cur.user = true; cur.hdr = headerNames(def); cur.source = source; }
     else byName.set(name, { name, target: mcpTarget(def), ok: false, status: "", user: true, hdr: headerNames(def), source });
   }
-  for (const [name, d] of Object.entries(extOff().mcp)) if (!byName.has(name)) byName.set(name, { name, target: mcpTarget(d), ok: false, status: "", disabled: true, source: "off-list" });
+  // 停用名单里的照旧单独列成 disabled——而且它赢过 live / 文件里的同名条目：
+  // 同名被外部用 `agy mcp add` 加回来时，getMcp() 照样报 disabled:true/off-list、
+  // enableMcp 也拒绝（文件里已有同名），列表再显示 enabled 就是列表与详情各说各话。
+  // 停用名单赢，列表与详情一致；用户点「启用」会先被拦下、去删掉外部加回的那一份。
+  for (const [name, d] of Object.entries(extOff().mcp)) byName.set(name, { name, target: mcpTarget(d), ok: false, status: "", disabled: true, source: "off-list" });
   // 文件里没有定义的（agy 外部配的）：既不是 agy 文件也不是停用名单，标 external，别冒充来源
   for (const e of byName.values()) if (!e.source) e.source = "external";
   return [...byName.values()];
