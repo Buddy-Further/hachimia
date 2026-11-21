@@ -3181,3 +3181,9 @@
 3177	Antigravity CLI 進程異常退出了：請重試；一直這樣就重啟閘道或重裝 agy。
 3178	模型「{model}」設定被 agent 拒絕（{msg}），已按原模型繼續。
 3179	本輪可能已部分執行（工具可能已跑、用量可能已扣）：請先檢查本輪已產生的內容，再決定是否重發，不要直接重發同一條訊息。
+3180	Antigravity CLI 版本 {v} 低於 hachimia 要求的 {min}（已驗證版本 {verified}），請升級 Antigravity CLI 後重試。
+3181	Antigravity CLI 版本低於 hachimia 要求的 {min}（已驗證版本 {verified}），請升級 Antigravity CLI 後重試。
+3182	Antigravity CLI 版本 {v} 比 hachimia 已驗證的 {verified} 更新，未驗證過
+3183	未能識別 Antigravity CLI 的版本（agentInfo.version 缺失或格式異常）
+3184	ACP 協定版本是 {p}（hachimia 預期 {want}）
+3185	：已繼續執行，如遇異常請留意版本差異。

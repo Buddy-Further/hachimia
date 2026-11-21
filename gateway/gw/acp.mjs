@@ -1378,7 +1378,7 @@ export async function runAcpTurn({
       const gate = checkAgyVersion(initRes?.agentInfo?.version);
       setLastInit({ versionStatus: gate.status, versionChecked: gate.version });
       if (gate.status === "too-old") {
-        const e = new Error(tz("Antigravity CLI 版本 {v} 低于 hachimia 要求的 {min}（已验证版本 {verified}），请升级 Antigravity CLI 后重试", { v: gate.version, min: gate.min, verified: gate.verified }));
+        const e = new Error(tz("Antigravity CLI 版本 {v} 低于 hachimia 要求的 {min}（已验证版本 {verified}），请升级 Antigravity CLI 后重试。", { v: gate.version, min: gate.min, verified: gate.verified }));
         e.code = "AGY_VERSION";
         e.data = { version: gate.version, min: gate.min, verified: gate.verified };
         throw e;

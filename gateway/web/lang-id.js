@@ -3182,4 +3182,10 @@ window.I18N_DICT["id"] = {
   "Antigravity CLI 进程异常退出了：请重试；一直这样就重启网关或重装 agy。": "Proses Antigravity CLI berhenti secara tidak normal: silakan coba lagi; jika terus terjadi, mulai ulang gateway atau instal ulang agy.",
   "模型「{model}」设置被 agent 拒绝（{msg}），已按原模型继续。": "Agen menolak pengaturan model “{model}” ({msg}); melanjutkan dengan model sebelumnya.",
   "本轮可能已部分执行（工具可能已跑、用量可能已扣）：请先检查本轮已产生的内容，再决定是否重发，不要直接重发同一条消息。": "Giliran ini mungkin sudah dieksekusi sebagian (alat mungkin sudah berjalan, kuota mungkin sudah terpakai): periksa dulu apa yang sudah dihasilkan giliran ini sebelum memutuskan untuk mengirim ulang — jangan langsung mengirim ulang pesan yang sama.",
+  "Antigravity CLI 版本 {v} 低于 hachimia 要求的 {min}（已验证版本 {verified}），请升级 Antigravity CLI 后重试。": "Versi {v} Antigravity CLI berada di bawah minimum {min} yang disyaratkan hachimia (versi terverifikasi {verified}). Perbarui Antigravity CLI lalu coba lagi.",
+  "Antigravity CLI 版本低于 hachimia 要求的 {min}（已验证版本 {verified}），请升级 Antigravity CLI 后重试。": "Versi Antigravity CLI berada di bawah minimum {min} yang disyaratkan hachimia (versi terverifikasi {verified}). Perbarui Antigravity CLI lalu coba lagi.",
+  "Antigravity CLI 版本 {v} 比 hachimia 已验证的 {verified} 更新，未验证过": "Versi {v} Antigravity CLI lebih baru daripada {verified} yang terverifikasi oleh hachimia dan belum terverifikasi",
+  "未能识别 Antigravity CLI 的版本（agentInfo.version 缺失或格式异常）": "Tidak dapat mengenali versi Antigravity CLI (agentInfo.version hilang atau formatnya tidak valid)",
+  "ACP 协议版本是 {p}（hachimia 预期 {want}）": "Versi protokol ACP adalah {p} (hachimia mengharapkan {want})",
+  "：已继续运行，如遇异常请留意版本差异。": ": tetap dilanjutkan. Jika terjadi keanehan, perhatikan perbedaan versinya.",
 };

@@ -3184,3 +3184,9 @@
 3177	Proses Antigravity CLI berhenti secara tidak normal: silakan coba lagi; jika terus terjadi, mulai ulang gateway atau instal ulang agy.
 3178	Agen menolak pengaturan model “{model}” ({msg}); melanjutkan dengan model sebelumnya.
 3179	Giliran ini mungkin sudah dieksekusi sebagian (alat mungkin sudah berjalan, kuota mungkin sudah terpakai): periksa dulu apa yang sudah dihasilkan giliran ini sebelum memutuskan untuk mengirim ulang — jangan langsung mengirim ulang pesan yang sama.
+3180	Versi {v} Antigravity CLI berada di bawah minimum {min} yang disyaratkan hachimia (versi terverifikasi {verified}). Perbarui Antigravity CLI lalu coba lagi.
+3181	Versi Antigravity CLI berada di bawah minimum {min} yang disyaratkan hachimia (versi terverifikasi {verified}). Perbarui Antigravity CLI lalu coba lagi.
+3182	Versi {v} Antigravity CLI lebih baru daripada {verified} yang terverifikasi oleh hachimia dan belum terverifikasi
+3183	Tidak dapat mengenali versi Antigravity CLI (agentInfo.version hilang atau formatnya tidak valid)
+3184	Versi protokol ACP adalah {p} (hachimia mengharapkan {want})
+3185	: tetap dilanjutkan. Jika terjadi keanehan, perhatikan perbedaan versinya.

@@ -3184,3 +3184,9 @@
 3177	El proceso de Antigravity CLI terminó de forma inesperada: inténtalo de nuevo; si sigue ocurriendo, reinicia la pasarela o reinstala agy.
 3178	El agente rechazó el ajuste del modelo «{model}» ({msg}); se continúa con el modelo anterior.
 3179	Este turno podría haberse ejecutado parcialmente (puede que algunas herramientas ya se hayan ejecutado y se haya consumido uso): revisa lo que este turno ya ha producido antes de decidir si lo reenvías; no reenvíes directamente el mismo mensaje.
+3180	La versión {v} de Antigravity CLI está por debajo de la mínima {min} que exige hachimia (versión verificada {verified}). Actualiza Antigravity CLI y vuelve a intentarlo.
+3181	La versión de Antigravity CLI está por debajo de la mínima {min} que exige hachimia (versión verificada {verified}). Actualiza Antigravity CLI y vuelve a intentarlo.
+3182	La versión {v} de Antigravity CLI es más reciente que la {verified} verificada por hachimia y aún no está verificada
+3183	No se pudo identificar la versión de Antigravity CLI (agentInfo.version falta o tiene un formato no válido)
+3184	La versión del protocolo ACP es {p} (hachimia espera {want})
+3185	: se continúa de todos modos. Si algo falla, ten en cuenta la diferencia de versión.

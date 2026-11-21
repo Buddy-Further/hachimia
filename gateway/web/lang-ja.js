@@ -3182,4 +3182,10 @@ window.I18N_DICT["ja"] = {
   "Antigravity CLI 进程异常退出了：请重试；一直这样就重启网关或重装 agy。": "Antigravity CLI のプロセスが異常終了しました：再試行してください。繰り返し発生する場合はゲートウェイを再起動するか、agy を再インストールしてください。",
   "模型「{model}」设置被 agent 拒绝（{msg}），已按原模型继续。": "モデル「{model}」の設定はエージェントに拒否されました（{msg}）。元のモデルのまま続行します。",
   "本轮可能已部分执行（工具可能已跑、用量可能已扣）：请先检查本轮已产生的内容，再决定是否重发，不要直接重发同一条消息。": "このターンは部分的に実行された可能性があります（ツールが実行済みだったり、使用量が消費されていたりするかもしれません）。再送するかどうかを決める前に、このターンで既に生成された内容を確認してください。同じメッセージをそのまま再送しないでください。",
+  "Antigravity CLI 版本 {v} 低于 hachimia 要求的 {min}（已验证版本 {verified}），请升级 Antigravity CLI 后重试。": "Antigravity CLI のバージョン {v} は hachimia が要求する最低バージョン {min}（検証済みバージョン {verified}）を下回っています。Antigravity CLI をアップグレードしてから再試行してください。",
+  "Antigravity CLI 版本低于 hachimia 要求的 {min}（已验证版本 {verified}），请升级 Antigravity CLI 后重试。": "Antigravity CLI のバージョンは hachimia が要求する最低バージョン {min}（検証済みバージョン {verified}）を下回っています。Antigravity CLI をアップグレードしてから再試行してください。",
+  "Antigravity CLI 版本 {v} 比 hachimia 已验证的 {verified} 更新，未验证过": "Antigravity CLI のバージョン {v} は hachimia が検証済みの {verified} より新しく、未検証です",
+  "未能识别 Antigravity CLI 的版本（agentInfo.version 缺失或格式异常）": "Antigravity CLI のバージョンを識別できませんでした（agentInfo.version が存在しないか形式が不正です）",
+  "ACP 协议版本是 {p}（hachimia 预期 {want}）": "ACP プロトコルバージョンは {p} です（hachimia が想定するのは {want} です）",
+  "：已继续运行，如遇异常请留意版本差异。": "：そのまま続行します。異常があった場合はバージョンの違いにご注意ください。",
 };

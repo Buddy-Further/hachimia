@@ -3182,4 +3182,10 @@ window.I18N_DICT["ar"] = {
   "Antigravity CLI 进程异常退出了：请重试；一直这样就重启网关或重装 agy。": "خرجت عملية Antigravity CLI بشكل غير متوقع: يُرجى إعادة المحاولة؛ وإذا تكرر الأمر، أعد تشغيل البوابة أو أعد تثبيت agy.",
   "模型「{model}」设置被 agent 拒绝（{msg}），已按原模型继续。": "رفض الوكيل تعيين النموذج «{model}» ({msg})؛ تتم المتابعة بالنموذج السابق.",
   "本轮可能已部分执行（工具可能已跑、用量可能已扣）：请先检查本轮已产生的内容，再决定是否重发，不要直接重发同一条消息。": "قد تكون هذه الجولة قد نُفذت جزئيًا (ربما تم تشغيل الأدوات وخصم الاستخدام): تحقق مما أنتجته هذه الجولة بالفعل قبل أن تقرر إعادة الإرسال، ولا تعِد إرسال الرسالة نفسها مباشرة.",
+  "Antigravity CLI 版本 {v} 低于 hachimia 要求的 {min}（已验证版本 {verified}），请升级 Antigravity CLI 后重试。": "إصدار Antigravity CLI {v} أقل من الحد الأدنى {min} الذي تتطلبه hachimia (الإصدار المتحقق منه {verified}). يرجى ترقية Antigravity CLI ثم إعادة المحاولة.",
+  "Antigravity CLI 版本低于 hachimia 要求的 {min}（已验证版本 {verified}），请升级 Antigravity CLI 后重试。": "إصدار Antigravity CLI أقل من الحد الأدنى {min} الذي تتطلبه hachimia (الإصدار المتحقق منه {verified}). يرجى ترقية Antigravity CLI ثم إعادة المحاولة.",
+  "Antigravity CLI 版本 {v} 比 hachimia 已验证的 {verified} 更新，未验证过": "إصدار Antigravity CLI {v} أحدث من الإصدار {verified} الذي تحققت منه hachimia ولم يتم التحقق منه بعد",
+  "未能识别 Antigravity CLI 的版本（agentInfo.version 缺失或格式异常）": "تعذّر التعرف على إصدار Antigravity CLI (agentInfo.version مفقود أو بتنسيق غير صالح)",
+  "ACP 协议版本是 {p}（hachimia 预期 {want}）": "إصدار بروتوكول ACP هو {p} (hachimia تتوقع {want})",
+  "：已继续运行，如遇异常请留意版本差异。": ": تمت المتابعة على أي حال. إذا ظهرت أي مشكلة، ضع فرق الإصدار في الاعتبار.",
 };

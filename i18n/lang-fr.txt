@@ -3184,3 +3184,9 @@
 3177	Le processus Antigravity CLI s’est arrêté anormalement : veuillez réessayer ; si cela persiste, redémarrez la passerelle ou réinstallez agy.
 3178	L’agent a refusé le réglage du modèle « {model} » ({msg}) ; poursuite avec le modèle précédent.
 3179	Ce tour a peut-être été partiellement exécuté (des outils ont pu tourner, de l’usage a pu être consommé) : vérifiez ce que ce tour a déjà produit avant de décider de renvoyer — ne renvoyez pas directement le même message.
+3180	La version {v} d'Antigravity CLI est inférieure à la version minimale {min} exigée par hachimia (version vérifiée {verified}). Mettez à jour Antigravity CLI puis réessayez.
+3181	La version d'Antigravity CLI est inférieure à la version minimale {min} exigée par hachimia (version vérifiée {verified}). Mettez à jour Antigravity CLI puis réessayez.
+3182	La version {v} d'Antigravity CLI est plus récente que la version {verified} vérifiée par hachimia et n'a pas encore été vérifiée
+3183	Impossible d'identifier la version d'Antigravity CLI (agentInfo.version est absent ou mal formé)
+3184	La version du protocole ACP est {p} (hachimia attend {want})
+3185	 : l'exécution continue. En cas d'anomalie, gardez à l'esprit la différence de version.
