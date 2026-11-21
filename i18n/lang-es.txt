@@ -185,15 +185,15 @@
 185	 (límite de procesos fantasma {n})
 186	✓ Restaurado
 187	(por defecto: {model})
-188	(por defecto — decide claude)
-189	(por defecto — claude decide según el modelo)
+188	(por defecto — decide Antigravity)
+189	(por defecto — Antigravity decide según el modelo)
 190	(este proveedor no ofrece lista de modelos)
 191	Contexto {n} · salida máx. {out} · entrada {mods}
 192	 | Es el valor predeterminado; para una sola sesión, elige otro en la etiqueta del modelo bajo el cuadro de texto
-193	Ningún modelo seleccionado → <b>decide claude</b> (la cuenta oficial usa <code>{model}</code> por defecto ahora mismo).
-194	el modelo por defecto integrado de claude
+193	Ningún modelo seleccionado → <b>decide Antigravity</b> (la cuenta oficial usa <code>{model}</code> por defecto ahora mismo).
+194	el modelo por defecto integrado de Antigravity
 195	<br>La lista de arriba es todo lo que puede usar la cuenta; elige uno para fijarlo.
-196	Este proveedor deja que claude elija el modelo y no ofrece lista. Para fijar uno, define <code>defaultModel</code> en <code>ccapp-providers.json</code>.
+196	Este proveedor deja que Antigravity elija el modelo y no ofrece lista. Para fijar uno, define <code>defaultModel</code> en <code>ccapp-providers.json</code>.
 197	No se pudo obtener la lista de modelos: {msg}
 198	Cuanto más alto el nivel, más piensa. Es el valor predeterminado; para una sola sesión, elige otro bajo el cuadro de texto
 199	(por defecto)
@@ -1848,7 +1848,7 @@
 1847	Umbral de compactación
 1848	El historial se resume automáticamente cuando el uso se acerca a este umbral. Más bajo ahorra pero recuerda menos; más alto recuerda más, pero cada turno cuesta más y va más lento.
 1849	{line} · {pct} % de la ventana
-1850	Sin definir; claude decide según la ventana
+1850	Sin definir; Antigravity decide según la ventana del modelo
 1851	Hacer foto
 1852	Mantén pulsado: captura en 5 s
 1853	Mostrar herramientas

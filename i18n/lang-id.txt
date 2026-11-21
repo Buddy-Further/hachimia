@@ -185,15 +185,15 @@
 185	 (batas proses hantu {n})
 186	✓ Dipulihkan
 187	(default: {model})
-188	(default, ditentukan claude)
-189	(default, ditentukan claude per model)
+188	(default, ditentukan Antigravity)
+189	(default, ditentukan Antigravity per model)
 190	(penyedia ini tidak menyediakan daftar model)
 191	Konteks {n} · batas output {out} · input {mods}
 192	 | Ini nilai default; untuk satu sesi, pilih yang lain lewat label model di bawah kolom input
-193	Model tidak ditentukan → <b>claude yang memutuskan</b> (akun resmi saat ini menggunakan default <code>{model}</code>).
-194	default bawaan claude
+193	Model tidak ditentukan → <b>Antigravity yang memutuskan</b> (akun resmi saat ini menggunakan default <code>{model}</code>).
+194	default bawaan Antigravity
 195	<br>Daftar di atas adalah semua model yang tersedia untuk akun ini; pilih satu untuk menguncinya.
-196	Penyedia ini membiarkan claude memilih model sendiri dan tidak menyediakan daftar. Untuk menetapkannya, ubah <code>defaultModel</code> di <code>ccapp-providers.json</code>.
+196	Penyedia ini membiarkan Antigravity memilih model sendiri dan tidak menyediakan daftar. Untuk menetapkannya, ubah <code>defaultModel</code> di <code>ccapp-providers.json</code>.
 197	Gagal mengambil daftar model: {msg}
 198	Tingkat lebih tinggi berpikir lebih lama. Ini nilai default; untuk satu sesi, pilih yang lain di bawah kolom input
 199	(default)
@@ -1848,7 +1848,7 @@
 1847	Batas pemadatan konteks
 1848	Riwayat diringkas otomatis saat penggunaan mendekati batas ini. Batas rendah lebih hemat tetapi mengingat lebih sedikit; batas tinggi mengingat lebih banyak, tetapi setiap giliran lebih mahal dan lebih lambat.
 1849	{line} · {pct}% dari jendela
-1850	Belum diatur; claude menentukan sesuai jendela
+1850	Belum diatur; Antigravity menentukan sesuai jendela model
 1851	Ambil foto
 1852	Tekan lama: tangkapan layar setelah 5 detik
 1853	Tampilkan alat

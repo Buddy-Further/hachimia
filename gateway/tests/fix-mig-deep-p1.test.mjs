@@ -249,12 +249,15 @@ test("MIG-28：终端同步按厂商写 settings.json（gemini-key 写 modelProv
   assert.equal("modelProvider" in JSON.parse(fs.readFileSync(agySettingsFile(), "utf8")), false, "切回订阅登录后终端同步应清掉残留的 modelProvider");
 });
 
-test("MIG-28：终端环境不得注入 GEMINI_API_KEY（只同步 settings.json）", async () => {
+test("MIG-28（reg-models F-2 已回退）：终端环境不得注入 GEMINI_API_KEY；termNew 不再同步 agy 设置", async () => {
   const { termEnv } = await import("../gw/terminal.mjs");
   const env = termEnv();
   assert.equal(env.GEMINI_API_KEY, undefined, "终端 env 里不得出现 GEMINI_API_KEY");
   const src = fs.readFileSync(path.join(ROOT, "gateway", "gw", "terminal.mjs"), "utf8");
-  assert.match(src, /syncTermAgySettings|syncAgySettings/, "终端开启应调一次 agy 设置同步");
+  // F-2 回退了 MIG-28 的调用点（条件性/预防性，因果未验证）：termNew 不得再调同步，
+  // 恢复基线“终端开启不碰 settings.json”。函数本体保留，上面“终端同步按厂商写
+  // settings.json”一测仍覆盖它本身的行为。
+  assert.doesNotMatch(src, /syncTermAgySettings\(\);/, "termNew 里不得再有 syncTermAgySettings() 调用");
   assert.doesNotMatch(src, /env\.GEMINI_API_KEY\s*=/, "终端不得把 GEMINI_API_KEY 写进环境");
 });
 

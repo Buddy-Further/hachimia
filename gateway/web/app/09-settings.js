@@ -394,8 +394,12 @@
         return;
       }
       clearInterval(state.loginTimer);
-      if (st.loggedIn) toast((st.email ? t("✓ 已登录：{email}", { email: st.email }) : t("✓ 已登录")) + (p.active ? "" : t("，点「使用这个接口」切过去")));
-      else if (st.last && !st.last.ok) toast(t("登录没有完成"), true);
+      if (st.loggedIn) {
+        toast((st.email ? t("✓ 已登录：{email}", { email: st.email }) : t("✓ 已登录")) + (p.active ? "" : t("，点「使用这个接口」切过去")));
+        // reg-models F-1（R9）：登录完成强制刷新一次模型清单——后端跃变清缓存是主修复，
+        // 这里是双保险：前端不带 refresh 的 /api/models 不会在登录后立即看到新清单。
+        loadModels(true);
+      } else if (st.last && !st.last.ok) toast(t("登录没有完成"), true);
       if (state.provView === p.id) renderProvCard();
       refreshStatus();
     }, 2000);

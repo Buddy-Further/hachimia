@@ -135,7 +135,7 @@ export async function handleLocalCommand(name, arg, reply, sid, stopped = () => 
       if (!models.length) {
         return reply(
           `当前厂商（**${P.label || P.id}**）未提供模型清单，\`/model\` 不适用。\n` +
-          `> 原生厂商由 claude 自己决定模型；要指定就改 \`ccapp-providers.json\` 的 \`defaultModel\`。`,
+          `> 原生厂商由 Antigravity 自己决定模型；要指定就改 \`ccapp-providers.json\` 的 \`defaultModel\`。`,
           "model"
         );
       }

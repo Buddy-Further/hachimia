@@ -2,7 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFile, spawn } from "node:child_process";
 import { CFG, PATHS, log, tz } from "./config.mjs";
-import { isLoginMode, noteLoggedIn, parseAgyModelsOutput } from "./models.mjs";
+import { dropModelCache, isLoginMode, loggedInKnown, noteLoggedIn, parseAgyModelsOutput } from "./models.mjs";
+import { hasAgySessionFiles, listAgyCredentialFiles } from "./agy-creds.mjs";
+export { hasAgySessionFiles, listAgyCredentialFiles };
 import { agyEnv, claudeBlocked, killTree } from "./claude.mjs";
 import { RUNS } from "./runs.mjs";
 import { PROVIDER, keyOf, providerById } from "./providers.mjs";
@@ -128,53 +130,8 @@ async function loginStart(method = "personal") {
   });
 }
 
-/**
- * 检测本机 Antigravity CLI 是否有已缓存的 Google 登录态（不读取、不解析、不触碰 OAuth token 内容）。
- * 只认非空文件：空文件、目录、损坏或空对象的 .json 都不算凭据（A3）。
- * MIG-14：三个目录递归找凭据特征文件（与 logout 同口径，见 listAgyCredentialFiles）。
- */
-const AGY_SESSION_DIRS = [
-  path.join(CFG.home, ".gemini", "antigravity-cli"),
-  path.join(CFG.home, ".config", "antigravity"),
-  path.join(CFG.home, ".antigravity"),
-];
-const AGY_CRED_NAME_RE = /cred|token|auth|oauth|session|profile/i;
-/** 三个凭据目录下递归列出凭据特征文件（MIG-14）：只认文件（目录不算）、跳过 .bak；
- *  不跟随符号链接进子目录（防循环），最多下钻 8 层、最多 1000 个文件。 */
-export function listAgyCredentialFiles() {
-  const out = [];
-  const walk = (dir, depth) => {
-    if (out.length >= 1000 || depth > 8) return;
-    let names;
-    try { names = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
-    for (const e of names) {
-      if (out.length >= 1000) return;
-      const fp = path.join(dir, e.name);
-      if (e.isDirectory()) { walk(fp, depth + 1); continue; }
-      if (!e.isFile()) continue;
-      if (!AGY_CRED_NAME_RE.test(e.name) || e.name.endsWith(".bak")) continue;
-      out.push(fp);
-    }
-  };
-  for (const d of AGY_SESSION_DIRS) walk(d, 0);
-  return out;
-}
-export function hasAgySessionFiles() {
-  for (const fp of listAgyCredentialFiles()) {
-    let st;
-    try { st = fs.statSync(fp); } catch { continue; }
-    if (!st.isFile() || st.size === 0) continue;
-    if (/\.json$/i.test(fp)) {
-      try {
-        const j = JSON.parse(fs.readFileSync(fp, "utf8"));
-        if (!j || typeof j !== "object" || Array.isArray(j) || !Object.keys(j).length) continue;
-      } catch { continue; }
-    }
-    return true;
-  }
-  return false;
-}
-
+// 凭据文件探测已抽到 ./agy-creds.mjs（login.mjs 与 models.mjs 同口径，reg-models F-3）：
+// listAgyCredentialFiles / hasAgySessionFiles 由该模块提供，本文件只 re-export（见文件头）。
 export let AUTH_CACHE = null;
 let AUTH_GOOD = null;   // 最后一次问出结果的状态
 let AUTH_INFLIGHT = null;
@@ -304,7 +261,12 @@ export async function routeLogin(req, res, u, p) {
   if (req.method === "GET" && p === "/api/login/status") {
     const need = !!(LOGIN && LOGIN.done && !LOGIN.reported);
     if (LOGIN && LOGIN.done) LOGIN.reported = true;
+    // reg-models F-1（R9）：登录前缓存的 9 条 fallback 指纹里不含登录态，登录后 10 分钟内
+    // 仍会命中。只在登录态由假变真时清一次模型缓存——登录态不变的轮询不清，
+    // 否则 10 分钟缓存名存实亡；首探（was=null）时网关刚起、缓存是空的，也不用清。
+    const wasLoggedIn = loggedInKnown();
     const st = await authStatus(need || u.searchParams.get("refresh") === "1");
+    if (st.loggedIn && wasLoggedIn === false) dropModelCache();
     let url = "";
     if (LOGIN && !LOGIN.done) {
       try { url = fs.readFileSync(LOGIN.urlFile, "utf8").trim(); } catch {}
@@ -377,6 +339,8 @@ export async function routeLogin(req, res, u, p) {
     if (v.loggedIn) {
       return sendJson(res, 200, { ok: false, message: tz("本地凭据已清但探测仍显示已登录（凭据可能存在别处）。请在应用内终端跑一次 agy，执行 /logout。") });
     }
+    // reg-models F-1：退出成功也清一次模型缓存，否则旧账户的 live 清单再粘 10 分钟。
+    dropModelCache();
     return sendJson(res, 200, { ok: true, message: deleted ? tz("已退出 Google 账户登录。") : tz("本来就没有本地登录凭据。") });
   }
   return NEXT;

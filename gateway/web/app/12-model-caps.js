@@ -230,7 +230,7 @@
       const all = ML.filter((md) => !kw || md.id.toLowerCase().includes(kw) || String(md.name || "").toLowerCase().includes(kw));
       let html = "";
       if (!kw) {
-        if (info.nativeModels) html += row("", info.defaultModel ? t("（默认：{model}）", { model: info.defaultModel }) : t("（默认，由 claude 决定）"));
+        if (info.nativeModels) html += row("", info.defaultModel ? t("（默认：{model}）", { model: info.defaultModel }) : t("（默认，由 Antigravity 决定）"));
         // 当前在用的那个总排在「最近用过」头一个：不然清单一长，打开弹层根本看不到现在用的是哪个
         const rec = [...new Set([cur(), ...recentIds()])].filter((id) => id && ML.some((md) => md.id === id));
         if (rec.length) html += `<div class="mp-sec">${t("最近用过")}</div>` + rec.map((id) => row(id, meta(ML.find((md) => md.id === id)))).join("") + `<div class="mp-sec">${t("全部 {n} 个", { n: ML.length })}</div>`;
@@ -292,7 +292,7 @@
       // 让人以为正在用的就是它，其实 claude 用的是自己挑的那个。
       const dfltOpt = r.nativeModels
         ? (r.defaultModel ? `<option value="">${t("（默认：{model}）", { model: esc(r.defaultModel) })}</option>`
-                           : `<option value="">${t("（默认，由 claude 决定）")}</option>`)
+                           : `<option value="">${t("（默认，由 Antigravity 决定）")}</option>`)
         : "";
       sel.innerHTML = (dfltOpt + (MODELS.length
         ? MODELS.map((m) => {
@@ -350,11 +350,11 @@
           t("｜这是默认值；单个会话在输入栏下面的模型标签里另选");
       } else if (r.nativeModels) {
         $("model-info").innerHTML =
-                    t("没指定模型 → <b>由 claude 自己决定</b>（官方账户当前默认 <code>{model}</code>）。", { model: esc(r.defaultModel || t("claude 内置默认")) }) +
+                    t("没指定模型 → <b>由 Antigravity 自己决定</b>（官方账户当前默认 <code>{model}</code>）。", { model: esc(r.defaultModel || t("Antigravity 内置默认")) }) +
           t("<br>上面的清单就是账户里能用的全部型号，挑一个即锁定。");
       } else if (!MODELS.length) {
         $("model-info").innerHTML =
-                    t("该厂商由 claude 自己决定模型，没有可切换的清单。要指定就改 <code>ccapp-providers.json</code> 的 <code>defaultModel</code>。");
+                    t("该厂商由 Antigravity 自己决定模型，没有可切换的清单。要指定就改 <code>ccapp-providers.json</code> 的 <code>defaultModel</code>。");
       } else $("model-info").textContent = "";    // 上一家的能力说明别留着（审查 #52 D-03）
       // 设置页是全局默认：只按全局型号的窗口画，不借顶栏当前会话的 state.ctxTotal（#76）
       acPaint(Number(r.contextWindow) || 0, r.autoCompactWindow, r.compactDefault, r.acpMode);
@@ -409,7 +409,7 @@
     // 留一个"不指定"：没设过档位时 claude 按模型自己的默认走。
     // 以前没这一项，下拉框会显示第一档 low，让人以为正在用 low，而且一旦选过就再也撤不回默认
     sel.innerHTML = (dflt ? `<option value="">${t("（默认：{model}）", { model: esc(dflt) })}</option>`
-                            : `<option value="">${t("（默认，由 claude 按模型决定）")}</option>`) +
+                            : `<option value="">${t("（默认，由 Antigravity 按模型决定）")}</option>`) +
       levels.map((l) => `<option value="${esc(l)}">${esc(l)}</option>`).join("");
     sel.value = current && levels.includes(current) ? current : "";
     $("effort-info").innerHTML =
@@ -600,12 +600,12 @@
     if (!(v >= 1)) { e.target.value = state.settings.maxParallel || 3; return; }
     saveSettings({ maxParallel: v }).then(() => { e.target.value = state.settings.maxParallel || v; });
   });
-  // ── 压缩线滑块（接口与型号页）：0–100 映射到 [100k, 模型窗口]；没设 = 交给 claude，滑块停在最右、虚线轨道 ──
+  // ── 压缩线滑块（接口与型号页）：0–100 映射到 [100k, 模型窗口]；没设 = 交给 Antigravity，滑块停在最右、虚线轨道 ──
   // 100k 是 claude 认的下限（gw/models.mjs 的 defaultCompactLine 注释：只认 100k–1M），
   // 以前允许 20k，上下文条按 20k 显示满格、claude 实际按 100k 压（0.6.10 审计 195-O.2）
   const AC_MIN = 100000;
   const AC_MAX = 1000000;
-  let acWin = 0, acSet = 0, acDef = 0, acAcp = false, acForce = false;   // acDef：没设时网关给第三方型号的默认线（0 = 交给 claude）   // acForce：刚存过，焦点还在控件上也按存下的值回填（没存上就弹回去）
+  let acWin = 0, acSet = 0, acDef = 0, acAcp = false, acForce = false;   // acDef：没设时网关给第三方型号的默认线（0 = 交给 Antigravity）   // acForce：刚存过，焦点还在控件上也按存下的值回填（没存上就弹回去）
   function acStep() { return Math.max(1000, Math.ceil((acWin - AC_MIN) / 100 / 1000) * 1000); }
   function acTok(p) { return Math.min(acWin, Math.round((AC_MIN + (acWin - AC_MIN) * p / 100) / acStep()) * acStep()); }
   function acPos(v) { return Math.max(0, Math.min(100, (v - AC_MIN) / (acWin - AC_MIN) * 100)); }
@@ -615,7 +615,7 @@
     $("ac-range").parentNode.classList.toggle("auto", !v);
     $("ac-val").textContent = v ? t("{line} · 窗口的 {pct}%", { line: fmtTok(v), pct: Math.round(v / acWin * 100) })
       : acDef ? t("没设：默认 {line} · 窗口的 {pct}%", { line: fmtTok(acDef), pct: Math.round(acDef / acWin * 100) })
-      : t("没设，交给 claude 按窗口决定");
+      : t("没设，由 Antigravity 按模型窗口决定");
     $("ac-auto").classList.toggle("hidden", !v);
   }
   function acPaint(win, set, def, acp) {
@@ -648,11 +648,11 @@
     $("ac-min").textContent = fmtTok(AC_MIN); $("ac-max").textContent = fmtTok(acWin);
     acShow(acSet);
   }
-  /** 滑块和两个数字框共用同一套保存规则：空 / 0 / 乱填 = 交给 claude；claude 只认 100k–1M */
+  /** 滑块和两个数字框共用同一套保存规则：空 / 0 / 乱填 = 交给 Antigravity；Antigravity 只认 100k–1M */
   function acSaveFrom(el) {
     const raw = el.value.trim();
     let n = raw ? Math.round(Number(raw)) : null;
-    if (n == null || !Number.isFinite(n) || n <= 0) n = null;   // 空 / 0 / 乱填 = 交给 claude
+    if (n == null || !Number.isFinite(n) || n <= 0) n = null;   // 空 / 0 / 乱填 = 交给 Antigravity
     else if (n < AC_MIN) {
       // 更小的它按 100k 处理：界面别让人设成 20k，免得上下文条按 20k 显示满格（195-O.2）
       n = AC_MIN;

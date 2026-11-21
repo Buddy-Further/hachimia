@@ -131,7 +131,7 @@ export async function routeSettings(req, res, u, p) {
         setImmediate(() => { publishState(); pump(); });   // 调大了马上放行排着的
       }
 
-      // 自动压缩窗口：数字就设，空/0 就清除（交回给 claude 自己决定）
+      // 自动压缩窗口：数字就设，空/0 就清除（交回给 Antigravity 自己决定）
       if ("autoCompactWindow" in b) {
         const n = Number(b.autoCompactWindow);
         SETTINGS.autoCompactWindow = Number.isFinite(n) && n > 0 ? clampAutoCompact(n) : null;   // 存 claude 实际会用的值（195-O.2）

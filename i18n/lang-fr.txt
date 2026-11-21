@@ -185,15 +185,15 @@
 185	 (limite de processus fantômes {n})
 186	✓ Restauré
 187	(par défaut : {model})
-188	(par défaut — claude décide)
-189	(par défaut — claude décide selon le modèle)
+188	(par défaut — Antigravity décide)
+189	(par défaut — Antigravity décide selon le modèle)
 190	(ce fournisseur ne propose pas de liste de modèles)
 191	Contexte {n} · sortie max {out} · entrée {mods}
 192	 | Valeur par défaut ; pour une seule session, choisissez-en une autre via l’étiquette du modèle sous la zone de saisie
-193	Aucun modèle sélectionné → <b>claude décide</b> (le compte officiel utilise actuellement <code>{model}</code> par défaut).
-194	le modèle par défaut intégré de claude
+193	Aucun modèle sélectionné → <b>Antigravity décide</b> (le compte officiel utilise actuellement <code>{model}</code> par défaut).
+194	le modèle par défaut intégré d'Antigravity
 195	<br>La liste ci-dessus correspond à tout ce que le compte peut utiliser ; choisissez-en un pour le fixer.
-196	Ce fournisseur laisse claude choisir le modèle et ne propose aucune liste. Pour en imposer un, définissez <code>defaultModel</code> dans <code>ccapp-providers.json</code>.
+196	Ce fournisseur laisse Antigravity choisir le modèle et ne propose aucune liste. Pour en imposer un, définissez <code>defaultModel</code> dans <code>ccapp-providers.json</code>.
 197	Impossible de récupérer la liste des modèles : {msg}
 198	Plus le niveau est élevé, plus la réflexion est longue. Valeur par défaut ; pour une seule session, choisissez-en une autre sous la zone de saisie
 199	(par défaut)
@@ -1848,7 +1848,7 @@
 1847	Seuil de compaction
 1848	L’historique est résumé automatiquement quand l’usage approche ce seuil. Plus bas : plus économique mais moins de mémoire ; plus haut : plus de mémoire mais chaque tour coûte plus et va moins vite.
 1849	{line} · {pct} % de la fenêtre
-1850	Non défini ; claude décide selon la fenêtre
+1850	Non défini ; Antigravity décide selon la fenêtre du modèle
 1851	Prendre une photo
 1852	Appui long : capture dans 5 s
 1853	Afficher les outils

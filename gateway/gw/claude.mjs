@@ -307,8 +307,8 @@ export function claudeEnv(o = {}) {
     delete env.ANTHROPIC_API_KEY;
   }
 
-  // 模型：原生厂商（claude 自己就认识其模型的，如 Anthropic 官方）不覆盖 ——
-  // 交给 claude 自己决定默认模型；只有第三方才需要显式指定。
+  // 模型：原生厂商（Antigravity 自己就认识其模型的，如 Anthropic 官方）不覆盖 ——
+  // 交给 Antigravity 自己决定默认模型；只有第三方才需要显式指定。
   const m = want || p.defaultModel;
   const TIER_VARS = ["ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_HAIKU_MODEL", "CLAUDE_CODE_SUBAGENT_MODEL"];
   if (!p.nativeModels && m) {
@@ -350,7 +350,7 @@ export function claudeEnv(o = {}) {
   // 注意：不注入 CLAUDE_CODE_MAX_OUTPUT_TOKENS —— 那是「单次输出上限」，
   // 不是上下文，claude 自己有合理默认，硬塞只会带来副作用。
 
-  // 自动压缩窗口：用户设了才插，没设就让 claude 自己按窗口比例决定
+  // 自动压缩窗口：用户设了才插，没设就让 Antigravity 自己按窗口比例决定
   // 端侧小模型不传：窗口只有几万 token 时，claude 同时看到窗口和压缩线，每次发请求前都判定「已超线」先去压缩（实测）
   if (SETTINGS.autoCompactWindow && !p.local) {
     env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = String(SETTINGS.autoCompactWindow);

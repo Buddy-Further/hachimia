@@ -9,7 +9,7 @@ import path from "node:path";
 import { CFG, log, tz } from "./config.mjs";
 import { isObj, loadState, saveState, stateUnread } from "./statefile.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
-import { PROVIDER, providerById } from "./providers.mjs";
+import { PROVIDER, isAgyOnlyMode, providerById } from "./providers.mjs";
 import { SETTINGS } from "./settings-store.mjs";
 import { cachedModels, effortLevelsOf, normEffort } from "./models.mjs";
 import { projectById, projectDefaults, projectOfDir } from "./projects.mjs";
@@ -49,6 +49,39 @@ function save() {
 /** SIGTERM 收尾：把 300ms 防抖里还没落盘的那一段写下去（server.mjs 的退出流程要调，195-W.2） */
 export function flushSessModel() { clearTimeout(saveT); saveT = 0; return saveNow(); }
 onShutdown("会话模型", flushSessModel);   // 退出流程 runShutdown() 会调；不再靠 server.mjs 记得（196-状态写.2）
+
+/** F-G4-3（reg-models）：补 MIG-10 未做的会话钉选迁移。MIG-10 只迁移了全局 active 与
+ *  SETTINGS.provider，旧会话仍可能钉在 Claude 预置（anthropic / anthropic-key）上；
+ *  agy-only 下那家已被隐藏，钉住它的会话看到的是 0 个 Gemini 的 Claude 静态清单
+ *  LOGIN_MODELS（INV-4 G4），且选单里看不出原因。把这类钉选迁回 antigravity，
+ *  模型置空（接口默认，跟 setSessModel 换家时的做法一致；只钉了思考强度、模型为 null
+ *  的记录保持 null，仍跟随默认），逐条记日志并落盘。只在 agy-only 下迁：
+ *  非 agy-only 设备上 Claude 预置仍可用，不动。返回迁了的会话号（测试与日志用）。
+ *
+ *  注意：迁移不得在模块顶层跑。providers.mjs → models.mjs → sessmodel.mjs →
+ *  providers.mjs 是循环 import；providers 先被 import 时，sessmodel 的顶层求值
+ *  早于 providers.mjs 的 `let PROVIDER` 初始化，此时调 providerById 会撞上
+ *  暂时性死区（ReferenceError，批量测试里已复现）。所以改成首次读记录时懒迁移——
+ *  读记录的调用一定发生在全部模块初始化完成之后。 */
+export function migrateHiddenSessionPins() {
+  if (!isAgyOnlyMode()) return [];
+  const moved = [];
+  for (const [sid, r] of Object.entries(DB)) {
+    const p = r && typeof r.provider === "string" && r.provider ? providerById(r.provider) : null;
+    if (!p || p.group !== "claude") continue;
+    log(`[厂商] 纯 Antigravity 模式：会话 ${sid} 钉在 Claude 预置 ${r.provider} 上，不可用，已自动切回 antigravity`);
+    DB[sid] = { ...r, provider: "antigravity", model: r.model != null ? "" : null };
+    moved.push(sid);
+  }
+  if (moved.length) saveNow();
+  return moved;
+}
+let MIGRATED_ONCE = false;
+function ensureMigrated() {
+  if (MIGRATED_ONCE) return;
+  MIGRATED_ONCE = true;
+  migrateHiddenSessionPins();
+}
 /** 会话彻底删掉时清掉它钉的模型/接口（196-真机.1） */
 export function forgetSessModel(sid) {
   if (stateUnread(FILE)) DB = loadState(FILE, { shape: sessShape, fallback: () => ({}) }).data;
@@ -63,6 +96,7 @@ export function forgetSessModel(sid) {
 
 /** 这个会话记下的选择；没记过、或记的那家已经不在了，返回 null */
 export function sessModel(sid) {
+  ensureMigrated();   // F-G4-3：首次读记录时把钉在 Claude 预置的旧会话迁回 antigravity
   const r = sid && DB[sid];
   if (!r) return null;
   if (r.model != null && !providerById(r.provider)) return null;

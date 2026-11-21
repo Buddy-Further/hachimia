@@ -160,9 +160,9 @@ function termNew({ cols, rows, login, cwd: want } = {}) {
   const shell = ensureShell();
   // want：从项目页「在终端打开」带来的目录；不是目录就退到工作区（工作区也不可用再退 home），落哪儿会说一声
   const { cwd, note: cwdNote } = resolveTermCwd(want);
-  // MIG-28：开终端前按当前厂商同步一次 agy 设置（切厂商后不开 ACP 轮次、终端里的 agy
-  // 就按旧配置跑的问题根源）。只同步 settings.json，不注 GEMINI_API_KEY（见 syncTermAgySettings）。
-  syncTermAgySettings();
+  // reg-models F-2：MIG-28 的终端同步调用已回退（只删这一行调用，函数本体保留）。
+  // 恢复基线“终端开启不碰 settings.json”；终端里的 agy 按上次 ACP 轮次同步完的配置跑。
+  // 因果未验证：回退是条件性/预防性的（见 reg-models-fix.md），不是已证实致病。
   // login：给手动登录用的终端。环境和账户登录一样清掉第三方厂商的地址 / 密钥 / 模型，
   // 开好后替用户敲下 SSH_CONNECTION=1 agy（Remote SSH OAuth 流程），并把该点的登录入口
   // 写进终端提示——授权码由用户贴给 agy 自己的提示，网关只当字节通道

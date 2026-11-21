@@ -185,15 +185,15 @@
 185	（幽靈程序上限 {n}）
 186	✓ 已恢復
 187	（預設：{model}）
-188	（預設，由 claude 決定）
-189	（預設，由 claude 按模型決定）
+188	（預設，由 Antigravity 決定）
+189	（預設，由 Antigravity 按模型決定）
 190	（該廠商不提供模型清單）
 191	上下文 {n} · 輸出上限 {out} · 輸入 {mods}
 192	｜這是預設值；單個會話在輸入欄下方的模型標籤裡另選
-193	沒指定模型 → <b>由 claude 自己決定</b>（官方賬戶當前預設 <code>{model}</code>）。
-194	claude 內建預設
+193	沒指定模型 → <b>由 Antigravity 自己決定</b>（官方賬戶當前預設 <code>{model}</code>）。
+194	Antigravity 內建預設
 195	<br>上面的清單就是賬戶裡能用的全部型號，挑一個即鎖定。
-196	該廠商由 claude 自己決定模型，沒有可切換的清單。要指定就改 <code>ccapp-providers.json</code> 的 <code>defaultModel</code>。
+196	該廠商由 Antigravity 自己決定模型，沒有可切換的清單。要指定就改 <code>ccapp-providers.json</code> 的 <code>defaultModel</code>。
 197	拉取模型清單失敗：{msg}
 198	檔位越高思考越久。這是預設值；單個會話在輸入欄下方另選
 199	（預設）
@@ -1848,7 +1848,7 @@
 1847	上下文壓縮線
 1848	用量逼近這條線時自動摘要歷史。線放低更省、記得更少；放高記得多，但每輪更貴、更慢。
 1849	{line} · 視窗的 {pct}%
-1850	沒設，交給 claude 依視窗決定
+1850	沒設，由 Antigravity 按模型視窗決定
 1851	拍照
 1852	長按：5 秒後截圖
 1853	展開工具

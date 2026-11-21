@@ -20,7 +20,7 @@ export const SETTINGS = {
   effort: null,
   allowedTools: null,
   disallowedTools: null,
-  // 自动压缩窗口（token）。留空 = 交给 claude 自己按模型窗口决定；填了就用你的值。
+  // 自动压缩窗口（token）。留空 = 交给 Antigravity 自己按模型窗口决定；填了就用你的值。
   autoCompactWindow: null,
   // 生效厂商（ccapp-providers.json 里的 id）。留空 = 用配置文件里的 active。
   provider: null,
