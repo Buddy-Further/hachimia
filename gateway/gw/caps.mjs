@@ -64,7 +64,9 @@ const AGY_BUILTIN_TOOLS = [
 /** 自带命令的名字（常用指令不许和它们重名） */
 export const builtinCommands = () => Object.keys(COMMAND_META);
 
-/** 扫描 ~/.gemini/antigravity-cli 的本地技能、插件与 MCP 配置（冷启动即可见，无需等首轮对话） */
+/** 扫描 ~/.gemini/antigravity-cli 的本地技能、插件（冷启动即可见，无需等首轮对话）；
+ *  MCP 配置则读 ~/.gemini/config/mcp_config.json（P0-2b：settings.json 在 agy 1.5.13
+ *  下根本不存在，MCP 从来不在那里，见 VERIFY-REPORT）。 */
 function scanAgyLocal() {
   const base = path.join(process.env.HOME || CFG.home, ".gemini", "antigravity-cli");
   const skills = new Set(), plugins = new Set(), mcp = [];
@@ -80,7 +82,7 @@ function scanAgyLocal() {
   readDirs(path.join(base, "builtin", "plugins"), plugins);
   readDirs(path.join(base, "plugins"), plugins);
   try {
-    const j = JSON.parse(fs.readFileSync(path.join(base, "settings.json"), "utf8"));
+    const j = JSON.parse(fs.readFileSync(PATHS.agyMcpConfig, "utf8"));
     if (j && j.mcpServers && typeof j.mcpServers === "object") {
       for (const name of Object.keys(j.mcpServers)) mcp.push({ name, status: "configured" });
     }
