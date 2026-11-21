@@ -20,7 +20,7 @@ import { AGY_MCP_REL } from "./agy-mcp.mjs";
 
 // 单个文件；JSON 的几个只看会让东西跑起来的那部分（claude 自己常写的统计、提示次数之类不算）
 // P0-2：agy 的 MCP 配置也盯着——MCP 服务器就是能跑起来的程序，只看 mcpServers 一个键
-const FILES = [".claude/CLAUDE.md", ".claude/settings.json", ".claude/settings.local.json", ".claude.json",
+const FILES = [".claude/CLAUDE.md", ".claude/settings.json", ".claude/settings.local.json",
   ".claude/plugins/installed_plugins.json", ".claude/plugins/known_marketplaces.json", AGY_MCP_REL];
 // 整个目录：规则、输出风格、skill、子代理、斜杠命令、钩子脚本、插件本体（打开就运行，2.1.311 实测在 plugins/cache/<市场>/<插件>/<版本>）
 const TREES = [".claude/rules", ".claude/output-styles", ".claude/skills", ".claude/agents", ".claude/commands", ".claude/hooks",
@@ -37,21 +37,15 @@ const canon = (v) => Array.isArray(v) ? "[" + v.map(canon).join(",") + "]"
   : v && typeof v === "object" ? "{" + Object.keys(v).sort().map((k) => JSON.stringify(k) + ":" + canon(v[k])).join(",") + "}"
   : JSON.stringify(v ?? null);
 
-/** JSON 里要管的那一块：设置文件去掉不让东西跑起来的键；.claude.json 只看 MCP 服务器（全局和各项目的）；
- *  agy 的 mcp_config.json 只看 mcpServers——它是 agy 的 MCP 配置，别的键（agy 自己写的）不管 */
+/** JSON 里要管的那一块：设置文件去掉不让东西跑起来的键；
+ *  agy 的 mcp_config.json 只看 mcpServers——它是 agy 的 MCP 配置，别的键（agy 自己写的）不管。
+ *  ~/.claude.json 不再盯（P0-2b，agy-only）：那是另一个独立应用的配置，网关的 MCP
+ *  不再读它；sealed 版 Claude 启动路径仍在用它（见 seal.mjs），那条路的确认走 UC_SEALED。 */
 function riskyPart(rel, j) {
   if (!j || typeof j !== "object" || Array.isArray(j)) return null;
   if (rel === AGY_MCP_REL) {
     const out = {};
     if (j.mcpServers && Object.keys(j.mcpServers).length) out.mcpServers = j.mcpServers;
-    return out;
-  }
-  if (rel === ".claude.json") {
-    const out = {};
-    if (j.mcpServers && Object.keys(j.mcpServers).length) out.mcpServers = j.mcpServers;
-    const pr = {};
-    for (const [k, v] of Object.entries(j.projects || {})) if (v && v.mcpServers && Object.keys(v.mcpServers).length) pr[k] = v.mcpServers;
-    if (Object.keys(pr).length) out.projects = pr;
     return out;
   }
   if (rel.endsWith("/settings.json") || rel.endsWith("/settings.local.json")) {
@@ -61,7 +55,7 @@ function riskyPart(rel, j) {
   }
   return null;
 }
-const isJsonPart = (rel) => rel === ".claude.json" || rel === AGY_MCP_REL || /\/settings(\.local)?\.json$/.test(rel);
+const isJsonPart = (rel) => rel === AGY_MCP_REL || /\/settings(\.local)?\.json$/.test(rel);
 
 // Claude Code 自己在插件版本目录根上记的运行状态：每个进程一份 .in_use/<pid>（开一轮就多一个、退出删掉），清理时的 .orphaned_at。
 // 不是配置，官方给插件算摘要时也把它们排除在外（2.1.311 实测）；算进来的话开着一轮时再开一轮，必定弹「用户级配置改了」，
@@ -75,7 +69,7 @@ function fingerprint(rel, abs) {
   let st; try { st = fs.statSync(abs); } catch { return null; }
   if (!st.isFile() || isMarker(rel, abs)) return null;
   let link = ""; try { if (fs.lstatSync(abs).isSymbolicLink()) link = "link:" + fs.readlinkSync(abs) + "\0"; } catch {}
-  if (st.size > (rel === ".claude.json" ? 32 << 20 : BIG)) return { h: sha(link + `big:${st.size}:${st.mtimeMs}:${st.ctimeMs}`), big: true, size: st.size };
+  if (st.size > BIG) return { h: sha(link + `big:${st.size}:${st.mtimeMs}:${st.ctimeMs}`), big: true, size: st.size };
   // 按字节读：副本要存原样（技能目录里的图片这类不是 UTF-8，按文本存会被换成 U+FFFD，#151-1）。
   // 指纹 h 的算法不变（合法 UTF-8 的文件按文本、按字节算出来一样），不然升级后已认下的全都会被报成改过
   let bytes; try { bytes = fs.readFileSync(abs); } catch { return null; }
@@ -164,7 +158,7 @@ function accept(cur, filter) {
 }
 
 // ── 常驻监视：改了又改回也要看见 ──
-// 盯 home（.claude.json）、~/.claude、~/.claude/plugins、~/.gemini、~/.gemini/config 这几层（不递归，按名字筛）和 TREES 里存在的目录（递归）。
+// 盯 ~/.claude、~/.claude/plugins、~/.gemini、~/.gemini/config 这几层（不递归，按名字筛）和 TREES 里存在的目录（递归）。
 // 有动静 30 毫秒后读一遍，和确认记录不一样的记进 SEEN（只留第一次看见的样子：后面多半是在改回去）。
 const WATCH = new Map();      // 绝对路径 → { w, ino }
 const SEEN = new Map();       // rel → { f, sid, at }
@@ -330,7 +324,6 @@ function preview(rel, f, oldText) {
       if (canon(f.part[k]) === canon(old?.[k])) continue;
       if (k === "hooks") { lines.push(...hookLines(f.part)); continue; }
       if (k === "mcpServers") { lines.push("mcpServers: " + Object.keys(f.part.mcpServers || {}).join(", ")); continue; }
-      if (k === "projects") { lines.push("projects.*.mcpServers: " + Object.values(f.part.projects || {}).flatMap((s) => Object.keys(s)).slice(0, 10).join(", ")); continue; }
       lines.push(`${k}: ${JSON.stringify(f.part[k] ?? null).slice(0, 160)}`);
     }
     return mask(lines.slice(0, 16).join("\n"));
@@ -341,6 +334,8 @@ function preview(rel, f, oldText) {
 
 // 发行版只问这两份：CLAUDE.md、rules、skill、插件这些发行版根本不读（edition.mjs），回填进来的只有 MCP 与权限规则（seal.mjs），
 // 这两样过了破甲扫描也照样能让程序跑起来、放宽自动批准，被注入驱动着改了要人点头（0.6.9 审计 199-11-06）
+// P0-2b：".claude.json" 这一项留着不动（sealed 版 Claude 启动路径仍在读它，见 seal.mjs）；
+// 但它已不在 FILES 里，userconf 不再给它算指纹——想恢复监视要另做决定，别顺手加回。
 export const UC_SEALED = [".claude.json", ".claude/settings.json"];
 
 /** 起一轮前：有没有没确认的改动。没有返回 null。only：只看这几项（发行版给 UC_SEALED） */
@@ -414,9 +409,6 @@ function restorePart(rel, abs, copyText, qdir) {
     // agy 的配置：只还原 mcpServers 一个键，别的键（agy 自己写的）原样保留；
     // 通用分支会删掉所有非 SAFE_KEYS 的键，在这里会把 agy 的未知配置清掉，不能用
     if (old.mcpServers) curJ.mcpServers = old.mcpServers; else delete curJ.mcpServers;
-  } else if (rel === ".claude.json") {
-    if (old.mcpServers) curJ.mcpServers = old.mcpServers; else delete curJ.mcpServers;
-    for (const [k, v] of Object.entries(curJ.projects || {})) if (v && typeof v === "object") { if (old.projects?.[k]) v.mcpServers = old.projects[k]; else delete v.mcpServers; }
   } else {
     for (const k of Object.keys(curJ)) if (!SAFE_KEYS.has(k)) delete curJ[k];
     Object.assign(curJ, old);
