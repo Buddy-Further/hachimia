@@ -12,10 +12,13 @@
 //      客户端直连），所以写进这个文件就应能到达 ACP 会话；session/new 再传
 //      mcpServers 是否被接受仍未验证（未登录时 auth 门禁在前）。
 //
-//  迁移决策（P0-2）：READ-BOTH-WRITE-AGY（仅 MCP）——新装只写 mcp_config.json，
-//  ~/.claude.json 的旧服务器靠读两边继续工作（agy 同名胜出，见 extensions.mjs）；
-//  不做一次性迁移（会丢配置/孤立安装）、不双写（会漂移）。钩子 / 插件 / 输出风格
-//  没有可验证的 agy 写目标，本节不动它们，仍走 Claude 侧。
+//  迁移决策（P0-2b，agy-only）：MCP 只读、只写 mcp_config.json——
+//  ~/.claude.json 不再是 MCP 来源（那是另一个独立应用 cccodroid 的配置，
+//  本项目不从那里迁移；ACP 侧丢掉的旧服务器名字只进 skipped，见 mcp-acp.mjs
+//  A2）。不做一次性迁移（会丢配置/孤立安装）、不双写（会漂移）。钩子 / 插件 /
+//  输出风格没有可验证的 agy 写目标，本节不动它们，仍走 Claude 侧。
+//  例外：sealed 版 Claude 启动路径（seal.mjs mcpConfig()）仍读 ~/.claude.json，
+//  那条路与 MCP-ACP 无关，退役它要另做决定（P0-2b 保留）。
 //
 //  写：直接改 JSON，不调 `agy mcp add` 子进程——无二进制也能测，EXT_LOCK、
 //  回滚、破甲扫描都留在网关手里；edit 的合并 / dropEnv 语义本来就需要 JSON。
@@ -27,12 +30,10 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
 import path from "node:path";
-import { CFG, PATHS, log } from "./config.mjs";
+import { PATHS, log } from "./config.mjs";
 
 /** userconf.mjs 盯的相对路径（和 PATHS.agyMcpConfig 同一个文件，别各写一份） */
 export const AGY_MCP_REL = ".gemini/config/mcp_config.json";
-/** agy MCP 配置文件（~/.claude.json 之外的另一处 MCP 写目标） */
-export const CLAUDE_JSON = path.join(CFG.home, ".claude.json");
 
 const MAX_CFG_BYTES = 1 << 20;
 
