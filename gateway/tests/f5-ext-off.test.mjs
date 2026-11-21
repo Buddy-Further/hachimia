@@ -15,7 +15,7 @@ let exitCode = 0;
 const writeCli = () => fs.writeFileSync(cli, `#!${sh}\nfor a in "$@"; do printf '%s\\n' "$a"; done > '${argLog}'\nprintf '\\n' >> '${argLog}'\nexit ${exitCode}\n`, { mode: 0o700 });
 const prev = { claude: PATHS.claude, loader: PATHS.loader, claudeLoader: PATHS.claudeLoader };
 PATHS.claude = process.execPath; PATHS.loader = PATHS.claudeLoader = cli;
-writeCli();   // listMcp 调 `mcp list` 用它（只读，输出为空）
+writeCli();   // P0-2b：listMcp 不再调它（改走 `agy mcp list`，本机无 agy 时只按文件列）；假 CLI 仍供 sealPrepare 的 Claude 路径用
 const { _extForTest, SKILLS_DIR } = await import("../gw/extensions.mjs");
 const { sealPrepare, sealCleanup } = await import("../gw/seal.mjs");
 const { extOff, EXT_OFF_FILE } = await import("../gw/extoff.mjs");
@@ -69,7 +69,7 @@ test("MCP 停用：定义先进名单（0600）再从 agy 配置里拿掉；启�
   assert.deepEqual(extOff().mcp.f5m, def);
   assert.equal(fs.statSync(EXT_OFF_FILE).mode & 0o777, 0o600);
   assert.deepEqual(JSON.parse(fs.readFileSync(agyFile, "utf8")).mcpServers, {}, "停用后 agy 里没了");
-  // 名单里的条目在列表里出现成「已停用」（假 CLI 的 mcp list 什么也不输出）
+  // 名单里的条目在列表里出现成「已停用」（本机无 agy 二进制，listMcp 只按文件 + 名单列）
   const li = (await X.listMcp()).find((m) => m.name === "f5m");
   assert.equal(li.disabled, true); assert.equal(li.target, "node srv.mjs [env: K]", "环境变量只亮名字，不亮值");
   assert.equal(li.source, "off-list");
