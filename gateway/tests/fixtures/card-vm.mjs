@@ -107,7 +107,7 @@ export const pKeyA = () => ({ id: "A", label: "A", endpoints: [{ id: "x", label:
 export const pCustomA = () => ({ id: "A", label: "A", custom: true, hasKey: true, keyTail: "1234", baseUrl: "https://a.example/anthropic", authStyle: "bearer", defaultModel: "m1", fastModel: "", modelsUrl: "", plainHttp: false, extraModels: [], contextWindow: 0, inlineImages: false });
 export const customEls = (over = {}) => ({
   "cc-label": { value: "A" }, "cc-base": { value: "https://a.example/anthropic" }, "cc-auth": { value: "bearer" },
-  "cc-model": { value: "m1" }, "cc-fast": { value: "" }, "cc-models": { value: "" }, "cc-ctx": { value: "" },
+  "cc-protocol": { value: "" }, "cc-model": { value: "m1" }, "cc-fast": { value: "" }, "cc-models": { value: "" }, "cc-ctx": { value: "" },
   "cc-more": { value: "" }, "pc-key": { value: "" }, "cc-inline": { checked: false }, "pc-result": {},
   ...over,
 });

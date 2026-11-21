@@ -3020,7 +3020,6 @@ window.I18N_DICT["ru"] = {
   "重新安装 Antigravity CLI (agy)": "Reinstall Antigravity CLI (agy)",
   "Claude（兼容）": "Claude (compatible)",
   "第三方接口": "Third-party provider",
-  "使用本机 Google Cloud ADC（自动启用 AGY_ADC_AUTH=true）": "Use this device's Google Cloud ADC (automatically enables AGY_ADC_AUTH=true)",
   "登录 Google Antigravity 账户": "Sign in to a Google Antigravity account",
   "Google Cloud / 企业账号": "Google Cloud / enterprise account",
   "按 Google Antigravity 账户订阅档位使用，本机 Token 统计见「用量」页": "Billed by your Google Antigravity account subscription tier; on-device token stats are on the “Usage” page",

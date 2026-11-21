@@ -672,8 +672,13 @@ function tick(alarmAt = 0) {
   for (const t of DB.tasks) {
     if (!t.on) continue;
     if (carried.has(t.id)) {
-      // 与原来的等待窗口一样：阻塞期间不累积第二次计划。
-      if (WAITING.has(t.id) && t.nextAt != null && t.nextAt <= now) refreshNext(t, now);
+      // 与原来的等待窗口一样：阻塞期间不累积第二次计划；但这次到点也不能静默丢掉——
+      // 走 fire()，它在 WAITING 时只记一条 skip 运行记录（F-6），不叠加新计划、不入队。
+      // refreshNext 已把 nextAt 推到未来，所以每到点只记一条，不会每拍重复记。
+      if (WAITING.has(t.id) && t.nextAt != null && t.nextAt <= now) {
+        fire(t, { reason: "due" }).catch((e) => log("定时任务投递出错：" + e.message));
+        refreshNext(t, now);
+      }
       continue;
     }
     if (t.nextAt == null) {
@@ -696,7 +701,9 @@ function tick(alarmAt = 0) {
     const missed = !byAlarm && (late > 3 * 60000 && gap > 3 * 60000 || late > 15 * 60000);
     const o = { taskId: t.id, at: t.nextAt };
     refreshNext(t, now);
-    if (WAITING.has(t.id)) continue;
+    // 已在排队等上一轮（手动跑起的火、还没建收据）：这次到点同样不叠加新计划，
+    // 但要留一条 skip 记录（F-6），不能静默丢掉；nextAt 已推到未来，每到点只记一条。
+    if (WAITING.has(t.id)) { fire(t, { reason: "due" }).catch((e) => log("定时任务投递出错：" + e.message)); continue; }
     // 新计划收据和 nextAt 在同一次原子写中提交，失败不推进、不投递，也不报新的闹钟时刻。
     DB.pending.push(o);
     if (!store()) { DB.pending.pop(); t.nextAt = o.at; occurrenceWriteFailed = true; continue; }

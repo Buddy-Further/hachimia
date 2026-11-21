@@ -3019,157 +3019,156 @@
 3017	Reinstall Antigravity CLI (agy)
 3018	Claude (compatible)
 3019	Third-party provider
-3020	Use this device's Google Cloud ADC (automatically enables AGY_ADC_AUTH=true)
-3021	Sign in to a Google Antigravity account
-3022	Google Cloud / enterprise account
-3023	Billed by your Google Antigravity account subscription tier; on-device token stats are on the “Usage” page
-3024	Sign out of the Google Antigravity account on this device?
-3025	Google Antigravity subscription quota is managed by your Google account (the CLI does not report the remaining percentage); this shows actual on-device token usage.
-3026	The key is stored only in this app's private directory on this device, and is passed to Antigravity CLI only as needed to connect to the matching endpoint.
-3027	AGY blue
-3028	Antigravity's replies
-3029	Shizuku is running but has not been authorized for hachimia
-3030	vivo / iQOO: Settings → Battery → Background power consumption → allow hachimia <b>high background power usage</b>; in iManager allow <b>auto-start</b> (common path)
-3031	Huawei / Honor: Settings → App launch → turn off “Manage automatically” for hachimia, then manually allow <b>auto-start</b> and <b>background activity</b> (common path)
-3032	hachimia has been frozen in the background by the system {n} times (most recent: about {sec} seconds, {at}).
-3033	In system settings, allow hachimia to run in the background, turn off battery optimization, and allow auto-start (each vendor names these differently).
-3034	Authorize for hachimia
-3035	hachimia's wireless debugging pairing has been removed: it still works now, but it cannot auto-activate after a reboot.
-3036	Shizuku was not activated by hachimia: hachimia cannot auto-activate it after a reboot. Pair it once and you're set.
-3037	The system did not notify hachimia at this boot (blocked by the system's “auto-start” management), so it could not auto-activate; opening hachimia will catch up.
-3038	To activate at boot: allow hachimia auto-start / background start in the app details; takes effect at the next boot.
-3039	Antigravity CLI (agy) version
-3040	Uninstall Antigravity CLI (agy)?\n\nThis deletes the downloaded agy program; it will not be reinstalled automatically. Tap “Install” here to download it again when you need it.\n\nSign-in, sessions and settings are kept; sending a message while it is not installed will prompt you to install it first.
-3041	Install the devkit from a local file?\n\nPick a devkit-ha.chi.mia.tar.gz (or .tar), downloadable from the GitHub releases page or hachimia.net. It is checked against the published release before installing; the service pauses for 1–2 minutes during installation.\nThings you installed into the devkit with pip / npm -g are kept.
-3042	Shizuku is not activated yet, so the app cannot toggle accessibility itself: turn on hachimia manually in the system accessibility settings. From Android 13, sideloaded apps must first allow restricted settings via App info → menu in the top-right corner.
-3043	This build has no native layer and only records CPU time (battery, screen-on and foreground time come from hachimia).
-3044	Name (e.g. self-hosted Gemini proxy)
-3045	Auth: x-goog-api-key (Gemini / Antigravity)
-3046	Auth: Authorization: Bearer
-3047	Auth: x-api-key
-3048	Default model name (required, e.g. gemini-3.8-flash)
-3049	Model list URL (optional; Gemini endpoints auto-probe /v1beta/models)
-3050	Context window (optional, in tokens, e.g. 1m; leave empty for the default)
-3051	More models (optional, one per line; you may put the window after the name, separated by a space, e.g. gemini-4-neon 1m)
-3052	Send images with the message (compat): check this when the model cannot read attached images; attachments are then sent directly as multimodal blocks with the message.
-3053	Choosing <b>Gemini / Antigravity</b> auth drives the official <code>agy</code> CLI via <code>GOOGLE_GEMINI_BASE_URL</code> + <code>GEMINI_API_KEY</code>.
-3054	Set a spending cap in the provider's console; if you suspect the key has leaked, revoke and replace it immediately.
-3055	Example template (replace with your own service address)
-3056	You choose the third-party endpoint yourself; the app does not review or endorse it. The other side can see your key, code and conversations, so only use services you trust.
-3057	Running Antigravity diagnostics…
-3058	Currently available capabilities
-3059	Fixed
-3060	Workaround
-3061	(Merged from 
-3062	Direct (not needed)
-3063	(Decided by Antigravity)
-3064	Antigravity CLI failed: {msg}
-3065	The Antigravity CLI user-level config has unconfirmed changes. Send a message first, confirm in the card that pops up, then try again.
-3066	Could not fetch the Antigravity CLI version list
-3067	agy install script not found ({p})
-3068	The dev side only manages Antigravity CLI (agy) (you build and install the app itself on this device)
-3069	Updating Antigravity CLI (agy)…
-3070	Could not fetch the Antigravity CLI version list: {err}
-3071	The gateway's own runtime was modified; Antigravity CLI was not started this round. The gateway will restart when idle and restore itself from the install package; send again shortly.
-3072	Antigravity CLI (agy) is not installed. Install it under Settings → Updates first.
-3073	Antigravity CLI (agy) not found
-3074	Settings → Updates: reinstall Antigravity CLI (agy)
-3075	Antigravity CLI (agy) is not installed. Tap “Install” under Settings → Updates.
-3076	The Antigravity CLI user-level config has unconfirmed changes, or an earlier session left background processes behind, so this run did not start. Open hachimia, send a message, and confirm in the card that pops up, then try again.
-3077	Antigravity CLI (agy) is not installed. Install it under Settings → Updates first, then come back to sign in.
-3078	Enterprise sign-in: in the agy sign-in screen, choose “Use a Google Cloud project” → “Continue with Google Cloud” and authorize with your enterprise account.
-3079	Personal sign-in: in the agy sign-in screen, choose “Google OAuth” and authorize with your personal Google account.
-3080	The slash commands, tools, skills and extensions currently available to Antigravity. Tap a slash command to insert it into the input box; a tool's “Allow / Ask / Deny” follows the permission mode and rules.
-3081	For things not in the marketplace, import a Linux arm64 program yourself: a single binary, or a .tar.gz / .zip archive. Missing libraries are filled in automatically and a command is generated, ready to use in Antigravity and in the terminal.
-3082	Changes take effect with the next message. Plugins and MCP are installed/removed with CLI commands; this is the graphical entry point.
-3083	Save a long prompt you send often as a command and pick it with / in the input box. Text after /command fills $ARGUMENTS in the body, expanded automatically by the gateway when sent to Antigravity.
-3084	Antigravity behavior
-3085	Default color pick (AGY Monet palette); switchable to native, Qiusuo, Zhuyue or Construct
-3086	Font for Antigravity's reply text
-3087	Thinking level (thought_level)
-3088	Levels vary by model (low / medium / high / xhigh). You can also type <code>/effort &lt;level&gt;</code> in the input box.
-3089	Let Antigravity decide
-3090	Empty = let Antigravity decide by window
-3091	Confirm each item by default, same as official agy: it asks in the conversation before editing files or running commands. Allow everything means Antigravity can delete files and run any command without asking. You can also switch anytime via the permission tag under the input box.
-3092	When Antigravity wants to read keys and login credentials (.env, SSH keys, API keys, gateway tokens, etc.), read the screen or tap in other apps for you, read the clipboard, or share files out, a separate confirmation card pops up — even with Allow everything on; once you allow a category in a round, it won't ask again. This guards against instructions hidden in web pages or files steering the model.
-3093	When a long session over 200k tokens has been idle for about 54 minutes, a /compact compaction runs automatically, so resuming the chat doesn't recompute the whole history — less latency and fewer tokens.
-3094	Show Antigravity's working status in the ColorOS 16 Fluid Cloud / Live Island
-3095	additionalDirectories: let Antigravity read and write directories outside the workspace
-3096	Let Antigravity read and write directories outside the workspace via ACP additionalDirectories. These directories also become shortcuts in the file browser.
-3097	Pause loading custom rules, skills, plugins, hooks and MCP
-3098	When on, runs in restricted mode without loading your custom extensions, hooks or auto-approval rules; sign-in, keys, sessions and models stay as they are, and turning it off restores everything.
-3099	Cover every program Antigravity launches
-3100	hachimia keeps local session records forever by default: they only move to the trash when you delete them manually in the session list, and are never auto-cleaned.
-3101	Only clears caches, temp files untouched for 7 days, and expired logs; sessions, your files and programs are never auto-deleted
-3102	When on, run <code>priv 'command'</code> in the terminal as shell (pm / am / settings / dumpsys / logcat / screencap…); Antigravity uses it too. Without Shizuku, basic dev features work as usual — only these debugging abilities are unavailable.
-3103	Auto-activate again after a reboot (needs Wi-Fi; starts the hachimia background service at boot)
-3104	Stop confirming privileged commands one by one (at your own risk): when on, privileged commands run directly and won't get stuck waiting for confirmation in the background; ones involving hachimia itself or Shizuku / Sui are intercepted and asked about when possible, but not every form can be caught. To allow just one session, check “Allow the rest of this session” in the confirmation dialog.
-3105	Let Antigravity use device tools (notifications, clipboard, opening links / calendar / alarms, sharing files…)
-3106	Off by default. Turn it on when you want Antigravity to test an app you built, or send files it generated to other apps; while on, each round carries an extra one or two thousand tokens of tool descriptions.
-3107	Antigravity CLI channel
-3108	Auto-update (on by default): Antigravity CLI updates silently; new app versions prompt to install once downloaded (auto-installed when idle with Shizuku); the devkit pre-downloads on Wi-Fi only and installs the next time the app opens
-3109	Use when a config is broken, every round gets rejected or gives no answer, and you can't fix it yourself: user-level config (custom rules, skills, plugins, hooks, MCP), hachimia settings and shell startup files are restored to a fresh install, and app files are re-laid from the install package. The originals are moved to ~/.ccapp-reset for reference, not deleted; session records, workspace and devkit are untouched, and keys are kept by default. A system confirmation dialog will pop up.
-3110	Run the devkit's compilers, Python, Node, git and more one by one; the results tell Antigravity what works on this device and what doesn't. It re-tests automatically after devkit or app updates; tap Re-test to let Antigravity know right away what got fixed.
-3111	Plan first
-3112	Interview to align the plan
-3113	Long-term goal
-3114	Multi-agent teamwork
-3115	Deep orchestration
-3116	Capabilities & tools
-3117	Failed to switch permission mode (agent rejected {mode}): {msg}
-3118	Could not restore the previous session (the agent doesn't support resume, or resume failed), so a new session was started. This turn was written to the new session; the old session's history is still kept in local records.
-3119	Compaction not confirmed: context did not shrink (before {pre}, after {post}). Please retry /compact or start a new session.
-3120	Enterprise login: please sign in with your company Google account in the browser
-3121	The authorization code could not be written to agy (stdin is closed). Please start login again.
-3122	The authorization code could not be written to agy (the login process's stdin is closed). Please start login again.
-3123	Login-based providers don't need an API key; sign in through the official flow. The key you entered was not saved.
-3124	Already queued; skipping this duplicate run
+3020	Sign in to a Google Antigravity account
+3021	Google Cloud / enterprise account
+3022	Billed by your Google Antigravity account subscription tier; on-device token stats are on the “Usage” page
+3023	Sign out of the Google Antigravity account on this device?
+3024	Google Antigravity subscription quota is managed by your Google account (the CLI does not report the remaining percentage); this shows actual on-device token usage.
+3025	The key is stored only in this app's private directory on this device, and is passed to Antigravity CLI only as needed to connect to the matching endpoint.
+3026	AGY blue
+3027	Antigravity's replies
+3028	Shizuku is running but has not been authorized for hachimia
+3029	vivo / iQOO: Settings → Battery → Background power consumption → allow hachimia <b>high background power usage</b>; in iManager allow <b>auto-start</b> (common path)
+3030	Huawei / Honor: Settings → App launch → turn off “Manage automatically” for hachimia, then manually allow <b>auto-start</b> and <b>background activity</b> (common path)
+3031	hachimia has been frozen in the background by the system {n} times (most recent: about {sec} seconds, {at}).
+3032	In system settings, allow hachimia to run in the background, turn off battery optimization, and allow auto-start (each vendor names these differently).
+3033	Authorize for hachimia
+3034	hachimia's wireless debugging pairing has been removed: it still works now, but it cannot auto-activate after a reboot.
+3035	Shizuku was not activated by hachimia: hachimia cannot auto-activate it after a reboot. Pair it once and you're set.
+3036	The system did not notify hachimia at this boot (blocked by the system's “auto-start” management), so it could not auto-activate; opening hachimia will catch up.
+3037	To activate at boot: allow hachimia auto-start / background start in the app details; takes effect at the next boot.
+3038	Antigravity CLI (agy) version
+3039	Uninstall Antigravity CLI (agy)?\n\nThis deletes the downloaded agy program; it will not be reinstalled automatically. Tap “Install” here to download it again when you need it.\n\nSign-in, sessions and settings are kept; sending a message while it is not installed will prompt you to install it first.
+3040	Install the devkit from a local file?\n\nPick a devkit-ha.chi.mia.tar.gz (or .tar), downloadable from the GitHub releases page or hachimia.net. It is checked against the published release before installing; the service pauses for 1–2 minutes during installation.\nThings you installed into the devkit with pip / npm -g are kept.
+3041	Shizuku is not activated yet, so the app cannot toggle accessibility itself: turn on hachimia manually in the system accessibility settings. From Android 13, sideloaded apps must first allow restricted settings via App info → menu in the top-right corner.
+3042	This build has no native layer and only records CPU time (battery, screen-on and foreground time come from hachimia).
+3043	Name (e.g. self-hosted Gemini proxy)
+3044	Auth: x-goog-api-key (Gemini / Antigravity)
+3045	Auth: Authorization: Bearer
+3046	Auth: x-api-key
+3047	Default model name (required, e.g. gemini-3.8-flash)
+3048	Model list URL (optional; Gemini endpoints auto-probe /v1beta/models)
+3049	Context window (optional, in tokens, e.g. 1m; leave empty for the default)
+3050	More models (optional, one per line; you may put the window after the name, separated by a space, e.g. gemini-4-neon 1m)
+3051	Send images with the message (compat): check this when the model cannot read attached images; attachments are then sent directly as multimodal blocks with the message.
+3052	Choosing <b>Gemini / Antigravity</b> auth drives the official <code>agy</code> CLI via <code>GOOGLE_GEMINI_BASE_URL</code> + <code>GEMINI_API_KEY</code>.
+3053	Set a spending cap in the provider's console; if you suspect the key has leaked, revoke and replace it immediately.
+3054	Example template (replace with your own service address)
+3055	You choose the third-party endpoint yourself; the app does not review or endorse it. The other side can see your key, code and conversations, so only use services you trust.
+3056	Running Antigravity diagnostics…
+3057	Currently available capabilities
+3058	Fixed
+3059	Workaround
+3060	(Merged from 
+3061	Direct (not needed)
+3062	(Decided by Antigravity)
+3063	Antigravity CLI failed: {msg}
+3064	The Antigravity CLI user-level config has unconfirmed changes. Send a message first, confirm in the card that pops up, then try again.
+3065	Could not fetch the Antigravity CLI version list
+3066	agy install script not found ({p})
+3067	The dev side only manages Antigravity CLI (agy) (you build and install the app itself on this device)
+3068	Updating Antigravity CLI (agy)…
+3069	Could not fetch the Antigravity CLI version list: {err}
+3070	The gateway's own runtime was modified; Antigravity CLI was not started this round. The gateway will restart when idle and restore itself from the install package; send again shortly.
+3071	Antigravity CLI (agy) is not installed. Install it under Settings → Updates first.
+3072	Antigravity CLI (agy) not found
+3073	Settings → Updates: reinstall Antigravity CLI (agy)
+3074	Antigravity CLI (agy) is not installed. Tap “Install” under Settings → Updates.
+3075	The Antigravity CLI user-level config has unconfirmed changes, or an earlier session left background processes behind, so this run did not start. Open hachimia, send a message, and confirm in the card that pops up, then try again.
+3076	Antigravity CLI (agy) is not installed. Install it under Settings → Updates first, then come back to sign in.
+3077	Enterprise sign-in: in the agy sign-in screen, choose “Use a Google Cloud project” → “Continue with Google Cloud” and authorize with your enterprise account.
+3078	Personal sign-in: in the agy sign-in screen, choose “Google OAuth” and authorize with your personal Google account.
+3079	The slash commands, tools, skills and extensions currently available to Antigravity. Tap a slash command to insert it into the input box; a tool's “Allow / Ask / Deny” follows the permission mode and rules.
+3080	For things not in the marketplace, import a Linux arm64 program yourself: a single binary, or a .tar.gz / .zip archive. Missing libraries are filled in automatically and a command is generated, ready to use in Antigravity and in the terminal.
+3081	Changes take effect with the next message. Plugins and MCP are installed/removed with CLI commands; this is the graphical entry point.
+3082	Save a long prompt you send often as a command and pick it with / in the input box. Text after /command fills $ARGUMENTS in the body, expanded automatically by the gateway when sent to Antigravity.
+3083	Antigravity behavior
+3084	Default color pick (AGY Monet palette); switchable to native, Qiusuo, Zhuyue or Construct
+3085	Font for Antigravity's reply text
+3086	Thinking level (thought_level)
+3087	Levels vary by model (low / medium / high / xhigh). You can also type <code>/effort &lt;level&gt;</code> in the input box.
+3088	Let Antigravity decide
+3089	Empty = let Antigravity decide by window
+3090	Confirm each item by default, same as official agy: it asks in the conversation before editing files or running commands. Allow everything means Antigravity can delete files and run any command without asking. You can also switch anytime via the permission tag under the input box.
+3091	When Antigravity wants to read keys and login credentials (.env, SSH keys, API keys, gateway tokens, etc.), read the screen or tap in other apps for you, read the clipboard, or share files out, a separate confirmation card pops up — even with Allow everything on; once you allow a category in a round, it won't ask again. This guards against instructions hidden in web pages or files steering the model.
+3092	When a long session over 200k tokens has been idle for about 54 minutes, a /compact compaction runs automatically, so resuming the chat doesn't recompute the whole history — less latency and fewer tokens.
+3093	Show Antigravity's working status in the ColorOS 16 Fluid Cloud / Live Island
+3094	additionalDirectories: let Antigravity read and write directories outside the workspace
+3095	Let Antigravity read and write directories outside the workspace via ACP additionalDirectories. These directories also become shortcuts in the file browser.
+3096	Pause loading custom rules, skills, plugins, hooks and MCP
+3097	When on, runs in restricted mode without loading your custom extensions, hooks or auto-approval rules; sign-in, keys, sessions and models stay as they are, and turning it off restores everything.
+3098	Cover every program Antigravity launches
+3099	hachimia keeps local session records forever by default: they only move to the trash when you delete them manually in the session list, and are never auto-cleaned.
+3100	Only clears caches, temp files untouched for 7 days, and expired logs; sessions, your files and programs are never auto-deleted
+3101	When on, run <code>priv 'command'</code> in the terminal as shell (pm / am / settings / dumpsys / logcat / screencap…); Antigravity uses it too. Without Shizuku, basic dev features work as usual — only these debugging abilities are unavailable.
+3102	Auto-activate again after a reboot (needs Wi-Fi; starts the hachimia background service at boot)
+3103	Stop confirming privileged commands one by one (at your own risk): when on, privileged commands run directly and won't get stuck waiting for confirmation in the background; ones involving hachimia itself or Shizuku / Sui are intercepted and asked about when possible, but not every form can be caught. To allow just one session, check “Allow the rest of this session” in the confirmation dialog.
+3104	Let Antigravity use device tools (notifications, clipboard, opening links / calendar / alarms, sharing files…)
+3105	Off by default. Turn it on when you want Antigravity to test an app you built, or send files it generated to other apps; while on, each round carries an extra one or two thousand tokens of tool descriptions.
+3106	Antigravity CLI channel
+3107	Auto-update (on by default): Antigravity CLI updates silently; new app versions prompt to install once downloaded (auto-installed when idle with Shizuku); the devkit pre-downloads on Wi-Fi only and installs the next time the app opens
+3108	Use when a config is broken, every round gets rejected or gives no answer, and you can't fix it yourself: user-level config (custom rules, skills, plugins, hooks, MCP), hachimia settings and shell startup files are restored to a fresh install, and app files are re-laid from the install package. The originals are moved to ~/.ccapp-reset for reference, not deleted; session records, workspace and devkit are untouched, and keys are kept by default. A system confirmation dialog will pop up.
+3109	Run the devkit's compilers, Python, Node, git and more one by one; the results tell Antigravity what works on this device and what doesn't. It re-tests automatically after devkit or app updates; tap Re-test to let Antigravity know right away what got fixed.
+3110	Plan first
+3111	Interview to align the plan
+3112	Long-term goal
+3113	Multi-agent teamwork
+3114	Deep orchestration
+3115	Capabilities & tools
+3116	Failed to switch permission mode (agent rejected {mode}): {msg}
+3117	Could not restore the previous session (the agent doesn't support resume, or resume failed), so a new session was started. This turn was written to the new session; the old session's history is still kept in local records.
+3118	Compaction not confirmed: context did not shrink (before {pre}, after {post}). Please retry /compact or start a new session.
+3119	Enterprise login: please sign in with your company Google account in the browser
+3120	The authorization code could not be written to agy (stdin is closed). Please start login again.
+3121	The authorization code could not be written to agy (the login process's stdin is closed). Please start login again.
+3122	Login-based providers don't need an API key; sign in through the official flow. The key you entered was not saved.
+3123	Already queued; skipping this duplicate run
 // TODO i18n (rem/copy)：以下为英文原文回退，待译成 ar
-3125	Open this in the app
-3126	Needs npx (included in the hachimia toolkit)
-3127	This build has no native layer, so only CPU time is recorded (battery and screen-on need hachimia).
-3128	The Antigravity CLI program was modified and was not started; 
-3129	Antigravity CLI housekeeping files
+3124	Open this in the app
+3125	Needs npx (included in the hachimia toolkit)
+3126	This build has no native layer, so only CPU time is recorded (battery and screen-on need hachimia).
+3127	The Antigravity CLI program was modified and was not started; 
+3128	Antigravity CLI housekeeping files
 // TODO i18n (mig/residue)：以下为英文原文回退，待译成 ar
-3130	These Claude Code config files contain override-style instructions (telling the model to ignore its rules, posing as system messages and the like). hachimia won't load them, so this turn did not run. Edit or remove the following, then send again:\n{list}
-3131	The command {c} is built into the system or hachimia. Pick another name
-3132	Not a hachimia session archive
-3133	{p}: {n}
-3134	«{n}» {w}
-3135	API Key
-3136	Google Antigravity / Gemini
-3137	عرض النموذج أو تبديله
-3138	السياق
-3139	ضغط سجل المحادثة لتحرير مساحة السياق
-3140	ما الذي حدث
-3141	ماذا فعلت، وما النتيجة المتوقعة، وما الذي حدث فعلًا. يمكنك سحب لقطات الشاشة إلى هنا.
-3142	خطوات إعادة الإنتاج
-3143	تعذّر حفظ حالة التشغيل (قد تكون المساحة ممتلئة أو لا توجد صلاحية). إذا أنهى النظام التطبيق، فقد لا يكون هذا الدور قابلاً للاستعادة.
-3144	تعذّر استعادة حالة التشغيل السابقة (السجل غير قابل للقراءة أو تالف)، لذا لن تظهر الجولات المتقطعة والرسائل المنتظرة؛ تم الاحتفاظ بالملف الأصلي.
-3145	يمكن أن يحتوي الاسم على أحرف لاتينية وأرقام و- و_ فقط، حتى 40 حرفًا
-3146	هذا اسم أمر مدمج. اختر اسمًا آخر
-3147	لا يمكن أن يكون نص الأمر فارغًا
-3148	نص الأمر طويل جدًا (64 كيلوبايت كحد أقصى)
-3149	يوجد أمر بهذا الاسم بالفعل
-3150	يمكنك استيراد 10 خطوط كحد أقصى. احذف واحدًا أولًا
-3151	هذه مجموعة خطوط (.ttc) ولا يمكن لعارض الويب استخدامها. استخدم ملف ttf / otf منفردًا
-3152	ليس ملف خط صالحًا. الصيغ المدعومة فقط: ttf وotf وwoff وwoff2
-3153	تعذّر تحميل نص الواجهة. اضغط هنا لإعادة المحاولة.
+3129	These Claude Code config files contain override-style instructions (telling the model to ignore its rules, posing as system messages and the like). hachimia won't load them, so this turn did not run. Edit or remove the following, then send again:\n{list}
+3130	The command {c} is built into the system or hachimia. Pick another name
+3131	Not a hachimia session archive
+3132	{p}: {n}
+3133	«{n}» {w}
+3134	API Key
+3135	Google Antigravity / Gemini
+3136	عرض النموذج أو تبديله
+3137	السياق
+3138	ضغط سجل المحادثة لتحرير مساحة السياق
+3139	ما الذي حدث
+3140	ماذا فعلت، وما النتيجة المتوقعة، وما الذي حدث فعلًا. يمكنك سحب لقطات الشاشة إلى هنا.
+3141	خطوات إعادة الإنتاج
+3142	تعذّر حفظ حالة التشغيل (قد تكون المساحة ممتلئة أو لا توجد صلاحية). إذا أنهى النظام التطبيق، فقد لا يكون هذا الدور قابلاً للاستعادة.
+3143	تعذّر استعادة حالة التشغيل السابقة (السجل غير قابل للقراءة أو تالف)، لذا لن تظهر الجولات المتقطعة والرسائل المنتظرة؛ تم الاحتفاظ بالملف الأصلي.
+3144	يمكن أن يحتوي الاسم على أحرف لاتينية وأرقام و- و_ فقط، حتى 40 حرفًا
+3145	هذا اسم أمر مدمج. اختر اسمًا آخر
+3146	لا يمكن أن يكون نص الأمر فارغًا
+3147	نص الأمر طويل جدًا (64 كيلوبايت كحد أقصى)
+3148	يوجد أمر بهذا الاسم بالفعل
+3149	يمكنك استيراد 10 خطوط كحد أقصى. احذف واحدًا أولًا
+3150	هذه مجموعة خطوط (.ttc) ولا يمكن لعارض الويب استخدامها. استخدم ملف ttf / otf منفردًا
+3151	ليس ملف خط صالحًا. الصيغ المدعومة فقط: ttf وotf وwoff وwoff2
+3152	تعذّر تحميل نص الواجهة. اضغط هنا لإعادة المحاولة.
 // TODO i18n (MIG-deep-p1)
-3154	This model doesn't support thinking level "{effort}"; running with the default instead.
-3155	The agent rejected thinking level "{effort}" ({msg}); running with the default instead.
-3156	This provider isn't supported under Antigravity yet: the Antigravity CLI has no generic third-party API key channel, so the key can't reach agy. Declare protocol:"gemini" (the endpoint must speak the Gemini protocol), or switch to a Gemini / sign-in provider.
-3157	Not supported under Antigravity
-3158	Not supported under Antigravity: the Antigravity CLI has no generic third-party API key channel. Declare protocol:"gemini" (the endpoint must speak the Gemini protocol), or switch to a Gemini / sign-in provider.
-3159	On-device models need Claude Code; this device only has the Antigravity CLI, so they're unavailable for now.
-3160	Not set (no default compaction line under ACP)
+3153	This model doesn't support thinking level "{effort}"; running with the default instead.
+3154	The agent rejected thinking level "{effort}" ({msg}); running with the default instead.
+3155	This provider isn't supported under Antigravity yet: the Antigravity CLI has no generic third-party API key channel, so the key can't reach agy. Declare protocol:"gemini" (the endpoint must speak the Gemini protocol), or switch to a Gemini / sign-in provider.
+3156	Not supported under Antigravity
+3157	Not supported under Antigravity: the Antigravity CLI has no generic third-party API key channel. Declare protocol:"gemini" (the endpoint must speak the Gemini protocol), or switch to a Gemini / sign-in provider.
+3158	On-device models need Claude Code; this device only has the Antigravity CLI, so they're unavailable for now.
+3159	Not set (no default compaction line under ACP)
 // TODO i18n (mig-deep-p2a)：以下为英文原文回退，待译成 ar
-3161	No Google Cloud ADC credentials found (Application Default Credentials). Run `gcloud auth application-default login` in a terminal first, then come back and pick ADC.
-3162	Application Default Credentials found.
-3163	This device runs in Antigravity-only mode, so the Claude preset ({id}) is unavailable: the Antigravity CLI cannot sign in with a Claude account or a Claude API key. Pick Google Antigravity sign-in or another provider.
-3164	The old configuration was still using a Claude preset, which doesn't work in Antigravity-only mode; it has been switched back to Google Antigravity sign-in.
-3165	Protocol: not declared
-3166	Protocol: Gemini (endpoint speaks the Gemini protocol)
-3167	Checking ADC credentials…
+3160	No Google Cloud ADC credentials found (Application Default Credentials). Run `gcloud auth application-default login` in a terminal first, then come back and pick ADC.
+3161	Application Default Credentials found.
+3162	This device runs in Antigravity-only mode, so the Claude preset ({id}) is unavailable: the Antigravity CLI cannot sign in with a Claude account or a Claude API key. Pick Google Antigravity sign-in or another provider.
+3163	The old configuration was still using a Claude preset, which doesn't work in Antigravity-only mode; it has been switched back to Google Antigravity sign-in.
+3164	Protocol: not declared
+3165	Protocol: Gemini (endpoint speaks the Gemini protocol)
+3166	Checking ADC credentials…
 // TODO i18n (MIG-22)：以下为英文原文回退，待译成 ar
-3168	Failed to create a session: the agent returned no session ID. Please try again.
+3167	Failed to create a session: the agent returned no session ID. Please try again.
