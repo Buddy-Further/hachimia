@@ -380,6 +380,8 @@
   function growSoon() {
     if (!growFrame) growFrame = requestAnimationFrame(() => { growFrame = 0; autoGrow(); });
   }
+  // 切换皮肤（如拾色把非首屏 #input 的上下 padding 调成 8px 以对齐 40px 发送键）或字号时重算行内高度，免得旧高度把单行文字压偏或裁切
+  new MutationObserver(() => autoGrow()).observe(document.documentElement, { attributes: true, attributeFilter: ["data-skin", "data-fs"] });
 
   /** 在光标处插入一段文本 */
   function insertAtCursor(s) {
@@ -397,8 +399,6 @@
     autoGrow(); syncInterject();      // 不经 input 事件：按钮的发送 / 停止要自己对一下（审查 #50 S2-09）
     draftPersistSoon();               // 同样要排一次落盘（UIFS-008）
   }
-  // 切换皮肤（如拾色把非首屏 #input 的上下 padding 调成 8px 以对齐 40px 发送键）或字号时重算行内高度，免得旧高度把单行文字压偏或裁切
-  new MutationObserver(() => autoGrow()).observe(document.documentElement, { attributes: true, attributeFilter: ["data-skin", "data-fs"] });
 
   // ── 草稿找回（上游 2.1.288：Ctrl+C 清掉的输入，空输入框按 ↑ 找回）──
   // 手机上更常见的是误删、全选后删空：一段 8 个字以上的内容被删空（不是发出去的），输入框下面亮一个「恢复」，20 秒后消失
