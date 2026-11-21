@@ -602,6 +602,12 @@ export function enqueue(body, commitHandoff) {
     pump();
     return item;
   }
+  // 自动压缩去重：同会话队列里已有待执行的 /compact 或 autocompact 时不再重复入队
+  if (body.auto === "autocompact" && item.sessionId) {
+    const dup = QUEUE.find((q) => !q.held && sidForItem(q) === item.sessionId
+      && (q.auto === "autocompact" || /^\/compact(?:\s|$)/i.test(String(q.message || "").trim())));
+    if (dup) return dup;
+  }
   // 插话（"inject"，旧前端叫 "interrupt"）：不打断。消息直接写进正在跑的 claude 的 stdin，
   // claude 会在当前这一步（比如一次工具调用）结束后把它并进对话，同一轮里接着干 —— 和终端里边干边打字一样。
   // 塞不进去（这一轮已在收尾、或者不是同一个会话）就排到队首，这一轮一结束马上发。
@@ -612,6 +618,9 @@ export function enqueue(body, commitHandoff) {
   if ((body.mode === "inject" || body.mode === "interrupt") && busyRun) {
     // 显式插话也要核对执行配置：面板刚换了接口/模型/思考强度，塞进旧进程就等于还按旧配置跑（同 #120-2）
     if (sameExec(busyRun, item) && tryInject(busyRun, item)) { item.injected = true; return item; }
+    QUEUE.unshift(item);
+  } else if (body.front || body.auto === "autocompact") {
+    // 自动压缩插到队首：确保排在同会话后续用户消息之前执行，避免下一条消息带着超线上下文先跑
     QUEUE.unshift(item);
   } else {
     QUEUE.push(item);

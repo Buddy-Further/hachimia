@@ -842,13 +842,17 @@ export function translateAcpUpdate(params, state, emit) {
     const nextUsage = extractAcpUsage(upd.usage || upd, state.usage, { isTurnTotal: false });
     if (nextUsage && (nextUsage.context_tokens > 0 || nextUsage.output_tokens > 0 || nextUsage.context_window > 0)) {
       state.usage = nextUsage;
-      if (state.usage.context_tokens > 0 || state.usage.context_window > 0) {
-        emit({
-          type: "usage",
-          ...(state.usage.context_tokens > 0 ? { contextTokens: state.usage.context_tokens } : {}),
-          ...(state.usage.context_window > 0 ? { contextWindow: state.usage.context_window } : {}),
-          outputTokens: state.usage.output_tokens,
-        });
+      // /compact 轮次里 agy 发的 usage_update 往往是「生成压缩摘要那次 LLM 调用」的输入+缓存+输出总量（反而略高于压缩前）；
+      // 先暂存到 state.usage，等回合结束后校验/修正再发给前端，避免压缩进行中上下文条瞬间爆红。
+      if (!state.isCompact || state.sawCompacted) {
+        if (state.usage.context_tokens > 0 || state.usage.context_window > 0) {
+          emit({
+            type: "usage",
+            ...(state.usage.context_tokens > 0 ? { contextTokens: state.usage.context_tokens } : {}),
+            ...(state.usage.context_window > 0 ? { contextWindow: state.usage.context_window } : {}),
+            outputTokens: state.usage.output_tokens,
+          });
+        }
       }
       if (state.usage.output_tokens > 0) emit({ type: "run_tokens", out: state.usage.output_tokens });
     }
@@ -1544,6 +1548,7 @@ export async function runAcpTurn({
     if (isCompactCmd) emit({ type: "compacting" });
     else emit({ type: "phase", phase: "wait" });
     // 从这里起的事件才算这一轮：之前的都是 agy 重放的历史（见 translateAcpUpdate 的守卫）
+    state.isCompact = isCompactCmd;
     state.promptSent = true;
     state.sawCompacted = false;
     state.text = ""; state.thinking = ""; state.tools.clear();
@@ -1558,7 +1563,7 @@ export async function runAcpTurn({
       const mergedUsage = extractAcpUsage(promptRes.usage, state.usage, { isTurnTotal: true });
       if (mergedUsage) {
         state.usage = mergedUsage;
-        if (!hadCtx && state.usage.context_tokens > 0) {
+        if (!hadCtx && (!isCompactCmd || state.sawCompacted) && state.usage.context_tokens > 0) {
           emit({
             type: "usage",
             contextTokens: state.usage.context_tokens,
@@ -1570,20 +1575,55 @@ export async function runAcpTurn({
       }
     }
 
+    const stopReason = promptRes?.stopReason || "end_turn";
+
     // agy acp 1.5.13 执行 /compact 时不发 compaction_update 也不吐正文，只回 usage_update + end_turn：
-    // 主动补发 compacted 通知给前端刷新进度条与提示，避免显示空白气泡让人以为命令无效。
-    // C7：补发前必须校验真的压下去了（post < pre，且两者都已知）——不校验就发，前端会显示
-    // “已压缩”而上下文根本没降（agy 不支持压缩时 post 反而更大）。未校验通过时只发提示，不发 compacted。
+    // 1. 若 agent 直接报出更低的 context_tokens（post < pre），按精确值补发 compacted；
+    // 2. 真实 agy 1.5.13 做 CHECKPOINT 摘要时，usage_update.used 报的是「做摘要那次 LLM 调用的输入+缓存+输出总量」
+    //    （反而比压缩前多几千 token，如 450,543 → 455,052），而真正生成的新摘要量是 output_tokens（如 3,599）。
+    //    在无正文无工具且 end_turn 且产出了摘要（output_tokens > 0）时，说明静默压缩已真实完成：
+    //    用 output_tokens 作为压缩后上下文下界修正 state.usage.context_tokens 并发射 compacted(estimated:true)，
+    //    避免误报「压缩未确认」诱导用户二次压缩，也避免把 455k 脏值写进 lastContextTokens / .jsonl；
+    // 3. C7：若 agent 吐出正文/调工具（把 /compact 当普通消息回复“不支持”），或未产出任何摘要（output_tokens=0）
+    //    且上下文未下降，仍不得发 compacted，发 acp-compact-unverified 提示。
+    let compactConfirmed = state.sawCompacted;
+    let compactEstimated = false;
     if (isCompactCmd && !state.sawCompacted) {
+      const hasBody = !!(state.text || state.tools.size);
       const postCtx = Number(state.usage?.context_tokens) || null;
+      const outTok = Number(state.usage?.output_tokens) || 0;
+      const emitCtxUsage = (ctxVal) => {
+        if (!(ctxVal > 0)) return;
+        emit({
+          type: "usage",
+          contextTokens: ctxVal,
+          ...(state.usage?.context_window > 0 ? { contextWindow: state.usage.context_window } : {}),
+          outputTokens: outTok,
+        });
+      };
       if (preCompactCtx > 0 && postCtx != null && postCtx < preCompactCtx) {
+        compactConfirmed = true;
+        emitCtxUsage(postCtx);
         emit({
           type: "compacted",
           trigger: run?.auto ? "auto" : "manual",
           pre: preCompactCtx,
           post: postCtx,
         });
+      } else if (!hasBody && stopReason === "end_turn" && outTok > 0 && !(preCompactCtx > 0 && outTok >= preCompactCtx)) {
+        compactConfirmed = true;
+        compactEstimated = true;
+        state.usage = { ...(state.usage || {}), context_tokens: outTok };
+        emitCtxUsage(outTok);
+        emit({
+          type: "compacted",
+          trigger: run?.auto ? "auto" : "manual",
+          pre: preCompactCtx > 0 ? preCompactCtx : null,
+          post: outTok,
+          estimated: true,
+        });
       } else {
+        if (postCtx != null && postCtx > 0) emitCtxUsage(postCtx);
         emit({
           type: "note",
           key: "acp-compact-unverified",
@@ -1605,7 +1645,6 @@ export async function runAcpTurn({
       }
     }
 
-    const stopReason = promptRes?.stopReason || "end_turn";
     const durationMs = Date.now() - t0;
 
     // 把本轮新工具 ID 记入已见集合，供池内下一轮去重
@@ -1624,20 +1663,20 @@ export async function runAcpTurn({
         model: activeModel,
         usage: state.usage,
       });
-    } else if (state.usage?.context_tokens > 0) {
-      // C7：只有校验过真的压下去了（post < pre）才记“已压缩”摘要；否则不写这条，
-      // 免得会话历史里留下一句假的压缩记录。最新用量仍由池内 lastContextTokens 保留。
-      if (preCompactCtx > 0 && state.usage.context_tokens < preCompactCtx) {
-        persistAcpAssistantOnly({
-          cwd,
-          sessionId: activeSessionId,
-          assistantText: `上下文已压缩：${preCompactCtx.toLocaleString()} → ${state.usage.context_tokens.toLocaleString()} tokens`,
-          thinking: "",
-          tools: [],
-          model: activeModel,
-          usage: state.usage,
-        });
-      }
+    } else if (compactConfirmed && state.usage?.context_tokens > 0) {
+      // C7：只有确认压缩已生效时才记“已压缩”摘要；未确认时不写这条，免得会话历史里留假记录。
+      const postStr = (compactEstimated ? "~" : "") + state.usage.context_tokens.toLocaleString();
+      persistAcpAssistantOnly({
+        cwd,
+        sessionId: activeSessionId,
+        assistantText: preCompactCtx > 0
+          ? `上下文已压缩：${preCompactCtx.toLocaleString()} → ${postStr} tokens`
+          : `上下文已压缩（摘要约 ${state.usage.context_tokens.toLocaleString()} tokens）`,
+        thinking: "",
+        tools: [],
+        model: activeModel,
+        usage: state.usage,
+      });
     }
 
     emit({
@@ -1767,6 +1806,10 @@ export async function runAcpTurn({
           model: entry.model,
           usage: b.state.usage,
         });
+        if (b.state.usage) {
+          entry.lastUsage = b.state.usage;
+          if (Number(b.state.usage.context_tokens) > 0) entry.lastContextTokens = Number(b.state.usage.context_tokens);
+        }
         // 如果空闲期间收到了正文回报，说明之前非 daemon 的后台任务/子代理已完成回报
         if (b.state.text && entry.bgTasks?.size) {
           for (const [k, v] of [...entry.bgTasks]) {

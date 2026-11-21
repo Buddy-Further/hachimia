@@ -1010,7 +1010,7 @@
       case "hook_ctx":       av.hookCtx(ev.event, ev.text); scrollDown(); break;
       case "compacted":
         av.noteK("cmp" + cmpGen++, ev.pre != null && ev.post != null
-          ? t("上下文已压缩：{pre} → {post} tokens", { pre: ev.pre.toLocaleString(), post: ev.post.toLocaleString() })
+          ? t("上下文已压缩：{pre} → {post} tokens", { pre: ev.pre.toLocaleString(), post: (ev.estimated ? "~" : "") + ev.post.toLocaleString() })
           : t("上下文已压缩"), true);
         if (ev.post != null) liveCtx(ev.post, state.ctxTotal);
         scrollDown(); break;

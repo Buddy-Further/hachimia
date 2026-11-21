@@ -895,3 +895,83 @@ else if (arg === "/credits") console.log(${JSON.stringify(sampleCredits)});
     PATHS.agy = prevAgy;
   }
 });
+
+test("hachimia ACP：真实 agy 静默 /compact 上报摘要调用总量(>pre)时按 outputTokens 确认压缩且不污染上下文条", async () => {
+  const { closeAcpSession, acpSessionFile } = await import("../gw/acp.mjs");
+  const tmp = fs.mkdtempSync(path.join(CFG.home, "hachimia-acp-cmp-est-"));
+  const mockBin = path.join(tmp, "mock-agy-cmp-est");
+  fs.writeFileSync(mockBin, `#!${process.execPath}
+const readline = require("node:readline");
+const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+const send = (o) => process.stdout.write(JSON.stringify(o) + "\\n");
+let n = 0;
+rl.on("line", (line) => {
+  const t = line.trim(); if (!t) return;
+  const msg = JSON.parse(t);
+  if (msg.method === "initialize") return send({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: 1, agentCapabilities: { loadSession: true } } });
+  if (msg.method === "session/new") return send({ jsonrpc: "2.0", id: msg.id, result: { sessionId: "sess-cmp-est" } });
+  if (msg.method === "session/set_mode" || msg.method === "session/set_config_option") return send({ jsonrpc: "2.0", id: msg.id, result: { ok: true } });
+  if (msg.method === "session/prompt") {
+    n++;
+    if (n === 1) {
+      send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-cmp-est", update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "ok" } } } });
+      send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-cmp-est", update: { sessionUpdate: "usage_update", used: 450543, size: 1048576 } } });
+      return send({ jsonrpc: "2.0", id: msg.id, result: { stopReason: "end_turn" } });
+    }
+    if (n === 2) {
+      // 真实 agy 1.5.13 静默 /compact：不发 compaction_update、不吐正文、usage_update.used 报做摘要 LLM 调用总额 455052（in+cache+out），摘要本身 out=3599
+      send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-cmp-est", update: { sessionUpdate: "usage_update", used: 455052, size: 1048576 } } });
+      return send({ jsonrpc: "2.0", id: msg.id, result: { stopReason: "end_turn", usage: { inputTokens: 2317, cachedReadTokens: 449136, outputTokens: 3599, totalTokens: 455052 } } });
+    }
+    // 第 3 次空返回且 outputTokens=0（agent 啥也没做）：仍应报 acp-compact-unverified
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-cmp-est", update: { sessionUpdate: "usage_update", used: 460000, size: 1048576 } } });
+    return send({ jsonrpc: "2.0", id: msg.id, result: { stopReason: "end_turn", usage: { inputTokens: 460000, outputTokens: 0 } } });
+  }
+});
+`, { mode: 0o755 });
+
+  try {
+    const r1 = await runAcpTurn({ bin: process.execPath, args: [mockBin], cwd: CFG.workspace, env: process.env, prompt: "hello", keepAlive: true, emit: () => {} });
+    assert.equal(r1.ok, true);
+
+    const evs2 = [];
+    const r2 = await runAcpTurn({ bin: process.execPath, args: [mockBin], cwd: CFG.workspace, env: process.env, prompt: "/compact", sessionId: "sess-cmp-est", keepAlive: true, emit: (e) => evs2.push(e) });
+    assert.equal(r2.ok, true);
+    assert.ok(!evs2.some((e) => e.type === "note" && e.key === "acp-compact-unverified"), "静默摘要成功不应误报 acp-compact-unverified");
+    assert.ok(!evs2.some((e) => e.type === "usage" && e.contextTokens === 455052), "不应把摘要调用总量 455052 推给前端上下文条");
+    assert.ok(evs2.some((e) => e.type === "compacted" && e.pre === 450543 && e.post === 3599 && e.estimated === true), "应按摘要 outputTokens=3599 补发 compacted(estimated:true)");
+    assert.equal(r2.usage?.context_tokens, 3599, "返回给 run.mjs 的 context_tokens 应修正为 3599");
+    const raw = fs.readFileSync(acpSessionFile(CFG.workspace, "sess-cmp-est"), "utf8");
+    assert.ok(raw.includes("上下文已压缩：450,543 → ~3,599 tokens"), "jsonl 应记录带 ~ 的估算压缩摘要");
+
+    const evs3 = [];
+    await runAcpTurn({ bin: process.execPath, args: [mockBin], cwd: CFG.workspace, env: process.env, prompt: "/compact", sessionId: "sess-cmp-est", keepAlive: true, emit: (e) => evs3.push(e) });
+    assert.ok(!evs3.some((e) => e.type === "compacted"), "outputTokens=0 且上下文上升时不得误发 compacted");
+    assert.ok(evs3.some((e) => e.type === "note" && e.key === "acp-compact-unverified"), "outputTokens=0 且上下文未下降应发 acp-compact-unverified");
+  } finally {
+    closeAcpSession("sess-cmp-est");
+  }
+});
+
+test("hachimia 自动压缩队列：autocompact 插到队首且同会话去重", async () => {
+  const { QUEUE, enqueue } = await import("../gw/queue.mjs");
+  const { RUNS } = await import("../gw/runs.mjs");
+  const sid = "sess-ac-front-1";
+  // 模拟该会话正在跑一轮，让入队条目留在 QUEUE 里以便检查顺序与去重
+  const fakeRun = { id: "run-busy-ac", sessionId: sid, lane: "s:" + sid, text: "", ended: false };
+  RUNS.set(fakeRun.id, fakeRun);
+  const before = QUEUE.length;
+  try {
+    const u1 = enqueue({ message: "用户的下一条消息", sessionId: sid });
+    const ac1 = enqueue({ message: "/compact", sessionId: sid, auto: "autocompact", front: true });
+    const ac2 = enqueue({ message: "/compact", sessionId: sid, auto: "autocompact", front: true });
+    assert.equal(ac2.id, ac1.id, "同会话重复入队 autocompact 应去重返回已有项");
+    const idxAc = QUEUE.findIndex((q) => q.id === ac1.id);
+    const idxU1 = QUEUE.findIndex((q) => q.id === u1.id);
+    assert.ok(idxAc >= 0 && idxU1 > idxAc, `autocompact 应排在同会话用户消息之前（idxAc=${idxAc}, idxU1=${idxU1}）`);
+  } finally {
+    RUNS.delete(fakeRun.id);
+    for (let i = QUEUE.length - 1; i >= 0; i--) if (QUEUE[i].sessionId === sid) QUEUE.splice(i, 1);
+    assert.equal(QUEUE.length, before);
+  }
+});

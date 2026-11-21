@@ -356,7 +356,7 @@ export async function startRun(item) {
             const curCtx = sf ? await latestContextTokens(sf.file) : 0;
             if (curCtx >= acLine) {
               log(`🗜 /autocompact 立即触发压缩：会话 ${run.sessionId.slice(0, 8)} 当前 ${curCtx} ≥ 压缩线 ${acLine}`);
-              enqueue({ message: "/compact", sessionId: run.sessionId, auto: "autocompact" });
+              enqueue({ message: "/compact", sessionId: run.sessionId, auto: "autocompact", front: true });
             }
           } catch {}
         }
@@ -616,14 +616,28 @@ export async function startRun(item) {
     if (acpRes.ok && !run.aborted && run.sessionId) {
       if (isCompactMsg || run.auto === "autocompact" || run.auto === "idle") {
         ACP_AUTOCOMPACT.set(run.sessionId, { at: Date.now(), post: usedCtx });
-      } else if (!message.trim().startsWith("/") && !run.auto) {
+      } else if (!run.auto) {
+        // /plan、/boost、/grill-me 与自定义斜杠指令同样会消耗大量上下文，跑完超线后应照常触发自动压缩
         const acLine = acpAutoCompactLine(ctxWin, P);   // C9-2：未设线时按 ACP 默认线（窗口八成），不是没有线
         const prevAc = ACP_AUTOCOMPACT.get(run.sessionId);
         const cooled = !prevAc || (Date.now() - prevAc.at > 60000) || (usedCtx > (prevAc.post || 0) + 10000);
         if (acLine && usedCtx >= acLine && cooled) {
           log(`🗜 ACP 自动压缩触发：会话 ${run.sessionId.slice(0, 8)} 上下文 ${usedCtx} ≥ 压缩线 ${acLine}`);
           ACP_AUTOCOMPACT.set(run.sessionId, { at: Date.now(), post: usedCtx });
-          enqueue({ message: "/compact", sessionId: run.sessionId, auto: "autocompact" });
+          // 沿用本轮执行上下文并插至队首，保证命中常驻 ACP_POOL 进程且排在同会话后续排队消息之前
+          enqueue({
+            message: "/compact",
+            sessionId: run.sessionId,
+            auto: "autocompact",
+            front: true,
+            internal: true,
+            cwd,
+            provider: P.id,
+            model: model || null,
+            effort: effort || null,
+            permissionMode: permMode,
+            projectId: item.projectId || null,
+          });
         } else if (usedCtx > 0) {
           idleArm(run.sessionId, { mainCtx: usedCtx, cache1h: true });
         }
