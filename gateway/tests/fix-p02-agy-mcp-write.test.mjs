@@ -1,6 +1,7 @@
-// P0-2：Extension MCP 写 agy 的 ~/.gemini/config/mcp_config.json（READ-BOTH-WRITE-AGY）。
+// P0-2：Extension MCP 写 agy 的 ~/.gemini/config/mcp_config.json（P0-2b，agy-only）。
 // 实测依据（agy 1.5.13）：`agy mcp add` 写该文件，形态 {"mcpServers":{"name":{"command":..,"disabled":false}}}；
 // ~/.gemini/antigravity-cli/settings.json 首次运行后根本不存在，MCP 装上去也不许建它。
+// ~/.claude.json 不再是 MCP 来源：只在 Claude 里的服务器看不见、改不了、删不掉，文件本身原样保留。
 // 断言都看文件内容，不调 claude / agy 二进制（本机无真 agy、无登录）。
 import "../gw/config.mjs";   // 放最前：没走 scripts/test.mjs（没有临时 home）就在这里拦下
 import { test, after } from "node:test";
@@ -64,23 +65,22 @@ test("add http：写进 agy；buildAcpMcpServers 只透传 stdio，http 进 skip
   assert.equal(fs.existsSync(SETTINGS_FILE), false);
 });
 
-test("edit：env 合并 + 点掉的键删除；同名编辑只写 agy，Claude 里同名旧定义留着被盖住", async () => {
+test("edit：env 合并 + 点掉的键删除；同名编辑只写 agy，~/.claude.json 里的同名旧定义原样保留、也不再生效", async () => {
   clean();
   putClaude({ p02e: { type: "stdio", command: "npx", args: ["-y", "old"], env: { A: "1", B: "2" } } });
+  const claudeBefore = fs.readFileSync(CLAUDE_FILE, "utf8");
   putAgy({ p02e: { command: "npx", args: ["-y", "old"], env: { A: "1", B: "2" }, disabled: false } });
   const r = await editMcp({ name: "p02e", transport: "stdio", target: "npx -y new", env: ["A=9"], headers: [], dropEnv: ["B"] });
   assert.ok(r.ok, r.message);
   assert.deepEqual(agyServers().p02e, { command: "npx", args: ["-y", "new"], env: { A: "9" }, disabled: false },
     "同名覆盖、点掉的删掉、旧值不残留；stdio 不写 type");
-  assert.deepEqual(claudeServers().p02e, { type: "stdio", command: "npx", args: ["-y", "old"], env: { A: "1", B: "2" } },
-    "Claude 里同名旧定义留着（被 agy 盖住，不替用户删他原来的配置）");
-  assert.equal((await getMcp({ name: "p02e" })).source, "both-shadowed");
+  assert.equal(fs.readFileSync(CLAUDE_FILE, "utf8"), claudeBefore, "另一个应用的配置文件一个字节都不动");
+  assert.equal((await getMcp({ name: "p02e" })).source, "agy");
 });
 
-test("edit 改名失败回滚：删旧名那步写失败时新名删掉、旧定义写回 agy，Claude 那份原样保留", async () => {
+test("edit 改名失败回滚：删旧名那步写失败时新名删掉、旧定义写回 agy（agy-only，无 Claude 参与）", async () => {
   clean();
   putAgy({ p02r: { command: "npx", args: ["-y", "x"], disabled: false } });
-  putClaude({ p02r: { type: "stdio", command: "npx", args: ["-y", "x"] } });
   _agyMcpTest.failAfterWrites = 1;   // 第 1 次写（写新名）成功，第 2 次写（删旧名）失败，触发回滚
   try {
     const r = await editMcp({ name: "p02r", newName: "p02r2", transport: "stdio", target: "npx -y y", env: [], headers: [] });
@@ -89,7 +89,7 @@ test("edit 改名失败回滚：删旧名那步写失败时新名删掉、旧定
   } finally { _agyMcpTest.failAfterWrites = -1; }
   assert.deepEqual(Object.keys(agyServers()), ["p02r"], "新名已删、旧名恢复");
   assert.deepEqual(agyServers().p02r, { command: "npx", args: ["-y", "x"], disabled: false });
-  assert.deepEqual(claudeServers().p02r, { type: "stdio", command: "npx", args: ["-y", "x"] }, "Claude 那份没动过");
+  assert.equal(fs.existsSync(CLAUDE_FILE), false, "回滚不碰 ~/.claude.json");
 });
 
 test("edit 写失败不丢旧配置：同名编辑写失败返回错误、旧定义原样保留", async () => {
@@ -102,7 +102,8 @@ test("edit 写失败不丢旧配置：同名编辑写失败返回错误、旧定
     assert.match(r.message, /旧配置没动/);
   } finally { _agyMcpTest.failAfterWrites = -1; }
   assert.deepEqual(agyServers().p02w, { command: "npx", args: ["-y", "x"], disabled: false });
-  // 目标是目录（读就失败）时同样报错、Claude 里的旧定义原样保留
+  // P0-2b：只在 ~/.claude.json 里的服务器现在根本找不到（agy-only），
+  // agy 文件即使是目录也无所谓——查不到定义就先报找不到，旧定义原样保留
   putClaude({ p02w2: { type: "stdio", command: "npx", args: ["-y", "x"] } });
   fs.rmSync(AGY_FILE, { force: true });
   fs.mkdirSync(AGY_FILE, { recursive: true });
@@ -113,22 +114,19 @@ test("edit 写失败不丢旧配置：同名编辑写失败返回错误、旧定
   } finally { fs.rmdirSync(AGY_FILE); }
 });
 
-test("remove：agy 里的键删掉、别的留着；只在 Claude 里的从 ~/.claude.json 删；两边都有的两边都删", async () => {
+test("remove：agy 里的键删掉、别的留着；只在 ~/.claude.json 里的找不到、文件原样保留", async () => {
   clean();
   putAgy({ p02d1: { command: "node", args: ["a.mjs"], disabled: false }, p02keep: { command: "node", args: ["b.mjs"], disabled: false } });
   assert.ok((await removeMcp("p02d1")).ok);
   assert.deepEqual(Object.keys(agyServers()), ["p02keep"]);
-  clean();
-  putClaude({ p02d2: { type: "stdio", command: "node", args: ["c.mjs"] } });
-  assert.ok((await removeMcp("p02d2")).ok);
-  assert.equal("mcpServers" in readJson(CLAUDE_FILE), false, "删完唯一的，mcpServers 键整个拿掉");
-  assert.equal(fs.existsSync(AGY_FILE), false, "只在 Claude 里的删除不该新建 agy 文件");
-  putAgy({ p02d3: { command: "node", args: ["d.mjs"], disabled: false } });
-  putClaude({ p02d3: { type: "stdio", command: "node", args: ["d.mjs"] } });
-  assert.ok((await removeMcp("p02d3")).ok);
-  assert.deepEqual(agyServers(), {});
-  assert.deepEqual(claudeServers(), {});
   assert.equal((await removeMcp("ghost")).ok, false);
+  // 只在 ~/.claude.json 里的服务器：agy-only 下它不存在，删它要报找不到，文件一个字节都不动
+  putClaude({ p02d2: { type: "stdio", command: "node", args: ["c.mjs"] } });
+  const before = fs.readFileSync(CLAUDE_FILE, "utf8");
+  const gone = await removeMcp("p02d2");
+  assert.equal(gone.ok, false);
+  assert.match(gone.message || "", /找不到/);
+  assert.equal(fs.readFileSync(CLAUDE_FILE, "utf8"), before);
 });
 
 test("disable→enable 往返：停用进 off-list、agy 里删掉；启用写回 agy，名单清掉", async () => {
@@ -146,20 +144,6 @@ test("disable→enable 往返：停用进 off-list、agy 里删掉；启用写�
   assert.equal((await enableMcp("nope")).ok, false);
 });
 
-test("legacy Claude-only 停用：从 ~/.claude.json 删，不新建 agy 文件；启用写回 agy", async () => {
-  clean();
-  const { disableMcp, enableMcp } = _extForTest;
-  putClaude({ p02g: { type: "stdio", command: "node", args: ["old.mjs"] } });
-  assert.ok((await disableMcp("p02g")).ok);
-  assert.equal("mcpServers" in readJson(CLAUDE_FILE), false);
-  assert.equal(fs.existsSync(AGY_FILE), false, "Claude-only 停用不该新建 agy 文件");
-  assert.deepEqual(extOff().mcp.p02g, { type: "stdio", command: "node", args: ["old.mjs"] });
-  assert.ok((await enableMcp("p02g")).ok);
-  assert.deepEqual(agyServers().p02g, { command: "node", args: ["old.mjs"], disabled: false },
-    "启用写回 agy（stdio 不带 type）");
-  assert.deepEqual(claudeServers(), {}, "Claude 里不恢复");
-});
-
 test("损坏的 agy 配置：add/edit 返回错误，文件字节不变", async () => {
   clean();
   const bad = '{"mcpServers": {"x": broken';
@@ -171,25 +155,6 @@ test("损坏的 agy 配置：add/edit 返回错误，文件字节不变", async 
   const before2 = fs.readFileSync(AGY_FILE, "utf8");
   assert.equal((await editMcp({ name: "p02h", transport: "stdio", target: "node y.mjs", env: [], headers: [] })).ok, false);
   assert.equal(fs.readFileSync(AGY_FILE, "utf8"), before2);
-});
-
-test("读两边：agy 同名胜出并标 both-shadowed；只在 Claude 里的仍列出，标 claude", async () => {
-  clean();
-  putAgy({ p02s: { command: "node", args: ["agy.mjs"], disabled: false } });
-  putClaude({ p02s: { type: "stdio", command: "node", args: ["claude.mjs"] }, p02c: { type: "http", url: "http://example.invalid/mcp" } });
-  const g = await getMcp({ name: "p02s" });
-  assert.equal(g.ok, true);
-  assert.equal(g.target, "node agy.mjs", "agy 的胜出");
-  assert.equal(g.source, "both-shadowed");
-  const gc = await getMcp({ name: "p02c" });
-  assert.equal(gc.ok, true);
-  assert.equal(gc.transport, "http");
-  assert.equal(gc.source, "claude");
-  const defs = _extForTest.listMcpDefs();
-  assert.equal(defs.get("p02s").source, "both-shadowed");
-  assert.equal(defs.get("p02c").source, "claude");
-  assert.equal(_extForTest.userMcpSource("p02s"), "both-shadowed");
-  assert.equal(_extForTest.userMcpSource("ghost"), null);
 });
 
 test("破甲扫描：含越狱指令的定义拒绝写入，文件不动", async () => {
@@ -254,68 +219,64 @@ test("edit 改名回滚失败要如实说：回滚删新名那步也失败时不
   assert.deepEqual(agyServers().p02rb, { command: "npx", args: ["-y", "x"], disabled: false });
 });
 
-test("edit 改名回滚失败要如实说：Claude 那步失败、回滚恢复旧名也失败时报哪步坏了", async () => {
+test("edit 改名：删旧名失败时回滚删掉新名，旧定义本来就还在——如实报已原样恢复", async () => {
   clean();
   putAgy({ p02rc: { command: "npx", args: ["-y", "x"], disabled: false } });
-  putClaude({ p02rc: { type: "stdio", command: "npx", args: ["-y", "x"] } });
-  armWrites(3, 5);   // 写 1 写新名、写 2 删 agy 旧名成功；写 3 删 Claude 旧名失败 → 回滚；写 4 回滚删新名成功；写 5 回滚恢复旧名失败
+  armWrites(2);   // 写 1 写新名成功；写 2 删 agy 旧名失败 → 回滚删新名
   try {
     const r = await editMcp({ name: "p02rc", newName: "p02rc2", transport: "stdio", target: "npx -y y", env: [], headers: [] });
     assert.equal(r.ok, false);
-    assert.match(r.message, /回滚也没能恢复，请手动检查/);
-    assert.match(r.message, /恢复旧名 p02rc 失败/);
-    assert.doesNotMatch(r.message, /已原样恢复/);
+    // 删旧名那步没写成，旧定义本来就还在文件里，回滚只需删掉新名——
+    // 「恢复旧名」是不动文件的空操作（值和原来一样），所以这里报已原样恢复是真的，
+    // 不是瞒报；回滚本身写失败的情形由上一条测试覆盖（删新名那步失败）。
+    assert.match(r.message, /旧配置已原样恢复/);
+    assert.doesNotMatch(r.message, /回滚也没能恢复/);
   } finally { resetHook(); }
-  assert.deepEqual(Object.keys(agyServers()), [], "新名已被回滚删掉，旧名没恢复——agy 里空了");
-  assert.deepEqual(claudeServers().p02rc, { type: "stdio", command: "npx", args: ["-y", "x"] }, "Claude 那份本来就没删掉");
+  assert.deepEqual(Object.keys(agyServers()), ["p02rc"], "新名已删，旧名原样在");
+  assert.deepEqual(agyServers().p02rc, { command: "npx", args: ["-y", "x"], disabled: false });
+  assert.equal(fs.existsSync(CLAUDE_FILE), false, "回滚不碰 ~/.claude.json");
 });
 
-test("remove 回滚失败要如实说：Claude 删失败、agy 恢复也失败时不报「已恢复」", async () => {
+test("remove 写失败：删 agy 那步失败就报错，文件不动（agy-only 下删除是单次写，没有回滚）", async () => {
   clean();
   putAgy({ p02rm: { command: "node", args: ["d.mjs"], disabled: false } });
   putClaude({ p02rm: { type: "stdio", command: "node", args: ["d.mjs"] } });
-  armWrites(2, 3);   // 写 1 删 agy 成功；写 2 删 Claude 失败 → 回滚；写 3 恢复 agy 也失败
+  const claudeBefore = fs.readFileSync(CLAUDE_FILE, "utf8");
+  armWrites(1);   // 写 1 删 agy 失败
   try {
     const r = await removeMcp("p02rm");
     assert.equal(r.ok, false);
-    assert.match(r.message, /也没能恢复，请手动检查/);
-    assert.doesNotMatch(r.message, /已恢复 agy 那份/);
+    assert.match(r.message, /删不掉 agy 的 MCP 配置/);
   } finally { resetHook(); }
-  assert.deepEqual(agyServers(), {}, "agy 那份删了又没恢复回来");
-  assert.deepEqual(claudeServers().p02rm, { type: "stdio", command: "node", args: ["d.mjs"] }, "Claude 那份还在");
+  assert.deepEqual(agyServers().p02rm, { command: "node", args: ["d.mjs"], disabled: false }, "agy 那份还在");
+  assert.equal(fs.readFileSync(CLAUDE_FILE, "utf8"), claudeBefore, "另一个应用的配置不动");
 });
 
-test("两边都有的服务器停用：列表还显示在用、getMcp 报停用、启用被拒，删掉再启用才恢复", async () => {
+test("P0-2b：停用→启用往返修好了——~/.claude.json 里有同名旧定义也不再挡路", async () => {
   clean();
   const { disableMcp, enableMcp, listMcp } = _extForTest;
   putAgy({ p02both: { command: "node", args: ["agy.mjs"], disabled: false } });
   putClaude({ p02both: { type: "stdio", command: "node", args: ["claude.mjs"] } });
+  const claudeBefore = fs.readFileSync(CLAUDE_FILE, "utf8");
   assert.ok((await disableMcp("p02both")).ok);
   assert.deepEqual(extOff().mcp.p02both, { command: "node", args: ["agy.mjs"], disabled: false }, "停用名单里存的是 agy 那份定义");
   assert.deepEqual(agyServers(), {}, "agy 里删掉了");
-  assert.deepEqual(claudeServers().p02both, { type: "stdio", command: "node", args: ["claude.mjs"] }, "Claude 那份留着（不替用户删他原来的配置）");
-  // 列表与详情看法不一致：这是已知的、故意的（见 disableMcp 注释）
+  assert.equal(fs.readFileSync(CLAUDE_FILE, "utf8"), claudeBefore, "另一个应用的配置不动");
+  // 列表与详情看法一致：停用就是停用了，不再有「列表显示在用、详情说停用」的分裂
   const li = (await listMcp()).find((m) => m.name === "p02both");
   assert.ok(li, "列表里还有它");
-  assert.equal(li.disabled, undefined, "列表里仍显示成在用的（停用名单那一圈按名字跳过已列出的）");
-  assert.equal(li.source, "claude", "列表看到的是 Claude 那份");
+  assert.equal(li.disabled, true, "列表里显示成已停用");
+  assert.equal(li.source, "off-list");
   const g = await getMcp({ name: "p02both" });
   assert.equal(g.ok, true);
   assert.equal(g.disabled, true);
   assert.equal(g.source, "off-list");
   assert.equal(g.target, "node agy.mjs", "详情读的是停用名单里 agy 那份定义");
-  // 停用→启用往返走不通：Claude 那份撞名
-  const en = await enableMcp("p02both");
-  assert.equal(en.ok, false);
-  assert.match(en.message, /~\/\.claude\.json 里还有/);
-  assert.deepEqual(extOff().mcp.p02both, { command: "node", args: ["agy.mjs"], disabled: false }, "启用被拒，名单不动");
-  // 恢复办法：先删掉文件里的那份（只删 agy/Claude，不动停用名单），再启用
-  assert.ok((await removeMcp("p02both")).ok);
-  assert.deepEqual(claudeServers(), {});
-  assert.deepEqual(extOff().mcp.p02both, { command: "node", args: ["agy.mjs"], disabled: false }, "删除不动停用名单");
+  // 停用→启用往返走得通：不再因 ~/.claude.json 里的同名旧定义被拒
   assert.ok((await enableMcp("p02both")).ok);
   assert.deepEqual(agyServers().p02both, { command: "node", args: ["agy.mjs"], disabled: false });
   assert.equal(extOff().mcp.p02both, undefined);
+  assert.equal(fs.readFileSync(CLAUDE_FILE, "utf8"), claudeBefore);
 });
 
 test("agy-mcp 助手层：注入的写失败原样返回 {ok:false}、文件不动；打开后失败不留 *.tmp", async () => {
