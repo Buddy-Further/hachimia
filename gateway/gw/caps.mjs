@@ -40,6 +40,20 @@ const COMMAND_META = {
 };
 
 const LOCAL_UI_COMMANDS = ["clear", "new", "rename", "model", "effort", "autocompact", "login"];
+
+/** /api/cli 子命令 → agy argv（P0-1 修正）。
+ *  官方 CLI 用单数 `agy plugin list`（见 antigravity.google/docs/plugins?tab=cli）
+ *  与 `agy agents`（官方文档）；旧映射 `plugins list` / `agent` 未经官方文档证实。
+ *  `auth status` → ["models"] 与 `auto-mode` → ["--version"] 仍是占位映射，
+ *  不在本 slice 范围内，未动。 */
+export const AGY_CLI_SUBCOMMANDS = {
+  "mcp list": ["mcp", "list"],
+  agents: ["agents"],
+  "plugin list": ["plugin", "list"],
+  plugins: ["plugin", "list"],
+  "auth status": ["models"],
+  "auto-mode": ["--version"],
+};
 const FALLBACK_COMMANDS = Object.keys(COMMAND_META);
 const AGY_BUILTIN_TOOLS = [
   "read_file", "edit_file", "write_file", "run_command", "manage_task",
@@ -216,7 +230,7 @@ export async function routeCaps(req, res, u, p) {
         const [ver, mcp, plg] = await Promise.all([
           runAgySub(["--version"], 8000),
           runAgySub(["mcp", "list"], 12000),
-          runAgySub(["plugins", "list"], 12000),
+          runAgySub(AGY_CLI_SUBCOMMANDS["plugin list"], 12000),
         ]);
         const loc = scanAgyLocal();
         const st = AUTH_CACHE?.v;
@@ -229,15 +243,7 @@ export async function routeCaps(req, res, u, p) {
         ];
         r = { out: lines.join("\n"), err: "", code: ver.code, signal: null, timeout: false };
       } else {
-        const map = {
-          "mcp list": ["mcp", "list"],
-          agents: ["agent"],
-          "plugin list": ["plugins", "list"],
-          plugins: ["plugins", "list"],
-          "auth status": ["models"],
-          "auto-mode": ["--version"],
-        };
-        r = await runAgySub(map[sub] || sub.split(/\s+/), 25000);
+        r = await runAgySub(AGY_CLI_SUBCOMMANDS[sub] || sub.split(/\s+/), 25000);
       }
     } else {
       r = await runClaude(sub.split(/\s+/), { timeoutMs: 45000 });
