@@ -85,7 +85,7 @@
   function rememberResult(id, ok, text, cancelled) {
     const old = TOOL_RESULTS.get(id);
     if (old) { resultChars -= old.text.length; TOOL_RESULTS.delete(id); }
-    const v = { ok: !!ok, text: String(text || ""), cancelled: !!cancelled };
+    const v = { ok: !!ok, text: String(text || ""), ...(cancelled ? { cancelled: true } : {}) };
     TOOL_RESULTS.set(id, v); resultChars += v.text.length;
     while (TOOL_RESULTS.size > RESULT_MAX || (resultChars > RESULT_CHARS && TOOL_RESULTS.size > 1)) {
       const k = TOOL_RESULTS.keys().next().value;      // 先丢最早的；刚存进来的最后才轮到（只剩它就不再丢）
@@ -837,7 +837,7 @@
       TOOL_CARDS.set(id, api);
       // 结果已经先到过（结果排在调用前面、或者这页刚被裁掉又补回来）：当场贴上，别留一个默认成功的空卡（#120-4）
       const res = TOOL_RESULTS.get(id);
-      if (res) api.result(res.ok, res.text, res.cancelled);
+      if (res) { if (res.cancelled) api.result(res.ok, res.text, true); else api.result(res.ok, res.text); }
     }
     trackChatBlock(api);
     return api;

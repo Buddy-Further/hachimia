@@ -755,7 +755,7 @@
   }
   function syncStateAndReconcile(read) {
     const askedAt = Date.now(), gen = view.gen, rev = stateRev;
-    lastStateSyncAt = askedAt;
+    if (typeof lastStateSyncAt === "number") lastStateSyncAt = askedAt;
     if (typeof api === "function") {
       api("/api/state").then((s) => {
         if (!s || typeof s !== "object" || (read != null && read !== resumeRead) || gen !== view.gen || document.hidden) return;
@@ -769,22 +769,22 @@
     clearTimeout(resumeTail); resumeTail = 0;
     if (document.hidden) return;
     syncStateAndReconcile(read);
-    if (!es || es.readyState !== 1 || Date.now() - lastBusAt > 40000) connectBus(true);
+    if (!es || es.readyState !== 1 || (typeof lastBusAt === "number" && Date.now() - lastBusAt > 40000)) connectBus(true);
   });
   // 前台 SSE 活性看门狗 + 活跃轮次周期对账：
   // 1) 网关每 15s 发一次 {"type":"hb"}；若超过 40s 没收到任何 SSE 消息，说明连接已半开假活，主动重连并对账；
   // 2) 屏幕常亮未切后台时，若有气泡仍在转圈/计时，每 20s 拉一次 /api/state 对账，防止后端已结束但前端漏掉 run_end 一直空转
-  setInterval(() => {
+  if (typeof setInterval === "function") setInterval(() => {
     if (document.hidden || srv.foreign) return;
     const now = Date.now();
-    if (srv.connected && es && es.readyState === 1 && now - lastBusAt > 40000) {
+    if (srv.connected && es && es.readyState === 1 && typeof lastBusAt === "number" && now - lastBusAt > 40000) {
       lastBusAt = now;
       busDropped = true;
       connectBus(true);
       syncStateAndReconcile();
       return;
     }
-    if (hasLiveRunView() && now - lastStateSyncAt > 20000) syncStateAndReconcile();
+    if (hasLiveRunView() && typeof lastStateSyncAt === "number" && now - lastStateSyncAt > 20000) syncStateAndReconcile();
   }, 10000);
 
   // ── 维护者通知（经 GitHub raw，网关验过签；见 gw/notices.mjs）：和更新说明同样的居中卡片 ──

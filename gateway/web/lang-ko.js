@@ -3024,7 +3024,6 @@ window.I18N_DICT["ko"] = {
   "Google Cloud / 企业账号": "Google Cloud / enterprise account",
   "按 Google Antigravity 账户订阅档位使用，本机 Token 统计见「用量」页": "Billed by your Google Antigravity account subscription tier; on-device token stats are on the “Usage” page",
   "退出这台设备上的 Google Antigravity 账户登录？": "Sign out of the Google Antigravity account on this device?",
-  "Google Antigravity 订阅配额由 Google 账户管理（CLI 不回传剩余百分比），此处显示本机实际 token 用量。": "Google Antigravity subscription quota is managed by your Google account (the CLI does not report the remaining percentage); this shows actual on-device token usage.",
   "Key 只存在本机应用私有目录，仅按需提供给 Antigravity CLI 连接对应端点。": "The key is stored only in this app's private directory on this device, and is passed to Antigravity CLI only as needed to connect to the matching endpoint.",
   "AGY 蓝": "AGY blue",
   "Antigravity 的回复": "Antigravity's replies",
@@ -3168,4 +3167,8 @@ window.I18N_DICT["ko"] = {
   "协议：Gemini（端点讲 Gemini 协议）": "Protocol: Gemini (endpoint speaks the Gemini protocol)",
   "正在检查 ADC 凭据…": "Checking ADC credentials…",
   "新建会话失败：Agent 没有返回会话号，请重试": "Failed to create a session: the agent returned no session ID. Please try again.",
+  "输出（运行中）": "출력(실행 중)",
+  "AI Credits 剩余：{n}": "남은 AI Credits: {n}",
+  "正在同步 Google Antigravity 订阅额度，此处先显示本机 token 用量（点右上角「刷新」可立即查询）。": "Google Antigravity 구독 할당량을 동기화하는 중입니다. 현재는 로컬 토큰 사용량을 표시합니다(오른쪽 위 새로고침을 눌러 즉시 조회할 수 있습니다).",
+  "无法恢复原会话（{why}），已保留当前会话未新建，请重试或手动开启新对话": "이전 세션을 복원할 수 없습니다({why}). 새 세션을 만들지 않고 현재 세션을 유지했습니다. 다시 시도하거나 수동으로 새 대화를 시작하세요.",
 };

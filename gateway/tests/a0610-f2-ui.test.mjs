@@ -11,7 +11,7 @@ test("195-O.9 退出登录成功后刷新状态与额度；登录状态查询失
   const s = src("09-settings.js");
   has(s, /if \(r\.ok\) \{ refreshStatus\(\); qbLoad\(\); loadQuota\(\)\.catch/, "退出成功要撤额度");
   has(s, /if \(failed && QB\.cur && QB\.cur\.id === cur\.id\) return QB\.cur;/, "查询失败保留旧额度");
-  has(s, /try \{ st = await api\("\/api\/login\/status"\); \} catch \{ failed = true; \}/, "区分失败与未登录");
+  has(s, /try \{ st = await api\("\/api\/login\/status"[^;]*\); \} catch \{ failed = true; \}/, "区分失败与未登录");
 });
 
 test("195-N.7/M.8/O.8 原生跳转失败回 200+ok:false 要提示；更新状态取不到要显示重试；电池电流一律换算 mA", () => {
