@@ -643,6 +643,18 @@ export function adcCredentialsPath() {
 }
 export function hasAdcCredentials() { return adcCredentialsPath() !== ""; }
 
+// ── 厂商路由总表（P0-5）：agy 1.5.13 没有通用第三方通道，路由只能显式定 ──
+//   agy 原生（走 ACP）：antigravity 订阅 / 企业 / ADC、gemini-key、gemini-custom、
+//     自定义 + protocol:"gemini"（含 authStyle gemini-api-key / adc）。
+//   Anthropic 协议（走密封 Claude）：13 个第三方预置（deepseek/glm/qwen/kimi/minimax/
+//     ark/mimo/stepfun/qianfan/hunyuan/longcat/xai/meta）+ anthropic/anthropic-key +
+//     没声明 protocol:"gemini" 的自定义 —— 只有本机有 Claude Code 二进制时才跑得起来。
+//   agy-only 设备（有 agy、没有 runtime/claude）：上面那组是 unavailable，发消息前由
+//     run.mjs 的 MIG-9 拦截并明说设备原因，绝不静默换厂商、不把第三方 key 送进 agy。
+//   端侧小模型（local）：不走 ACP，同样要 claude 二进制，agy-only 下不可用（MIG-34）。
+//   判定口径见 providerRoute()；usesAcp() 与它一致（有 claude 时严格相等；
+//   agy-only 时无通道厂商也算 ACP 口径、由 MIG-9 拦）。不要往 agy 环境里注
+//   ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN：agy 根本不读它们。
 /** ACP authenticate 用的认证方式：按厂商真实认证方式映射（C2）。
  * 预置已声明的 authType 原样用；登录类（无声明，如 anthropic 订阅）→ oauth-personal；
  * API Key 类 → 该厂商自己的 `<id>-api-key`，绝不能默认 gemini-api-key——
@@ -675,12 +687,42 @@ export function hasAcpKeyChannel(p) {
   return false;
 }
 
-/** 该厂商是否走 ACP（与 run.mjs 的 useAcp 同口径，供 models.mjs 的显示侧共用，见 MIG-3）。 */
+/** 该厂商是否走 ACP（run.mjs 的 useAcp 直接调这里，不再自带判定副本，见 MIG-3）。 */
 export function usesAcp(p) {
   if (!p || p.local) return false;
   return !!(isAgyOnlyMode() || p.group === "antigravity" || p.authStyle === "gemini-api-key" || p.protocol === "gemini"
     || p.authStyle === "adc" || p.authType === "oauth-personal" || p.authType === "oauth-business"
     || p.authType === "agent-platform" || process.env.CCAPP_PROTOCOL === "acp");
+}
+
+/** 本机有没有 Claude Code 二进制（密封 Claude 路径的前提；agy-only 设备上没有）。 */
+export function hasClaudeBinary() {
+  return !!(PATHS.claude && fs.existsSync(PATHS.claude));
+}
+
+/** agy 能原生带起来的厂商（P0-5 路由 oracle 的 "agy" 半边）：订阅 / 企业 OAuth、ADC、Gemini 协议。
+ *  注意 login 本身不算：anthropic 订阅登录（group "claude"）是 Claude 自己的 OAuth，不是 agy 的，
+ *  它走密封 Claude。自定义厂商的 authType 是配置文件里手写的，照 usesAcp 同口径认。 */
+export function isAgyNativeProvider(p) {
+  if (!p || p.local) return false;
+  if (p.group === "antigravity") return true;
+  if (p.protocol === "gemini") return true;
+  if (p.authStyle === "gemini-api-key" || p.authStyle === "adc") return true;
+  if (p.authType === "agent-platform" || p.authType === "oauth-personal" || p.authType === "oauth-business") return true;
+  return false;
+}
+
+/** 单点路由判定（P0-5 oracle）：这家厂商在这台设备上到底走哪条执行路径。
+ *  "agy" = agy 原生（ACP）；"claude" = Anthropic 协议、走密封 Claude（本机有二进制才行）；
+ *  "unavailable" = Anthropic 协议、且本机没有 Claude Code 二进制（agy-only 设备）。
+ *  与 usesAcp 的关系：route "agy" 时 usesAcp 必为真；有 claude 二进制时
+ *  usesAcp 与 route==="agy" 严格相等；agy-only 时无通道厂商 usesAcp 也为真（ACP 口径）、
+ *  由 run.mjs 的 MIG-9 在发消息前拦下。唯一的例外是开发端强制 CCAPP_PROTOCOL=acp：
+ *  那是显式强制 ACP，不属于设备路由，oracle 不认它。 */
+export function providerRoute(p) {
+  if (!p) return "unavailable";
+  if (isAgyNativeProvider(p)) return "agy";
+  return hasClaudeBinary() ? "claude" : "unavailable";
 }
 
 /** 该厂商在选单里算不算能用（MIG-34）：端侧小模型在 agy-only 设备上是死路——
@@ -752,6 +794,7 @@ function providerView(id, v) {
     extraModels: v.custom ? extraModelsOf(v) : [],
     keyUrl: v.keyUrl || null, hint: v.hint || "", hintEn: v.hintEn || "",
     hasKey: !!key, keyTail: key ? key.slice(-4) : "", endpointLost: v.endpointLost || null,   // 记着的线路不在了：界面提示重选（196-凭据.1）
+    route: providerRoute(v),   // P0-5：这家在这台设备上走哪条路（agy / claude / unavailable），界面据此标注
     noAcpKeyChannel: !hasAcpKeyChannel(v),   // MIG-9：无通道厂商在选单里标注“在 Antigravity 下暂不支持”
     plainHttp: plainRemote(v.baseUrl),   // 远程明文 http：Key 明文过网，只警告不拦（0.6.9 审计 199-9-02，用户定）
     active: id === PROVIDER.id,
@@ -1334,7 +1377,7 @@ export function providerBrief() {
   return ids.map((id) => {
     const p = providerById(id);
     return p && { id, label: p.label || id, labelEn: p.labelEn || "", login: !!p.login, local: !!p.local,
-      nativeModels: !!p.nativeModels, usable: isProviderUsable(p), noAcpKeyChannel: !hasAcpKeyChannel(p), active: id === PROVIDER.id,
+      nativeModels: !!p.nativeModels, usable: isProviderUsable(p), route: providerRoute(p), noAcpKeyChannel: !hasAcpKeyChannel(p), active: id === PROVIDER.id,
       keyMode: keyOf(p) ? "key" : p.login ? "login" : "none", defaultModel: p.defaultModel || null };
   }).filter(Boolean);
 }
