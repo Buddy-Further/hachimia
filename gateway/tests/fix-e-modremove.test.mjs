@@ -12,7 +12,7 @@ import { _modForTest } from "../gw/modules.mjs";
 const DK = path.join(PREFIX, "libexec/devkit");
 const MODDIR = path.join(PREFIX, "libexec/devkit/modules/tmod1");
 
-test("E-05 modRemove：没有 FILES 的已装模块，卸载要真删目录与 .ok", () => {
+test("E-05 modRemove：没有 FILES 的已装模块，卸载要真删目录与 .ok", async () => {
   fs.mkdirSync(MODDIR, { recursive: true });
   fs.writeFileSync(path.join(DK, "modules.json"), JSON.stringify({ snapshot: "s1", modules: [
     { id: "base", kind: "base", dir: "libexec/devkit/modules/base" },
@@ -21,7 +21,7 @@ test("E-05 modRemove：没有 FILES 的已装模块，卸载要真删目录与 .
   fs.writeFileSync(path.join(MODDIR, ".ok"), '{"at":1}\n');
   fs.writeFileSync(path.join(MODDIR, "MANIFEST"), "00 1 libexec/devkit/modules/tmod1/.ok\n");
   // 注意：故意不写 FILES（模拟 FILES 丢失/损坏的已装模块）
-  const r = _modForTest.modRemove("tmod1");
+  const r = await _modForTest.modRemove("tmod1");
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.deepEqual(r.removed, ["tmod1"]);
   assert.equal(fs.existsSync(MODDIR), false, "模块目录应已删掉");

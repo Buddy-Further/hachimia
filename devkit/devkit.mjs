@@ -29,13 +29,11 @@ import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
 import crypto from "node:crypto";
-import { execFileSync, execFile } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { execFileSync, execFile, spawn } from "node:child_process";
 import * as xzNs from "./vendor/xz-decompress/dist/package/xz-decompress.js";
 const xz = xzNs.default ?? xzNs;
 
-const SELF = fileURLToPath(import.meta.url);
-const HERE = path.dirname(SELF);
+const HERE = path.dirname(new URL(import.meta.url).pathname);
 const MAN = JSON.parse(fs.readFileSync(path.join(HERE, "devkit.json"), "utf8"));
 const args = process.argv.slice(2);
 const cmd = args[0];
@@ -296,6 +294,61 @@ async function dataTar(deb) {
   throw new Error("不支持的压缩: " + m.name);
 }
 
+/** xz 解压直接落到文件：ghc 的 data.tar.xz 解开约 2.9 GB，不能再整包进内存（execFileSync maxBuffer 2 GB 会 ENOBUFS） */
+async function unxzToFile(data, outPath) {
+  if (XZ) {
+    return new Promise((ok, bad) => {
+      const out = fs.createWriteStream(outPath);
+      const child = spawn(XZ, ["-dc"], { env: XZENV, stdio: ["pipe", "pipe", "inherit"] });
+      let done = false, outDone = false, exited = false, exitCode = null, exitSig = null;
+      const fail = (e) => {
+        if (done) return;
+        done = true;
+        out.destroy();
+        try { child.kill(); } catch {}
+        bad(e);
+      };
+      const maybeOk = () => {
+        if (done || !outDone || !exited) return;
+        if (exitCode !== 0) return fail(new Error(`xz -dc 退出码 ${exitCode ?? exitSig}`));
+        done = true;
+        ok();
+      };
+      child.on("error", fail);
+      child.stdin.on("error", (e) => { if (e.code !== "EPIPE") fail(e); });   // 坏输入下 xz 提前退出会触发 EPIPE，让 exit 报真正退出码
+      child.stdout.on("error", fail);
+      child.stdout.pipe(out);   // 不消费 stdout 的话 xz 会写满管道缓冲后卡死
+      out.on("error", fail);
+      out.on("finish", () => { outDone = true; maybeOk(); });
+      child.on("exit", (code, sig) => {
+        exited = true; exitCode = code; exitSig = sig;
+        if (code !== 0) fail(new Error(`xz -dc 退出码 ${code ?? sig}`));
+        else maybeOk();
+      });
+      child.stdin.end(data);
+    });
+  }
+  await fs.promises.writeFile(outPath, await jsUnxz(data));
+}
+
+/** data.tar 解到临时文件（.xz 流式落到盘；.gz 流式解；裸 tar 原样写盘）。小归档（control/ldso）仍走内存版 dataTar */
+async function dataTarToFile(deb, outPath) {
+  const m = arMember(deb, "data.tar");
+  if (m.name.endsWith(".xz")) return unxzToFile(m.data, outPath);
+  if (m.name.endsWith(".gz")) {
+    return new Promise((ok, bad) => {
+      const out = fs.createWriteStream(outPath);
+      const gz = zlib.createGunzip();
+      gz.on("error", bad);
+      out.on("error", bad);
+      gz.pipe(out).on("finish", ok);
+      gz.end(m.data);
+    });
+  }
+  if (m.name === "data.tar") { await fs.promises.writeFile(outPath, m.data); return; }
+  throw new Error("不支持的压缩: " + m.name);
+}
+
 /** 流式算哈希（工具包 1.7GB，不整个读进内存） */
 function hashFile(file) {
   return new Promise((ok, bad) => {
@@ -347,6 +400,56 @@ function* readTar(buf) {
     let link = pax.linkpath || longLink || str(h.subarray(157, 257));
     yield { name, link, type, mode: oct(h.subarray(100, 108)), mtime: oct(h.subarray(136, 148)), data: body };
     longName = longLink = null; pax = {};
+  }
+}
+
+/** 文件背板的 readTar：条目逐个读、不整包进内存。语义与 readTar 完全一致（同一个 512 头解析），产出逐字节相同 */
+function* readTarFile(file) {
+  const str = (b) => { const i = b.indexOf(0); return b.subarray(0, i < 0 ? b.length : i).toString(); };
+  const oct = (b) => parseInt(str(b).trim() || "0", 8);
+  const readAt = (fd, buf, pos) => {
+    let got = 0;
+    while (got < buf.length) {
+      const n = fs.readSync(fd, buf, got, buf.length - got, pos + got);
+      if (n === 0) break;
+      got += n;
+    }
+    return got;
+  };
+  const fd = fs.openSync(file, "r");
+  try {
+    const hdr = Buffer.alloc(512);
+    let longName = null, longLink = null, pax = {};
+    for (let off = 0;;) {
+      if (readAt(fd, hdr, off) !== 512) break;
+      if (hdr.every((x) => x === 0)) break;
+      const size = oct(hdr.subarray(124, 136));
+      const type = String.fromCharCode(hdr[156] || 48);
+      const body = Buffer.alloc(size);
+      readAt(fd, body, off + 512);
+      off += 512 + Math.ceil(size / 512) * 512;
+      if (type === "L") { longName = str(body); continue; }
+      if (type === "K") { longLink = str(body); continue; }
+      if (type === "x") {
+        pax = {};
+        // 长度是字节数：在 Buffer 上往前走，切出一条再按 UTF-8 解 —— 按字符走，中文路径会把后面的换行带进名字（#104 05-006）
+        for (let i = 0; i < body.length;) {
+          const sp = body.indexOf(0x20, i), len = parseInt(body.toString("latin1", i, sp), 10);
+          if (sp < 0 || !(len > sp - i + 1) || i + len > body.length) throw new Error("tar 损坏：pax 记录格式不对");
+          const kv = body.toString("utf8", sp + 1, i + len - 1), eq = kv.indexOf("=");
+          pax[kv.slice(0, eq)] = kv.slice(eq + 1); i += len;
+        }
+        continue;
+      }
+      if (type === "g") continue;
+      const prefix = str(hdr.subarray(345, 500));
+      let name = pax.path || longName || (prefix ? prefix + "/" : "") + str(hdr.subarray(0, 100));
+      let link = pax.linkpath || longLink || str(hdr.subarray(157, 257));
+      yield { name, link, type, mode: oct(hdr.subarray(100, 108)), mtime: oct(hdr.subarray(136, 148)), data: body };
+      longName = longLink = null; pax = {};
+    }
+  } finally {
+    fs.closeSync(fd);
   }
 }
 
@@ -1035,7 +1138,7 @@ if (cmd === "modules") {
   // 逐块打包：每块一个子进程（各自的 tar / MANIFEST / first-run / 锁文件），版本按 plan 核对
   if (args.includes("--build")) for (const b of plan.blocks) {
     console.log(`\n━━ ${b.id}（${b.kind}，${b.packages.length} 包）`);
-    execFileSync(process.execPath, [SELF, "build", "--block", b.id, "--plan", planFile,
+    execFileSync(process.execPath, [new URL(import.meta.url).pathname, "build", "--block", b.id, "--plan", planFile,
       "--target", target, "--out", OUT, "--cache", CACHE], { stdio: "inherit" });
   }
   // 合并：跨块同一路径内容必须相同（共用小包是同一份文件）；alternatives 同组不能两块各给一个
@@ -1061,16 +1164,19 @@ if (cmd === "modules") {
   const mj = {
     // format：modules.json 自身的格式版本；compat 同 devkit.lock.json（外壳接口版本）
     format: 1, compat: 1, target, snapshot: plan.snapshot, base: plan.base, built: new Date().toISOString(),
-    modules: locks.map((l) => ({
-      id: l.id, kind: l.kind, required: !!(def[l.id] || {}).required, deps: l.deps, users: l.users || [],
-      full: (def[l.id] || {}).full !== false,   // false：整包里没有它，整包用户升级时不当成已装
-      name: (def[l.id] || {}).name || { zh: "共享运行库", en: "Shared libraries" },
-      desc: (def[l.id] || {}).desc || { zh: `被 ${l.users.join("、")} 共用的大库，没有模块用到时自动卸载。`, en: `Large library shared by ${l.users.join(", ")}; removed automatically when no module needs it.` },
-      uses: (def[l.id] || {}).uses || [], dir: l.dir,
-      gz: l.gz, tar: { bytes: l.tar.bytes, sha256: l.tar.sha256 }, installed: l.installed, files: l.files,
-      commands: l.commands, key: ((def[l.id] || {}).key || []).filter((c) => l.commands.includes(c)), firstRun: l.firstRun,
-      packages: l.packages.map((p) => ({ name: p.name, version: p.version, source: p.source })),
-    })),
+    modules: locks.map((l) => {
+      const sharedTag = l.kind === "shared" && l.id.startsWith("lib-") && l.id.length > 4 ? l.id.slice(4) : "";
+      return {
+        id: l.id, kind: l.kind, required: !!(def[l.id] || {}).required, deps: l.deps, users: l.users || [],
+        full: (def[l.id] || {}).full !== false,   // false：整包里没有它，整包用户升级时不当成已装
+        name: (def[l.id] || {}).name || (sharedTag ? { zh: `共享运行库（${sharedTag}）`, en: `Shared libraries (${sharedTag})` } : { zh: "共享运行库", en: "Shared libraries" }),
+        desc: (def[l.id] || {}).desc || { zh: `被 ${l.users.join("、")} 共用的大库，没有模块用到时自动卸载。`, en: `Large library shared by ${l.users.join(", ")}; removed automatically when no module needs it.` },
+        uses: (def[l.id] || {}).uses || [], dir: l.dir,
+        gz: l.gz, tar: { bytes: l.tar.bytes, sha256: l.tar.sha256 }, installed: l.installed, files: l.files,
+        commands: l.commands, key: ((def[l.id] || {}).key || []).filter((c) => l.commands.includes(c)), firstRun: l.firstRun,
+        packages: l.packages.map((p) => ({ name: p.name, version: p.version, source: p.source })),
+      };
+    }),
   };
   fs.writeFileSync(path.join(OUT, "modules.json"), JSON.stringify(mj, null, 2));
   console.log(`\n✓ modules.json：${mj.modules.length} 块，下载合计 ${mb(mj.modules.reduce((s, m) => s + m.gz.bytes, 0))}，共 ${owner.size} 个文件路径，跨块无冲突`);
@@ -1116,59 +1222,85 @@ if (cmd === "build" || cmd === "component") {
     const p = idx.pkgs.get(n);
     process.stdout.write(`  [${String(i + 1).padStart(3)}/${names.length}] ${n.padEnd(26)} ${p.version.padEnd(16)}`);
     const deb = await fetchDeb(p);
-    const tar = await dataTar(deb);
-    const sc = await controlScripts(deb);
-    if (sc.postinst) {
-      for (const a of parseAlternatives(sc.postinst)) {
-        const cur = alts.get(a.group);
-        if (!cur || a.prio > cur.prio) alts.set(a.group, { ...a, pkg: n });
+    // 解到临时文件再逐个条目读：ghc 的 data.tar.xz 解开约 2.9 GB，不能再整包进内存
+    const tmpTar = path.join(OUT, `.data-${n.replace(/[^A-Za-z0-9.+~-]/g, "_")}.tar`);
+    await dataTarToFile(deb, tmpTar);
+    try {
+      const sc = await controlScripts(deb);
+      if (sc.postinst) {
+        for (const a of parseAlternatives(sc.postinst)) {
+          const cur = alts.get(a.group);
+          if (!cur || a.prio > cur.prio) alts.set(a.group, { ...a, pkg: n });
+        }
+        // 只有 alternatives 的脚本不用再跑；其余的原样保留（前缀已等长改写）
+        const rest = sc.postinst.replace(/# Automatically added by termux_step_create_alternatives[\s\S]*?# End automatically added section/g, "")
+          .split("\n").filter((l) => l.trim() && !l.startsWith("#!") && !/^\s*exit 0\s*$/.test(l));
+        if (rest.length) firstRun.push({ pkg: n, script: R.swap(Buffer.from(sc.postinst))[0].toString() });
       }
-      // 只有 alternatives 的脚本不用再跑；其余的原样保留（前缀已等长改写）
-      const rest = sc.postinst.replace(/# Automatically added by termux_step_create_alternatives[\s\S]*?# End automatically added section/g, "")
-        .split("\n").filter((l) => l.trim() && !l.startsWith("#!") && !/^\s*exit 0\s*$/.test(l));
-      if (rest.length) firstRun.push({ pkg: n, script: R.swap(Buffer.from(sc.postinst))[0].toString() });
+      let files = 0, hit = 0;
+      const pkgSonames = new Set();
+      const listing = [];          // dpkg 风格的文件清单，见下
+      for (const e of readTarFile(tmpTar)) {
+        const name = R.pathOf(e.name);
+        if (!name) continue;
+        const clean = name.replace(/\/$/, "");
+        if (!clean) continue;
+        if (DROP.has(clean)) continue;
+        listing.push("/" + R.to.replace(/^\//, "") + "files/" + clean);
+        if (e.type === "5") {
+          if (seenDirs.has(clean)) continue;
+          seenDirs.add(clean);
+          tw.add({ name: clean + "/", type: "5", mode: e.mode || 0o755, mtime: e.mtime });
+          continue;
+        }
+        if (e.type === "2") { tw.add({ name: clean, type: "2", mode: 0o777, mtime: e.mtime, link: R.swap(Buffer.from(e.link))[0].toString() }); continue; }
+        if (e.type === "1") { tw.add({ name: clean, type: "1", mode: e.mode, mtime: e.mtime, link: R.pathOf(e.link) || e.link }); continue; }
+        if (e.type !== "0" && e.type !== "7") continue;
+        // 带签名的 phar（文件尾有 GBMB 签名魔数，composer 就是）：动任何字节 PHP 都会以「签名不符」拒跑
+        // （首发 php 模块真机实测抓到）。可执行 CLI phar（带 shebang、非 .phar 扩展名）原样放成 .phar 并写绝对路径包装脚本；
+        // 库类 .phar（被 PHP require 加载的）原样保留、跳过前缀替换以免破坏签名。
+        if (e.data.length > 32 && e.data.subarray(-4).toString("latin1") === "GBMB") {   // phar 布局：[签名][4 字节算法][GBMB]
+          const isCli = e.data[0] === 0x23 && e.data[1] === 0x21 &&
+            (/^usr\/bin\//.test(clean) || ((e.mode || 0) & 0o111) !== 0) && !clean.endsWith(".phar");
+          if (isCli) {
+            tw.add({ name: clean + ".phar", type: "0", mode: 0o755, mtime: e.mtime, data: e.data });
+            listing.push("/" + R.to.replace(/^\//, "") + "files/" + clean + ".phar");
+            tw.add({
+              name: clean, type: "0", mode: 0o755, mtime: e.mtime,
+              data: Buffer.from("#!" + R.to + "files/usr/bin/sh\nexec \"" + R.to + "files/usr/bin/php\" \"" + R.to + "files/usr/" + clean.replace(/^usr\//, "") + ".phar\" \"$@\"\n"),
+            });
+            files += 2;
+          } else {
+            tw.add({ name: clean, type: "0", mode: e.mode, mtime: e.mtime, data: e.data });
+            files++;
+          }
+          continue;
+        }
+        // zip 类归档要下潜到压缩条目内部再改一遍，flat 替换在里面找不到模式
+        const [data, k] = looksLikeZip(clean) ? rewriteZip(e.data, R.swap) : R.swap(e.data);
+        if (k) { hit += k; patchedFiles++; }
+        if (/\/ensurepip\/__init__\.py$/.test(clean)) ensurepipVer = (/^_PIP_VERSION = "([^"]+)"/m.exec(data.toString("utf8")) || [])[1] || null;
+        if (!COMP && !BLOCK && /^usr\/(?:glibc\/)?lib\/[^/]+\.so(?:\.[\d.]+)?$/.test(clean)) {
+          const sn = elfSoname(data);
+          if (sn) pkgSonames.add(sn);
+        }
+        tw.add({ name: clean, type: "0", mode: e.mode, mtime: e.mtime, data });
+        files++;
+      }
+      if (pkgSonames.size) abiSonames[n] = [...pkgSonames].sort();
+      patchedHits += hit;
+      // var/lib/dpkg/info/<包>.list：我们不带 dpkg，但有的 postinst 拿它判断"某个包装没装"。
+      // 实测：python 的 postinst 看不到 python-pip.list，就认定 pip 是旧版残留，把刚解出来的 pip 整个删掉。
+      tw.add({ name: `usr/var/lib/dpkg/info/${n}.list`, type: "0", mode: 0o644, mtime: 0, data: Buffer.from(listing.join("\n") + "\n") });
+      lock.push({
+        name: n, repo: p.repo.name || "main", version: p.version, source: p.source, file: p.file, sha256: p.sha256, size: p.size,
+        homepage: p.homepage,
+        recipe: `https://github.com/termux/termux-packages/tree/master/packages/${p.source}`,
+      });
+      console.log(` ${String(files).padStart(5)} 文件  改写 ${hit}`);
+    } finally {
+      fs.unlinkSync(tmpTar);
     }
-    let files = 0, hit = 0;
-    const pkgSonames = new Set();
-    const listing = [];          // dpkg 风格的文件清单，见下
-    for (const e of readTar(tar)) {
-      const name = R.pathOf(e.name);
-      if (!name) continue;
-      const clean = name.replace(/\/$/, "");
-      if (!clean) continue;
-      if (DROP.has(clean)) continue;
-      listing.push("/" + R.to.replace(/^\//, "") + "files/" + clean);
-      if (e.type === "5") {
-        if (seenDirs.has(clean)) continue;
-        seenDirs.add(clean);
-        tw.add({ name: clean + "/", type: "5", mode: e.mode || 0o755, mtime: e.mtime });
-        continue;
-      }
-      if (e.type === "2") { tw.add({ name: clean, type: "2", mode: 0o777, mtime: e.mtime, link: R.swap(Buffer.from(e.link))[0].toString() }); continue; }
-      if (e.type === "1") { tw.add({ name: clean, type: "1", mode: e.mode, mtime: e.mtime, link: R.pathOf(e.link) || e.link }); continue; }
-      if (e.type !== "0" && e.type !== "7") continue;
-      // zip 类归档要下潜到压缩条目内部再改一遍，flat 替换在里面找不到模式
-      const [data, k] = looksLikeZip(clean) ? rewriteZip(e.data, R.swap) : R.swap(e.data);
-      if (k) { hit += k; patchedFiles++; }
-      if (/\/ensurepip\/__init__\.py$/.test(clean)) ensurepipVer = (/^_PIP_VERSION = "([^"]+)"/m.exec(data.toString("utf8")) || [])[1] || null;
-      if (!COMP && !BLOCK && /^usr\/(?:glibc\/)?lib\/[^/]+\.so(?:\.[\d.]+)?$/.test(clean)) {
-        const sn = elfSoname(data);
-        if (sn) pkgSonames.add(sn);
-      }
-      tw.add({ name: clean, type: "0", mode: e.mode, mtime: e.mtime, data });
-      files++;
-    }
-    if (pkgSonames.size) abiSonames[n] = [...pkgSonames].sort();
-    patchedHits += hit;
-    // var/lib/dpkg/info/<包>.list：我们不带 dpkg，但有的 postinst 拿它判断"某个包装没装"。
-    // 实测：python 的 postinst 看不到 python-pip.list，就认定 pip 是旧版残留，把刚解出来的 pip 整个删掉。
-    tw.add({ name: `usr/var/lib/dpkg/info/${n}.list`, type: "0", mode: 0o644, mtime: 0, data: Buffer.from(listing.join("\n") + "\n") });
-    lock.push({
-      name: n, repo: p.repo.name || "main", version: p.version, source: p.source, file: p.file, sha256: p.sha256, size: p.size,
-      homepage: p.homepage,
-      recipe: `https://github.com/termux/termux-packages/tree/master/packages/${p.source}`,
-    });
-    console.log(` ${String(files).padStart(5)} 文件  改写 ${hit}`);
   }
   // alternatives → 绝对路径软链（跟 update-alternatives 的结果一致，省掉它的数据库）
   const usrOf = (p) => R.pathOf(p.replace(/^\//, ""));
