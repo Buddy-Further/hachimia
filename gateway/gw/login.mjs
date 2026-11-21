@@ -176,6 +176,18 @@ let AGY_QUOTA = (() => {
 let AGY_QUOTA_INFLIGHT = null;
 let AGY_QUOTA_DEBOUNCE = null;
 
+/** `agy --output-format json -p /usage|/credits` 探针的超时覆盖（毫秒），测试用；
+ *  默认用调用方传的 15s/12s。命名仿 CCAPP_ACP_PROMPT_TIMEOUT_MS。 */
+const AGY_JSON_TIMEOUT_OVERRIDE_MS = Number(process.env.CCAPP_AGY_JSON_TIMEOUT_MS) > 0
+  ? Number(process.env.CCAPP_AGY_JSON_TIMEOUT_MS)
+  : 0;
+
+/** ACP 报登录过期时清掉 30 秒登录态缓存与上次问出的好状态（与退出登录同口径），
+ *  下一次 /api/login/status 立即重探，不再把旧的已登录沿用 30 秒。 */
+export function invalidateAuthCache() {
+  AUTH_CACHE = null; AUTH_GOOD = null;
+}
+
 /** 从 agy `--output-format json -p ...` 输出里提取最后一条 JSON 对象（忽略前导日志行） */
 function extractAgyJson(raw) {
   const s = String(raw || "").trim();
@@ -261,10 +273,34 @@ export function parseAgyQuotaJson(rawUsage, rawCredits = null, now = Date.now())
 }
 
 function execAgyJsonCmd(bin, slashCmd, timeoutMs = 15000) {
+  const limit = AGY_JSON_TIMEOUT_OVERRIDE_MS || timeoutMs;
   return new Promise((resolve) => {
-    execFile(bin, ["--output-format", "json", "-p", slashCmd], { cwd: CFG.home, env: authEnv(), encoding: "utf8", timeout: timeoutMs, maxBuffer: 2 << 20 }, (err, stdout, stderr) => {
-      resolve({ status: err ? (typeof err.code === "number" ? err.code : 1) : 0, stdout: String(stdout || ""), stderr: String(stderr || "") });
+    let done = false;
+    let out = "", errOut = "";
+    // P0-3：不用 execFile——它不给 stdin 配 ignore（-p /usage 未登录时疑似在
+    // TTY 交互式 stdin 上卡 60s），且子进程与网关同进程组，killTree 的组杀
+    // 会误伤网关自己。改用 spawn：stdin 直接 ignore、detached:true 自成
+    // 进程组，再加显式墙钟定时器，到点 killTree 连组带树杀干净。
+    const child = spawn(bin, ["--output-format", "json", "-p", slashCmd], {
+      cwd: CFG.home, env: authEnv(), stdio: ["ignore", "pipe", "pipe"], detached: true,
     });
+    const finish = (status) => {
+      if (done) return; done = true;
+      clearTimeout(timer);
+      resolve({ status, stdout: out, stderr: errOut });
+    };
+    const timer = setTimeout(() => {
+      try { killTree(child); } catch {}
+      errOut += "\ntimeout";
+      finish(1);
+    }, limit);
+    timer.unref?.();
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (d) => { if (out.length < (2 << 20)) out += String(d); });
+    child.stderr.on("data", (d) => { if (errOut.length < (2 << 20)) errOut += String(d); });
+    child.on("error", () => finish(1));
+    child.on("close", (code) => finish(typeof code === "number" ? code : 1));
   });
 }
 
