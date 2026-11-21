@@ -3213,4 +3213,13 @@ window.I18N_DICT.en = {
   "滚动好像卡住了，可以长按顶栏标题约 0.6 秒脱困": "Scroll seems stuck — long-press the top bar title (~0.6s) to unfreeze",
   "判断不了是不是在充电": "Could not tell whether the device is charging",
   "判断不了当前电量": "Could not read the current battery level",
+  "（约 {n} 秒后可重试）": "(retryable in about {n} seconds)",
+  "（约 {n} 分钟后可重试）": "(retryable in about {n} minutes)",
+  "当前环境没有浏览器，无法弹出登录页：请在终端里跑 `agy acp --login` 完成登录，再回来重试。": "No browser is available in this environment, so the login page cannot pop up: run `agy acp --login` in a terminal to finish signing in, then come back and retry.",
+  "登录已过期或未登录：请重新登录 Google 账号后再试。": "Your sign-in has expired, or you are not signed in: sign in to your Google account again and try again.",
+  "接口找不到这个模型：检查模型名是否正确，或换个模型再试。": "The API cannot find this model: check that the model name is correct, or try a different model.",
+  "Antigravity CLI 请求超时了：网络或服务端可能正忙，稍后再试。": "The Antigravity CLI request timed out: the network or server may be busy, try again later.",
+  "Antigravity CLI 进程异常退出了：请重试；一直这样就重启网关或重装 agy。": "The Antigravity CLI process exited unexpectedly: please retry; if it keeps happening, restart the gateway or reinstall agy.",
+  "模型「{model}」设置被 agent 拒绝（{msg}），已按原模型继续。": "The agent rejected the model setting for “{model}” ({msg}); continuing with the previous model.",
+  "本轮可能已部分执行（工具可能已跑、用量可能已扣）：请先检查本轮已产生的内容，再决定是否重发，不要直接重发同一条消息。": "This turn may have partially executed (tools may have run, usage may have been charged): check what this turn already produced before deciding whether to resend — do not resend the same message directly.",
 };

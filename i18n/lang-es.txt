@@ -3172,3 +3172,15 @@
 3166	Checking ADC credentials…
 // TODO i18n (MIG-22)：以下为英文原文回退，待译成 es
 3167	Failed to create a session: the agent returned no session ID. Please try again.
+3168	Créditos de IA restantes: {n}
+3169	Sincronizando la cuota de suscripción de Google Antigravity; mostrando el uso local de tokens por ahora (toca Actualizar arriba para consultar al instante).
+3170	No se pudo restaurar la sesión anterior ({why}). Se conservó la sesión actual sin crear una nueva; vuelve a intentarlo o inicia un chat nuevo manualmente.
+3171	(se puede reintentar en unos {n} segundos)
+3172	(se puede reintentar en unos {n} minutos)
+3173	No hay ningún navegador disponible en este entorno, no se puede abrir la página de inicio de sesión: ejecuta `agy acp --login` en una terminal para completar el inicio de sesión y vuelve a intentarlo.
+3174	La sesión ha caducado o no has iniciado sesión: vuelve a iniciar sesión con tu cuenta de Google e inténtalo de nuevo.
+3175	La API no encuentra este modelo: comprueba que el nombre del modelo sea correcto o prueba con otro modelo.
+3176	La solicitud de Antigravity CLI agotó el tiempo de espera: la red o el servidor podrían estar ocupados, inténtalo más tarde.
+3177	El proceso de Antigravity CLI terminó de forma inesperada: inténtalo de nuevo; si sigue ocurriendo, reinicia la pasarela o reinstala agy.
+3178	El agente rechazó el ajuste del modelo «{model}» ({msg}); se continúa con el modelo anterior.
+3179	Este turno podría haberse ejecutado parcialmente (puede que algunas herramientas ya se hayan ejecutado y se haya consumido uso): revisa lo que este turno ya ha producido antes de decidir si lo reenvías; no reenvíes directamente el mismo mensaje.

@@ -3172,3 +3172,15 @@
 3166	Checking ADC credentials…
 // TODO i18n (MIG-22)：以下为英文原文回退，待译成 id
 3167	Failed to create a session: the agent returned no session ID. Please try again.
+3168	Sisa AI Credits: {n}
+3169	Menyinkronkan kuota langganan Google Antigravity; sementara menampilkan penggunaan token lokal (ketuk Muat ulang di atas untuk memeriksa sekarang).
+3170	Gagal memulihkan sesi sebelumnya ({why}). Sesi saat ini dipertahankan tanpa membuat sesi baru; silakan coba lagi atau mulai obrolan baru secara manual.
+3171	(dapat dicoba lagi dalam sekitar {n} detik)
+3172	(dapat dicoba lagi dalam sekitar {n} menit)
+3173	Tidak ada browser di lingkungan ini, jadi halaman login tidak dapat dibuka: jalankan `agy acp --login` di terminal untuk menyelesaikan login, lalu kembali dan coba lagi.
+3174	Login sudah kedaluwarsa atau Anda belum login: silakan login kembali ke akun Google lalu coba lagi.
+3175	API tidak dapat menemukan model ini: periksa apakah nama model sudah benar, atau coba model lain.
+3176	Permintaan Antigravity CLI kehabisan waktu: jaringan atau server mungkin sedang sibuk, coba lagi nanti.
+3177	Proses Antigravity CLI berhenti secara tidak normal: silakan coba lagi; jika terus terjadi, mulai ulang gateway atau instal ulang agy.
+3178	Agen menolak pengaturan model “{model}” ({msg}); melanjutkan dengan model sebelumnya.
+3179	Giliran ini mungkin sudah dieksekusi sebagian (alat mungkin sudah berjalan, kuota mungkin sudah terpakai): periksa dulu apa yang sudah dihasilkan giliran ini sebelum memutuskan untuk mengirim ulang — jangan langsung mengirim ulang pesan yang sama.

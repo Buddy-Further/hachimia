@@ -3173,4 +3173,13 @@ window.I18N_DICT["id"] = {
   "滚动好像卡住了，可以长按顶栏标题约 0.6 秒脱困": "Gulir tampak macet — tekan lama judul bilah atas (~0,6 detik) untuk memulihkan",
   "判断不了是不是在充电": "Tidak dapat mengetahui apakah perangkat sedang diisi daya",
   "判断不了当前电量": "Tidak dapat membaca level baterai saat ini",
+  "（约 {n} 秒后可重试）": "(dapat dicoba lagi dalam sekitar {n} detik)",
+  "（约 {n} 分钟后可重试）": "(dapat dicoba lagi dalam sekitar {n} menit)",
+  "当前环境没有浏览器，无法弹出登录页：请在终端里跑 `agy acp --login` 完成登录，再回来重试。": "Tidak ada browser di lingkungan ini, jadi halaman login tidak dapat dibuka: jalankan `agy acp --login` di terminal untuk menyelesaikan login, lalu kembali dan coba lagi.",
+  "登录已过期或未登录：请重新登录 Google 账号后再试。": "Login sudah kedaluwarsa atau Anda belum login: silakan login kembali ke akun Google lalu coba lagi.",
+  "接口找不到这个模型：检查模型名是否正确，或换个模型再试。": "API tidak dapat menemukan model ini: periksa apakah nama model sudah benar, atau coba model lain.",
+  "Antigravity CLI 请求超时了：网络或服务端可能正忙，稍后再试。": "Permintaan Antigravity CLI kehabisan waktu: jaringan atau server mungkin sedang sibuk, coba lagi nanti.",
+  "Antigravity CLI 进程异常退出了：请重试；一直这样就重启网关或重装 agy。": "Proses Antigravity CLI berhenti secara tidak normal: silakan coba lagi; jika terus terjadi, mulai ulang gateway atau instal ulang agy.",
+  "模型「{model}」设置被 agent 拒绝（{msg}），已按原模型继续。": "Agen menolak pengaturan model “{model}” ({msg}); melanjutkan dengan model sebelumnya.",
+  "本轮可能已部分执行（工具可能已跑、用量可能已扣）：请先检查本轮已产生的内容，再决定是否重发，不要直接重发同一条消息。": "Giliran ini mungkin sudah dieksekusi sebagian (alat mungkin sudah berjalan, kuota mungkin sudah terpakai): periksa dulu apa yang sudah dihasilkan giliran ini sebelum memutuskan untuk mengirim ulang — jangan langsung mengirim ulang pesan yang sama.",
 };

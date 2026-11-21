@@ -3172,3 +3172,15 @@
 3166	Checking ADC credentials…
 // TODO i18n (MIG-22)：以下为英文原文回退，待译成 fr
 3167	Failed to create a session: the agent returned no session ID. Please try again.
+3168	Crédits IA restants : {n}
+3169	Synchronisation du quota Google Antigravity en cours ; affichage de l’utilisation locale des jetons pour l’instant (appuyez sur Actualiser ci-dessus pour interroger immédiatement).
+3170	Impossible de restaurer la session précédente ({why}). La session actuelle a été conservée sans en créer une nouvelle ; veuillez réessayer ou démarrer une nouvelle discussion manuellement.
+3171	(nouvel essai possible dans environ {n} secondes)
+3172	(nouvel essai possible dans environ {n} minutes)
+3173	Aucun navigateur n’est disponible dans cet environnement, impossible d’ouvrir la page de connexion : exécutez `agy acp --login` dans un terminal pour terminer la connexion, puis revenez réessayer.
+3174	Votre session a expiré ou vous n’êtes pas connecté : reconnectez-vous à votre compte Google puis réessayez.
+3175	L’API ne trouve pas ce modèle : vérifiez que le nom du modèle est correct, ou essayez un autre modèle.
+3176	La requête Antigravity CLI a expiré : le réseau ou le serveur est peut-être occupé, réessayez plus tard.
+3177	Le processus Antigravity CLI s’est arrêté anormalement : veuillez réessayer ; si cela persiste, redémarrez la passerelle ou réinstallez agy.
+3178	L’agent a refusé le réglage du modèle « {model} » ({msg}) ; poursuite avec le modèle précédent.
+3179	Ce tour a peut-être été partiellement exécuté (des outils ont pu tourner, de l’usage a pu être consommé) : vérifiez ce que ce tour a déjà produit avant de décider de renvoyer — ne renvoyez pas directement le même message.

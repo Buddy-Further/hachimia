@@ -3173,4 +3173,13 @@ window.I18N_DICT["fr"] = {
   "滚动好像卡住了，可以长按顶栏标题约 0.6 秒脱困": "Le défilement semble bloqué : appuyez longuement (~0,6 s) sur le titre de la barre supérieure pour débloquer",
   "判断不了是不是在充电": "Impossible de savoir si l’appareil est en charge",
   "判断不了当前电量": "Impossible de lire le niveau de batterie actuel",
+  "（约 {n} 秒后可重试）": "(nouvel essai possible dans environ {n} secondes)",
+  "（约 {n} 分钟后可重试）": "(nouvel essai possible dans environ {n} minutes)",
+  "当前环境没有浏览器，无法弹出登录页：请在终端里跑 `agy acp --login` 完成登录，再回来重试。": "Aucun navigateur n’est disponible dans cet environnement, impossible d’ouvrir la page de connexion : exécutez `agy acp --login` dans un terminal pour terminer la connexion, puis revenez réessayer.",
+  "登录已过期或未登录：请重新登录 Google 账号后再试。": "Votre session a expiré ou vous n’êtes pas connecté : reconnectez-vous à votre compte Google puis réessayez.",
+  "接口找不到这个模型：检查模型名是否正确，或换个模型再试。": "L’API ne trouve pas ce modèle : vérifiez que le nom du modèle est correct, ou essayez un autre modèle.",
+  "Antigravity CLI 请求超时了：网络或服务端可能正忙，稍后再试。": "La requête Antigravity CLI a expiré : le réseau ou le serveur est peut-être occupé, réessayez plus tard.",
+  "Antigravity CLI 进程异常退出了：请重试；一直这样就重启网关或重装 agy。": "Le processus Antigravity CLI s’est arrêté anormalement : veuillez réessayer ; si cela persiste, redémarrez la passerelle ou réinstallez agy.",
+  "模型「{model}」设置被 agent 拒绝（{msg}），已按原模型继续。": "L’agent a refusé le réglage du modèle « {model} » ({msg}) ; poursuite avec le modèle précédent.",
+  "本轮可能已部分执行（工具可能已跑、用量可能已扣）：请先检查本轮已产生的内容，再决定是否重发，不要直接重发同一条消息。": "Ce tour a peut-être été partiellement exécuté (des outils ont pu tourner, de l’usage a pu être consommé) : vérifiez ce que ce tour a déjà produit avant de décider de renvoyer — ne renvoyez pas directement le même message.",
 };
