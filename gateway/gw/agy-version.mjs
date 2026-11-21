@@ -90,7 +90,8 @@ export function checkAgyVersion(versionString, floor = AGY_MIN_VERSION) {
   const parsed = parseAgyVersion(versionString);
   const version = parsed
     ? `${parsed.major}.${parsed.minor}.${parsed.patch}`
-    : (typeof versionString === "string" ? versionString.trim() : "");
+    // M-4：未解析出的输入原样进 note/hint 前截到 64 字，防无界字符串刷屏。
+    : (typeof versionString === "string" ? versionString.trim().slice(0, 64) : "");
   if (!parsed) return { status: "unknown", version, min: floor, verified: AGY_VERIFIED_VERSION };
   if (compareAgyVersions(parsed, floor) < 0) return { status: "too-old", version, min: floor, verified: AGY_VERIFIED_VERSION };
   if (compareAgyVersions(parsed, AGY_VERIFIED_VERSION) === 0) return { status: "ok", version, min: floor, verified: AGY_VERIFIED_VERSION };

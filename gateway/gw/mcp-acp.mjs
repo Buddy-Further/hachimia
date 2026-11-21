@@ -2,7 +2,7 @@
 //  mcp-acp.mjs —— 用户 MCP 配置 → ACP session/new|load|resume 的 mcpServers
 //
 //  agy-only（P0-2b）：MCP 只有一个来源——~/.gemini/config/mcp_config.json
-//  （已验证版本实测：`agy mcp add` 写这里，`agy mcp list` 读这里，`agy acp`
+//  （已验证版本 AGY_BEHAVIOUR[AGY_VERIFIED_VERSION] 实测：`agy mcp add` 写这里，`agy mcp list` 读这里，`agy acp`
 //  启动时自己加载这里的服务器；~/.gemini/antigravity-cli/settings.json
 //  在首次运行后根本不存在，见 ~/workspace/agy-verify/VERIFY-REPORT.md）。
 //  ~/.claude.json 不再读、不再发：它是另一个独立应用（cccodroid）的配置，
@@ -129,7 +129,7 @@ function readJsonFile(file) {
 
 /**
  * 只读收集 agy 侧 MCP 定义（best-effort，文件缺失/解析失败都静默跳过）。
- * 唯一来源：~/.gemini/config/mcp_config.json（全局，P0-2 已验证版本实测
+ * 唯一来源：~/.gemini/config/mcp_config.json（全局，P0-2 已验证版本 AGY_BEHAVIOUR[AGY_VERIFIED_VERSION] 实测
  * 真正读的就是它，`agy mcp add` 也写这里）。有完整定义的才采用，
  * 绝不只凭名字编造服务条目。
  * 工作区 <cwd>/.agents/mcp_config.json 故意不读：它是克隆仓库带来的

@@ -42,8 +42,9 @@ const TOOL_OUT_MAX = 20000;
 const ACP_POOL = new Map();
 
 // P0-4：版本警告去重——同一版本（+ 协议版本）组合只警告一次，别每建新会话就唠叨。
-// 模块级：网关进程内所有会话共享，版本变了才再提醒。
-let lastAgyVersionWarnKey = null;
+// 模块级：网关进程内所有会话共享，版本变了才再提醒。Set 而不用单槽变量：
+// 两个版本来回出现时单槽会反复提醒（F-3 跨会话去重也靠它）。
+const seenAgyVersionWarnKeys = new Set();
 
 /** 常驻 ACP 进程的收尾（MIG-19）：先 SIGTERM 整组（agy 派生的孙进程一起带走），
  *  宽限期后仍活着再 SIGKILL 整组；组杀失败回落单进程。子进程以 detached:true 起，
@@ -1383,7 +1384,7 @@ export async function runAcpTurn({
         e.data = { version: gate.version, min: gate.min, verified: gate.verified };
         throw e;
       }
-      const protoMismatch = initRes?.protocolVersion !== ACP_PROTOCOL_VERSION;
+      const protoMismatch = Number(initRes?.protocolVersion) !== ACP_PROTOCOL_VERSION;
       {
         const parts = [];
         if (gate.status === "newer-unverified" && !AGY_ALLOW_UNVERIFIED) {
@@ -1396,8 +1397,8 @@ export async function runAcpTurn({
         }
         if (parts.length) {
           const warnKey = `${gate.version || ""}|proto:${String(initRes?.protocolVersion ?? "")}`;
-          if (warnKey !== lastAgyVersionWarnKey) {
-            lastAgyVersionWarnKey = warnKey;
+          if (!seenAgyVersionWarnKeys.has(warnKey)) {
+            seenAgyVersionWarnKeys.add(warnKey);
             emit({ type: "note", key: "acp-agy-version-unverified", text: `${parts.join("；")}${tz("：已继续运行，如遇异常请留意版本差异。")}` });
           }
         }

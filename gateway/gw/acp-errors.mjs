@@ -101,7 +101,8 @@ export function classifyAcpError(err) {
   //    只说“升级 Antigravity CLI”，不给假命令。
   if (code === "AGY_VERSION") {
     const d = (data && typeof data === "object") ? data : {};
-    const v = d.version || /版本\s*([0-9][0-9A-Za-z.+-]*)/.exec(s)?.[1] || "";
+    const v = d.version || /版本\s*([0-9][0-9A-Za-z.+-]*)/.exec(s)?.[1]
+      || /version\s+([0-9][0-9A-Za-z.+-]*)/i.exec(s)?.[1] || "";
     const min = d.min || AGY_MIN_VERSION;
     const verified = d.verified || min;
     return {
