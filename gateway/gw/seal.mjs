@@ -412,8 +412,11 @@ function materialize(name, files, manifest) {
 }
 
 // ── MCP、设置 ──
-// P0-1：导出给 mcp-acp.mjs 用——ACP 路径也要读同一份 ~/.claude.json MCP，
-// 与 Claude 路径（sealPrepare 经此函数写 --mcp-config）同源。
+// P0-2b：mcpConfig() 现在只服务 sealPrepare()（sealed 版 Claude 启动路径，
+// 经 --mcp-config 交给 claude）——ACP 路径（mcp-acp.mjs）已不再用它，
+// MCP 在 agy-only 下只读 ~/.gemini/config/mcp_config.json。
+// 这是有意的 Claude-only 残留：退役 sealed 版 Claude 启动路径要另做决定，
+// 本节不动它。名字只读、不写盘，定义本身仍过破甲扫描（见 sealPrepare）。
 export function mcpConfig(cwd) {
   let j = {}; try { j = JSON.parse(readSmallFile(path.join(home(), ".claude.json"), 32 << 20) || "{}"); } catch {}
   const servers = { ...(j.mcpServers || {}) };
@@ -532,7 +535,7 @@ export function sealPrepare({ cwd, runId, outputStyle = "" }) {
     // MCP 配置也过破甲扫描：instructions / description / command 都在这份 JSON 里。
     // 项目 .mcp.json 是不回填，这里回填的必须同口径（红队报告 VULN-01：这是唯一没扫的通道）
     const r = scanText(JSON.stringify(mcp));
-    if (r.blocked) found.push({ name: "~/.claude.json 的 mcpServers（已不加载）", hits: r.hits });
+    if (r.blocked) found.push({ name: "~/.claude.json 的 mcpServers（仅 sealed 版 Claude 启动路径）", hits: r.hits });
     else {
       const f = path.join(ROOT(), `mcp-${rid}.json`);
       fs.writeFileSync(f, JSON.stringify(mcp), { mode: 0o600 });
