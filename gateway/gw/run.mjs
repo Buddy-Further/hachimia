@@ -7,6 +7,7 @@ import { PERM_MODES, PROVIDER, acpAuthType, billAfterRun, hasAcpKeyChannel, hasA
 import { ALIAS_SEEN, defaultAcpCompactLine, effortLevelsOf, fetchModels, isLoginMode, learnWindow, modelsCached, normEffort } from "./models.mjs";
 import { agyEnv, bridgeSwitching, claudeAtLeast, claudeCmd, claudeEnv, currentModelInfo, ensureBridge, safeModePerm, settingsArgs } from "./claude.mjs";
 import { runAcpTurn, stopAcpBgTask } from "./acp.mjs";
+import { buildAcpMcpServers } from "./mcp-acp.mjs";
 import { refreshAgyQuotaSoon } from "./login.mjs";
 import { expandCustomCommand } from "./commands.mjs";
 import { tasksCheck } from "./goal.mjs";
@@ -493,6 +494,15 @@ export async function startRun(item) {
     if (!acpPrompt.trim().startsWith("/")) {
       acpImages = await inlineImages(acpPrompt, P, { tmpDir: acpEnv.TMPDIR, env: acpEnv }).catch(() => []);
     }
+    // P0-1：ACP 也要带上用户 MCP（此前这里硬编码 mcpServers: []，MCP 全丢）。
+    // 来源与优先级见 mcp-acp.mjs：Claude ~/.claude.json < agy 各来源 < 设备 MCP；
+    // 设备 MCP 沿用 Claude 路径的门控（PREFIX、脚本在、dev_status.on、非端侧）。
+    // 只记服务名：env/headers 的值是凭据，绝不进日志。
+    const devMcpJson = deviceMcpConfig();
+    const includeDeviceMcp = !!(devMcpJson && !P.local && (await privCall({ op: "dev_status" }, 3000)).on);
+    const mcpBuilt = buildAcpMcpServers({ cwd, deviceJson: includeDeviceMcp ? devMcpJson : null });
+    if (mcpBuilt.blocked.length) log(`⛔ ACP 不加载以下 MCP（破甲扫描命中）：${mcpBuilt.blocked.map((b) => b.name).join("、")}`);
+    if (mcpBuilt.skipped.length) log(`ACP 跳过以下 MCP：${mcpBuilt.skipped.map((s) => `${s.name}（${s.reason}）`).join("、")}`);
     // ACP init 事件一到就记账（B6）：别等整轮跑完才有会话号，首轮进行中跟发的消息要靠它续进同一会话
     const hadAcpSid = !!run.sessionId;
     const acpEmit = (ev) => {
@@ -512,7 +522,7 @@ export async function startRun(item) {
       permMode,
       authType: acpAuthType(P),
       apiKey: KEY || "",
-      mcpServers: [],
+      mcpServers: mcpBuilt.servers,
       addDirs: item.addDirs || [],
       run,
       emit: acpEmit,
