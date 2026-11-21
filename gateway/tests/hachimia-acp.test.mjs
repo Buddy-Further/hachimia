@@ -679,3 +679,219 @@ rl.on("line", (line) => {
     closeAcpSession("sess-cmp-1");
   }
 });
+
+test("hachimia ACP 状态同步回归：tool_update 流式更新、cancelled 中性态、续聊失败不静默建新会话、崩盘保底落盘", async () => {
+  const { acpSessionFile, closeAcpSession, getAcpIdleRuns } = await import("../gw/acp.mjs");
+  const { onPublish } = await import("../gw/bus.mjs");
+
+  // 1. translateAcpUpdate：tool_call_update 中间态发射 tool_update，cancelled 不标 is_error
+  {
+    const st = { text: "", thinking: "", tools: new Map(), usage: null, sessionId: "s-sync" };
+    const ev = [];
+    const emit = (e) => ev.push(e);
+    translateAcpUpdate({ sessionUpdate: "tool_call", toolCallId: "t1", title: "run_command", rawInput: { CommandLine: "echo 1" }, status: "in_progress" }, st, emit);
+    translateAcpUpdate({ sessionUpdate: "tool_call_update", toolCallId: "t1", title: "run_command (step 2)", status: "in_progress", content: [{ type: "text", text: "line1\n" }] }, st, emit);
+    const upd = ev.find((e) => e.type === "tool_update" && e.id === "t1");
+    assert.ok(upd, "非终态 tool_call_update 应发射 tool_update");
+    assert.equal(upd.name, "run_command (step 2)");
+    assert.ok(upd.output.includes("line1"));
+
+    translateAcpUpdate({ sessionUpdate: "tool_call_update", toolCallId: "t1", status: "cancelled", content: [{ type: "text", text: "user cancelled" }] }, st, emit);
+    const res = ev.find((e) => e.type === "tool_result" && e.id === "t1");
+    assert.ok(res, "cancelled 终态应发射 tool_result");
+    assert.equal(res.cancelled, true);
+    assert.equal(res.is_error, false, "cancelled 不应标成红色 is_error");
+    assert.equal(res.ok, true);
+  }
+
+  // 2. 续聊已有 sessionId 时 resume/load 都失败：必须报错保留原会话，绝不静默调 session/new
+  {
+    const tmp = fs.mkdtempSync(path.join(CFG.home, "hachimia-acp-noreset-"));
+    const mockBin = path.join(tmp, "mock-agy-noreset");
+    fs.writeFileSync(mockBin, `#!${process.execPath}
+const readline = require("node:readline");
+const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+const send = (o) => process.stdout.write(JSON.stringify(o) + "\\n");
+rl.on("line", (line) => {
+  const t = line.trim(); if (!t) return;
+  const msg = JSON.parse(t);
+  if (msg.method === "initialize") return send({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: 1, agentCapabilities: { loadSession: true, sessionCapabilities: { resume: {}, load: {} } } } });
+  if (msg.method === "session/resume") return send({ jsonrpc: "2.0", id: msg.id, error: { code: -32000, message: "resume failed" } });
+  if (msg.method === "session/load") return send({ jsonrpc: "2.0", id: msg.id, error: { code: -32000, message: "load timeout" } });
+  if (msg.method === "session/new") return send({ jsonrpc: "2.0", id: msg.id, result: { sessionId: "SHOULD-NOT-BE-CREATED" } });
+});
+`, { mode: 0o755 });
+    const evs = [];
+    const r = await runAcpTurn({
+      bin: process.execPath,
+      args: [mockBin],
+      cwd: CFG.workspace,
+      env: process.env,
+      prompt: "继续干活",
+      sessionId: "sess-keep-original",
+      keepAlive: false,
+      emit: (e) => evs.push(e),
+    });
+    assert.equal(r.ok, false);
+    assert.equal(r.sessionId, "sess-keep-original", "续聊失败不应静默换成新 sessionId");
+    assert.ok(evs.some((e) => e.type === "error" && String(e.message).includes("load timeout")));
+  }
+
+  // 3. 回合中途进程崩掉：已完成的工具、思考和部分正文应保底落盘到 jsonl
+  {
+    const tmp = fs.mkdtempSync(path.join(CFG.home, "hachimia-acp-crash-"));
+    const mockBin = path.join(tmp, "mock-agy-crash");
+    fs.writeFileSync(mockBin, `#!${process.execPath}
+const readline = require("node:readline");
+const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+const send = (o) => process.stdout.write(JSON.stringify(o) + "\\n");
+rl.on("line", (line) => {
+  const t = line.trim(); if (!t) return;
+  const msg = JSON.parse(t);
+  if (msg.method === "initialize") return send({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: 1, agentCapabilities: {} } });
+  if (msg.method === "session/new") return send({ jsonrpc: "2.0", id: msg.id, result: { sessionId: "sess-crash-persist" } });
+  if (msg.method === "session/set_mode" || msg.method === "session/set_config_option") return send({ jsonrpc: "2.0", id: msg.id, result: { ok: true } });
+  if (msg.method === "session/prompt") {
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-crash-persist", update: { sessionUpdate: "agent_thought_chunk", content: { type: "text", text: "已经分析了根因" } } } });
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-crash-persist", update: { sessionUpdate: "tool_call", toolCallId: "tc-done", title: "edit_file", rawInput: { Path: "/a" }, status: "completed", rawOutput: "edited ok" } } });
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-crash-persist", update: { sessionUpdate: "tool_call", toolCallId: "tc-inflight", title: "run_command", rawInput: { CommandLine: "sleep 99" }, status: "in_progress" } } });
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-crash-persist", update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "半截正文已经写出" } } } });
+    setTimeout(() => process.exit(1), 40);
+  }
+});
+`, { mode: 0o755 });
+    const evs = [];
+    const r = await runAcpTurn({
+      bin: process.execPath,
+      args: [mockBin],
+      cwd: CFG.workspace,
+      env: process.env,
+      prompt: "修一下这个 bug",
+      keepAlive: false,
+      emit: (e) => evs.push(e),
+    });
+    assert.equal(r.ok, false);
+    assert.ok(evs.some((e) => e.type === "tool_result" && e.id === "tc-inflight" && e.is_error === true), "崩盘时未终态工具应补发收口结果");
+    const raw = fs.readFileSync(acpSessionFile(CFG.workspace, "sess-crash-persist"), "utf8");
+    assert.ok(raw.includes("半截正文已经写出"), "部分正文应保底落盘");
+    assert.ok(raw.includes("已经分析了根因"), "部分思考应保底落盘");
+    assert.ok(raw.includes("edited ok"), "已完成工具结果应保底落盘");
+  }
+
+  // 4. 空闲后台回报期间进程意外退出：getAcpIdleRuns 能观测到活跃 idleRun，退出时自动收口广播 run_end
+  {
+    const tmp = fs.mkdtempSync(path.join(CFG.home, "hachimia-acp-idleclose-"));
+    const mockBin = path.join(tmp, "mock-agy-idleclose");
+    fs.writeFileSync(mockBin, `#!${process.execPath}
+const readline = require("node:readline");
+const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+const send = (o) => process.stdout.write(JSON.stringify(o) + "\\n");
+rl.on("line", (line) => {
+  const t = line.trim(); if (!t) return;
+  const msg = JSON.parse(t);
+  if (msg.method === "initialize") return send({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: 1, agentCapabilities: {} } });
+  if (msg.method === "session/new") return send({ jsonrpc: "2.0", id: msg.id, result: { sessionId: "sess-idle-close" } });
+  if (msg.method === "session/set_mode" || msg.method === "session/set_config_option") return send({ jsonrpc: "2.0", id: msg.id, result: { ok: true } });
+  if (msg.method === "session/prompt") {
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-idle-close", update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "ok" } } } });
+    send({ jsonrpc: "2.0", id: msg.id, result: { stopReason: "end_turn" } });
+    setTimeout(() => {
+      send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-idle-close", update: { sessionUpdate: "tool_call", toolCallId: "bg-tc-1", title: "run_command", status: "in_progress" } } });
+    }, 60);
+    setTimeout(() => process.exit(0), 220);
+  }
+});
+`, { mode: 0o755 });
+    const pub = [];
+    const off = onPublish((e) => pub.push(e));
+    let sawIdleRun = false;
+    try {
+      const r = await runAcpTurn({ bin: process.execPath, args: [mockBin], cwd: CFG.workspace, env: process.env, prompt: "hi", keepAlive: true, emit: () => {} });
+      assert.equal(r.ok, true);
+      await new Promise((res) => setTimeout(res, 130));
+      sawIdleRun = getAcpIdleRuns().some((x) => x.sessionId === "sess-idle-close" && x.auto === "bg");
+      await new Promise((res) => setTimeout(res, 220));
+      assert.equal(sawIdleRun, true, "空闲后台回报进行中应暴露在 getAcpIdleRuns()");
+      assert.ok(pub.some((e) => e.type === "run_end" && e.sessionId === "sess-idle-close"), "空闲进程退出时应立即收口广播 run_end");
+      assert.equal(getAcpIdleRuns().some((x) => x.sessionId === "sess-idle-close"), false, "收口后应从 getAcpIdleRuns() 清除");
+    } finally {
+      off();
+      closeAcpSession("sess-idle-close");
+    }
+  }
+});
+
+test("hachimia Antigravity 官方配额：parseAgyQuotaJson 与 fetchAgyQuota（/usage + /credits）零消耗查询", async () => {
+  const { parseAgyQuotaJson, fetchAgyQuota } = await import("../gw/login.mjs");
+  const { onPublish } = await import("../gw/bus.mjs");
+
+  const sampleUsage = [
+    "ERROR: logging before google.Init: Initialized Android local timezone",
+    JSON.stringify({
+      conversation_id: "",
+      status: "SUCCESS",
+      num_turns: 0,
+      command: {
+        name: "usage",
+        data: {
+          groups: [
+            {
+              name: "Gemini Models",
+              buckets: [
+                { id: "gemini-weekly", window: "weekly", remaining_fraction: 0.9568, reset_time: "2026-11-27T03:36:42Z" },
+                { id: "gemini-5h", window: "5h", remaining_fraction: 0.9499, reset_time: "2026-11-21T05:32:54Z" },
+              ],
+            },
+            {
+              name: "Claude and GPT models",
+              buckets: [
+                { id: "3p-weekly", window: "weekly", remaining_fraction: 0.8, reset_time: "2026-11-28T03:15:19Z" },
+                { id: "3p-5h", window: "5h", remaining_fraction: 0.75, reset_time: "2026-11-21T08:15:19Z" },
+              ],
+            },
+          ],
+        },
+      },
+    }),
+  ].join("\n");
+  const sampleCredits = JSON.stringify({ status: "SUCCESS", command: { name: "credits", data: { remaining_credits: 42 } } });
+
+  const q = parseAgyQuotaJson(sampleUsage, sampleCredits, 1700000000000);
+  assert.ok(q);
+  assert.equal(q.source, "agy");
+  assert.equal(q.fiveHour.used, 5);
+  assert.equal(q.fiveHour.remaining, 95);
+  assert.equal(q.fiveHour.resetsAt, Math.floor(Date.parse("2026-11-21T05:32:54Z") / 1000));
+  assert.equal(q.sevenDay.used, 4.3);
+  assert.equal(q.credits, 42);
+  assert.equal(q.groups.length, 2);
+  assert.equal(q.groups[0].shortName, "Gemini");
+  assert.equal(q.groups[1].shortName, "Claude/GPT");
+  assert.equal(q.groups[1].fiveHour.used, 25);
+  assert.equal(q.groups[1].sevenDay.used, 20);
+
+  // 端到端通过 mock agy 可执行文件拉取 /usage + /credits 并触发 quota 广播与缓存落盘
+  const tmp = fs.mkdtempSync(path.join(CFG.home, "hachimia-quota-"));
+  const fakeBin = path.join(tmp, "mock-agy-quota");
+  fs.writeFileSync(fakeBin, `#!${process.execPath}
+const arg = process.argv[process.argv.length - 1];
+if (arg === "/usage") console.log(${JSON.stringify(sampleUsage)});
+else if (arg === "/credits") console.log(${JSON.stringify(sampleCredits)});
+`, { mode: 0o755 });
+  const prevAgy = PATHS.agy;
+  PATHS.agy = fakeBin;
+  const pub = [];
+  const off = onPublish((e) => pub.push(e));
+  try {
+    const got = await fetchAgyQuota(true);
+    assert.ok(got);
+    assert.equal(got.fiveHour.used, 5);
+    assert.equal(got.credits, 42);
+    assert.ok(pub.some((e) => e.type === "quota"), "刷新官方配额后应广播 quota 事件");
+    const cachedFile = path.join(CFG.home, ".cache", "hachimia-quota.json");
+    assert.ok(fs.existsSync(cachedFile), "配额应写入缓存文件供冷启动秒显");
+  } finally {
+    off();
+    PATHS.agy = prevAgy;
+  }
+});

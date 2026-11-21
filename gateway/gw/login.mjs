@@ -136,10 +136,151 @@ export let AUTH_CACHE = null;
 let AUTH_GOOD = null;   // 最后一次问出结果的状态
 let AUTH_INFLIGHT = null;
 const TIER_FILE = path.join(CFG.home, ".cache", "hachimia-tier.json");
+const QUOTA_FILE = path.join(CFG.home, ".cache", "hachimia-quota.json");
+const AGY_QUOTA_TTL_MS = 60e3;
 let AUTH_TIER = (() => {
   try { const j = JSON.parse(fs.readFileSync(TIER_FILE, "utf8")); return typeof j?.name === "string" && j.name ? j.name : null; }
   catch { return null; }
 })();
+let AGY_QUOTA = (() => {
+  try {
+    const j = JSON.parse(fs.readFileSync(QUOTA_FILE, "utf8"));
+    return j && typeof j === "object" && (j.fiveHour || j.sevenDay || (Array.isArray(j.groups) && j.groups.length)) ? j : null;
+  } catch { return null; }
+})();
+let AGY_QUOTA_INFLIGHT = null;
+let AGY_QUOTA_DEBOUNCE = null;
+
+/** 从 agy `--output-format json -p ...` 输出里提取最后一条 JSON 对象（忽略前导日志行） */
+function extractAgyJson(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return null;
+  try { return JSON.parse(s); } catch {}
+  const lines = s.split("\n").map((x) => x.trim()).filter(Boolean).reverse();
+  for (const line of lines) {
+    if (line.startsWith("{") && line.endsWith("}")) {
+      try { return JSON.parse(line); } catch {}
+    }
+  }
+  const idx = s.lastIndexOf('{"');
+  if (idx >= 0) {
+    try { return JSON.parse(s.slice(idx)); } catch {}
+  }
+  return null;
+}
+
+function shortQuotaGroupName(name) {
+  const s = String(name || "").trim();
+  if (/^gemini\b/i.test(s)) return "Gemini";
+  if (/claude/i.test(s) && /gpt/i.test(s)) return "Claude/GPT";
+  if (/claude/i.test(s)) return "Claude";
+  return s.replace(/\s+models?$/i, "").trim() || s;
+}
+
+/**
+ * 解析官方 `agy --output-format json -p "/usage"`（及可选 `"/credits"`）输出，
+ * 转换为与前端 `limits` 契约完全兼容的结构（含 5h / 周百分比、精确重置时间、多模型组与 AI Credits）。
+ */
+export function parseAgyQuotaJson(rawUsage, rawCredits = null, now = Date.now()) {
+  const uObj = typeof rawUsage === "string" ? extractAgyJson(rawUsage) : rawUsage;
+  const rawGroups = uObj?.command?.data?.groups;
+  if (!Array.isArray(rawGroups) || !rawGroups.length) return null;
+
+  const parseBucket = (b) => {
+    if (!b || !Number.isFinite(Number(b.remaining_fraction))) return null;
+    const rem = Math.max(0, Math.min(1, Number(b.remaining_fraction)));
+    const used = Math.round((1 - rem) * 1000) / 10;
+    const remaining = Math.round(rem * 1000) / 10;
+    const ms = b.reset_time ? Date.parse(b.reset_time) : NaN;
+    const resetsAt = Number.isFinite(ms) ? Math.floor(ms / 1000) : null;
+    return { used, remaining, resetsAt, ...(b.id ? { id: String(b.id) } : {}) };
+  };
+
+  const groups = [];
+  for (const g of rawGroups) {
+    const buckets = Array.isArray(g?.buckets) ? g.buckets : [];
+    let fiveHour = null;
+    let sevenDay = null;
+    for (const b of buckets) {
+      const w = String(b?.window || "").toLowerCase();
+      const bid = String(b?.id || b?.name || "").toLowerCase();
+      const parsed = parseBucket(b);
+      if (!parsed) continue;
+      if (w === "5h" || /\b5h\b|five[\s_-]?hour/.test(bid)) fiveHour = parsed;
+      else if (w === "weekly" || w === "7d" || /week/.test(bid)) sevenDay = parsed;
+    }
+    if (!fiveHour && !sevenDay) continue;
+    const name = String(g?.name || "").trim() || "Antigravity";
+    const key = /claude|gpt|3p/i.test(name) ? "3p" : /gemini/i.test(name) ? "gemini" : name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    groups.push({ key, name, shortName: shortQuotaGroupName(name), fiveHour, sevenDay });
+  }
+  if (!groups.length) return null;
+
+  const primary = groups.find((g) => g.key === "gemini") || groups[0];
+  let credits = null;
+  if (rawCredits != null) {
+    const cObj = typeof rawCredits === "string" ? extractAgyJson(rawCredits) : rawCredits;
+    const remC = cObj?.command?.data?.remaining_credits;
+    if (Number.isFinite(Number(remC))) credits = Number(remC);
+  }
+
+  return {
+    source: "agy",
+    at: now,
+    email: AUTH_CACHE?.v?.email || null,
+    fiveHour: primary.fiveHour,
+    sevenDay: primary.sevenDay,
+    groups,
+    ...(credits != null ? { credits } : {}),
+  };
+}
+
+function execAgyJsonCmd(bin, slashCmd, timeoutMs = 15000) {
+  return new Promise((resolve) => {
+    execFile(bin, ["--output-format", "json", "-p", slashCmd], { cwd: CFG.home, env: authEnv(), encoding: "utf8", timeout: timeoutMs, maxBuffer: 2 << 20 }, (err, stdout, stderr) => {
+      resolve({ status: err ? (typeof err.code === "number" ? err.code : 1) : 0, stdout: String(stdout || ""), stderr: String(stderr || "") });
+    });
+  });
+}
+
+/** 通过官方 `agy --output-format json -p "/usage"`（及 `/credits`）零消耗查询订阅 5h / 周额度 */
+export async function fetchAgyQuota(force = false) {
+  if (!force && AGY_QUOTA && Date.now() - AGY_QUOTA.at < AGY_QUOTA_TTL_MS) return AGY_QUOTA;
+  if (AGY_QUOTA_INFLIGHT) return AGY_QUOTA_INFLIGHT;
+  const bin = agyBin();
+  if (!bin || !fs.existsSync(bin)) return AGY_QUOTA;
+
+  const task = (async () => {
+    const [uRes, cRes] = await Promise.all([
+      execAgyJsonCmd(bin, "/usage", 15000),
+      execAgyJsonCmd(bin, "/credits", 12000),
+    ]);
+    const parsed = parseAgyQuotaJson(uRes.stdout, cRes.status === 0 ? cRes.stdout : null);
+    if (!parsed) return AGY_QUOTA;
+    AGY_QUOTA = parsed;
+    try {
+      fs.mkdirSync(path.dirname(QUOTA_FILE), { recursive: true });
+      fs.writeFileSync(QUOTA_FILE, JSON.stringify(AGY_QUOTA));
+    } catch {}
+    publish({ type: "quota" });
+    return AGY_QUOTA;
+  })().finally(() => {
+    if (AGY_QUOTA_INFLIGHT === task) AGY_QUOTA_INFLIGHT = null;
+  });
+
+  AGY_QUOTA_INFLIGHT = task;
+  return task;
+}
+
+/** 每轮 ACP 对话结束后异步防抖刷新官方额度（不阻塞回合收尾） */
+export function refreshAgyQuotaSoon() {
+  if (AGY_QUOTA_DEBOUNCE) clearTimeout(AGY_QUOTA_DEBOUNCE);
+  AGY_QUOTA_DEBOUNCE = setTimeout(() => {
+    AGY_QUOTA_DEBOUNCE = null;
+    fetchAgyQuota(true).catch(() => {});
+  }, 1500);
+  AGY_QUOTA_DEBOUNCE.unref?.();
+}
 
 // 上一次经网关登录用的方式（personal / enterprise），落盘保存、退出登录时清除。
 // authStatus 不再一律报 oauth-personal：企业登录后报 oauth-business（A12）。
@@ -265,20 +406,33 @@ export async function routeLogin(req, res, u, p) {
     // 仍会命中。只在登录态由假变真时清一次模型缓存——登录态不变的轮询不清，
     // 否则 10 分钟缓存名存实亡；首探（was=null）时网关刚起、缓存是空的，也不用清。
     const wasLoggedIn = loggedInKnown();
-    const st = await authStatus(need || u.searchParams.get("refresh") === "1");
+    const refresh = u.searchParams.get("refresh") === "1";
+    const st = await authStatus(need || refresh);
     if (st.loggedIn && wasLoggedIn === false) dropModelCache();
+    let agyLimits = null;
+    if (st.loggedIn) {
+      if (refresh || need) {
+        agyLimits = await fetchAgyQuota(true).catch(() => AGY_QUOTA);
+      } else {
+        agyLimits = AGY_QUOTA;
+        if (!AGY_QUOTA || Date.now() - AGY_QUOTA.at >= AGY_QUOTA_TTL_MS) {
+          fetchAgyQuota(false).catch(() => {});
+        }
+      }
+    }
     let url = "";
     if (LOGIN && !LOGIN.done) {
       try { url = fs.readFileSync(LOGIN.urlFile, "utf8").trim(); } catch {}
       if (!url) url = pickAuthUrl(LOGIN.out);
     }
+    const fallbackLimits = RATE_LIMITS && (!RATE_LIMITS.email || RATE_LIMITS.email === st.email) ? RATE_LIMITS : null;
     return sendJson(res, 200, {
       ...st,
       pending: !!(LOGIN && !LOGIN.done),
       waitingCode: !!(LOGIN && !LOGIN.done && !LOGIN.codeSent && LOGIN.child.stdin && !LOGIN.child.stdin.destroyed),
       codeSent: !!(LOGIN && LOGIN.codeSent),
       url: url || null,
-      limits: st.loggedIn && RATE_LIMITS && (!RATE_LIMITS.email || RATE_LIMITS.email === st.email) ? RATE_LIMITS : null,
+      limits: st.loggedIn ? (agyLimits || fallbackLimits) : null,
       last: LOGIN && LOGIN.done ? { ok: LOGIN.ok, output: LOGIN.ok ? "" : LOGIN.out.slice(-800) } : null,
     });
   }
@@ -329,10 +483,11 @@ export async function routeLogin(req, res, u, p) {
         deleted++;
       } catch {}
     }
-    AUTH_CACHE = null; AUTH_GOOD = null; AUTH_TIER = null;
+    AUTH_CACHE = null; AUTH_GOOD = null; AUTH_TIER = null; AGY_QUOTA = null;
     try { fs.unlinkSync(TIER_FILE); } catch {}
     try { fs.unlinkSync(LOGIN_METHOD_FILE); } catch {}
     LAST_LOGIN_METHOD = "personal";
+    try { fs.unlinkSync(QUOTA_FILE); } catch {}
     noteLoggedIn(false);
     clearRateLimits();
     const v = await authStatus(true);   // 重探：真退了才算数

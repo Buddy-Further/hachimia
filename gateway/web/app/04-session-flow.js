@@ -653,6 +653,7 @@
 
   // ── 事件总线 ──────────────────────────────────────────────────────
   let es = null, lastEventId = "", helloCount = 0, busWatch = 0, busDropped = false;   // busDropped：上一条连接断过（不是换视图的主动重放）
+  let lastBusAt = Date.now(), lastStateSyncAt = 0;
 
   let busDownAt = 0, busKick = 0;
   // 自己重拨的等待：1.5 秒起步翻倍，封顶 30 秒——网关长期不在时不再每 1.5 秒敲一次（FIND-037）。
@@ -684,12 +685,14 @@
     cur.dead = false;
     es.onmessage = (m) => {
       if (es !== cur || cur.dead) return;
+      lastBusAt = Date.now();
       if (m.lastEventId) lastEventId = m.lastEventId;
       let ev; try { ev = JSON.parse(m.data); } catch { return; }
       try { onBus(ev); } catch (e) { console.error(e); }
     };
     es.onopen = () => {
       if (es !== cur || cur.dead) return;
+      lastBusAt = Date.now();
       busRetryN = 0;
       gwDeadAt = 0;   // 连上了就是活的：断线文案从「生成不受影响」重新算
       clearTimeout(busWatch); busWatch = 0; busDownAt = 0; setConn(true);
@@ -746,18 +749,43 @@
       if (recover && view.sessionId) connectBus(false);
     }, RESUME_TAIL_MS);
   }
+  function hasLiveRunView() {
+    for (const rv of runViews.values()) if (rv && rv.av) return true;
+    return false;
+  }
+  function syncStateAndReconcile(read) {
+    const askedAt = Date.now(), gen = view.gen, rev = stateRev;
+    lastStateSyncAt = askedAt;
+    if (typeof api === "function") {
+      api("/api/state").then((s) => {
+        if (!s || typeof s !== "object" || (read != null && read !== resumeRead) || gen !== view.gen || document.hidden) return;
+        if (rev === stateRev) applyState(s);   // 不用迟到的 HTTP 快照覆盖期间收到的 SSE 状态
+        if (typeof reconcileRunViews === "function") reconcileRunViews(askedAt, gen);
+      }).catch(() => {});
+    }
+  }
   document.addEventListener("visibilitychange", () => {
     const read = ++resumeRead;
     clearTimeout(resumeTail); resumeTail = 0;
     if (document.hidden) return;
-    const askedAt = Date.now(), gen = view.gen, rev = stateRev;
-    api("/api/state").then((s) => {
-      if (!s || typeof s !== "object" || read !== resumeRead || gen !== view.gen || document.hidden) return;
-      if (rev === stateRev) applyState(s);   // 不用迟到的 HTTP 快照覆盖期间收到的 SSE 状态
-      reconcileRunViews(askedAt, gen);
-    }).catch(() => {});
-    if (!es || es.readyState !== 1) connectBus(true);
+    syncStateAndReconcile(read);
+    if (!es || es.readyState !== 1 || Date.now() - lastBusAt > 40000) connectBus(true);
   });
+  // 前台 SSE 活性看门狗 + 活跃轮次周期对账：
+  // 1) 网关每 15s 发一次 {"type":"hb"}；若超过 40s 没收到任何 SSE 消息，说明连接已半开假活，主动重连并对账；
+  // 2) 屏幕常亮未切后台时，若有气泡仍在转圈/计时，每 20s 拉一次 /api/state 对账，防止后端已结束但前端漏掉 run_end 一直空转
+  setInterval(() => {
+    if (document.hidden || srv.foreign) return;
+    const now = Date.now();
+    if (srv.connected && es && es.readyState === 1 && now - lastBusAt > 40000) {
+      lastBusAt = now;
+      busDropped = true;
+      connectBus(true);
+      syncStateAndReconcile();
+      return;
+    }
+    if (hasLiveRunView() && now - lastStateSyncAt > 20000) syncStateAndReconcile();
+  }, 10000);
 
   // ── 维护者通知（经 GitHub raw，网关验过签；见 gw/notices.mjs）：和更新说明同样的居中卡片 ──
   // 什么时候弹（用户 10-22 定）：正在用的时候不弹；打开应用、或从后台切回来时才看一眼。
@@ -839,6 +867,7 @@
     }
     if (ev.type === "error") recordFailNote(ev);
     switch (ev.type) {
+      case "hb": return;
       case "hello": return onHello(ev);
       case "tasks":
         if (view.sessionId && ev.sessionId === view.sessionId) { view.tasks = ev.tasks || null; view.liveAt = Date.now(); renderRunStrip(); }
@@ -960,11 +989,11 @@
     if (!av) return;   // 收尾后只留了 startedAt 的空壳（FIND-042）：晚到的增量不再画
     switch (ev.type) {
       case "run_tokens":     rv.out = +ev.out || 0; if (statRun === ev.runId) statPaint(); break;
-      case "delta":          av.delta(ev.text); break;
-      case "text_delta":     av.delta(ev.text); break;   // ACP 引擎（gw/acp.mjs）的正文流事件名
-      case "assistant_text": av.text(ev.text); break;
-      case "thinking_delta": av.thinkDelta(ev.text); break;
-      case "thinking":       av.thinking(ev.text); break;
+      case "delta":          av.phase({ phase: "text" }); av.delta(ev.text); break;
+      case "text_delta":     av.phase({ phase: "text" }); av.delta(ev.text); break;   // ACP 引擎（gw/acp.mjs）的正文流事件名
+      case "assistant_text": av.phase({ phase: "text" }); av.text(ev.text); break;
+      case "thinking_delta": av.phase({ phase: "think" }); av.thinkDelta(ev.text); break;
+      case "thinking":       av.phase({ phase: "think" }); av.thinking(ev.text); break;
       case "discard_partial": av.discard(ev.text || 0, ev.think || 0); break;
       case "tool_use": {
         const pc = ev.parent && TOOL_CARDS.get(ev.parent);
@@ -974,13 +1003,14 @@
         if (ev.parent) break;
         av.tool(ev.id, ev.name, ev.input); break;
       }
+      case "tool_update":    toolUpdate(ev); break;
       case "ag":             agApply(ev, av); break;
       case "sub_text":       TOOL_CARDS.get(ev.parent)?.subText?.(ev.text); break;
       case "sub_progress":   TOOL_CARDS.get(ev.parent)?.subProgress?.(ev.desc); break;
       case "sub_done":       TOOL_CARDS.get(ev.parent)?.subDone?.(ev.status); break;
       case "tool_result":
         if (ev.parent && !TOOL_CARDS.get(ev.parent)) break;   // 同上：父卡不在，结果也不攒进待贴表
-        toolResult(ev.id, ev.ok, ev.text); av.toolDone(ev.id); queueToolFollow(); break;
+        toolResult(ev.id, ev.ok, ev.text, !!ev.cancelled); av.toolDone(ev.id); queueToolFollow(); break;
       case "phase":          av.phase(ev); break;
       // 压缩中的状态会连来好几条：同一次压缩只留一行，压完原地换成结果（#67）
       case "compacting":     av.phase(null); av.noteK("cmp" + cmpGen, t("正在压缩上下文…")); scrollDown(); break;

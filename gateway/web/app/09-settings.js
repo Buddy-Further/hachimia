@@ -239,15 +239,25 @@
       else if (act === "use") useProvider(p);
     };
   }
-  /** 额度窗口列表：5 小时、每周，再加分模型的周窗口（只在它成了最紧的那个窗口时报过，见 gw/stream.mjs noteRateLimit） */
+  /** 额度窗口列表：Antigravity 多模型组（Gemini / Claude&GPT 各自的 5h 与每周）或传统 5h/每周 + 分模型周窗口 */
   function quotaWins(l) {
+    if (l && Array.isArray(l.groups) && l.groups.length) {
+      const ws = [];
+      const multi = l.groups.length > 1;
+      for (const g of l.groups) {
+        const pre = multi ? (g.shortName || g.name) + " · " : "";
+        if (g.fiveHour) ws.push([`${g.key || "g"}-5h`, pre + t("5 小时"), g.fiveHour]);
+        if (g.sevenDay) ws.push([`${g.key || "g"}-wk`, pre + t("每周"), g.sevenDay]);
+      }
+      if (ws.length) return ws;
+    }
     const mw = (l && l.modelWeek) || {}, now = Date.now() / 1000;
     const ws = [["5h", t("5 小时"), l && l.fiveHour], ["wk", t("每周"), l && l.sevenDay]];
     for (const [k, name] of [["opus", "Opus"], ["sonnet", "Sonnet"]])
       if (mw[k] && (!mw[k].resetsAt || mw[k].resetsAt > now)) ws.push(["wk-" + k, t("每周 · {model}", { model: name }), mw[k]]);
     return ws.filter((x) => x[2]);
   }
-  /** 订阅额度：无 5h/周限额回报时（如 Google Antigravity 订阅）给出清晰提示，不再沿用旧 Claude 文案 */
+  /** 订阅额度：支持 Antigravity 官方 5h/周分组额度与 AI Credits */
   function quotaHtml(l) {
     if (!l) return `<div class="quota tiny">${t("按 Google Antigravity 账户订阅档位使用，本机 Token 统计见「用量」页")}</div>`;
     const when = (sec) => {
@@ -261,13 +271,14 @@
       // 网关给的已经是百分数，超额度时大于 100：数字如实显示，只把条子画满（197-5.7）
       const pct = Math.round(Math.max(0, +w.used || 0)), bar = Math.min(100, pct);
       const cls = pct >= 90 ? " hot" : pct >= 70 ? " warm" : "";
-      return `<div class="quota-row"><span class="quota-l">${label}</span>
+      return `<div class="quota-row"><span class="quota-l">${esc(label)}</span>
         <span class="quota-bar"><i class="${cls.trim()}" style="width:${bar}%"></i></span>
         <span class="quota-v">${pct}%</span>
         <span class="tiny">${w.resetsAt ? t("{time} 重置", { time: esc(when(w.resetsAt)) }) : ""}</span></div>`;
     };
     const ago = Math.max(0, Math.round((Date.now() - l.at) / 60000));
-    return `<div class="quota">${quotaWins(l).map(([, label, w]) => row(label, w)).join("")}
+    const creditsHtml = Number.isFinite(l.credits) ? `<div class="tiny">${esc(t("AI Credits 剩余：{n}", { n: l.credits }))}</div>` : "";
+    return `<div class="quota">${quotaWins(l).map(([, label, w]) => row(label, w)).join("")}${creditsHtml}
       <div class="tiny">${ago < 1 ? t("额度刚刚更新") : t("额度更新于 {n} 分钟前（每轮对话后刷新）", { n: ago })}</div></div>`;
   }
   /** 用量页的额度面板：只有用 Claude 账户登录时才显示，大数字 + 进度条 + 重置时间 */
@@ -292,7 +303,7 @@
       const reset = at ? t("{time} 重置", { time: esc(at.toDateString() === new Date().toDateString()
         ? at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
         : at.toLocaleDateString([], { month: "numeric", day: "numeric" }) + " " + at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })) }) : "";
-      return `<div class="q-tile ${cls}"><span class="q-l">${label}</span><b>${pct}<small>%</small></b>
+      return `<div class="q-tile ${cls}"><span class="q-l">${esc(label)}</span><b>${pct}<small>%</small></b>
         <span class="quota-bar"><i class="${cls}" style="width:${bar}%"></i></span><span class="q-r">${reset}</span></div>`;
     };
     $("quota-tiles").innerHTML = quotaWins(l).map(([, label, w]) => tile(label, w)).join("");
@@ -300,7 +311,8 @@
     if (lq) lq.outerHTML = quotaHtml(l);
     usDash.quota = l.sevenDay || null; usPaint(); paintSetUsage();
     const ago = Math.max(0, Math.round((Date.now() - l.at) / 60000));
-    $("quota-note").textContent = ago < 1 ? t("额度刚刚更新") : t("额度更新于 {n} 分钟前（每轮对话后刷新）", { n: ago });
+    const creditsPart = Number.isFinite(l.credits) ? " · " + t("AI Credits 剩余：{n}", { n: l.credits }) : "";
+    $("quota-note").textContent = (ago < 1 ? t("额度刚刚更新") : t("额度更新于 {n} 分钟前（每轮对话后刷新）", { n: ago })) + creditsPart;
   }
   // 额度看得见的地方（用量页、设置里的用量行 / 登录卡片、第三方的余额卡片）只在打开时拉过一次，
   // 之后要切页面才更新。现在：网关记下新额度时推 quota、每轮跑完、回到前台，都把看得见的那几处重画一遍
@@ -533,6 +545,17 @@
   }
   function loginBrief(l) {
     if (!l) return { text: "", lvl: 0 };
+    // 多模型组时顶栏优先显示当前所选模型所属分组的 5h + 周额度，精简不撑爆顶栏；完整分组点开速览卡即可查看
+    if (Array.isArray(l.groups) && l.groups.length) {
+      const m = String(state.model || "").toLowerCase();
+      const want3p = /claude|gpt/.test(m);
+      const g = (want3p ? l.groups.find((x) => x.key === "3p") : l.groups.find((x) => x.key === "gemini")) || l.groups[0];
+      const ws = [[t("5 小时"), g.fiveHour], [t("每周"), g.sevenDay]].filter((x) => x[1]);
+      if (ws.length) {
+        const top = Math.max(0, ...ws.map((x) => +x[1].used || 0));
+        return { text: ws.map((x) => x[0] + " " + Math.round(x[1].used) + "%").join(" · "), lvl: top >= 90 ? 2 : top >= 70 ? 1 : 0 };
+      }
+    }
     const ws = quotaWins(l).map(([, label, w]) => [label, w]);
     const top = Math.max(0, ...ws.map((x) => +x[1].used || 0));
     return { text: ws.map((x) => x[0] + " " + Math.round(x[1].used) + "%").join(" · "), lvl: top >= 90 ? 2 : top >= 70 ? 1 : 0 };
@@ -549,11 +572,11 @@
     const cur = pb ? { id: pid, name: provLabel(pid), login: pb.keyMode === "login" } : { id: s.provider, name: provName(s), login: s.keyMode === "login" };
     if (cur.login) {
       let st = null, failed = false;
-      try { st = await api("/api/login/status"); } catch { failed = true; }
+      try { st = await api("/api/login/status" + (force ? "?refresh=1" : "")); } catch { failed = true; }
       // 查询失败（网络/网关忙）别把已经显示的已登录额度清掉；只有接口明确回“没登录”才撤（195-O.9）
       if (failed && QB.cur && QB.cur.id === cur.id) return QB.cur;
       cur.limits = st && st.loggedIn ? st.limits || null : null;
-      // Google Antigravity 订阅登录不回传 Claude 风格的 5h/周百分比：同步拉本机账本 token 统计，让顶栏与速览卡始终有实时数据
+      // 尚未拿到官方 5h/周百分比时兜底拉本机账本 token 统计，让顶栏与速览卡始终有实时数据
       if (!cur.limits) {
         cur.bill = await api(`/api/billing?id=${encodeURIComponent(cur.id)}`).catch(() => null);
         if (cur.bill && cur.bill.error) cur.bill = null;
@@ -650,7 +673,7 @@
     if (isAgyProv(c.id) || (c.bill && (c.bill.tok?.length || c.bill.tokOld?.in))) {
       const rows = c.bill ? billRows(c.bill, { id: c.id }, brief) : "";
       const note = isAgyProv(c.id)
-        ? `<div class="tiny">${t("Google Antigravity 订阅配额由 Google 账户管理（CLI 不回传剩余百分比），此处显示本机实际 token 用量。")}</div>`
+        ? `<div class="tiny">${t("正在同步 Google Antigravity 订阅额度，此处先显示本机 token 用量（点右上角「刷新」可立即查询）。")}</div>`
         : "";
       return rows + note;
     }

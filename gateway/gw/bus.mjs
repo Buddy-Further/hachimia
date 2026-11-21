@@ -54,7 +54,7 @@ function busWrite(res, line) {
     res.write(typeof line === "string" ? Buffer.from(line) : line);
   } catch { BUS.clients.delete(res); }
 }
-if (LIVE) setInterval(() => { for (const c of BUS.clients) busWrite(c, ": hb\n\n"); }, 15000).unref();
+if (LIVE) setInterval(() => { for (const c of BUS.clients) busWrite(c, 'data: {"type":"hb"}\n\n'); }, 15000).unref();
 // 篡改留痕（tamper.mjs）：有新的就推给界面，界面提示一次，点「知道了」回 /api/tamper/ack
 onTamper((list) => publish({ type: "tamper", tamper: list }));
 

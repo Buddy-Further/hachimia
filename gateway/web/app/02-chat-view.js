@@ -82,10 +82,10 @@
   const TOOL_RESULTS = new Map();     // tool_use id → { ok, text }
   const RESULT_MAX = 2000, RESULT_CHARS = 8000000;
   let resultChars = 0;
-  function rememberResult(id, ok, text) {
+  function rememberResult(id, ok, text, cancelled) {
     const old = TOOL_RESULTS.get(id);
     if (old) { resultChars -= old.text.length; TOOL_RESULTS.delete(id); }
-    const v = { ok: !!ok, text: String(text || "") };
+    const v = { ok: !!ok, text: String(text || ""), cancelled: !!cancelled };
     TOOL_RESULTS.set(id, v); resultChars += v.text.length;
     while (TOOL_RESULTS.size > RESULT_MAX || (resultChars > RESULT_CHARS && TOOL_RESULTS.size > 1)) {
       const k = TOOL_RESULTS.keys().next().value;      // 先丢最早的；刚存进来的最后才轮到（只剩它就不再丢）
@@ -501,18 +501,25 @@
     const calls = [];
     const c = { kind: "tool", lazy: true, id, name, input, live, calls, disposed: false, isAgent: isAgentToolName(name),
                 state: live ? "run" : "unknown", summary: summarizeTool(name, input), onChange: null };
-    for (const k of ["result", "subText", "subProgress", "subDone", "stop", "fail", "finish", "subLazy"]) {
+    for (const k of ["result", "update", "subText", "subProgress", "subDone", "stop", "fail", "finish", "subLazy"]) {
       c[k] = (...a) => {
         if (c.disposed) return;
-        if (calls[calls.length - 1]?.[0] === k && ["subText", "subProgress", "subLazy", "finish"].includes(k)) calls[calls.length - 1][1] = a;
+        if (calls[calls.length - 1]?.[0] === k && ["update", "subText", "subProgress", "subLazy", "finish"].includes(k)) calls[calls.length - 1][1] = a;
         else calls.push([k, a]);
+        if (k === "update") {
+          const u = a[0] || {};
+          if (u.name) c.name = u.name;
+          if (u.input && typeof u.input === "object") { input = u.input; c.input = u.input; }
+          c.summary = summarizeTool(c.name, c.input);
+        }
         if (k === "result") {
-          c.state = a[0] ? "ok" : "err"; c.hasResult = true;
-          if (c.isAgent && a[0] && isAsyncAgentResult(name, String(a[1] || "")) && !c.subEnded) {
+          const cancelled = !!a[2];
+          c.state = cancelled ? "cancel" : (a[0] ? "ok" : "err"); c.hasResult = true;
+          if (!cancelled && c.isAgent && a[0] && isAsyncAgentResult(name, String(a[1] || "")) && !c.subEnded) {
             const fin = AG.byTool.get(id)?.status;
             c.state = fin && fin !== "running" ? (fin === "done" ? "ok" : "err") : "run";
           }
-          c.attention = (!a[0] && live) || (a[0] && /\.(png|jpe?g|gif|webp)\b/i.test(String(a[1] || "")));
+          c.attention = (!cancelled && !a[0] && live) || (!cancelled && a[0] && /\.(png|jpe?g|gif|webp)\b/i.test(String(a[1] || "")));
         }
         if (k === "subDone") {
           if (c.isAgent) c.subEnded = true;
@@ -569,7 +576,8 @@
       `<div class="tool-body"></div>`;
     parent.appendChild(card);
     const st = card.querySelector(".tool-state"), bodyEl = card.querySelector(".tool-body");
-    let result = null, built = false;
+    const nameEl = card.querySelector(".tool-name"), argEl = card.querySelector(".tool-arg");
+    let result = null, liveOut = "", built = false;
     // 子代理（Agent / Task / agy invoke_subagent / run_workflow）：卡片下面挂一块「子代理过程」，默认收起
     const isAgent = isAgentToolName(name);
     let sub = null;
@@ -626,6 +634,7 @@
       built = true;
       let html = `<div class="lbl">${t("参数")}</div><pre>${esc(JSON.stringify(input, null, 2))}</pre>`;
       if (result) html += `<div class="lbl">${t("结果")}</div><pre>${esc(result.text)}</pre>`;
+      else if (liveOut) html += `<div class="lbl">${t("输出（运行中）")}</div><pre>${esc(liveOut)}</pre>`;
       bodyEl.innerHTML = html;
       if (result) embedLocalImages(bodyEl);
     };
@@ -640,24 +649,41 @@
       el: card,
       name, summary: summarizeTool(name, input), state: live ? "run" : "unknown",
       onChange: null,
-      result(ok, text) {
+      update(u) {
+        if (disposed || !u) return;
+        if (u.name && u.name !== name) { name = u.name; api.name = name; if (nameEl) nameEl.textContent = name; }
+        if (u.input && typeof u.input === "object") {
+          input = u.input;
+          api.summary = summarizeTool(name, input);
+          if (argEl) {
+            argEl.textContent = api.summary;
+            const ct = typeof input.CommandLine === "string" ? input.CommandLine : typeof input.command === "string" ? input.command : "";
+            if (ct) argEl.title = ct.slice(0, 500);
+          }
+        }
+        if (typeof u.output === "string" && u.output !== liveOut) liveOut = u.output;
+        if (built && !result) { built = false; build(); }
+        api.onChange && api.onChange();
+      },
+      result(ok, text, cancelled) {
         if (disposed) return;
         const repeat = !!result;
-        result = { ok, text: String(text || "") };
-        api.state = ok ? "ok" : "err";
-        st.className = "tool-state " + (ok ? "ok" : "err");
-        st.textContent = ok ? t("完成") : t("失败");
-        if (live && !busReplay) { MO.play(st, "mo-tick", 1400, repeat); if (ok) MO.play(card, "mo-ok", 1400, repeat); }
+        const isCancel = !!cancelled;
+        result = { ok, text: String(text || ""), cancelled: isCancel };
+        api.state = isCancel ? "cancel" : (ok ? "ok" : "err");
+        st.className = "tool-state " + (isCancel ? "cancel" : (ok ? "ok" : "err"));
+        st.textContent = isCancel ? t("已取消") : (ok ? t("完成") : t("失败"));
+        if (live && !busReplay) { MO.play(st, "mo-tick", 1400, repeat); if (ok && !isCancel) MO.play(card, "mo-ok", 1400, repeat); }
         // 后台子代理：工具结果只是「已启动」，真正跑完靠 sub_done
         // 状态也记成在跑：不然步骤组的摘要按「完成」算（审查 #48 UI07-03）
-        if (isAgent && ok && isAsyncAgentResult(name, result.text) && !(sub && sub.done)) {
+        if (!isCancel && isAgent && ok && isAsyncAgentResult(name, result.text) && !(sub && sub.done)) {
           // 联络簿比这张卡先到、已经记着它结束了（翻历史时常见）：直接按终态收，别挂成「后台运行」（#95 01-003）
           const fin = AG.byTool.get(id)?.status;
           if (fin && fin !== "running") api.subDone(fin === "done" ? "completed" : fin);
           else { api.state = "run"; st.className = "tool-state run"; st.textContent = t("后台运行"); }
         }
         if (built) { built = false; build(); }
-        if (!ok && live) { card.classList.add("open"); build(); }
+        if (!isCancel && !ok && live) { card.classList.add("open"); build(); }
         // 工具产出的图片（渲染结果、截图）直接露出来，不用点开
         if (ok && /\.(png|jpe?g|gif|webp)\b/i.test(result.text)) {
           const peek = card.querySelector(".tool-peek") || document.createElement("div");
@@ -811,7 +837,7 @@
       TOOL_CARDS.set(id, api);
       // 结果已经先到过（结果排在调用前面、或者这页刚被裁掉又补回来）：当场贴上，别留一个默认成功的空卡（#120-4）
       const res = TOOL_RESULTS.get(id);
-      if (res) api.result(res.ok, res.text);
+      if (res) api.result(res.ok, res.text, res.cancelled);
     }
     trackChatBlock(api);
     return api;
@@ -823,7 +849,7 @@
     el.className = "tgroup single";
     el.innerHTML = `<button class="tg-head" type="button"></button><div class="tg-body"></div>`;
     parent.appendChild(el);
-    const head = el.firstChild, body = el.lastChild, entries = [], members = [], pinned = new Set(), shown = new Set(), counts = { run: 0, err: 0, unknown: 0, ok: 0 };
+    const head = el.firstChild, body = el.lastChild, entries = [], members = [], pinned = new Set(), shown = new Set(), counts = { run: 0, err: 0, unknown: 0, ok: 0, cancel: 0 };
     const older = document.createElement("button"), newer = document.createElement("button");
     for (const b of [older, newer]) { b.type = "button"; b.className = "ts-older tg-page"; b.hidden = true; body.appendChild(b); }
     let key = "", disposed = false, start = 0, follow = true, drawing = false, batching = false;
@@ -956,7 +982,7 @@
         if (!e) return null;
         if (id && !m.disposed) TOOL_CARDS.set(id, m);
         const res = id && TOOL_RESULTS.get(id);
-        if (res) { if (e.block.lazy) e.block.result(res.ok, res.text); else changed(e); }
+        if (res) { if (e.block.lazy) e.block.result(res.ok, res.text, res.cancelled); else changed(e); }
         return e.block;
       },
       add,
@@ -972,9 +998,13 @@
       remove() { dispose(); el.remove(); },
     });
   }
-  function toolResult(id, ok, text) {
-    if (id) rememberResult(id, ok, text);   // 卡片现在没有、或以后被裁掉重建，结果都还在（#120-4）
+  function toolUpdate(ev) {
+    const c = ev && ev.id && TOOL_CARDS.get(ev.id);
+    if (c && c.update) c.update(ev);
+  }
+  function toolResult(id, ok, text, cancelled) {
+    if (id) rememberResult(id, ok, text, cancelled);   // 卡片现在没有、或以后被裁掉重建，结果都还在（#120-4）
     const c = TOOL_CARDS.get(id);
-    if (c) c.result(ok, text);
+    if (c) c.result(ok, text, cancelled);
   }
 

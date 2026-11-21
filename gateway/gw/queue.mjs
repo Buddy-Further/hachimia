@@ -23,7 +23,7 @@ import { cleanMergeFrom } from "./merge.mjs";
 import { LOCAL_CMD_RE } from "./modelcmd.mjs";
 import { tamperPending } from "./tamper.mjs";
 import { RATE_LIMITS } from "./stream.mjs";
-import { getAcpPoolBg } from "./acp.mjs";
+import { getAcpIdleRuns, getAcpPoolBg } from "./acp.mjs";
 
 // ── 生成与排队 ────────────────────────────────────────────────────────
 export const QUEUE = [];                 // 等着跑的消息：{ id, message, sessionId, follow, model, permissionMode, addDirs, at }
@@ -106,9 +106,10 @@ function holdForStorage(q) {
   warnRecover("读取历史失败：{msg}", { msg: "I/O" });
 }
 export function snapshot() {
+  const runs = [...runList().map(runInfo), ...getAcpIdleRuns()];
   return {
     run: runInfo(latestRun()),           // 旧字段：最近开始的那一轮
-    runs: runList().map(runInfo),
+    runs,
     maxParallel: maxParallel(),
     tamper: tamperPending(),           // 应用文件被改过、已还原：界面提示一次（见 tamper.mjs）
     queue: QUEUE.map((q) => ({ id: q.id, cid: q.cid, text: q.message.slice(0, 500), sessionId: q.sessionId, follow: q.follow, at: q.at, held: !!q.held, intr: !!q.intr,

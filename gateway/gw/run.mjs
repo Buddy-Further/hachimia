@@ -7,6 +7,7 @@ import { PERM_MODES, PROVIDER, acpAuthType, billAfterRun, hasAcpKeyChannel, hasA
 import { ALIAS_SEEN, defaultAcpCompactLine, effortLevelsOf, fetchModels, isLoginMode, learnWindow, modelsCached, normEffort } from "./models.mjs";
 import { agyEnv, bridgeSwitching, claudeAtLeast, claudeCmd, claudeEnv, currentModelInfo, ensureBridge, safeModePerm, settingsArgs } from "./claude.mjs";
 import { runAcpTurn, stopAcpBgTask } from "./acp.mjs";
+import { refreshAgyQuotaSoon } from "./login.mjs";
 import { expandCustomCommand } from "./commands.mjs";
 import { tasksCheck } from "./goal.mjs";
 import { setLastInit } from "./caps.mjs";
@@ -493,6 +494,7 @@ export async function startRun(item) {
       acpImages = await inlineImages(acpPrompt, P, { tmpDir: acpEnv.TMPDIR, env: acpEnv }).catch(() => []);
     }
     // ACP init 事件一到就记账（B6）：别等整轮跑完才有会话号，首轮进行中跟发的消息要靠它续进同一会话
+    const hadAcpSid = !!run.sessionId;
     const acpEmit = (ev) => {
       if (ev?.type === "init" && ev.sessionId) noteAcpInit(run, ev.sessionId);
       emit(ev);
@@ -572,6 +574,7 @@ export async function startRun(item) {
       RUN_SESSIONS.set(run.id, acpRes.sessionId);
       rememberSession(acpRes.sessionId);
       saveRunMark();
+      if (!hadAcpSid) emit({ type: "session_created", sessionId: run.sessionId, runId: run.id, cwd: run.cwd });
     }
     clearAcpTurnMarkers(run, acpRes);   // ACP 回合走到结果：清「未完成」标记与中断卡（B7）
     const ctxWin = Number(acpRes.usage?.context_window) || Number(currentModelInfo(model, P).context_window) || 0;
@@ -597,7 +600,8 @@ export async function startRun(item) {
         usageAdd(d, run.sessionId, acpRes.model || model || "antigravity");
         if (iTok > 0 || oTok > 0 || cTok > 0) noteTokenDelta(P.id, { i: iTok, o: oTok, c: cTok });
       }
-      if (!P.login) billAfterRun(P.id);
+      if (P.login) refreshAgyQuotaSoon();
+      else billAfterRun(P.id);
     }
     const endRes = endRun(run, {
       failed: !acpRes.ok && !run.aborted,

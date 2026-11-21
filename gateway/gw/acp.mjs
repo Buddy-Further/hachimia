@@ -79,6 +79,15 @@ export function getAcpPoolBg(sessionId) {
   return out;
 }
 
+/** 查询常驻 ACP 进程池中正在推送空闲后台回报的虚拟轮次（供 /api/state 对账识别，避免前端误掐） */
+export function getAcpIdleRuns() {
+  const out = [];
+  for (const e of ACP_POOL.values()) {
+    if (e.idleRun) out.push(e.idleRun);
+  }
+  return out;
+}
+
 /** 停止某个 ACP 会话的后台任务：只删本地登记，绝不发全会话 session/cancel。
  *  ACP 没有单任务取消协议，发 session/cancel 会把正在跑的主轮次一并取消（B9）；
  *  空闲且无后台任务时直接回收进程即可，agent 侧的任务随进程回收一起结束。 */
@@ -285,7 +294,7 @@ function extractAcpUsage(u, prev = null, { isTurnTotal = false } = {}) {
  * @param {(method: string, params: any) => Promise<any>} [opts.onRequest]
  * @param {(line: string) => void} [opts.onStderr]
  */
-export function createAcpClient({ bin, args = ["acp"], cwd, env, onNotification, onRequest, onStderr }) {
+export function createAcpClient({ bin, args = ["acp"], cwd, env, onNotification, onRequest, onStderr, onClose }) {
   const child = spawn(bin, args, {
     cwd,
     env,
@@ -293,7 +302,7 @@ export function createAcpClient({ bin, args = ["acp"], cwd, env, onNotification,
     detached: true,
   });
 
-  const handlers = { onNotification, onRequest, onStderr };
+  const handlers = { onNotification, onRequest, onStderr, onClose };
   let nextId = 1;
   const pending = new Map(); // id -> { resolve, reject, timer }
   let closed = false;
@@ -407,6 +416,7 @@ export function createAcpClient({ bin, args = ["acp"], cwd, env, onNotification,
     if (jsonBuf) { log(`[acp] 进程退出时仍有未拼完的 stdout 内容: ${jsonBuf}`); jsonBuf = ""; }
     rl.close();
     rejectAll(new Error(signal ? `agy acp terminated by ${signal}` : `agy acp exited with code ${code}`));
+    try { handlers.onClose?.(code, signal); } catch {}
   });
 
   function writeMsg(obj) {
@@ -443,6 +453,7 @@ export function createAcpClient({ bin, args = ["acp"], cwd, env, onNotification,
     handlers.onNotification = next?.onNotification;
     handlers.onRequest = next?.onRequest;
     handlers.onStderr = next?.onStderr;
+    handlers.onClose = next?.onClose;
   }
 
   function close() {
@@ -592,11 +603,12 @@ function trackAcpToolSideEffects(phase, tool, state, emit) {
   }
 }
 
-/** 构造发往前端的 tool_result 事件（遵循前端 ok/text 契约，并保留 content/is_error 兼容字段） */
+/** 构造发往前端的 tool_result 事件（遵循前端 ok/text 契约，并保留 content/is_error/cancelled 字段） */
 function emitToolResult(tool, emit, state = null) {
   const full = String(tool.output || "");
   const clipped = full.length > TOOL_OUT_MAX ? full.slice(0, TOOL_OUT_MAX) + "\n\n…（已截断）" : full;
-  const isErr = !!tool.isError;
+  const isCancelled = !!tool.cancelled;
+  const isErr = !isCancelled && !!tool.isError;
   tool.done = true;
   if (state) trackAcpToolSideEffects("done", tool, state, emit);
   emit({
@@ -606,6 +618,7 @@ function emitToolResult(tool, emit, state = null) {
     text: clipped,
     content: clipped,
     is_error: isErr,
+    ...(isCancelled ? { cancelled: true } : {}),
   });
 }
 
@@ -732,12 +745,16 @@ export function translateAcpUpdate(params, state, emit) {
       : (upd.input && typeof upd.input === "object" ? upd.input : {});
     const existing = state.tools.get(id);
     if (existing) {
-      if (upd.title || upd.name) existing.name = name;
-      if (Object.keys(input).length) existing.input = { ...existing.input, ...input };
-      if (upd.status) existing.status = upd.status;
+      let changed = false;
+      if ((upd.title || upd.name) && existing.name !== name) { existing.name = name; changed = true; }
+      if (Object.keys(input).length) { existing.input = { ...existing.input, ...input }; changed = true; }
+      if (upd.status && existing.status !== upd.status) { existing.status = upd.status; changed = true; }
+      if (changed && !existing.done) {
+        emit({ type: "tool_update", id, name: existing.name, input: existing.input, status: existing.status });
+      }
       return;
     }
-    const rec = { id, name, input, status: upd.status || "pending", output: "", isError: false, done: false };
+    const rec = { id, name, input, status: upd.status || "pending", output: "", isError: false, cancelled: false, done: false };
     state.tools.set(id, rec);
     emit({ type: "tool_use", id, name, input });
     trackAcpToolSideEffects("start", rec, state, emit);
@@ -746,7 +763,8 @@ export function translateAcpUpdate(params, state, emit) {
     if (st0 === "completed" || st0 === "failed" || st0 === "error" || st0 === "cancelled" || st0 === "canceled") {
       const out0 = acpTextOf(upd.content ?? upd.rawOutput ?? upd.output);
       if (out0) rec.output = mergeToolOutput(rec.output, out0);
-      rec.isError = st0 !== "completed";
+      rec.cancelled = st0 === "cancelled" || st0 === "canceled";
+      rec.isError = st0 === "failed" || st0 === "error";
       emitToolResult(rec, emit, state);
     }
     return;
@@ -757,29 +775,52 @@ export function translateAcpUpdate(params, state, emit) {
     if (!id) return;
     if (state.knownToolIds?.has(id) && !state.tools.has(id)) return;
     let prev = state.tools.get(id);
+    let changed = false;
     if (!prev) {
       const name = String(upd.title || upd.name || upd.kind || "Tool");
       const input = upd.rawInput && typeof upd.rawInput === "object"
         ? upd.rawInput
         : (upd.input && typeof upd.input === "object" ? upd.input : {});
-      prev = { id, name, input, status: upd.status || "in_progress", output: "", isError: false, done: false };
+      prev = { id, name, input, status: upd.status || "in_progress", output: "", isError: false, cancelled: false, done: false };
       state.tools.set(id, prev);
       emit({ type: "tool_use", id, name, input });
       trackAcpToolSideEffects("start", prev, state, emit);
     } else {
-      if (upd.title || upd.name) prev.name = String(upd.title || upd.name);
+      if (upd.title || upd.name) {
+        const nextName = String(upd.title || upd.name);
+        if (nextName !== prev.name) { prev.name = nextName; changed = true; }
+      }
       if (upd.rawInput && typeof upd.rawInput === "object" && Object.keys(upd.rawInput).length) {
         prev.input = { ...prev.input, ...upd.rawInput };
+        changed = true;
+      } else if (upd.input && typeof upd.input === "object" && Object.keys(upd.input).length) {
+        prev.input = { ...prev.input, ...upd.input };
+        changed = true;
       }
     }
-    if (upd.status) prev.status = upd.status;
+    if (upd.status && upd.status !== prev.status) { prev.status = upd.status; changed = true; }
     const out = acpTextOf(upd.content ?? upd.rawOutput ?? upd.output);
-    if (out) prev.output = mergeToolOutput(prev.output, out);
+    if (out) {
+      const merged = mergeToolOutput(prev.output, out);
+      if (merged !== prev.output) { prev.output = merged; changed = true; }
+    }
     const st = String(upd.status || "").toLowerCase();
     const terminal = st === "completed" || st === "failed" || st === "error" || st === "cancelled" || st === "canceled";
     if (terminal) {
-      prev.isError = st !== "completed";
+      prev.cancelled = st === "cancelled" || st === "canceled";
+      prev.isError = st === "failed" || st === "error";
       emitToolResult(prev, emit, state);
+    } else if (changed && !prev.done) {
+      const fullOut = String(prev.output || "");
+      const clippedOut = fullOut.length > TOOL_OUT_MAX ? fullOut.slice(-TOOL_OUT_MAX) : fullOut;
+      emit({
+        type: "tool_update",
+        id: prev.id,
+        name: prev.name,
+        input: prev.input,
+        status: prev.status,
+        ...(clippedOut ? { output: clippedOut } : {}),
+      });
     }
     return;
   }
@@ -1327,30 +1368,40 @@ export async function runAcpTurn({
       const caps = initRes?.agentCapabilities || {};
       const canResume = !!(caps.sessionCapabilities?.resume || caps.session_capabilities?.resume);
       const canLoad = !!(caps.loadSession || caps.load_session || caps.sessionCapabilities?.load || caps.session_capabilities?.load);
+      const requestedSessionId = activeSessionId;
       let sessRes = null;
-      if (activeSessionId && canResume) {
+      let resumeErr = null;
+      let loadErr = null;
+      if (requestedSessionId && canResume) {
         try {
           sessRes = await client.request("session/resume", {
-            sessionId: activeSessionId,
+            sessionId: requestedSessionId,
             cwd,
             mcpServers,
-          }, 30000);
+          }, 45000);
         } catch (e) {
+          resumeErr = e;
           log(`[agy-acp] session/resume 失败，尝试 session/load: ${e.message}`);
         }
       }
-      if (!sessRes && activeSessionId && canLoad) {
+      if (!sessRes && requestedSessionId && canLoad) {
         try {
           sessRes = await client.request("session/load", {
-            sessionId: activeSessionId,
+            sessionId: requestedSessionId,
             cwd,
             mcpServers,
-          }, 30000);
+          }, 90000);
           usedLoad = true;
         } catch (e) {
-          log(`[agy-acp] session/load 失败，改为新建会话: ${e.message}`);
-          activeSessionId = null;
+          loadErr = e;
+          log(`[agy-acp] session/load 失败（保留原会话号不静默新建）: ${e.message}`);
         }
+      }
+      // 续聊已有会话且 Agent 支持 resume/load 时，若两者均失败/超时，绝不静默清空 activeSessionId 建新会话；
+      // 仅当 Agent 明确不支持 resume/load（!canResume && !canLoad）时，才按 B8 建新会话并发切换提示。
+      if (!sessRes && requestedSessionId && (canResume || canLoad)) {
+        const why = loadErr?.message || resumeErr?.message || "恢复会话失败";
+        throw new Error(tz("无法恢复原会话（{why}），已保留当前会话未新建，请重试或手动开启新对话", { why }));
       }
       if (!sessRes) {
         const extraDirs = Array.isArray(addDirs) ? addDirs.filter((d) => typeof d === "string" && d.trim()) : [];
@@ -1548,7 +1599,8 @@ export async function runAcpTurn({
     for (const tool of state.tools.values()) {
       if (!tool.done) {
         const st = String(tool.status || "").toLowerCase();
-        tool.isError = st === "failed" || st === "error" || st === "cancelled" || st === "canceled";
+        tool.cancelled = st === "cancelled" || st === "canceled";
+        tool.isError = st === "failed" || st === "error";
         emitToolResult(tool, emit, state);
       }
     }
@@ -1615,9 +1667,22 @@ export async function runAcpTurn({
   } catch (err) {
     const msg = String(err?.message || err);
     const detail = client.stderr ? `\n${client.stderr.slice(-800)}` : "";
-    // 回合中途失败/被取消：提问与已流出的正文也要落盘，别让整轮凭空消失（B5）。
+    // 回合中途失败/被取消：提问、已完成工具、思考与已流出的正文都要落盘，别让整轮凭空消失（B5）。
     // 只有 prompt 已发出去才落盘：prompt 没发出去说明问题没递到 agent，用户重发时不应多出一份。
     if (activeSessionId && state.promptSent) {
+      for (const tool of state.tools.values()) {
+        if (!tool.done) {
+          if (run?.aborted) {
+            tool.cancelled = true;
+            tool.isError = false;
+          } else {
+            tool.isError = true;
+          }
+          if (!tool.output) tool.output = run?.aborted ? "（已中断）" : `（回合异常中断：${msg}）`;
+          emitToolResult(tool, emit, state);
+        }
+        state.knownToolIds.add(tool.id);
+      }
       const isCompactCmd = /^\/compact(?:\s|$)/i.test(String(prompt || "").trim());
       if (!isCompactCmd || state.text || state.tools.size) {
         persistAcpTurn({
@@ -1640,6 +1705,9 @@ export async function runAcpTurn({
       failed: !run?.aborted,
       sessionId: activeSessionId,
       sessionSwitched,
+      toolCount: state.tools.size,
+      resultText: state.text,
+      usage: state.usage,
       error: msg,
       durationMs: Date.now() - t0,
     };
@@ -1666,11 +1734,13 @@ export async function runAcpTurn({
       entry.acpAgents = state.acpAgents || entry.acpAgents || new Map();
       entry.acpAgentsByConv = state.acpAgentsByConv || entry.acpAgentsByConv || new Map();
       entry.acpAgentDirs = state.acpAgentDirs || entry.acpAgentDirs || new Map();
+      entry.idleRun = null;
       entry.busy = false;
       entry.lastUsed = Date.now();
 
       // 空闲期间后台任务 / 定时提醒 / 子代理完成时，agy 会主动通过 session/update 推送回复：
       // 实时转推给前端并防抖落盘到 .jsonl，避免必须问「好了吗」才能看到结果
+      const IDLE_TOOL_MAX_WAIT_MS = 60000;
       let idleBurst = null;
       let idleFlushTimer = null;
       const flushIdle = () => {
@@ -1678,10 +1748,12 @@ export async function runAcpTurn({
         const b = idleBurst;
         if (!b) return;
         idleBurst = null;
+        entry.idleRun = null;
         for (const tool of b.state.tools.values()) {
           if (!tool.done) {
             const st = String(tool.status || "").toLowerCase();
-            tool.isError = st === "failed" || st === "error" || st === "cancelled" || st === "canceled";
+            tool.cancelled = st === "cancelled" || st === "canceled";
+            tool.isError = st === "failed" || st === "error";
             emitToolResult(tool, b.emit, b.state);
           }
           entry.knownToolIds.add(tool.id);
@@ -1730,7 +1802,8 @@ export async function runAcpTurn({
         const hasPendingTool = idleBurst && [...idleBurst.state.tools.values()].some((t) => !t.done);
         idleFlushTimer = setTimeout(() => {
           if (!idleBurst) return;
-          if ([...idleBurst.state.tools.values()].some((t) => !t.done)) {
+          const stillPending = [...idleBurst.state.tools.values()].some((t) => !t.done);
+          if (stillPending && Date.now() - (idleBurst.lastUpdateAt || idleBurst.startedAt) < IDLE_TOOL_MAX_WAIT_MS) {
             scheduleIdleFlush();
             return;
           }
@@ -1750,6 +1823,7 @@ export async function runAcpTurn({
 
       client.setHandlers({
         onStderr: (s) => { const line = s.trim(); if (line && !isBenignStderr(line)) log(`[agy-acp! idle] ${line.slice(0, 200)}`); },
+        onClose: () => { try { flushIdle(); } catch {} },
         onNotification: (method, params) => {
           if (method !== "session/update") return;
           const upd = params?.update || params || {};
@@ -1812,8 +1886,14 @@ export async function runAcpTurn({
               },
               onCommands: state.onCommands,
             };
-            idleBurst = { runId, startedAt, state: bgState, emit: bgEmit };
+            idleBurst = { runId, startedAt, lastUpdateAt: startedAt, state: bgState, emit: bgEmit };
+            entry.idleRun = {
+              id: runId, cid: null, text: "", sessionId: activeSessionId, follow: null, startedAt,
+              perms: [], idle: false, sealed: false, bg: 0, bgList: [], auto: "bg", permMode: entry.permMode || null,
+            };
             publish({ type: "run_start", runId, sessionId: activeSessionId, text: "", auto: "bg", startedAt });
+          } else {
+            idleBurst.lastUpdateAt = Date.now();
           }
           translateAcpUpdate(params, idleBurst.state, idleBurst.emit);
           scheduleIdleFlush();
