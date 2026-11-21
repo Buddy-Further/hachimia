@@ -584,7 +584,6 @@ window.I18N_DICT["id"] = {
   "重命名为": "Ganti nama menjadi",
   "正在重新挂载界面…": "Memasang ulang antarmuka…",
   "这个版本的应用还不能脱困，请更新应用；临时办法是重启网关": "Versi aplikasi ini belum bisa mengatasi macet. Perbarui aplikasi; untuk sementara, mulai ulang gateway",
-  "滚动好像卡住了，可以点顶栏的雪花按钮脱困": "Gulir tampaknya tersangkut. Ketuk tombol kepingan salju di bilah atas untuk mengatasinya",
   "内存管家": "Pengelola memori",
   "开启：允许停掉白名单以外的后台应用（需要 Shizuku）": "Aktif: izinkan penghentian aplikasi latar belakang di luar daftar izin (perlu Shizuku)",
   "不会被停的：你正在看的、分屏的、挂着前台通知的（代理、音乐）、桌面、输入法、无障碍服务、VPN、Shizuku，以及它们依赖的组件，再加上下面的白名单。 终端里用 <code>cc-mem run -- 命令</code> 跑重活：开跑前清场，跑的时候谁复活就再停谁。": "Tidak akan dihentikan: yang sedang Anda lihat, yang di layar terbagi, yang memiliki notifikasi latar depan (proxy, musik), peluncur, papan ketik, layanan aksesibilitas, VPN, Shizuku, komponen yang mereka andalkan, plus daftar izin di bawah. Di terminal, jalankan tugas berat dengan <code>cc-mem run -- perintah</code>: bersihkan dulu sebelum mulai, lalu hentikan lagi apa pun yang bangkit selama berjalan.",
@@ -3171,4 +3170,7 @@ window.I18N_DICT["id"] = {
   "AI Credits 剩余：{n}": "Sisa AI Credits: {n}",
   "正在同步 Google Antigravity 订阅额度，此处先显示本机 token 用量（点右上角「刷新」可立即查询）。": "Menyinkronkan kuota langganan Google Antigravity; sementara menampilkan penggunaan token lokal (ketuk Muat ulang di atas untuk memeriksa sekarang).",
   "无法恢复原会话（{why}），已保留当前会话未新建，请重试或手动开启新对话": "Gagal memulihkan sesi sebelumnya ({why}). Sesi saat ini dipertahankan tanpa membuat sesi baru; silakan coba lagi atau mulai obrolan baru secara manual.",
+  "滚动好像卡住了，可以长按顶栏标题约 0.6 秒脱困": "Gulir tampak macet — tekan lama judul bilah atas (~0,6 detik) untuk memulihkan",
+  "判断不了是不是在充电": "Tidak dapat mengetahui apakah perangkat sedang diisi daya",
+  "判断不了当前电量": "Tidak dapat membaca level baterai saat ini",
 };

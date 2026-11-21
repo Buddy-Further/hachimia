@@ -584,7 +584,6 @@ window.I18N_DICT["fr"] = {
   "重命名为": "Renommer en",
   "正在重新挂载界面…": "Remontage de l’interface…",
   "这个版本的应用还不能脱困，请更新应用；临时办法是重启网关": "Cette version de l’app ne sait pas encore débloquer. Mettez l’app à jour ; en attendant, redémarrez la passerelle",
-  "滚动好像卡住了，可以点顶栏的雪花按钮脱困": "Le défilement semble figé. Touchez le flocon dans la barre du haut pour débloquer",
   "内存管家": "Gestionnaire de mémoire",
   "开启：允许停掉白名单以外的后台应用（需要 Shizuku）": "Activé : autoriser l’arrêt des applis en arrière-plan absentes de la liste blanche (Shizuku requis)",
   "不会被停的：你正在看的、分屏的、挂着前台通知的（代理、音乐）、桌面、输入法、无障碍服务、VPN、Shizuku，以及它们依赖的组件，再加上下面的白名单。 终端里用 <code>cc-mem run -- 命令</code> 跑重活：开跑前清场，跑的时候谁复活就再停谁。": "Jamais arrêtés : ce que vous regardez, les applis en écran partagé, celles qui affichent une notification de premier plan (proxy, musique), le lanceur, le clavier, les services d’accessibilité, le VPN, Shizuku, les composants dont ils dépendent, ainsi que la liste blanche ci-dessous. Dans le terminal, lancez les tâches lourdes avec <code>cc-mem run -- commande</code> : il fait place nette avant, puis arrête tout ce qui revient pendant l’exécution.",
@@ -3171,4 +3170,7 @@ window.I18N_DICT["fr"] = {
   "AI Credits 剩余：{n}": "Crédits IA restants : {n}",
   "正在同步 Google Antigravity 订阅额度，此处先显示本机 token 用量（点右上角「刷新」可立即查询）。": "Synchronisation du quota Google Antigravity en cours ; affichage de l’utilisation locale des jetons pour l’instant (appuyez sur Actualiser ci-dessus pour interroger immédiatement).",
   "无法恢复原会话（{why}），已保留当前会话未新建，请重试或手动开启新对话": "Impossible de restaurer la session précédente ({why}). La session actuelle a été conservée sans en créer une nouvelle ; veuillez réessayer ou démarrer une nouvelle discussion manuellement.",
+  "滚动好像卡住了，可以长按顶栏标题约 0.6 秒脱困": "Le défilement semble bloqué : appuyez longuement (~0,6 s) sur le titre de la barre supérieure pour débloquer",
+  "判断不了是不是在充电": "Impossible de savoir si l’appareil est en charge",
+  "判断不了当前电量": "Impossible de lire le niveau de batterie actuel",
 };

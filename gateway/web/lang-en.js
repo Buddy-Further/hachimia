@@ -610,7 +610,6 @@ window.I18N_DICT.en = {
   // ── 滚动冻结脱困 ──
   "正在重新挂载界面…": "Remounting the interface…",
   "这个版本的应用还不能脱困，请更新应用；临时办法是重启网关": "This app version can't unfreeze yet. Please update the app; for now, restart the gateway",
-  "滚动好像卡住了，可以点顶栏的雪花按钮脱困": "Scrolling seems stuck. Tap the snowflake button in the top bar to unfreeze",
   // ── memory manager (cc-mem) ──
   "内存管家": "Memory manager",
   "开启：允许停掉白名单以外的后台应用（需要 Shizuku）": "On: allow stopping background apps that aren't on the allowlist (needs Shizuku)",
@@ -3211,4 +3210,7 @@ window.I18N_DICT.en = {
   "AI Credits 剩余：{n}": "AI Credits remaining: {n}",
   "正在同步 Google Antigravity 订阅额度，此处先显示本机 token 用量（点右上角「刷新」可立即查询）。": "Syncing Google Antigravity subscription quota; showing local token usage for now (tap Refresh above to query immediately).",
   "无法恢复原会话（{why}），已保留当前会话未新建，请重试或手动开启新对话": "Could not restore the previous session ({why}). Kept the current session without creating a new one; please retry or start a new chat manually.",
+  "滚动好像卡住了，可以长按顶栏标题约 0.6 秒脱困": "Scroll seems stuck — long-press the top bar title (~0.6s) to unfreeze",
+  "判断不了是不是在充电": "Could not tell whether the device is charging",
+  "判断不了当前电量": "Could not read the current battery level",
 };
