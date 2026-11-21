@@ -495,7 +495,8 @@ export async function startRun(item) {
       acpImages = await inlineImages(acpPrompt, P, { tmpDir: acpEnv.TMPDIR, env: acpEnv }).catch(() => []);
     }
     // P0-1：ACP 也要带上用户 MCP（此前这里硬编码 mcpServers: []，MCP 全丢）。
-    // 来源与优先级见 mcp-acp.mjs：Claude ~/.claude.json < agy 各来源 < 设备 MCP；
+    // 来源与优先级见 mcp-acp.mjs：agy mcp_config.json < 设备 MCP；
+    // ~/.claude.json 不再读（P0-2b，agy-only），丢掉的旧服务器名字只进 skipped。
     // 设备 MCP 沿用 Claude 路径的门控（PREFIX、脚本在、dev_status.on、非端侧）。
     // 只记服务名：env/headers 的值是凭据，绝不进日志。
     const devMcpJson = deviceMcpConfig();
