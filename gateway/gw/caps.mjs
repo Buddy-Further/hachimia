@@ -169,6 +169,7 @@ export function buildCapabilities() {
     mcpServers,
     outputStyle: init.output_style || "default",
     version: init.version || init.claude_code_version || "",
+    versionStatus: init.versionStatus || "",
     tier: init.tier || AUTH_CACHE?.v?.plan || "",
     rules: permRules(),
     settings: SETTINGS,

@@ -23,6 +23,7 @@ import { buildCapabilities, setLastInit } from "./caps.mjs";
 import { publish } from "./bus.mjs";
 import { noteAuthTier, invalidateAuthCache } from "./login.mjs";
 import { classifyAcpError, retryDelayMs, ACP_RETRY } from "./acp-errors.mjs";
+import { checkAgyVersion, AGY_ALLOW_UNVERIFIED } from "./agy-version.mjs";
 import { acpAgentSpawn, acpAgentDone, acpAgentMsg, acpAgentMsgOk } from "./agents.mjs";
 import { parseGoalPrompt, applyGoalCommand } from "./goal.mjs";
 import { mcpServersHash } from "./mcp-acp.mjs";
@@ -39,6 +40,10 @@ const TOOL_OUT_MAX = 20000;
 
 // 按 sessionId 保活的常驻 ACP 客户端池：同一会话同配置直接复用进程，避免每轮重启 agy
 const ACP_POOL = new Map();
+
+// P0-4：版本警告去重——同一版本（+ 协议版本）组合只警告一次，别每建新会话就唠叨。
+// 模块级：网关进程内所有会话共享，版本变了才再提醒。
+let lastAgyVersionWarnKey = null;
 
 /** 常驻 ACP 进程的收尾（MIG-19）：先 SIGTERM 整组（agy 派生的孙进程一起带走），
  *  宽限期后仍活着再 SIGKILL 整组；组杀失败回落单进程。子进程以 detached:true 起，
@@ -1365,6 +1370,38 @@ export async function runAcpTurn({
       if (initRes?.agentInfo?.version) {
         setLastInit({ version: String(initRes.agentInfo.version) });
       }
+      // P0-4：agy 版本门——initialize 刚回来、authenticate 之前就判。
+      // 太旧（< 最低版本）直接抛 AGY_VERSION：分类器给 version-mismatch、
+      // 不可重试，建会重试循环立即停，失败的 client 进不了池（本轮还没
+      // 会话号，canKeep 本来就是 false）。更新未验证 / 版本未知 /
+      // 协议版本不符只警告、继续跑；警告按版本（+ 协议版本）去重。
+      const gate = checkAgyVersion(initRes?.agentInfo?.version);
+      setLastInit({ versionStatus: gate.status, versionChecked: gate.version });
+      if (gate.status === "too-old") {
+        const e = new Error(tz("Antigravity CLI 版本 {v} 低于 hachimia 要求的 {min}（已验证版本 {verified}），请升级 Antigravity CLI 后重试", { v: gate.version, min: gate.min, verified: gate.verified }));
+        e.code = "AGY_VERSION";
+        e.data = { version: gate.version, min: gate.min, verified: gate.verified };
+        throw e;
+      }
+      const protoMismatch = initRes?.protocolVersion !== ACP_PROTOCOL_VERSION;
+      {
+        const parts = [];
+        if (gate.status === "newer-unverified" && !AGY_ALLOW_UNVERIFIED) {
+          parts.push(tz("Antigravity CLI 版本 {v} 比 hachimia 已验证的 {verified} 更新，未验证过", { v: gate.version, verified: gate.verified }));
+        } else if (gate.status === "unknown") {
+          parts.push(tz("未能识别 Antigravity CLI 的版本（agentInfo.version 缺失或格式异常）"));
+        }
+        if (protoMismatch) {
+          parts.push(tz("ACP 协议版本是 {p}（hachimia 预期 {want}）", { p: String(initRes?.protocolVersion ?? "未知"), want: String(ACP_PROTOCOL_VERSION) }));
+        }
+        if (parts.length) {
+          const warnKey = `${gate.version || ""}|proto:${String(initRes?.protocolVersion ?? "")}`;
+          if (warnKey !== lastAgyVersionWarnKey) {
+            lastAgyVersionWarnKey = warnKey;
+            emit({ type: "note", key: "acp-agy-version-unverified", text: `${parts.join("；")}${tz("：已继续运行，如遇异常请留意版本差异。")}` });
+          }
+        }
+      }
 
       // 2. authenticate（若 agent 声明了 authMethods 且我们指定了认证方式）
       const authMethods = Array.isArray(initRes?.authMethods) ? initRes.authMethods : [];
@@ -1549,6 +1586,7 @@ export async function runAcpTurn({
       plugins: capsNow.plugins,
       mcpServers: capsNow.mcpServers,
       version: capsNow.version,
+      versionStatus: capsNow.versionStatus,
       tier: capsNow.tier,
       protocol: "acp",
     });

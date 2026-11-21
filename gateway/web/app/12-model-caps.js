@@ -700,6 +700,7 @@
     if (Array.isArray(ev.plugins) && ev.plugins.length) state.caps.plugins = ev.plugins;
     if (Array.isArray(ev.mcpServers) && ev.mcpServers.length) state.caps.mcpServers = ev.mcpServers;
     if (ev.version) state.caps.version = ev.version;
+    if (ev.versionStatus) state.caps.versionStatus = ev.versionStatus;
     if (ev.tier) state.caps.tier = ev.tier;
     if (Array.isArray(ev.slashCommands) && ev.slashCommands.length) {
       state.caps.slashCommands = ev.slashCommands.filter((c) => !String(typeof c === "string" ? c : c?.name || "").startsWith("__"))
@@ -756,7 +757,10 @@
   function renderCaps() {
     const c = state.caps || {};
     const eng = c.engine === "claude" ? "Claude Code" : "Antigravity";
-    const subParts = [c.version ? `${eng} ${c.version}` : eng, c.tier || "", t("当前可用的能力")].filter(Boolean);
+    // P0-4：版本未验证（newer-unverified / unknown）时在版本号后挂 ⚠，
+    // 完整说明见本轮的版本 note；已验证（ok）或未取到状态时不标。
+    const verWarn = c.versionStatus && c.versionStatus !== "ok" ? " ⚠" : "";
+    const subParts = [c.version ? `${eng} ${c.version}${verWarn}` : eng, c.tier || "", t("当前可用的能力")].filter(Boolean);
     setPageSub("caps", subParts.join(" · "));
     const cmds = c.slashCommands || [];
     const mcp = (c.mcpServers || []).map((m) => typeof m === "string" ? { name: m } : m);
