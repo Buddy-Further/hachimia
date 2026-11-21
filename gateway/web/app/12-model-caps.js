@@ -202,11 +202,14 @@
       const ps = (state.provList || []).filter((p) => (p.usable && !p.hidden) || [curProv(), globalProv(), browse].includes(p.id));
       provWrap.classList.toggle("hidden", ps.length < 2);
       provBox.innerHTML = `<div class="seg-scroll mp-scroll"><div class="seg mp-seg mp-provseg">${ps.map((p) =>
-        `<button type="button" class="${p.id === browse ? "on" : ""}${p.id === curProv() ? " cur" : ""}${p.usable ? "" : " off"}" data-prov="${esc(p.id)}">${esc(provLabel(p.id))}${p.noAcpKeyChannel ? " · " + esc(t("在 Antigravity 下暂不支持")) : ""}</button>`).join("")}</div></div>` +
+        `<button type="button" class="${p.id === browse ? "on" : ""}${p.id === curProv() ? " cur" : ""}${p.usable ? "" : " off"}" data-prov="${esc(p.id)}">${esc(provLabel(p.id))}${p.route === "claude" ? " · " + esc(t("经 Claude 运行")) : p.route === "unavailable" ? " · " + esc(t("此设备不可用")) : ""}</button>`).join("")}</div></div>` +
         // 总要列出的那几家可能用不了（没登录的官方账户、没下模型的端侧）：灰掉，看它时说一句
         (ps.some((p) => p.id === browse && !p.usable) ? `<div class="tiny mp-provhint">${esc(t("这一家还没就绪（没登录或没下模型），先到设置里配好"))}</div>` : "") +
+        // P0-5：route "unavailable" 时先说设备原因；route "claude" 时不再贴 MIG-9 的“暂不支持”
+        // （它走密封 Claude，本来就支持）。MIG-9 的 protocol:"gemini" 指引保留。
+        (ps.some((p) => p.id === browse && p.route === "unavailable") ? `<div class="tiny mp-provhint">${esc(t("此设备没有 Claude Code，无法改走 Claude 运行。"))}</div>` : "") +
         // MIG-9：无 key 通道的第三方厂商在选单里就标注，别等发消息才报 agy 原文错
-        (ps.some((p) => p.id === browse && p.noAcpKeyChannel) ? `<div class="tiny mp-provhint">${esc(t("在 Antigravity 下暂不支持：Antigravity CLI 没有通用第三方 API Key 通道。请声明 protocol:\"gemini\"（端点须讲 Gemini 协议），或换用 Gemini / 订阅登录厂商。"))}</div>` : "") +
+        (ps.some((p) => p.id === browse && p.noAcpKeyChannel && p.route !== "claude") ? `<div class="tiny mp-provhint">${esc(t("在 Antigravity 下暂不支持：Antigravity CLI 没有通用第三方 API Key 通道。请声明 protocol:\"gemini\"（端点须讲 Gemini 协议），或换用 Gemini / 订阅登录厂商。"))}</div>` : "") +
         (browse !== curProv() ? `<div class="tiny mp-provhint">${esc(t("点一个模型，这个会话就换到「{name}」", { name: provLabel(browse) }))}</div>` : "");
       provBox.querySelector("button.on")?.scrollIntoView({ block: "nearest", inline: "nearest" });   // 横滚里选中的那家露出来
     };

@@ -519,6 +519,8 @@
                <button class="btn sm ghost danger" data-act="del">${t("删除")}</button>${useBtn(p)}` : ""}
       </div>
 ${p && p.plainHttp ? `<div class="tiny warn">${esc(t("这个地址是明文 http，密钥和对话内容会不加密地发到对方机器上；能用 https 就换成 https。"))}</div>` : ""}
+${p && p.route === "claude" ? `<div class="tiny">· ${esc(t("经 Claude 运行"))}</div>` : ""}
+${p && p.route === "unavailable" ? `<div class="tiny warn">${esc(t("此设备不可用"))} — ${esc(t("此设备没有 Claude Code，无法改走 Claude 运行。"))}</div>` : ""}
       <div class="prov-state" id="pc-result"></div>
       <div class="tiny">${t("选择 <b>Gemini / Antigravity</b> 认证时会通过 <code>GOOGLE_GEMINI_BASE_URL</code> + <code>GEMINI_API_KEY</code> 驱动官方 <code>agy</code> CLI。")}
         <br>${t("建议到服务商控制台设个消费上限；怀疑 Key 泄漏时请立即作废更换。")}</div>

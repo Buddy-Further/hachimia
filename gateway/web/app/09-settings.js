@@ -198,7 +198,9 @@
       <div class="prov-state" id="login-state">${t("查询登录状态…")}</div>
       <div class="row-actions" id="login-actions"></div>
       <div id="login-flow"></div>
-      <div class="tiny">${esc(pHint(p))}</div>`;
+      <div class="tiny">${esc(pHint(p))}</div>
+      ${p.route === "claude" ? `<div class="tiny">· ${esc(t("经 Claude 运行"))}</div>` : ""}
+      ${p.route === "unavailable" ? `<div class="tiny warn">${esc(t("此设备不可用"))} — ${esc(t("此设备没有 Claude Code，无法改走 Claude 运行。"))}</div>` : ""}`;
     let st;
     // 查询期间换了卡：迟到的失败别去碰已经不在的节点（审查 D-06）。换走又换回同一家时卡片是重画过的，
     // 只比接口 id 会让旧回执盖到新卡上：认这一次画出来的节点（审查 #52 D-06）
@@ -777,6 +779,8 @@
           `<option value="${esc(e.id)}" ${e.id === p.endpoint ? "selected" : ""}>${esc(pLabel(e))}</option>`).join("")}</select>` : ""}
       ${p.endpointLost ? `<div class="tiny warn">${esc(t("原来选的线路已不在了（厂商目录更新删了它），旧 Key 不会带到新线路：请重选线路、重新填 Key 后保存。"))}</div>` : ""}
       ${p && p.plainHttp ? `<div class="tiny warn">${esc(t("这个地址是明文 http，密钥和对话内容会不加密地发到对方机器上；能用 https 就换成 https。"))}</div>` : ""}
+      ${p.route === "claude" ? `<div class="tiny">· ${esc(t("经 Claude 运行"))}</div>` : ""}
+      ${p.route === "unavailable" ? `<div class="tiny warn">${esc(t("此设备不可用"))} — ${esc(t("此设备没有 Claude Code，无法改走 Claude 运行。"))}</div>` : ""}
       <input id="pc-key" type="password" autocomplete="off"
         placeholder="${p.hasKey ? t("已保存（…{tail}），留空则不改", { tail: esc(p.keyTail) }) : t("粘贴 API Key")}">
       <div class="row-actions">
