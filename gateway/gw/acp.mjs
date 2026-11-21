@@ -24,6 +24,7 @@ import { publish } from "./bus.mjs";
 import { noteAuthTier } from "./login.mjs";
 import { acpAgentSpawn, acpAgentDone, acpAgentMsg, acpAgentMsgOk } from "./agents.mjs";
 import { parseGoalPrompt, applyGoalCommand } from "./goal.mjs";
+import { mcpServersHash } from "./mcp-acp.mjs";
 
 export const ACP_PROTOCOL_VERSION = 1;
 const ACP_IDLE_TTL_MS = Number(process.env.CCAPP_ACP_IDLE_MS) > 0 ? Number(process.env.CCAPP_ACP_IDLE_MS) : 10 * 60e3;
@@ -1083,9 +1084,11 @@ export function persistAcpTurn({ cwd, sessionId, userText, assistantText, thinki
   }
 }
 
-function poolKey({ bin, args, cwd, authType, apiKey }) {
+// P0-1：池 key 含 MCP 列表指纹——MCP 列表变了不得静默复用旧进程
+// （复用路径不重走 initialize/session，旧进程收不到新 MCP 清单）。
+export function poolKey({ bin, args, cwd, authType, apiKey, mcpServers = [] }) {
   const keyHash = apiKey ? crypto.createHash("sha256").update(String(apiKey)).digest("hex").slice(0, 12) : "";
-  return JSON.stringify([bin, args, cwd, authType || "", keyHash]);
+  return JSON.stringify([bin, args, cwd, authType || "", keyHash, mcpServersHash(mcpServers)]);
 }
 
 function mapUiModeToAcp(permMode, availableModes) {
@@ -1171,7 +1174,7 @@ export async function runAcpTurn({
     },
   };
   let activeSessionId = sessionId || null;
-  const pKey = poolKey({ bin, args, cwd, authType, apiKey });
+  const pKey = poolKey({ bin, args, cwd, authType, apiKey, mcpServers });
 
   const isBenignStderr = (line) => /logging before google\.Init:.*Initialized Android local timezone/i.test(line);
   const makeHandlers = () => ({
@@ -1370,6 +1373,11 @@ export async function runAcpTurn({
       // 3. 优先 session/resume（无历史重放），其次回落 session/load，最后 session/new
       //    hachimia 自己从本地 jsonl 渲染历史，调 session/load 会在长会话上引发异步重放与提前返回（无限月读）
       const caps = initRes?.agentCapabilities || {};
+      // P0-1：additionalDirectories 三条建会路径都要发（此前只在 session/new 上发，
+      // resume/load 续会话时附加目录悄悄丢了）。门控与 session/new 相同。
+      const extraDirs = Array.isArray(addDirs) ? addDirs.filter((d) => typeof d === "string" && d.trim()) : [];
+      const canAddDirs = !!(caps.sessionCapabilities?.additionalDirectories || caps.session_capabilities?.additionalDirectories);
+      const addDirsParam = canAddDirs && extraDirs.length ? { additionalDirectories: extraDirs } : {};
       const canResume = !!(caps.sessionCapabilities?.resume || caps.session_capabilities?.resume);
       const canLoad = !!(caps.loadSession || caps.load_session || caps.sessionCapabilities?.load || caps.session_capabilities?.load);
       const requestedSessionId = activeSessionId;
@@ -1382,6 +1390,7 @@ export async function runAcpTurn({
             sessionId: requestedSessionId,
             cwd,
             mcpServers,
+            ...addDirsParam,
           }, 45000);
         } catch (e) {
           resumeErr = e;
@@ -1394,6 +1403,7 @@ export async function runAcpTurn({
             sessionId: requestedSessionId,
             cwd,
             mcpServers,
+            ...addDirsParam,
           }, 90000);
           usedLoad = true;
         } catch (e) {
@@ -1408,12 +1418,10 @@ export async function runAcpTurn({
         throw new Error(tz("无法恢复原会话（{why}），已保留当前会话未新建，请重试或手动开启新对话", { why }));
       }
       if (!sessRes) {
-        const extraDirs = Array.isArray(addDirs) ? addDirs.filter((d) => typeof d === "string" && d.trim()) : [];
-        const canAddDirs = !!(caps.sessionCapabilities?.additionalDirectories || caps.session_capabilities?.additionalDirectories);
         sessRes = await client.request("session/new", {
           cwd,
           mcpServers,
-          ...(canAddDirs && extraDirs.length ? { additionalDirectories: extraDirs } : {}),
+          ...addDirsParam,
         }, 30000);
         // MIG-22：agent 不回会话号时当场报错——自造一个 agent 不认识的 UUID 只会让
         // 下一轮 resume/load 必然失败、循环产生孤儿会话，不如停在这里明示。
