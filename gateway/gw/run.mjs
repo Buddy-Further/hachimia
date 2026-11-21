@@ -386,16 +386,18 @@ export async function startRun(item) {
   const route = providerRoute(P);
   run.route = route;   // P0-5：这一轮的路由进运行记录（MIG-9 失败时还进 run_end）
   log(`${runTag(run)} 路由 ${P.id} → ${route}（${useAcp ? "ACP" : "密封 Claude"}）`);
-  // MIG-9（rem-C2 方案 b）：无 key 通道的第三方厂商在发消息前就拦截，别等模型调用才报 agy 原文错。
-  // 只有 ACP 路径 + 有 key 时才拦：Claude 路径（开发端走 claude 的第三方厂商）本来就有通道，不拦；
-  // 没 key 的由上面“未配置 API 密钥”那条先拦。
-  // P0-5：按 oracle 分流 —— route "claude" 时根本走不到这里（useAcp 为假，除非开发端强制
-  // CCAPP_PROTOCOL=acp）；route "unavailable" 时在原有 MIG-9 文案后补一句设备原因（本机没有
-  // Claude Code 二进制，改走密封 Claude 也没门）。绝不静默换厂商、不把第三方 key 送进 agy。
+  // MIG-9（rem-C2 方案 b）：route "unavailable" 的厂商在发消息前就拦截，别等模型调用才报 agy 原文错。
+  // 只要 ACP 路径 + oracle 说不可用就拦，不论有没有 key：登录类厂商（Claude 账户登录）根本没有 key，
+  // 前面“未配置 API 密钥”那条放过了它（P.login），旧条件 `KEY &&` 让它漏网，一路走到 runAcpTurn，
+  // 以 authType "oauth-personal" 调 authenticate，agy 协议层才报错。登录类没有 key 可送，消息只有设备
+  // 原因那一句；有 key 又无通道的仍是原 MIG-9 文案 + 设备原因。route "claude" 时根本走不到这里
+  // （useAcp 为假，除非开发端强制 CCAPP_PROTOCOL=acp）。绝不静默换厂商、不把第三方 key 送进 agy。
   // 两句分开 tr：拼好的整句不在词典里，分开翻才能各自命中已有的 / 新补的译文。
-  if (useAcp && KEY && !hasAcpKeyChannel(P)) {
-    const msg = tr(LAST_LANG, tz("该厂商在 Antigravity 下暂不支持：Antigravity CLI 没有通用第三方 API Key 通道，密钥送不进 agy。请声明 protocol:\"gemini\"（端点须讲 Gemini 协议），或换用 Gemini / 订阅登录厂商。"))
-      + (route === "unavailable" ? tr(LAST_LANG, tz("此设备没有 Claude Code，无法改走 Claude 运行。")) : "");
+  if (useAcp && route === "unavailable") {
+    const deviceReason = tr(LAST_LANG, tz("此设备没有 Claude Code，无法改走 Claude 运行。"));
+    const msg = (KEY && !hasAcpKeyChannel(P))
+      ? tr(LAST_LANG, tz("该厂商在 Antigravity 下暂不支持：Antigravity CLI 没有通用第三方 API Key 通道，密钥送不进 agy。请声明 protocol:\"gemini\"（端点须讲 Gemini 协议），或换用 Gemini / 订阅登录厂商。")) + deviceReason
+      : deviceReason;
     emit({ type: "error", message: msg });
     return endRun(run, { failed: true, route });
   }

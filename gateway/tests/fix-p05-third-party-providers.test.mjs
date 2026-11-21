@@ -44,6 +44,11 @@ function setBinaries({ agy, claude }) {
   PATHS.claude = claude ? fakeClaude : path.join(root, "no-claude");
   PATHS.loader = origPaths.loader; PATHS.claudeLoader = origPaths.claudeLoader;
 }
+/** 把假 agy 换成一起就留 marker 的脚本：ACP 路径直接 spawn PATHS.agy（run.mjs），
+ *  loader 只供密封路径 —— 只有 agy 本身会写，marker 才能证明“起了 / 没起”ACP 进程 */
+function fakeAgyWrites(marker) {
+  fs.writeFileSync(fakeAgy, `#!${sh}\n: > ${marker}\n`, { mode: 0o755 });
+}
 const Prov = await import("../gw/providers.mjs");
 const { startRun } = await import("../gw/run.mjs");
 const { RUNS } = await import("../gw/runs.mjs");
@@ -152,6 +157,33 @@ test("P0-5 MIG-9：agy-only 下第三方 + key → 报错含设备原因、run �
   assert.equal(fs.existsSync(path.join(root, "ran-p05-mig9")), false, "拦截在 spawn 之前：假 CLI 绝不能被起");
   assert.equal(events.some((e) => e.runId === id && e.type === "phase"), false, "拦截前不应有任何 phase 事件");
   assert.equal(RUNS.has(id), false, "收尾后运行槽应释放");
+});
+
+test("P0-5 MIG-9：agy-only 下 Claude 账户登录（无 key）→ 只报设备原因、绝不 spawn", async () => {
+  setBinaries({ agy: true, claude: false });
+  // 前置条件：登录路径的 KEY 确实是空的 —— anthropic 预置无 apiKey、无 apiKeyEnv，
+  // loadApiKey 不回落（explicit 时无 env 即回 null），且本进程没有 ANTHROPIC_* 环境变量。
+  // KEY 非空时这条测试的前提就变了，必须先炸出来而不是悄悄走 key 分支。
+  const savedAuthToken = process.env.ANTHROPIC_AUTH_TOKEN, savedApiKey = process.env.ANTHROPIC_API_KEY;
+  delete process.env.ANTHROPIC_AUTH_TOKEN; delete process.env.ANTHROPIC_API_KEY;
+  try {
+    assert.ok(!Prov.keyOf(Prov.providerById("anthropic")), "登录路径的 KEY 应为空，实际：" + Prov.keyOf(Prov.providerById("anthropic")));
+    fakeAgyWrites(path.join(root, "ran-p05-login"));
+    const id = "p05-mig9-login";
+    await startRun({ id, message: "fixture", cwd: root, provider: "anthropic" });
+    await until(() => endOf(id));
+    const err = events.find((e) => e.type === "error" && e.runId === id);
+    assert.ok(err, "应发 error 事件");
+    assert.match(err.message, /此设备没有 Claude Code/, "登录类只报设备原因那一句，实际：" + err.message);
+    assert.doesNotMatch(err.message, /暂不支持/, "登录类没有 key 可送，不应贴 MIG-9 的无通道文案，实际：" + err.message);
+    assert.equal(endOf(id).failed, true, "这一轮应记失败");
+    assert.equal(endOf(id).route, "unavailable", "run 记录应记 route=unavailable，实际：" + JSON.stringify(endOf(id)));
+    assert.equal(fs.existsSync(path.join(root, "ran-p05-login")), false, "拦截在 spawn 之前：假 agy 绝不能被起");
+    assert.equal(RUNS.has(id), false, "收尾后运行槽应释放");
+  } finally {
+    if (savedAuthToken !== undefined) process.env.ANTHROPIC_AUTH_TOKEN = savedAuthToken;
+    if (savedApiKey !== undefined) process.env.ANTHROPIC_API_KEY = savedApiKey;
+  }
 });
 
 test("P0-5：有 claude 二进制时第三方走密封分支（假 CLI 被起、argv 是 claude 的，不是 ACP）", async () => {
