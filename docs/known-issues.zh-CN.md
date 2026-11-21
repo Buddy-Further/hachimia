@@ -123,6 +123,20 @@
 
 **处理：** 到 GitHub Release 或官网下载安装包，直接覆盖安装，数据不受影响。
 
+## 11. 纯 Antigravity 设备上的第三方厂商：路由是显式定的，不是自动通的
+
+Antigravity CLI（agy 1.5.13）没有给任意 Anthropic 兼容端点留通用通道：它不读 `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN`，没有 `--base-url` 之类的认证参数，唯一能接自定义端点的机制讲的是 Gemini 协议。所以网关给每家厂商显式定路由（见 `gateway/gw/providers.mjs` 的 `providerRoute()`）：
+
+| 厂商 | 设备 | 怎么跑 |
+| --- | --- | --- |
+| Antigravity 订阅登录 / 企业 / ADC、Gemini API Key、自定义 Gemini 端点 | 任意 | Antigravity CLI（ACP）✅ |
+| Gemini 兼容自定义端点（`protocol: "gemini"`） | 任意 | Antigravity CLI（ACP），走 `GEMINI_API_KEY` + `GOOGLE_GEMINI_BASE_URL` ✅ |
+| DeepSeek、GLM、Qwen、Kimi、MiniMax、方舟、MiMo、阶跃星辰、千帆、混元、LongCat、xAI、Meta Muse、Claude 账户 / API Key、没声明 `protocol: "gemini"` 的自定义端点 | 设备上还有 Claude Code 二进制 | 密封 Claude ✅（界面里标“经 Claude 运行”） |
+| 上面同一组 Anthropic 协议厂商 | 纯 Antigravity 设备（没有 Claude Code 二进制） | ❌ 此设备不可用 —— 发消息前就拒绝，并明说设备原因；密钥绝不送进 agy，也绝不静默换厂商 |
+| 端侧小模型 | 纯 Antigravity 设备 | ❌ 不可用（同上） |
+
+“不可用”是设备的属性，不是厂商的属性：设备上有 Claude Code 二进制时（比如旧版残留），同一家厂商就走密封 Claude 跑起来。已登录的 Antigravity 行为在没有已登录设备的情况下仍未验证。
+
 ## 给开发者：测试动作本身会制造假问题
 
 上面第 1 条和自动化测试有关（第 2 条已确认不是），修这类问题之前请先确认**不跑测试时也会出现**：

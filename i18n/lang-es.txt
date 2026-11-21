@@ -3190,3 +3190,6 @@
 3183	No se pudo identificar la versión de Antigravity CLI (agentInfo.version falta o tiene un formato no válido)
 3184	La versión del protocolo ACP es {p} (hachimia espera {want})
 3185	: se continúa de todos modos. Si algo falla, ten en cuenta la diferencia de versión.
+3186	Este dispositivo no tiene Claude Code instalado, así que tampoco puede ejecutarse a través de Claude.
+3187	Se ejecuta con Claude
+3188	No disponible en este dispositivo

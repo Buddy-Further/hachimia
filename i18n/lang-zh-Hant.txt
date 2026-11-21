@@ -3187,3 +3187,6 @@
 3183	未能識別 Antigravity CLI 的版本（agentInfo.version 缺失或格式異常）
 3184	ACP 協定版本是 {p}（hachimia 預期 {want}）
 3185	：已繼續執行，如遇異常請留意版本差異。
+3186	此裝置沒有 Claude Code，無法改走 Claude 執行。
+3187	經 Claude 執行
+3188	此裝置不可用

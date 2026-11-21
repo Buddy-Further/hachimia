@@ -3190,3 +3190,6 @@
 3183	Tidak dapat mengenali versi Antigravity CLI (agentInfo.version hilang atau formatnya tidak valid)
 3184	Versi protokol ACP adalah {p} (hachimia mengharapkan {want})
 3185	: tetap dilanjutkan. Jika terjadi keanehan, perhatikan perbedaan versinya.
+3186	Perangkat ini tidak memiliki Claude Code, jadi tidak bisa beralih ke Claude.
+3187	Dijalankan via Claude
+3188	Tidak tersedia di perangkat ini

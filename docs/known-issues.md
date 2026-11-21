@@ -123,6 +123,20 @@ On one user's phone every in-app update stops here. Before installing, the app c
 
 **Workaround:** download the APK from the GitHub Release or the website and install it over the current one. Your data isn't affected.
 
+## 11. Third-party providers on Antigravity-only devices: routing is explicit, not automatic
+
+The Antigravity CLI (agy 1.5.13) has no generic channel for an arbitrary Anthropic-compatible endpoint: it ignores `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN`, has no `--base-url` or auth flag, and its only custom-endpoint mechanism speaks the Gemini protocol. So the gateway routes each provider explicitly (see `providerRoute()` in `gateway/gw/providers.mjs`):
+
+| Provider | Device | How it runs |
+| --- | --- | --- |
+| Antigravity sign-in / Enterprise / ADC, Gemini API key, custom Gemini endpoint | any | Antigravity CLI (ACP) ✅ |
+| Gemini-compatible custom endpoint (`protocol: "gemini"`) | any | Antigravity CLI (ACP) via `GEMINI_API_KEY` + `GOOGLE_GEMINI_BASE_URL` ✅ |
+| DeepSeek, GLM, Qwen, Kimi, MiniMax, Ark, MiMo, StepFun, Qianfan, Hunyuan, LongCat, xAI, Meta Muse, Claude account / API key, custom endpoints without `protocol: "gemini"` | device still has a Claude Code binary | Sealed Claude ✅ (shown as "Runs via Claude" in the UI) |
+| Same Anthropic-protocol providers | Antigravity-only device (no Claude Code binary) | ❌ Not available on this device — the run is refused before it starts, with the device reason stated; the key is never sent to agy and the run never silently switches provider |
+| On-device small models | Antigravity-only device | ❌ Not available (same reason) |
+
+"Unavailable" is a property of the device, not of the provider: on a device where a Claude Code binary is present (for example an older install), the same provider runs via the sealed path. Logged-in Antigravity behaviour is still unverified without a logged-in device.
+
 ## For developers: tests can create fake bugs
 
 Item 1 is tied to automated testing (item 2 has been confirmed not to be). Before fixing a problem like this, make sure it **also happens with no tests running**:

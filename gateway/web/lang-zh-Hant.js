@@ -3188,4 +3188,7 @@ window.I18N_DICT["zh-Hant"] = {
   "未能识别 Antigravity CLI 的版本（agentInfo.version 缺失或格式异常）": "未能識別 Antigravity CLI 的版本（agentInfo.version 缺失或格式異常）",
   "ACP 协议版本是 {p}（hachimia 预期 {want}）": "ACP 協定版本是 {p}（hachimia 預期 {want}）",
   "：已继续运行，如遇异常请留意版本差异。": "：已繼續執行，如遇異常請留意版本差異。",
+  "此设备没有 Claude Code，无法改走 Claude 运行。": "此裝置沒有 Claude Code，無法改走 Claude 執行。",
+  "经 Claude 运行": "經 Claude 執行",
+  "此设备不可用": "此裝置不可用",
 };

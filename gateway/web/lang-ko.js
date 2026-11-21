@@ -3188,4 +3188,7 @@ window.I18N_DICT["ko"] = {
   "未能识别 Antigravity CLI 的版本（agentInfo.version 缺失或格式异常）": "Antigravity CLI 버전을 식별할 수 없습니다(agentInfo.version이 없거나 형식이 잘못되었습니다)",
   "ACP 协议版本是 {p}（hachimia 预期 {want}）": "ACP 프로토콜 버전은 {p}입니다(hachimia가 예상하는 버전은 {want}입니다)",
   "：已继续运行，如遇异常请留意版本差异。": "：계속 진행합니다. 문제가 발생하면 버전 차이를 염두에 두세요.",
+  "此设备没有 Claude Code，无法改走 Claude 运行。": "이 기기에는 Claude Code가 없어 Claude 경유 실행도 할 수 없습니다.",
+  "经 Claude 运行": "Claude 경유 실행",
+  "此设备不可用": "이 기기에서는 사용할 수 없음",
 };
