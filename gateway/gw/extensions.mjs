@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
 import path from "node:path";
-import { spawn } from "node:child_process";
-import { CFG, PREFIX, log, tz } from "./config.mjs";
-import { claudeBlocked, claudeCmd, claudeEnv, ensureShell, killTree } from "./claude.mjs";
+import { execFile, spawn } from "node:child_process";
+import { CFG, PATHS, PREFIX, log, tz } from "./config.mjs";
+import { agyEnv, claudeBlocked, claudeCmd, claudeEnv, ensureShell, killTree } from "./claude.mjs";
 import { SID_RE, skillDirOk, zipReadAsync } from "./sessionops.mjs";
 import { NEXT, readBody, readBodyBuf, sendJson } from "./http.mjs";
 import { termEnv } from "./terminal.mjs";
@@ -13,7 +13,7 @@ import { ucAppBegin, ucAppWrote } from "./userconf.mjs";
 import { sealed } from "./edition.mjs";
 import { readHeadFile, readSmallFile } from "./saferead.mjs";
 import { extIdOk, extOff, saveExtOff } from "./extoff.mjs";
-import { AGY_MCP_REL, CLAUDE_JSON, readAgyMcp, setAgyMcpServer, updateJsonFile } from "./agy-mcp.mjs";
+import { AGY_MCP_REL, readAgyMcp, setAgyMcpServer } from "./agy-mcp.mjs";
 import { scanText } from "./breach.mjs";
 import { modulesInfo } from "./modules.mjs";
 import { RETENTION_DAYS } from "./retention.mjs";
@@ -21,10 +21,10 @@ import { RETENTION_DAYS } from "./retention.mjs";
 // ── 扩展：插件 / 技能 / MCP ───────────────────────────────────────────
 // 插件、钩子、技能仍转给 claude 自己的命令行或直接改 ~/.claude 下的配置——
 // 格式随 claude 版本变，自己写迟早写坏。技能目录（~/.claude/skills）例外：它就是一堆文件夹，没有命令。
-// MCP 例外（P0-2）：新装只写 agy 的 ~/.gemini/config/mcp_config.json（agy 1.5.13 实测，
-// 见 agy-mcp.mjs），直接改 JSON，不调 `claude mcp add/remove`——`~/.claude.json` 里
-// 的旧服务器靠读两边继续工作（agy 同名胜出）。钩子 / 插件 / 输出风格没有可验证的
-// agy 写目标，本节不动它们，仍走 Claude 侧。
+// MCP 例外（P0-2b，agy-only）：只读、只写 agy 的 ~/.gemini/config/mcp_config.json
+// （agy 1.5.13 实测，见 agy-mcp.mjs），直接改 JSON，不调 `claude mcp add/remove`，
+// 也不再读 ~/.claude.json——那是另一个独立应用（cccodroid）的配置，本项目不从
+// 那里迁移。钩子 / 插件 / 输出风格没有可验证的 agy 写目标，本节不动它们，仍走 Claude 侧。
 // 同一时刻只跑一个改配置的命令，免得两个安装同时写 settings.json。
 let EXT_LOCK = Promise.resolve();
 function extRun(args, timeoutMs = 180000) {
@@ -43,8 +43,9 @@ function extRun(args, timeoutMs = 180000) {
     child.on("error", (e) => { clearTimeout(t); resolve({ code: -1, out, err: err + e.message }); });
   }));
   // 装卸插件是应用替用户做的：这次命令改到的当场认下，别下一轮反过来问他（见 userconf.mjs）。命令失败的不认，下一轮照问。
-  // MCP 不走这里了：P0-2 起直接改 ~/.gemini/config/mcp_config.json 的 JSON（见 agy-mcp.mjs），
-  // extRun 只剩 `mcp list` 读状态（只读，不认）；MCP 写走 mcpWriteJob，写完自己向 userconf 认下。
+  // MCP 不走这里：P0-2 起直接改 ~/.gemini/config/mcp_config.json 的 JSON（见 agy-mcp.mjs），
+  // extRun 只剩插件 / 市场 shell-out；MCP 列表状态走 `agy mcp list`（见 listMcp），
+  // MCP 写走 mcpWriteJob，写完自己向 userconf 认下。
   // 只认对应的地方：插件只动 plugins/ 和设置里的 enabledPlugins / extraKnownMarketplaces
   const writes = args[0] === "plugin" && !args.includes("list") && !args.includes("get");
   const appWrote = (ucb) => {
@@ -135,32 +136,56 @@ async function marketplaceOp(op, arg) {
   return r.code === 0 ? { ok: true } : { ok: false, message: cliMsg(r) };
 }
 
-/** `claude mcp list` 只有给人看的文本：「名字: 目标 - ✔ Connected」。顺带做了连通检查，所以慢几秒。
- *  P0-2：列表以读两边的文件为准（~/.claude.json + agy 的 mcp_config.json，agy 同名胜出），
- *  claude list 只补连通状态；agy 独有的服务器以前在这里根本看不见。 */
+/** `agy mcp list` 的输出（实测 agy 1.5.13，见 VERIFY-REPORT 与 P0-2b 探针）：
+ *  表格，首行 `NAME TYPE STATUS COMMAND/URL`，每行「名字 类型 enabled|disabled 命令/地址」，
+ *  列之间是空格对齐；空时一行 `No MCP servers configured.`；没有 --json。注意它只报
+ *  enabled/disabled，不做连通检查——这里的 ok 意思是「已启用」，不是「已连通」。
+ *  解析不上来（格式变了、二进制不在、超时）就返回 null：调用方只按文件列，
+ *  列表照常工作，不拿猜出来的状态骗人。 */
+function parseAgyMcpList(out) {
+  const rows = [];
+  for (const line of String(out || "").split("\n")) {
+    const t = line.trim();
+    if (!t || t === "No MCP servers configured." || /^NAME\s+TYPE\s+STATUS\s+COMMAND\/URL/i.test(t)) continue;
+    const parts = t.split(/\s+/);
+    if (parts.length < 3) continue;
+    const [name, type, status, ...rest] = parts;
+    if (!/^(stdio|http|sse)$/i.test(type) || !/^(enabled|disabled)$/i.test(status)) continue;
+    rows.push({ name, type: type.toLowerCase(), enabled: status.toLowerCase() === "enabled", target: rest.join(" ") });
+  }
+  return rows;
+}
+/** 只读跑 `agy mcp list`：sync:false——只读操作不得触发 agyEnv 的 settings 同步写。
+ *  失败（没装、二进制坏了、超时）返回 null，不抛。 */
+function agyMcpList() {
+  const bin = PATHS.agy;
+  if (!bin || !fs.existsSync(bin)) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    execFile(bin, ["mcp", "list"], {
+      cwd: fs.existsSync(CFG.workspace) ? CFG.workspace : CFG.home,
+      env: agyEnv({ sync: false }), encoding: "utf8", timeout: 15000, maxBuffer: 1 << 20,
+    }, (err, stdout) => resolve(err ? null : String(stdout || "")));
+  });
+}
+/** MCP 列表：文件（agy 的 mcp_config.json）为准，`agy mcp list` 只补启用状态。
+ *  文件里没有的（agy 外部配的、或 `agy mcp disable` 停掉的）按 live 输出原样列，
+ *  来源标 external；停用名单里的照旧单独列成 disabled。 */
 async function listMcp() {
-  const r = await extRun(["mcp", "list"], 90000);
+  const live = new Map();
+  const out = await agyMcpList().catch(() => null);
+  if (typeof out === "string") for (const r of parseAgyMcpList(out)) live.set(r.name, r);
   const byName = new Map();
-  for (const line of r.out.replace(/\x1b\[[0-9;]*m/g, "").split("\n")) {
-    const m = line.match(/^(.+?): (.+) - ([✔✗⚠!]|[^\s]+)\s*(.*)$/u);
-    if (!m) continue;
-    const name = m[1].trim();
-    byName.set(name, { name, target: m[2].trim(), ok: m[3] === "✔", status: (m[3] + " " + m[4]).trim().slice(0, 200),
-      cloud: name.startsWith("claude.ai "), user: false, hdr: "" });
+  for (const [name, lv] of live) {
+    byName.set(name, { name, target: lv.target, ok: lv.enabled, status: lv.enabled ? "enabled" : "disabled",
+      cloud: false, user: false, hdr: "" });
   }
   for (const [name, { def, source }] of listMcpDefs()) {
     const cur = byName.get(name);
     if (cur) { cur.user = true; cur.hdr = headerNames(def); cur.source = source; }
     else byName.set(name, { name, target: mcpTarget(def), ok: false, status: "", cloud: false, user: true, hdr: headerNames(def), source });
   }
-  // 停用名单里的名字已经在上面出现过（两边都有的服务器停用后 Claude 那份还
-  // 在，见 disableMcp）就跳过：列表里它照样显示成在用的，getMcp 那边却报
-  // disabled:true / source off-list——两者看法不一致是已知的（P0-2 审后注）：
-  // 删掉用户的 Claude 旧配置会丢数据，所以不停用时不删它；要停用到底，得先
-  // 把 Claude 那份也删掉。启用时同名撞上也会被拒，恢复办法是先删（removeMcp
-  // 只删文件里的两份，不动停用名单）再启用，见 enableMcp。
   for (const [name, d] of Object.entries(extOff().mcp)) if (!byName.has(name)) byName.set(name, { name, target: mcpTarget(d), ok: false, status: "", disabled: true, source: "off-list" });
-  // 文件里没有定义的（账户连接器之类）：既不是 agy 也不是 Claude 的文件，标 external，别冒充来源
+  // 文件里没有定义的（agy 外部配的）：既不是 agy 文件也不是停用名单，标 external，别冒充来源
   for (const e of byName.values()) if (!e.source) e.source = "external";
   return [...byName.values()];
 }
@@ -178,38 +203,12 @@ function mcpBreachOk(def) {
   if (scanText(JSON.stringify(def)).blocked) return { ok: false, message: tz("这条 MCP 配置没通过安全检查，拒绝写入") };
   return null;
 }
-/** Claude 侧（~/.claude.json）顶层 mcpServers 里删一个键（只给旧服务器收尾用：停用 / 删除 / 改名）。
- *  删完空了就把 mcpServers 键整个拿掉；读失败返回 error，不动文件。 */
-function deleteClaudeMcpServer(name) {
-  return updateJsonFile(CLAUDE_JSON, (j) => {
-    if (!j.mcpServers || typeof j.mcpServers !== "object" || Array.isArray(j.mcpServers)) return false;
-    if (!(name in j.mcpServers)) return false;
-    delete j.mcpServers[name];
-    if (!Object.keys(j.mcpServers).length) delete j.mcpServers;
-  });
-}
-
-/** mcp add 的参数拼装（只剩测试在用：P0-2 起 MCP 写不再调 claude mcp，见 addMcp）。
- *  保留：拼装逻辑本身没错，万一以后要回退到 CLI 还有一份现成的。parts 给 stdio 用，
- *  还原存量定义时按字段精确传，别再按空白重切） */
-const mcpAddArgs = (transport, name, target, env, headers, parts) => {
-  // -e / --header 是可变参数，会把后面的名字吞掉：名字放前面，选项跟在后面、用 -- 收尾
-  const args = ["mcp", "add", "-s", "user", "--transport", transport, name];
-  if (transport !== "stdio") args.push(target);
-  for (const kv of [].concat(env || [])) if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(kv)) args.push("-e", kv);
-  for (const h of [].concat(headers || [])) if (String(h).includes(":")) args.push("--header", String(h));
-  if (transport === "stdio") {
-    // 命令行按空白切开；带空格的参数用引号括起来
-    args.push("--", ...(parts || target.match(/"[^"]*"|'[^']*'|\S+/g).map((x) => x.replace(/^(["'])(.*)\1$/, "$2"))));
-  }
-  return args;
-};
 /** 新装 MCP：直接写 agy 的 mcp_config.json（P0-2），不再调 `claude mcp add`。
- *  同名已存在（agy / Claude / 停用名单任一处）就拒绝，不静默盖掉或留影子。
+ *  同名已存在（agy / 停用名单任一处）就拒绝，不静默盖掉或留影子。
  *  stdio 存 agy 原生形态（无 type 键，disabled:false）；http/sse 带 type + url。 */
 export async function addMcp(b) {
   const name = String(b.name || "").trim();
-  // 横线开头的名字会被当成 claude 的选项（11-03 审查 L-19，同 badArg）
+  // 横线开头的名字会被 badArg 挡下（名字只许字母、数字、点、下划线、横线，且不能以横线开头）
   if (!/^[A-Za-z0-9._-]{1,64}$/.test(name) || badArg(name)) return { ok: false, message: tz("名字只能用字母、数字、点、下划线、横线") };
   const transport = ["stdio", "http", "sse"].includes(b.transport) ? b.transport : "stdio";
   const target = String(b.target || "").trim();
@@ -249,31 +248,17 @@ export async function addMcp(b) {
   });
 }
 
-/** 删除 MCP：agy 里有就删，Claude 里有也删——删就是不要了，两边留任何一份都会「复活」。
- *  Claude 那步失败就把 agy 的恢复回去；两边都没有才报找不到。 */
+/** 删除 MCP：只删 agy 的 mcp_config.json 里那一份。~/.claude.json 里的同名
+ *  旧配置（如果有）不再碰——那是另一个应用的配置，删就是替用户删别人的数据；
+ *  它也不会再「复活」（ACP 与列表都不再读它）。停用名单不动（见 forgetMcp）。 */
 export async function removeMcp(name) {
   if (badArg(String(name ?? ""))) return { ok: false, message: tz("名字格式不对") };
   return mcpWriteJob(async () => {
     const ucb = ucAppBegin();
-    const { agy, claude } = mcpDefSources(String(name));
-    if (!agy && !claude) return { ok: false, message: tz("找不到这条 MCP 配置") };
-    if (agy) {
-      const r = setAgyMcpServer(String(name), null);
-      if (!r.ok) return { ok: false, message: tz("删不掉 agy 的 MCP 配置：{msg}", { msg: r.error }) };
-    }
-    if (claude) {
-      const r = deleteClaudeMcpServer(String(name));
-      if (!r.ok) {
-        if (agy) {
-          const rb = setAgyMcpServer(String(name), agy);
-          if (!rb.ok) return { ok: false, message: tz("删不掉 ~/.claude.json 里的旧配置，agy 那份也没能恢复，请手动检查 agy 的 MCP 配置：{msg}", { msg: r.error + "；" + rb.error }) };
-          return { ok: false, message: tz("删不掉 ~/.claude.json 里的旧配置，已恢复 agy 那份：{msg}", { msg: r.error }) };
-        }
-        return { ok: false, message: tz("删不掉 ~/.claude.json 里的旧配置：{msg}", { msg: r.error }) };
-      }
-    }
-    ucAppWrote([...(agy ? [AGY_MCP_REL] : []), ...(claude ? [".claude.json"] : [])], ucb,
-      agy ? { [AGY_MCP_REL]: ["mcpServers"] } : undefined);
+    if (!userMcpDef(String(name))) return { ok: false, message: tz("找不到这条 MCP 配置") };
+    const r = setAgyMcpServer(String(name), null);
+    if (!r.ok) return { ok: false, message: tz("删不掉 agy 的 MCP 配置：{msg}", { msg: r.error }) };
+    ucAppWrote([AGY_MCP_REL], ucb, { [AGY_MCP_REL]: ["mcpServers"] });
     return { ok: true };
   });
 }
@@ -314,10 +299,10 @@ export async function getMcp(b) {
 
 /** 编辑 = 直接改 agy 的 mcp_config.json（P0-2，不再 remove + add-json）。
  *  写回用 JSON：定义整体作为单个对象，值里的逗号、等号、引号、换行都不会被切坏。
- *  同名编辑只写 agy：Claude 里若有同名旧定义，留着被盖住（读两边，agy 胜出；删 agy
- *  那份时它会再次生效——已知缺口，见 disableMcp 的注释）。
- *  改名是搬家：新名写进 agy，旧名从它原来在的地方（agy 和 / 或 Claude）删掉，
- *  不然旧名还活着；删旧名失败就回滚（删新名、把旧定义写回去）。 */
+ *  只写 agy：~/.claude.json 里的同名旧定义（如果有）留着不动，也不再生效——
+ *  ACP 与列表都不再读它。
+ *  改名是搬家：新名写进 agy，旧名从 agy 里删掉，不然旧名还活着；
+ *  删旧名失败就回滚（删新名、把旧定义写回去）。 */
 export async function editMcp(b) {
   const name = String(b.name || "").trim();
   const off = extOff();
@@ -346,14 +331,14 @@ export async function editMcp(b) {
   const dropHdr = new Set([].concat(b.dropHeaders || []).map((x) => String(x).trim()).filter(Boolean));
   let nd;
   if (transport !== "stdio") {
-    // 前端已拦 KEY=值，这里不再赘述；重建后 env 键不该存在（claude 对远程条目不写 env）
+    // 前端已拦 KEY=值，这里不再赘述；重建后 env 键不该存在（agy 的远程条目不写 env）
     nd = { ...def, type: transport, url: target, headers: merged(def.headers, dropHdr, hdrs, ":") };
     delete nd.command; delete nd.args; delete nd.env;
     if (!Object.keys(nd.headers).length) delete nd.headers;
   } else {
     const parts = parseStdioTarget(target);
     if (!parts.length) return { ok: false, message: tz("缺少命令或地址") };
-    // claude 对 stdio 条目不存 headers（实测 add-json 静默剥掉）：这里显式删，
+    // agy 的 stdio 条目不存 headers（`agy mcp add` 的 stdio 形态没有 headers 键）：这里显式删，
     // 别让「保存成功」之后令牌悄悄没了（前端在切 transport 时会先弹确认）
     nd = { ...def, type: "stdio", command: parts[0], args: parts.slice(1), env: merged(def.env, dropEnv, envs, "=") };
     delete nd.url; delete nd.headers;
@@ -384,14 +369,12 @@ function execEdit(name, newName, nd, oldDef) {
     if (offNow.mcp[newName] || userMcpDef(newName)) return { ok: false, message: tz("已经有叫这个名字的 MCP 服务器了") };
   }
   // 回滚哪步失败就记哪步（删新名 / 恢复旧名），返回失败清单，空 = 回滚成功。
-  const rollbackRename = (oldSources) => {
+  const rollbackRename = () => {
     const failed = [];
     const r1 = setAgyMcpServer(newName, null);
     if (!r1.ok) failed.push(`删新名 ${newName} 失败：${r1.error}`);
-    if (oldSources.agy) {
-      const r2 = setAgyMcpServer(name, oldDef);
-      if (!r2.ok) failed.push(`恢复旧名 ${name} 失败：${r2.error}`);
-    }
+    const r2 = setAgyMcpServer(name, oldDef);
+    if (!r2.ok) failed.push(`恢复旧名 ${name} 失败：${r2.error}`);
     return failed;
   };
   if (newName === name) {
@@ -400,26 +383,17 @@ function execEdit(name, newName, nd, oldDef) {
     ucAppWrote([AGY_MCP_REL], ucb, { [AGY_MCP_REL]: ["mcpServers"] });
     return { ok: true };
   }
-  const oldSources = mcpDefSources(name);
-  // 删旧名（agy 或 Claude）失败时的统一出口：按改名前的来源回滚（不能现查——
-  // agy 那份旧名可能已经被删掉了，现查会以为不用恢复），成功才报「已原样恢复」。
+  // 删旧名失败时的统一出口：回滚（删新名、把旧定义写回 agy），成功才报「已原样恢复」。
   const failAfterRename = (err) => {
-    const failed = rollbackRename(oldSources);
+    const failed = rollbackRename();
     if (failed.length) return { ok: false, message: tz("保存失败：{msg}，回滚也没能恢复，请手动检查 agy 的 MCP 配置（{detail}）", { msg: err, detail: failed.join("；") }) };
     return { ok: false, message: tz("保存失败：{msg}，旧配置已原样恢复", { msg: err }) };
   };
   const w = setAgyMcpServer(newName, nd);
   if (!w.ok) return { ok: false, message: tz("保存失败：{msg}，旧配置没动", { msg: w.error }) };
-  if (oldSources.agy) {
-    const d = setAgyMcpServer(name, null);
-    if (!d.ok) return failAfterRename(d.error);
-  }
-  if (oldSources.claude) {
-    const d = deleteClaudeMcpServer(name);
-    if (!d.ok) return failAfterRename(d.error);
-  }
-  ucAppWrote([AGY_MCP_REL, ...(oldSources.claude ? [".claude.json"] : [])], ucb,
-    { [AGY_MCP_REL]: ["mcpServers"] });
+  const d = setAgyMcpServer(name, null);
+  if (!d.ok) return failAfterRename(d.error);
+  ucAppWrote([AGY_MCP_REL], ucb, { [AGY_MCP_REL]: ["mcpServers"] });
   return { ok: true };
 }
 
@@ -700,43 +674,26 @@ async function setSkillMode(dir, mode) {
   return { ok: true };
 }
 
-/** MCP 定义读两边（P0-2，READ-BOTH）：~/.claude.json（旧）+ agy 的 mcp_config.json（新）。
- *  agy 同名胜出；Claude 侧只读顶层 mcpServers，项目级、账户连接器不归这里管。 */
-function claudeMcpDefs() {
-  try {
-    const j = JSON.parse(readSmallFile(CLAUDE_JSON, 32 << 20) || "{}");
-    const m = j && j.mcpServers;
-    return m && typeof m === "object" && !Array.isArray(m) ? m : {};
-  } catch { return {}; }
-}
+/** MCP 定义只读 agy 的 mcp_config.json（P0-2b，agy-only）：~/.claude.json
+ *  不再是来源——那是另一个独立应用的配置。 */
 function agyMcpDefs() {
   const r = readAgyMcp();
   return r.ok ? r.servers : {};
 }
-/** 两边各一份的定义（读失败那边的当没有） */
-function mcpDefSources(name) {
-  return { agy: agyMcpDefs()[name] || null, claude: claudeMcpDefs()[name] || null };
-}
-/** 生效定义：agy（mcp_config.json）同名胜出，否则 Claude 的 */
+/** 生效定义：agy（mcp_config.json）里的那一份 */
 function userMcpDef(name) {
-  const s = mcpDefSources(name);
-  return s.agy || s.claude || null;
+  return agyMcpDefs()[name] || null;
 }
-/** 生效来源：'agy' | 'claude' | 'both-shadowed'（两边都有，agy 胜出）| null */
+/** 生效来源：'agy' | null */
 function userMcpSource(name) {
-  const s = mcpDefSources(name);
-  if (s.agy && s.claude) return "both-shadowed";
-  if (s.agy) return "agy";
-  if (s.claude) return "claude";
-  return null;
+  return agyMcpDefs()[name] ? "agy" : null;
 }
-/** 合并后的全部定义：name → { def, source }，agy 胜出 */
+/** 全部定义：name → { def, source }，来源只有 'agy' */
 function listMcpDefs() {
   const out = new Map();
-  for (const [n, d] of Object.entries(claudeMcpDefs())) if (d && typeof d === "object") out.set(n, { def: d, source: "claude" });
   for (const [n, d] of Object.entries(agyMcpDefs())) {
     if (!d || typeof d !== "object") continue;
-    out.set(n, { def: d, source: out.has(n) ? "both-shadowed" : "agy" });
+    out.set(n, { def: d, source: "agy" });
   }
   return out;
 }
@@ -753,45 +710,34 @@ const mcpTarget = (d) => {
   return (String(d.url || [d.command, ...(Array.isArray(d.args) ? d.args : [])].filter((x) => x != null).join(" ")).slice(0, 300)
     + (env ? ` [env: ${env}]` : "") + (hdr ? ` [headers: ${hdr}]` : "")).slice(0, 500);
 };
-/** 停用 = 先把定义存进停用名单，再从配置文件里拿掉；拿掉失败就把名单退回去。
+/** 停用 = 先把定义存进停用名单，再从 agy 的 mcp_config.json 里拿掉；拿掉失败就把名单退回去。
  *  P0-2 决策：拿掉不用 agy 的 disabled:true——该标志是否让 `agy acp` 启动时
  *  跳过该服务器未经验证（实测只见过 `agy mcp add` 写 disabled:false），拿掉是
  *  确定的；且沿用 F5 的 off-list 形态与 0600 名单，启用时原样写回。
- *  删哪边按来源定：agy 里有的删 agy；只在 Claude 里有的删 ~/.claude.json；
- *  两边都有的只删 agy 的，Claude 那份是用户原来的配置，留着——已知缺口：
- *  删完 agy 那份，Claude 那份会按读两边再次生效，等于没停掉；要真停掉得再删
- *  Claude 那份，本节不替用户动他原来的配置。
- *  这个缺口在列表里也看得见（P0-2 审后注）：两边都有的服务器停用后，listMcp
- *  里它还显示成在用的（停用名单那一圈按名字跳过已列出的），只有 getMcp 报
- *  disabled:true / source off-list；enableMcp 也会因同名撞上拒绝，停用→启用
- *  往返走不通，恢复办法是先删掉文件里的那份（removeMcp，不动停用名单）再启用。
- *  行为本身不动：为「列表好看」删掉用户的 Claude 旧配置会丢数据，这个取舍是故意的。 */
+ *  P0-2b：停用→启用往返修好了——以前两边都有的服务器停用只删 agy 那份，
+ *  Claude 那份会按读两边再次生效，等于没停掉，启用还因同名撞上被拒；
+ *  现在只有一个来源，删 agy 那份就是真停掉，启用写回即恢复。 */
 async function disableMcp(name) {
   if (!extIdOk(name) || badArg(name)) return { ok: false, message: tz("名字格式不对") };
   return mcpWriteJob(async () => {
     const ucb = ucAppBegin();
-    const { agy, claude } = mcpDefSources(name);
-    const def = agy || claude;
+    const def = userMcpDef(name);
     if (!def) return { ok: false, message: tz("只能停用你自己加的（用户级）MCP 服务器") };
     const off = extOff();
     off.mcp[name] = def;
     if (!saveExtOff(off)) return { ok: false, message: tz("停用名单写不进去") };
-    const r = agy ? setAgyMcpServer(name, null) : deleteClaudeMcpServer(name);
+    const r = setAgyMcpServer(name, null);
     if (!r.ok) {
       const o2 = extOff(); delete o2.mcp[name]; saveExtOff(o2);
       return { ok: false, message: tz("停用失败：{msg}，停用名单已退回", { msg: r.error }) };
     }
-    const rel = agy ? AGY_MCP_REL : ".claude.json";
-    ucAppWrote([rel], ucb, agy ? { [AGY_MCP_REL]: ["mcpServers"] } : undefined);
+    ucAppWrote([AGY_MCP_REL], ucb, { [AGY_MCP_REL]: ["mcpServers"] });
     log(`MCP ${name} 已停用`);
     return { ok: true };
   });
 }
 /** 启用 = 把存着的定义写回 agy 的 mcp_config.json，成功了才从名单里删。
- *  停用期间同名又被装了就不覆盖，等用户先处理。
- *  两边都有的服务器停用后 Claude 那份还在（见 disableMcp），启用会在这里因
- *  同名撞上被拒——不是启用坏了，是停用本来就没停掉它；先删掉文件里的那份
- *  （removeMcp，停用名单里的定义不动）再启用就能恢复。 */
+ *  停用期间同名又被装了就不覆盖，等用户先处理。 */
 async function enableMcp(name) {
   const off = extOff(), def = extIdOk(name) ? off.mcp[name] : null;
   if (!def) return { ok: false, message: tz("停用名单里没有它") };
@@ -799,11 +745,7 @@ async function enableMcp(name) {
   if (breach) return breach;
   return mcpWriteJob(async () => {
     const ucb = ucAppBegin();
-    const src = userMcpSource(name);
-    if (src) {
-      if (src === "claude" || src === "both-shadowed") return { ok: false, message: tz("~/.claude.json 里还有叫这个名字的 MCP 服务器，先把它删掉再启用（停用名单里的定义还在，删完就能启用）") };
-      return { ok: false, message: tz("已经有叫这个名字的 MCP 服务器了，先把它删掉再启用") };
-    }
+    if (userMcpSource(name)) return { ok: false, message: tz("已经有叫这个名字的 MCP 服务器了，先把它删掉再启用") };
     const r = setAgyMcpServer(name, def);
     if (!r.ok) return { ok: false, message: tz("启用失败：{msg}", { msg: r.error }) };
     const o2 = extOff(); delete o2.mcp[name]; saveExtOff(o2);
@@ -1020,7 +962,7 @@ async function importSkill(buf) {
   if (!dirs.length) throw new Error(skipped.map((x) => `${x.name}：${x.why}`).join("；"));
   return { ok: true, dir: dirs.join("、"), dirs, skipped };
 }
-export const _extForTest = { importSkill, zipEntryCount, setSkillMode, disableMcp, enableMcp, forgetMcp, setOff, listSkills, listMcp, listMcpDefs, userMcpSource, mcpAddArgs };   // 只给测试用
+export const _extForTest = { importSkill, zipEntryCount, setSkillMode, disableMcp, enableMcp, forgetMcp, setOff, listSkills, listMcp, listMcpDefs, userMcpSource, parseAgyMcpList };   // 只给测试用
 
 // ── 路由：/api/ext/ ──
 export async function routeExtensions(req, res, u, p) {
