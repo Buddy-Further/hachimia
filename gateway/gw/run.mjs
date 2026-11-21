@@ -399,7 +399,7 @@ export async function startRun(item) {
       ? tr(LAST_LANG, tz("该厂商在 Antigravity 下暂不支持：Antigravity CLI 没有通用第三方 API Key 通道，密钥送不进 agy。请声明 protocol:\"gemini\"（端点须讲 Gemini 协议），或换用 Gemini / 订阅登录厂商。")) + deviceReason
       : deviceReason;
     emit({ type: "error", message: msg });
-    return endRun(run, { failed: true, route });
+    return endRun(run, { failed: true });   // route 由 endRun 从 run.route 带进 run_end，不再逐处传
   }
   const cliBin = useAcp ? (PATHS.agy || PATHS.claude) : PATHS.claude;
   if (!fs.existsSync(cliBin)) {

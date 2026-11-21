@@ -201,6 +201,7 @@ test("P0-5：有 claude 二进制时第三方走密封分支（假 CLI 被起、
   assert.match(argv, /--model\ndeepseek-flash/, "claude argv 应带第三方模型，实际：" + argv);
   assert.equal(!!endOf(id).failed, false, "密封分支应跑完，实际：" + JSON.stringify(endOf(id)));
   assert.equal(endOf(id).subtype, "success");
+  assert.equal(endOf(id).route, "claude", "成功轮次的 run_end 也应带 route（endRun 从 run.route 带），实际：" + JSON.stringify(endOf(id)));
 });
 
 // ── agyEnv：13 个第三方厂商的 key 永不进 agy ──

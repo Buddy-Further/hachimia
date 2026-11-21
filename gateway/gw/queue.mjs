@@ -416,7 +416,11 @@ export function endRun(run, fields = {}) {
   RUNS.delete(run.id);
   if (!RUNS.size && !QUEUE.some((q) => !q.held)) runFlag(false);
   // at：真正结束的时刻。断线后增量补发的 run_end 晚到几分钟，回复用时不能按收到的时刻算（#142-4）
-  publish({ type: "run_end", at: Date.now(), runId: run.id, sessionId: run.sessionId, aborted: !!run.aborted, ...(run.auto ? { auto: run.auto } : {}), ...(run.sched ? { sched: true } : {}), ...fields });
+  // P0-5：路由一旦算出（startRun 里 run.route = providerRoute(P)），每一份 run_end 都带上它 ——
+  // 成功轮次和其他失败点以前都没有 route，只有 MIG-9 那一处显式传。run.route 未设的轮次
+  // （本地命令、路由算出之前的早退：接口丢失 / 线路丢失 / 未配 key）照旧不带，不编造。
+  // fields 在后，显式传的 route 仍可覆盖。
+  publish({ type: "run_end", at: Date.now(), runId: run.id, sessionId: run.sessionId, aborted: !!run.aborted, ...(run.auto ? { auto: run.auto } : {}), ...(run.sched ? { sched: true } : {}), ...(run.route ? { route: run.route } : {}), ...fields });
   goalCheck(run.sessionId);
   tasksCheck(run.sessionId);
   run.log = [];
