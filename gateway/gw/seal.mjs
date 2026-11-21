@@ -412,7 +412,9 @@ function materialize(name, files, manifest) {
 }
 
 // ── MCP、设置 ──
-function mcpConfig(cwd) {
+// P0-1：导出给 mcp-acp.mjs 用——ACP 路径也要读同一份 ~/.claude.json MCP，
+// 与 Claude 路径（sealPrepare 经此函数写 --mcp-config）同源。
+export function mcpConfig(cwd) {
   let j = {}; try { j = JSON.parse(readSmallFile(path.join(home(), ".claude.json"), 32 << 20) || "{}"); } catch {}
   const servers = { ...(j.mcpServers || {}) };
   const proj = (j.projects || {})[realOr(cwd)] || (j.projects || {})[cwd];
