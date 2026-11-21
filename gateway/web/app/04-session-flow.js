@@ -4,26 +4,6 @@
   let statLast = {}, statIv = 0, statRun = null;
   let cmpGen = 0;   // 第几次压缩：「正在压缩」和「已压缩」共用一行的键
   try { statLast = JSON.parse(localStorage.getItem(STAT_KEY) || "{}") || {}; } catch {}
-  const statButton = $("stat-chip"), statShort = statButton.querySelector(".stat-short");
-  // 保持存盘/实时统计的原格式；只在底栏显示层派生窄栏摘要。
-  new MutationObserver(() => {
-    const text = statEl.textContent;
-    if (statButton.title === text) return;
-    const bits = text.split(" · "), tokens = bits.find(s => /^↓.+ tok$/.test(s));
-    const short = tokens ? tokens.slice(0, -4) : bits[0].replace(/^(\d+[mh]) \d+[sm]$/, "$1");
-    if (statShort.textContent !== short) statShort.textContent = short;
-    statButton.hidden = !text;
-    statButton.title = text;
-    statButton.setAttribute("aria-label", t("用量") + " · " + text);
-    const detail = OV.at(statButton);
-    if (detail && !text) OV.close(detail);
-    else if (detail) detail.lastElementChild.textContent = text;
-  }).observe(statEl, { childList: true });
-  statButton.addEventListener("click", () => {
-    if (!statEl.textContent) return;
-    const detail = popMenu(statButton, [{ head: t("用量") }, { head: statEl.textContent }], "up", "hint-stat");
-    if (detail) detail.lastElementChild.dir = "ltr";
-  });
   function statPaint() {
     const rv = runViews.get(statRun);
     if (!rv) return statStop();
@@ -92,6 +72,7 @@
     busReplay = false;
     if (replayCtx) { const [u, tot] = replayCtx; replayCtx = null; liveCtx(u, tot); }
     liveEl.classList.remove("replaying");
+    syncLivePerms();
     // 补画排下的那次 rAF 不要了：下面这次同步定位就到底
     if (scrollRaf) { cancelAnimationFrame(scrollRaf); scrollRaf = 0; }
     scrollDown();
@@ -980,7 +961,12 @@
         for (const r of srv.runs) if (r.permMode) r.permMode = ev.mode;
         refreshPlanActs();
         return;
-      case "perm_request": if (runViews.get(ev.runId)?.av) onPermRequest(ev); return;   // 收尾的空壳不收新卡（FIND-042）
+      case "perm_request": {
+        const rv = runViews.get(ev.runId);
+        // 收尾后的空壳（有 rv 但没有 av）不收新卡（FIND-042）；当前活跃轮次尚未建 rv 时照收（兜底挂到 liveEl）
+        if (rv ? rv.av : ((srv.run && srv.run.id === ev.runId) || belongs(ev))) onPermRequest(ev);
+        return;
+      }
       case "perm_resolved": return permDone(ev.id, ev.behavior, ev);
     }
     const rv = runViews.get(ev.runId);
@@ -1236,6 +1222,18 @@
       toast(msg, true);
     }
   }
+  /** 按网关权威快照补齐前端漏收或已脱节的待确认卡片（断线续传 / run_start 竞态 / 视图重建） */
+  function syncLivePerms() {
+    if (busReplay || !srv.run || !Array.isArray(srv.run.perms) || !srv.run.perms.length) return;
+    const rv = runViews.get(srv.run.id);
+    if (rv && !rv.av) return;   // 已收尾的空壳不补画（FIND-042）
+    for (const p of srv.run.perms) {
+      if (!p || !p.id) continue;
+      if (typeof PERM_ANSWERED !== "undefined" && PERM_ANSWERED.has(p.id)) continue;
+      const cur = PERMS.get(p.id);
+      if (!cur || (!cur.done && (!cur.el || !cur.el.isConnected))) onPermRequest(p.runId ? p : { ...p, runId: srv.run.id });
+    }
+  }
   function applyState(s) {
     stateRev++;
     showTamper(s.tamper, true);
@@ -1256,6 +1254,8 @@
     // 别的窗口（或网关那边）已经答掉的，这里也收起来
     const livePerms = new Set((srv.run?.perms || []).map((p) => p.id));
     for (const [id, it] of PERMS) if (!it.done && srv.run && it.runId === srv.run.id && !livePerms.has(id) && it.p.at < Date.now() - 1500) permDone(id, "gone");
+    // 网关权威快照里还在等确认、前端却漏收的卡片补画出来；非续传 hello 马上会 resetView + 整轮重放，留到 endReplay 补齐
+    if (!(s.type === "hello" && !s.resume)) syncLivePerms();
     if (busy) setStatus(t("生成中…"), "live");
     else if (srv.run?.idle) setStatus(idleStatus(srv.run.bg), "ok");
     else if (srv.runs.some((r) => !r.idle)) setStatus(t("另有 {n} 个会话在生成", { n: srv.runs.filter((r) => !r.idle).length }), "ok");

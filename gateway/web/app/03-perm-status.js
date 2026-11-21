@@ -3,6 +3,7 @@
   //  卡片挂在对应工具卡下面；输入框上方另有一条常驻提示（翻到上面去了、分屏切回来也看得见）。
   //  参数一律以 claude 发来的为准，前端只回「允许 / 拒绝 / 始终允许 / 选项答案」。
   const PERMS = new Map();          // id → { p, runId, el, done }
+  const PERM_ANSWERED = new Set();  // 本地已答复/撤回的请求号：防迟到的旧 /api/state 快照把刚答掉的卡重新画出来
   const permBar = $("perm-bar");
   let permWaiting = false;          // 状态栏此刻显示的是「等你确认」
   const MODE_KEYS = ["default", "acceptEdits", "plan", "auto", "bypassPermissions"];
@@ -13,8 +14,7 @@
   function setPermChip(m) {
     if (!m) return;
     state.permissionMode = m;
-    permEl.innerHTML = (m === "bypassPermissions" ? '<svg class="ei" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17v.01"/></svg>' : "") +
-      `<span class="hint-perm-label">${esc(modeLabel(m))}</span>`;
+    permEl.innerHTML = (m === "bypassPermissions" ? '<svg class="ei" viewBox="0 0 24 24"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17v.01"/></svg>' : "") + esc(modeLabel(m));
     permEl.classList.toggle("danger", m === "bypassPermissions");
   }
 
@@ -173,7 +173,7 @@
     if (tc && tc.el && tc.el.isConnected) tc.el.after(el);
     else {
       const rv = runViews.get(runId);
-      (rv ? rv.av.bubble : liveEl).appendChild(el);
+      (rv?.av ? rv.av.bubble : liveEl).appendChild(el);
     }
     el.addEventListener("click", (e) => {
       const b = e.target.closest("button");
@@ -228,6 +228,10 @@
   }
 
   function permDone(id, behavior, o = {}) {
+    if (typeof PERM_ANSWERED !== "undefined" && (behavior === "allow" || behavior === "deny" || behavior === "cancel")) {
+      PERM_ANSWERED.add(id);
+      if (PERM_ANSWERED.size > 300) PERM_ANSWERED.delete(PERM_ANSWERED.values().next().value);
+    }
     const it = PERMS.get(id);
     if (!it || it.done) return;
     it.done = true;
@@ -322,7 +326,7 @@
   }
 
   function pendingPerms() {
-    return [...PERMS.values()].filter((it) => !it.done && runViews.has(it.runId));
+    return [...PERMS.values()].filter((it) => !it.done && (runViews.has(it.runId) || (srv.run && it.runId === srv.run.id)));
   }
   // ── 输入框上方的状态带：/goal 目标进度 + 后台任务 ──
   const runStrip = $("run-strip");

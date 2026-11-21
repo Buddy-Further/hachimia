@@ -412,7 +412,7 @@ if (/[?&](t|k)=/.test(location.search) || /[#&]k=/.test(location.hash)) history.
     if (!window.navigator.userActivation || navigator.userActivation.isActive) ccFocusInput();
   });
   const interjectEl = $("btn-interject");
-  const subEl = $("sub-title"), statEl = $("stat-full"), modelEl = $("model-chip");
+  const subEl = $("sub-title"), statEl = $("stat-chip"), modelEl = $("model-chip");
   const permEl = $("perm-chip"), drawerEl = $("drawer"), toastEl = $("toast");
   const popupEl = $("popup"), popupList = $("popup-list"), popupHead = $("popup-head");
   const ctxBar = $("ctxbar"), ctxFill = $("ctxfill"), ctxTxt = $("ctxtxt");
