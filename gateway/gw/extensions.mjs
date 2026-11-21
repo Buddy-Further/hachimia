@@ -22,7 +22,7 @@ import { RETENTION_DAYS } from "./retention.mjs";
 // 插件、钩子、技能仍转给 claude 自己的命令行或直接改 ~/.claude 下的配置——
 // 格式随 claude 版本变，自己写迟早写坏。技能目录（~/.claude/skills）例外：它就是一堆文件夹，没有命令。
 // MCP 例外（P0-2b，agy-only）：只读、只写 agy 的 ~/.gemini/config/mcp_config.json
-// （agy 1.5.13 实测，见 agy-mcp.mjs），直接改 JSON，不调 `claude mcp add/remove`，
+// （已验证版本实测，见 agy-mcp.mjs），直接改 JSON，不调 `claude mcp add/remove`，
 // 也不再读 ~/.claude.json——那是另一个独立应用（cccodroid）的配置，本项目不从
 // 那里迁移。钩子 / 插件 / 输出风格没有可验证的 agy 写目标，本节不动它们，仍走 Claude 侧。
 // 同一时刻只跑一个改配置的命令，免得两个安装同时写 settings.json。
@@ -136,7 +136,7 @@ async function marketplaceOp(op, arg) {
   return r.code === 0 ? { ok: true } : { ok: false, message: cliMsg(r) };
 }
 
-/** `agy mcp list` 的输出（实测 agy 1.5.13，见 VERIFY-REPORT 与 P0-2b 探针）：
+/** `agy mcp list` 的输出（已验证版本实测，见 VERIFY-REPORT 与 P0-2b 探针）：
  *  表格，首行 `NAME TYPE STATUS COMMAND/URL`，每行「名字 类型 enabled|disabled 命令/地址」，
  *  列之间是空格对齐；空时一行 `No MCP servers configured.`；没有 --json。注意它只报
  *  enabled/disabled，不做连通检查——这里的 ok 意思是「已启用」，不是「已连通」。

@@ -19,7 +19,7 @@ import { publish } from "./bus.mjs";
 // 然后等在 stdin 上读授权码（redirect 到 antigravity.google，浏览器不会回跳本应用）。
 // 网关从 stdout 扫出地址交给界面 → 系统浏览器登录 → 界面把页面上的授权码贴回
 // → /api/login/code 写进 agy 的 stdin → agy 换 token、凭据落盘、退出 0。
-// 实测（官方 android arm64 1.5.13）：acp --login 不需要 TTY，普通管道即可；
+// 实测（官方 android arm64 已验证版本）：acp --login 不需要 TTY，普通管道即可；
 // 裸 agy 无 TTY 直接报 bubbletea 错误起不来；agy 没有 auth 子命令（auth status /
 // auth logout 都会被当 prompt 参数忽略）。凭据是文件存储（安卓无 keyring）。
 //   兜底：界面可打开终端运行 `SSH_CONNECTION=1 agy`（Remote SSH OAuth），
@@ -217,6 +217,7 @@ function shortQuotaGroupName(name) {
 /**
  * 解析官方 `agy --output-format json -p "/usage"`（及可选 `"/credits"`）输出，
  * 转换为与前端 `limits` 契约完全兼容的结构（含 5h / 周百分比、精确重置时间、多模型组与 AI Credits）。
+ * 信封格式见 AGY_BEHAVIOUR[AGY_VERIFIED_VERSION].usageEnvelope。
  */
 export function parseAgyQuotaJson(rawUsage, rawCredits = null, now = Date.now()) {
   const uObj = typeof rawUsage === "string" ? extractAgyJson(rawUsage) : rawUsage;

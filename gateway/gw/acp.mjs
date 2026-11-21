@@ -1112,7 +1112,7 @@ function mapUiModeToAcp(permMode, availableModes) {
   };
   switch (permMode) {
     case "bypassPermissions":
-      // agy acp 1.5.13 声明的模式是 default / accept-edits / plan：没有服务端 bypassPermissions 时
+      // 已验证版本（AGY_BEHAVIOUR[AGY_VERIFIED_VERSION].permModes）声明的模式是 default / accept-edits / plan：没有服务端 bypassPermissions 时
       // 优先切到 accept-edits 减少写文件往返，其余命令权限由 onRequest 自动放行
       return pick("bypassPermissions", "yolo", "auto_approve", "accept-edits", "acceptEdits", "default");
     case "acceptEdits":
@@ -1705,9 +1705,10 @@ export async function runAcpTurn({
 
     const stopReason = promptRes?.stopReason || "end_turn";
 
-    // agy acp 1.5.13 执行 /compact 时不发 compaction_update 也不吐正文，只回 usage_update + end_turn：
+    // 已验证版本执行 /compact 时不发 compaction_update 也不吐正文，只回 usage_update + end_turn
+    // （AGY_BEHAVIOUR[AGY_VERIFIED_VERSION].compactEmitsCompactionUpdate === false）：
     // 1. 若 agent 直接报出更低的 context_tokens（post < pre），按精确值补发 compacted；
-    // 2. 真实 agy 1.5.13 做 CHECKPOINT 摘要时，usage_update.used 报的是「做摘要那次 LLM 调用的输入+缓存+输出总量」
+    // 2. 真实 agy 做 CHECKPOINT 摘要时，usage_update.used 报的是「做摘要那次 LLM 调用的输入+缓存+输出总量」
     //    （反而比压缩前多几千 token，如 450,543 → 455,052），而真正生成的新摘要量是 output_tokens（如 3,599）。
     //    在无正文无工具且 end_turn 且产出了摘要（output_tokens > 0）时，说明静默压缩已真实完成：
     //    用 output_tokens 作为压缩后上下文下界修正 state.usage.context_tokens 并发射 compacted(estimated:true)，

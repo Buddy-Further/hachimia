@@ -163,6 +163,7 @@ function fixedEffortOf(rawId, rawName) {
 }
 
 /** 解析 `agy models` 输出为归一化模型家族列表（将 -low/-medium/-high/-xhigh 归并到 effort.supported_levels）。
+ *  文本行格式见 AGY_BEHAVIOUR[AGY_VERIFIED_VERSION].modelsFormat（text-lines）。
  *  只收模型行：标题、警告/错误行、旧格式的纯显示名行（没有可用 id）一律丢掉（C11）。
  *  `agy models` 输出里没有窗口信息：context_window / max_output_tokens 记 0 = 未知，不写死 1M/64k，
  *  否则 learnWindow 学到的真实窗口永远纠正不了它（C5）。 */

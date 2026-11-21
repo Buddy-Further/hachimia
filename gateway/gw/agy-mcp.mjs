@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────
 //  agy-mcp.mjs —— ~/.gemini/config/mcp_config.json 的读写（P0-2）
 //
-//  实测（agy 1.5.13，见 ~/workspace/agy-verify/VERIFY-REPORT.md）：
+//  实测（已验证版本，见 ~/workspace/agy-verify/VERIFY-REPORT.md）：
 //    · 真正的 MCP 配置文件是 ~/.gemini/config/mcp_config.json（`agy mcp add`
 //      写这里，`agy mcp list` 读这里）；~/.gemini/antigravity-cli/settings.json
 //      在首次运行后根本不存在——不要把 MCP 写去那里，也不要把它当 MCP 读来源。
