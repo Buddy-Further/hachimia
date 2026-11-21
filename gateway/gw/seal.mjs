@@ -417,6 +417,9 @@ function materialize(name, files, manifest) {
 // MCP 在 agy-only 下只读 ~/.gemini/config/mcp_config.json。
 // 这是有意的 Claude-only 残留：退役 sealed 版 Claude 启动路径要另做决定，
 // 本节不动它。名字只读、不写盘，定义本身仍过破甲扫描（见 sealPrepare）。
+// 注意（I1）：这里从 ~/.claude.json 读进来的 MCP 服务器，加载时没有 userconf
+// 确认门——UC_SEALED 里也不留 ".claude.json"，因为它已不在 userconf 的监视里，
+// 清单里留着也永远触发不了；破甲扫描是这条路唯一的 guard。
 export function mcpConfig(cwd) {
   let j = {}; try { j = JSON.parse(readSmallFile(path.join(home(), ".claude.json"), 32 << 20) || "{}"); } catch {}
   const servers = { ...(j.mcpServers || {}) };

@@ -433,7 +433,8 @@ test("卡片之后改了又改回同一版：常驻监视看见了，也不认",
 test("发行版只问回填进来的 MCP 与权限（P0-2b）：CLAUDE.md、skill、.claude.json 改了不问；settings 加 allow 要问，起进程紧前也只核它（199-11-06）", () => {
   fresh();
   // ~/.claude.json 里加 MCP 也不问了：userconf 不再盯它（P0-2b，agy-only）；
-  // UC_SEALED 里那一项留着（sealed 版 Claude 启动路径仍在读它），但没有指纹来源就不会触发
+  // UC_SEALED 里它也被删了（审后补 I1）：sealed 版 Claude 启动路径仍在读它（seal.mjs mcpConfig），
+  // 但那条路没有 userconf 确认门，只有破甲扫描兜底——清单里不能留永远触发不了的项
   put(".claude.json", JSON.stringify({ mcpServers: { a: { command: "node", args: ["a.js"] } } }));
   put(".claude/CLAUDE.md", "# x\n");
   const first = ucPending(UC_SEALED);

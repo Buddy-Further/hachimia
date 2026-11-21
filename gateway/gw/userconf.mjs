@@ -40,7 +40,8 @@ const canon = (v) => Array.isArray(v) ? "[" + v.map(canon).join(",") + "]"
 /** JSON 里要管的那一块：设置文件去掉不让东西跑起来的键；
  *  agy 的 mcp_config.json 只看 mcpServers——它是 agy 的 MCP 配置，别的键（agy 自己写的）不管。
  *  ~/.claude.json 不再盯（P0-2b，agy-only）：那是另一个独立应用的配置，网关的 MCP
- *  不再读它；sealed 版 Claude 启动路径仍在用它（见 seal.mjs），那条路的确认走 UC_SEALED。 */
+ *  不再读它；sealed 版 Claude 启动路径仍在用它（见 seal.mjs），但那条路没有 userconf
+ *  确认门（UC_SEALED 里也不留它——没有指纹来源的项永远触发不了），只剩破甲扫描兜底。 */
 function riskyPart(rel, j) {
   if (!j || typeof j !== "object" || Array.isArray(j)) return null;
   if (rel === AGY_MCP_REL) {
@@ -335,11 +336,12 @@ function preview(rel, f, oldText) {
   return mask(ls.slice(0, 15).join("\n").slice(0, 900) + (ls.length > 15 ? `\n… (${ls.length})` : ""));
 }
 
-// 发行版只问这两份：CLAUDE.md、rules、skill、插件这些发行版根本不读（edition.mjs），回填进来的只有 MCP 与权限规则（seal.mjs），
+// 发行版只问这一份：CLAUDE.md、rules、skill、插件这些发行版根本不读（edition.mjs），回填进来的只有 MCP 与权限规则（seal.mjs），
 // 这两样过了破甲扫描也照样能让程序跑起来、放宽自动批准，被注入驱动着改了要人点头（0.6.9 审计 199-11-06）
-// P0-2b：".claude.json" 这一项留着不动（sealed 版 Claude 启动路径仍在读它，见 seal.mjs）；
-// 但它已不在 FILES 里，userconf 不再给它算指纹——想恢复监视要另做决定，别顺手加回。
-export const UC_SEALED = [".claude.json", ".claude/settings.json"];
+// P0-2b 审后补（I1）：".claude.json" 从这份清单里删了——sealed 版 Claude 启动路径仍在读它（seal.mjs mcpConfig），
+// 但那条路没有 userconf 确认门，只有破甲扫描兜底；确认门清单里不能留没有指纹来源、永远触发不了的项。
+// 想恢复监视要另做决定，别顺手加回。
+export const UC_SEALED = [".claude/settings.json"];
 
 /** 起一轮前：有没有没确认的改动。没有返回 null。only：只看这几项（发行版给 UC_SEALED） */
 export function ucPending(only = null) {
