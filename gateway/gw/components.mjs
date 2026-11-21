@@ -1192,7 +1192,7 @@ async function compRunInstall(id, b, job) {
       { maxBuffer: 256 << 20 }, (e, out) => e ? no(e) : ok(String(out))));
     const bad = archiveProblem(parseTarListing(list));
     if (bad) throw new Error(tz("这个压缩包里有条目会写到包外面（{p}），为安全起见不解开", { p: String(bad.name).slice(0, 200) }));
-    await compRun(job, path.join(PREFIX, "bin", "tar"), ["-xzf", gz, "-C", tree]);
+    await compRun(job, path.join(PREFIX, "bin", "tar"), ["-xzf", gz, "-C", tree, "--no-same-owner"]);
   }
   catch (e) { if (!job.cancelled) fs.rmSync(gz, { force: true }); throw e; }
   const lx = `libexec/devkit/components/${id}`;
