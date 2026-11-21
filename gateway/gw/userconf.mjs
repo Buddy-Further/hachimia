@@ -16,10 +16,12 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { CFG, log } from "./config.mjs";
 import { SAFE_KEYS } from "./projtrust.mjs";
+import { AGY_MCP_REL } from "./agy-mcp.mjs";
 
 // 单个文件；JSON 的几个只看会让东西跑起来的那部分（claude 自己常写的统计、提示次数之类不算）
+// P0-2：agy 的 MCP 配置也盯着——MCP 服务器就是能跑起来的程序，只看 mcpServers 一个键
 const FILES = [".claude/CLAUDE.md", ".claude/settings.json", ".claude/settings.local.json", ".claude.json",
-  ".claude/plugins/installed_plugins.json", ".claude/plugins/known_marketplaces.json"];
+  ".claude/plugins/installed_plugins.json", ".claude/plugins/known_marketplaces.json", AGY_MCP_REL];
 // 整个目录：规则、输出风格、skill、子代理、斜杠命令、钩子脚本、插件本体（打开就运行，2.1.311 实测在 plugins/cache/<市场>/<插件>/<版本>）
 const TREES = [".claude/rules", ".claude/output-styles", ".claude/skills", ".claude/agents", ".claude/commands", ".claude/hooks",
   ".claude/plugins/cache", ".claude/plugins/marketplaces", ".claude/plugins/repos"];
@@ -35,9 +37,15 @@ const canon = (v) => Array.isArray(v) ? "[" + v.map(canon).join(",") + "]"
   : v && typeof v === "object" ? "{" + Object.keys(v).sort().map((k) => JSON.stringify(k) + ":" + canon(v[k])).join(",") + "}"
   : JSON.stringify(v ?? null);
 
-/** JSON 里要管的那一块：设置文件去掉不让东西跑起来的键；.claude.json 只看 MCP 服务器（全局和各项目的） */
+/** JSON 里要管的那一块：设置文件去掉不让东西跑起来的键；.claude.json 只看 MCP 服务器（全局和各项目的）；
+ *  agy 的 mcp_config.json 只看 mcpServers——它是 agy 的 MCP 配置，别的键（agy 自己写的）不管 */
 function riskyPart(rel, j) {
   if (!j || typeof j !== "object" || Array.isArray(j)) return null;
+  if (rel === AGY_MCP_REL) {
+    const out = {};
+    if (j.mcpServers && Object.keys(j.mcpServers).length) out.mcpServers = j.mcpServers;
+    return out;
+  }
   if (rel === ".claude.json") {
     const out = {};
     if (j.mcpServers && Object.keys(j.mcpServers).length) out.mcpServers = j.mcpServers;
@@ -53,7 +61,7 @@ function riskyPart(rel, j) {
   }
   return null;
 }
-const isJsonPart = (rel) => rel === ".claude.json" || /\/settings(\.local)?\.json$/.test(rel);
+const isJsonPart = (rel) => rel === ".claude.json" || rel === AGY_MCP_REL || /\/settings(\.local)?\.json$/.test(rel);
 
 // Claude Code 自己在插件版本目录根上记的运行状态：每个进程一份 .in_use/<pid>（开一轮就多一个、退出删掉），清理时的 .orphaned_at。
 // 不是配置，官方给插件算摘要时也把它们排除在外（2.1.311 实测）；算进来的话开着一轮时再开一轮，必定弹「用户级配置改了」，
@@ -156,7 +164,7 @@ function accept(cur, filter) {
 }
 
 // ── 常驻监视：改了又改回也要看见 ──
-// 盯 home（.claude.json）、~/.claude、~/.claude/plugins 这三层（不递归，按名字筛）和 TREES 里存在的目录（递归）。
+// 盯 home（.claude.json）、~/.claude、~/.claude/plugins、~/.gemini、~/.gemini/config 这几层（不递归，按名字筛）和 TREES 里存在的目录（递归）。
 // 有动静 30 毫秒后读一遍，和确认记录不一样的记进 SEEN（只留第一次看见的样子：后面多半是在改回去）。
 const WATCH = new Map();      // 绝对路径 → { w, ino }
 const SEEN = new Map();       // rel → { f, sid, at }
@@ -164,7 +172,7 @@ const PEND = new Set();
 let pendT = null;
 const ACTIVE = new Map();     // 正在跑的轮次 runId → sessionId（记是哪一轮期间改的）
 const FILE_SET = new Set(FILES), TREE_SET = new Set(TREES);
-const PARENTS = ["", ".claude", ".claude/plugins"];
+const PARENTS = ["", ".claude", ".claude/plugins", ".gemini", ".gemini/config"];
 
 function onParent(prel, name) {
   // 没有名字（监视出错后的重扫，或者平台没给文件名）：这一层底下要盯的全部过一遍（DeepSeek 复核 11-04 建议）
@@ -402,7 +410,11 @@ function restorePart(rel, abs, copyText, qdir) {
   let curJ = null; try { curJ = JSON.parse(fs.readFileSync(abs, "utf8")); } catch {}
   if (!curJ || typeof curJ !== "object" || Array.isArray(curJ)) { stash(qdir, rel, abs); curJ = {}; }
   const old = JSON.parse(copyText || "{}");
-  if (rel === ".claude.json") {
+  if (rel === AGY_MCP_REL) {
+    // agy 的配置：只还原 mcpServers 一个键，别的键（agy 自己写的）原样保留；
+    // 通用分支会删掉所有非 SAFE_KEYS 的键，在这里会把 agy 的未知配置清掉，不能用
+    if (old.mcpServers) curJ.mcpServers = old.mcpServers; else delete curJ.mcpServers;
+  } else if (rel === ".claude.json") {
     if (old.mcpServers) curJ.mcpServers = old.mcpServers; else delete curJ.mcpServers;
     for (const [k, v] of Object.entries(curJ.projects || {})) if (v && typeof v === "object") { if (old.projects?.[k]) v.mcpServers = old.projects[k]; else delete v.mcpServers; }
   } else {

@@ -1,5 +1,5 @@
-// F5（11-09）：扩展「停用 / 启用」——技能走 skillOverrides（发行版打包时跳过关掉的）、
-// 用户级 MCP 停用 = 定义存进名单再 claude mcp remove，启用 = add-json 加回；组件 / 模块只记名单
+// F5（11-09，P0-2 改写）：扩展「停用 / 启用」——技能走 skillOverrides（发行版打包时跳过关掉的）、
+// 用户级 MCP 停用 = 定义存进名单再从 agy 的 mcp_config.json 里拿掉，启用 = 写回 agy；组件 / 模块只记名单
 import { PATHS, CFG } from "../gw/config.mjs";
 import "./fixtures/uc-baseline.mjs";
 import { test, after } from "node:test";
@@ -15,17 +15,19 @@ let exitCode = 0;
 const writeCli = () => fs.writeFileSync(cli, `#!${sh}\nfor a in "$@"; do printf '%s\\n' "$a"; done > '${argLog}'\nprintf '\\n' >> '${argLog}'\nexit ${exitCode}\n`, { mode: 0o700 });
 const prev = { claude: PATHS.claude, loader: PATHS.loader, claudeLoader: PATHS.claudeLoader };
 PATHS.claude = process.execPath; PATHS.loader = PATHS.claudeLoader = cli;
+writeCli();   // listMcp 调 `mcp list` 用它（只读，输出为空）
 const { _extForTest, SKILLS_DIR } = await import("../gw/extensions.mjs");
 const { sealPrepare, sealCleanup } = await import("../gw/seal.mjs");
 const { extOff, EXT_OFF_FILE } = await import("../gw/extoff.mjs");
+const { _agyMcpTest } = await import("../gw/agy-mcp.mjs");
 const X = _extForTest;
 const H = (r) => path.join(CFG.home, r);
 const put = (f, s) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, s); };
 const settings = () => JSON.parse(fs.readFileSync(H(".claude/settings.json"), "utf8"));
-const lastArgv = () => { const a = fs.readFileSync(argLog, "utf8").split("\n"); const i = a.indexOf("mcp"); return a.slice(i).filter(Boolean); };
 after(() => {
   Object.assign(PATHS, prev); _setSealed(true);
   for (const r of [".claude/skills/f5a", ".claude/skills/f5b", ".claude.json", "sealproj-f5"]) fs.rmSync(H(r), { recursive: true, force: true });
+  fs.rmSync(PATHS.agyMcpConfig, { force: true });
   fs.rmSync(EXT_OFF_FILE, { force: true }); fs.rmSync(root, { recursive: true, force: true });
 });
 
@@ -58,32 +60,34 @@ test("发行版：只认开 / 关；关掉的技能不打进 user 插件", async
   await X.setSkillMode("f5a", "on");
 });
 
-test("MCP 停用：定义先进名单（0600）再 mcp remove -s user；启用用 add-json 加回、出名单；remove 失败名单退回", async () => {
+test("MCP 停用：定义先进名单（0600）再从 agy 配置里拿掉；启用写回 agy、出名单；写失败名单退回", async () => {
   _setSealed(false);
-  const def = { command: "node", args: ["srv.mjs"], env: { K: "v" } };
-  put(H(".claude.json"), JSON.stringify({ mcpServers: { f5m: def } }));
-  exitCode = 0; writeCli();
+  const def = { command: "node", args: ["srv.mjs"], env: { K: "v" }, disabled: false };
+  const agyFile = PATHS.agyMcpConfig;
+  put(agyFile, JSON.stringify({ mcpServers: { f5m: def } }));
   assert.equal((await X.disableMcp("f5m")).ok, true);
-  assert.deepEqual(lastArgv(), ["mcp", "remove", "-s", "user", "f5m"]);
   assert.deepEqual(extOff().mcp.f5m, def);
   assert.equal(fs.statSync(EXT_OFF_FILE).mode & 0o777, 0o600);
+  assert.deepEqual(JSON.parse(fs.readFileSync(agyFile, "utf8")).mcpServers, {}, "停用后 agy 里没了");
   // 名单里的条目在列表里出现成「已停用」（假 CLI 的 mcp list 什么也不输出）
   const li = (await X.listMcp()).find((m) => m.name === "f5m");
   assert.equal(li.disabled, true); assert.equal(li.target, "node srv.mjs [env: K]", "环境变量只亮名字，不亮值");
+  assert.equal(li.source, "off-list");
   assert.equal((await X.enableMcp("f5m")).ok, true);
-  const a = lastArgv();
-  assert.deepEqual(a.slice(0, 5), ["mcp", "add-json", "-s", "user", "f5m"]);
-  assert.deepEqual(JSON.parse(a[5]), def);
+  assert.deepEqual(JSON.parse(fs.readFileSync(agyFile, "utf8")).mcpServers.f5m, def, "启用写回 agy");
   assert.equal(extOff().mcp.f5m, undefined);
-  // remove 失败：名单退回，不留「停了却没停」的条目
-  exitCode = 1; writeCli();
-  assert.equal((await X.disableMcp("f5m")).ok, false);
+  // 写失败：名单退回，不留「停了却没停」的条目
+  _agyMcpTest.failAfterWrites = 0;
+  try {
+    assert.equal((await X.disableMcp("f5m")).ok, false);
+  } finally { _agyMcpTest.failAfterWrites = -1; }
   assert.equal(extOff().mcp.f5m, undefined);
-  // 不是用户级的（.claude.json 里没有）不给停；名字乱填拒绝
+  assert.deepEqual(JSON.parse(fs.readFileSync(agyFile, "utf8")).mcpServers.f5m, def, "失败了 agy 里还在");
+  // 不是用户级的（两边都没有）不给停；名字乱填拒绝
   assert.equal((await X.disableMcp("nope")).ok, false);
   assert.equal((await X.disableMcp("-rf")).ok, false);
   assert.equal((await X.enableMcp("nope")).ok, false);
-  exitCode = 0; writeCli();
+  fs.rmSync(agyFile, { force: true });
 });
 
 test("组件 / 模块：没装的组件、不认识的模块、乱填的 kind 都拒绝，名单不动", async () => {

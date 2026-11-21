@@ -38,6 +38,9 @@ export const PATHS = {
   claudeLoader: process.env.CCAPP_GW_LOADER || process.env.CCAPP_LOADER || path.join(CFG.runtime, "glibc", "lib", "ld-linux-aarch64.so.1"),
   claudeLib: process.env.CCAPP_GW_GLIBC_LIB || process.env.CCAPP_GLIBC_LIB || path.join(CFG.runtime, "glibc", "lib"),
   agy: process.env.CCAPP_AGY || path.join(CFG.home, ".local", "share", "hachimia", "agy", "current", "agy"),
+  // agy 真正的 MCP 配置文件（P0-2，agy 1.5.13 实测：`agy mcp add` 写这里，`agy mcp list` 读这里；
+  // ~/.gemini/antigravity-cli/settings.json 在首次运行后根本不存在，MCP 别写去那里——见 agy-mcp.mjs）
+  agyMcpConfig: path.join(CFG.home, ".gemini", "config", "mcp_config.json"),
   // agy 与 claude 是两条独立路径，互不兜底：CCAPP_AGY 绝不能喂给 PATHS.claude，CCAPP_CLAUDE
   // 也绝不能喂给 PATHS.agy——设备上两者曾指向同一文件，导致 isAgyOnlyMode() 恒为 false（A7）。
   claude: process.env.CCAPP_CLAUDE || path.join(CFG.runtime, "claude"),

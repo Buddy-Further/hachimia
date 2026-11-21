@@ -836,7 +836,7 @@ async function compStart(id) {
   return { r: { ok: true }, job };
 }
 
-/** MCP 组件（索引里带 mcp: { name, bin }）：装好后替用户用 claude mcp add 注册成用户级 MCP，卸载时拿掉。
+/** MCP 组件（索引里带 mcp: { name, bin }）：装好后替用户写进 agy 的 mcp_config.json 注册成用户级 MCP（P0-2，走 addMcp），卸载时拿掉。
  *  名字、命令都过白名单；命令只能是本组件放进 $PREFIX/bin 的程序（安装时再按记录核一遍），不收参数和环境变量 */
 function compMcpSpec(entry) {
   const m = entry && entry.mcp;
@@ -1261,7 +1261,7 @@ async function compRunInstall(id, b, job) {
     fs.rmSync(gz, { force: true });
     if (job) job.done = job.total;   // 完成把进度走满（skipped 过的也能到 100%，复核 R2-P3-2）
   });
-  // 6) MCP 组件：注册成用户级 MCP（走 claude mcp add，和扩展页手动添加同一条路）。失败不算安装失败，扩展页还能手动加
+  // 6) MCP 组件：注册成用户级 MCP（走 addMcp → agy 的 mcp_config.json，和扩展页手动添加同一条路）。失败不算安装失败，扩展页还能手动加
   if (b.mcp) await compRegisterMcp(id, b, rec);
 }
 

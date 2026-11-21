@@ -33,7 +33,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { CFG } from "./config.mjs";
+import { CFG, PATHS } from "./config.mjs";
 import { scanText } from "./breach.mjs";
 import { mcpConfig as claudeMcpConfig } from "./seal.mjs";
 
@@ -131,6 +131,9 @@ function readJsonFile(file) {
  * 与外部文档所说的 ~/.gemini/config/mcp_config.json（全局）：
  * 未决：两处到底哪处是 agy 真正读的，本机无 agy 二进制无法验证；
  * 两处都读、有完整定义的才采用，绝不只凭名字编造服务条目。
+ * P0-2 实测修正（agy 1.5.13，见 ~/workspace/agy-verify/VERIFY-REPORT.md）：
+ * settings.json 在首次运行后根本不存在，那一路是死代码，全局一路才是真的；
+ * 死代码留在这里不动，等以后一并清理（P0-2 不扩范围）。
  * 工作区 <cwd>/.agents/mcp_config.json 故意不读：它是克隆仓库带来的
  * 不可信内容，ACP 分支在 projectRisks()/sealPrepare() 之前就返回，
  * 网关来不及对它做任何确认；用户须把 MCP 配进家目录文件。
@@ -151,7 +154,7 @@ export function readAgyMcpConfigs() {
   if (settings?.mcpServers && typeof settings.mcpServers === "object") {
     take(settings, "agy-settings.json");
   }
-  const globalCfg = readJsonFile(path.join(home, ".gemini", "config", "mcp_config.json"));
+  const globalCfg = readJsonFile(PATHS.agyMcpConfig);
   if (globalCfg) take(globalCfg, "agy-mcp_config.json(global)");
   return { servers, skipped };
 }
