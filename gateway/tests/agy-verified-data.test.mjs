@@ -59,6 +59,19 @@ test("P0-6 agy-verified.mjs add：不是在 hachimia 终端里跑的结果不能
   assert.equal(fs.readFileSync(FILE, "utf8"), before, "拦住的 add 不能改仓库文件");
 });
 
+test("P0-6 审查 M2：agy-verified.mjs add：结果文件缺 at 时干净地 die，不抛 TypeError 堆栈", () => {
+  const before = fs.readFileSync(FILE, "utf8");
+  const f = path.join(os.tmpdir(), "agy-verify-noat.json");
+  fs.writeFileSync(f, JSON.stringify({ v: 1, version: "1.5.13", pass: true, sha256: "c".repeat(64),
+    device: { maker: "Test", model: "VM", android: "15", sdk: 35, targetSdk: 28 }, app: "0.1.3", devkit: "",
+    steps: { version: { pass: true }, acp: { pass: true } } }));
+  const r = run(["add", f]);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /不是在 hachimia 的终端里跑的/);
+  assert.doesNotMatch(r.stderr, /TypeError|at \S+ \(/, "缺 at 应该走 die()，不能是未捕获异常的堆栈");
+  assert.equal(fs.readFileSync(FILE, "utf8"), before, "拦住的 add 不能改仓库文件");
+});
+
 test("P0-6 agy-verified.mjs add：通过校验的结果走到签名那一步才停（本机没有签名钥匙），文件不动", () => {
   const before = fs.readFileSync(FILE, "utf8");
   const f = path.join(os.tmpdir(), "agy-verify-good.json");

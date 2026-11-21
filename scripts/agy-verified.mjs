@@ -49,7 +49,7 @@ if (cmd === "add") {
     try { r = JSON.parse(fs.readFileSync(f, "utf8")); } catch (e) { die(`${f} 读不了：${e.message}`); }
     if (r.v !== 1 || !VER.test(r.version || "")) die(`${f} 不是 verify-agy.mjs 的结果`);
     if (!r.pass) die(`${f}：${r.version} 没通过验证（${Object.entries(r.steps).filter(([, s]) => !s.pass).map(([k, s]) => `${k}: ${s.detail}`).join("；")}），不能记成已验证`);
-    if (!r.app || !r.device?.targetSdk) die(`${f}：结果里没有 App 版本 / 安装包类型——不是在 hachimia 的终端里跑的，不能当真机验证`);
+    if (!r.app || !r.device?.targetSdk || typeof r.at !== "string") die(`${f}：结果里没有 App 版本 / 安装包类型 / 日期——不是在 hachimia 的终端里跑的，不能当真机验证`);
     const rec = { at: r.at.slice(0, 10), device: [r.device.maker, r.device.model].filter(Boolean).join(" "), android: r.device.android, sdk: r.device.sdk,
       targetSdk: r.device.targetSdk, app: r.app, devkit: r.devkit, sha256: r.sha256, ...(r.sha512 ? { sha512: r.sha512 } : {}) };
     // 同一台设备、同一 Android 版本、同一种安装包（28 / 36）只留最新一条
