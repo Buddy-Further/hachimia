@@ -12,6 +12,7 @@
 //  区分手段；认不出的统一 unknown，原文原样保留在 detail 里。
 // ─────────────────────────────────────────────────────────────────────
 import { tz } from "./config.mjs";
+import { AGY_MIN_VERSION } from "./agy-version.mjs";
 
 /** 重试常量：环境变量可覆盖（测试用，命名仿 CCAPP_ACP_PROMPT_TIMEOUT_MS）。
  *  maxAttempts 是总尝试次数（含首次）：默认 3 = 首次 + 2 次重试。 */
@@ -76,7 +77,7 @@ function resetHintSuffix(data) {
  * ACP 错误分类。返回：
  *   { class, retryable, hint, action, code, raw, data }
  * - class：auth-expired | rate-limit | model-not-found | context-too-long |
- *          timeout | network-process | login-env | unknown
+ *          timeout | network-process | login-env | version-mismatch | unknown
  * - retryable：建会阶段能不能自动重试。prompt 阶段一律不自动重试，
  *   由调用方按阶段再收紧（见 acp.mjs runAcpTurn 的 catch）。
  * - hint：给用户看的一句中文处理建议；unknown 时含原文。
@@ -91,6 +92,26 @@ export function classifyAcpError(err) {
   const numCode = Number.isFinite(Number(code)) ? Number(code) : null;
   const http = httpCodeOf(s);
   const effCode = numCode ?? (http || null);
+
+  // 0. version-mismatch（P0-4）：agy 版本低于最低下限，建会直接拦。
+  //    只认 code === "AGY_VERSION"（acp.mjs 版本门专抛），绝不凭文案认；
+  //    不可重试（重装/升级前重试多少次都一样）。hint 里点名检测到的版本、
+  //    最低版本与已验证版本：data 里有就用它，没有就从原文里抠、再不济
+  //    只写最低版本。`agy update` 不存在（agy --help 无 update 子命令），
+  //    只说“升级 Antigravity CLI”，不给假命令。
+  if (code === "AGY_VERSION") {
+    const d = (data && typeof data === "object") ? data : {};
+    const v = d.version || /版本\s*([0-9][0-9A-Za-z.+-]*)/.exec(s)?.[1] || "";
+    const min = d.min || AGY_MIN_VERSION;
+    const verified = d.verified || min;
+    return {
+      class: "version-mismatch", retryable: false,
+      hint: v
+        ? tz("Antigravity CLI 版本 {v} 低于 hachimia 要求的 {min}（已验证版本 {verified}），请升级 Antigravity CLI 后重试。", { v, min, verified })
+        : tz("Antigravity CLI 版本低于 hachimia 要求的 {min}（已验证版本 {verified}），请升级 Antigravity CLI 后重试。", { min, verified }),
+      action: "update-agy", code: effCode, raw, data,
+    };
+  }
 
   // 1. login-env：无浏览器弹不出登录页（环境问题，不是登录过期）。
   //    只认 -32603 + 原文，绝不能把 -32603 通用错都算成它。
