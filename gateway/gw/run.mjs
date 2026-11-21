@@ -385,7 +385,7 @@ export async function startRun(item) {
   const useAcp = usesAcp(P);
   const route = providerRoute(P);
   run.route = route;   // P0-5：这一轮的路由进运行记录（MIG-9 失败时还进 run_end）
-  log(`${runTag(run)} 路由 ${P.id} → ${route}（${useAcp ? "ACP" : "密封 Claude"}）`);
+  log(`${runTag(run)} 路由 ${P.id} → ${route}${route === "unavailable" ? "" : `（${useAcp ? "ACP" : "密封 Claude"}）`}`);   // unavailable 时什么都不跑，不贴引擎名
   // MIG-9（rem-C2 方案 b）：route "unavailable" 的厂商在发消息前就拦截，别等模型调用才报 agy 原文错。
   // 只要 ACP 路径 + oracle 说不可用就拦，不论有没有 key：登录类厂商（Claude 账户登录）根本没有 key，
   // 前面“未配置 API 密钥”那条放过了它（P.login），旧条件 `KEY &&` 让它漏网，一路走到 runAcpTurn，
