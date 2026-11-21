@@ -178,6 +178,13 @@ test("P0-4 check：ok / too-old / newer-unverified / unknown 四态", () => {
   }
   // floor 参数：显式抬高下限时，已验证版本也会变 too-old（env 覆盖的管线）
   assert.equal(checkAgyVersion("1.5.13", "1.5.14").status, "too-old");
+  // M-4：调低后的下限（显式 floor）下，介于下限与已验证版本之间 → unknown
+  assert.equal(checkAgyVersion("1.5.10", "1.5.9").status, "unknown");
+  // M-4：解析不出的超长输入截到 64 字，不原样进 note/hint
+  const long = checkAgyVersion("x".repeat(200));
+  assert.equal(long.status, "unknown");
+  assert.equal(long.version.length, 64);
+  assert.equal(long.version, "x".repeat(64));
 });
 
 // ── AGY_BEHAVIOUR 表 ───────────────────────────────────────────────
@@ -216,6 +223,12 @@ test("P0-4 分类：AGY_VERSION → version-mismatch，不重试、动作为升�
   assert.equal(bare.class, "version-mismatch");
   assert.equal(bare.retryable, false);
   assert.match(bare.hint, /1\.5\.13/);
+  // M-3：英文文案里的 version 也能抠出版本号（无 data 时）
+  const en = new Error("Antigravity CLI version 1.5.12 is below the required version");
+  en.code = "AGY_VERSION";
+  const enC = classifyAcpError(en);
+  assert.equal(enC.class, "version-mismatch");
+  assert.match(enC.hint, /1\.5\.12/);
 });
 
 // ── 门：太旧拦截 ───────────────────────────────────────────────────
@@ -256,6 +269,7 @@ test("P0-4 门放行：initialize 回 1.5.14 → 回合照常，恰好一条版�
     assert.match(notes[0].text, /1\.5\.13/);
     assert.equal(buildCapabilities().versionStatus, "newer-unverified");
     assert.equal(buildCapabilities().version, "1.5.14");
+    assert.equal(buildCapabilities().versionChecked, "1.5.14", "M-2：versionChecked 应在 caps 里暴露");
   } finally { closeAllAcpClients(); }
 });
 
@@ -299,5 +313,34 @@ test("P0-4 池复用：1.5.13 建会后第二轮复用，不再发 initialize、
     assert.equal(second.res.reused, true, "第二轮应复用池中 client");
     assert.equal(mock.countOf("initialize"), 1, "复用轮次不得重新 initialize（门只在新 client 上跑）");
     assert.ok(!second.events.some((e) => e.type === "note" && e.key === "acp-agy-version-unverified"));
+  } finally { closeAllAcpClients(); }
+});
+
+// ── M-5：protocolVersion 是字符串 "1" 时不警告 ───────────────────────
+test("P0-4 M-5：protocolVersion 为字符串 \"1\" → 与数字 1 等价，不警告", { timeout: 15000 }, async () => {
+  const mock = makeMock(freshDir("mock"), { initVersion: "1.5.13", initProtocolVersion: "1" });
+  try {
+    const { res, events } = await drive(mock);
+    assert.equal(res.ok, true, res.error || JSON.stringify(events));
+    assert.equal(buildCapabilities().versionStatus, "ok");
+    assert.ok(!events.some((e) => e.type === "note" && e.key === "acp-agy-version-unverified"),
+      "字符串 \"1\" 不应触发协议版本警告: " + JSON.stringify(events));
+  } finally { closeAllAcpClients(); }
+});
+
+// ── M-1 / F-3：跨会话去重——第二台新 client、同版本不再警告 ──────────
+test("P0-4 M-1/F-3：第二轮新 client、同版本 1.5.15 → 不再发版本 note", { timeout: 15000 }, async () => {
+  const mock = makeMock(freshDir("mock"), { initVersion: "1.5.15" });
+  try {
+    const first = await drive(mock);
+    assert.equal(first.res.ok, true, first.res.error || JSON.stringify(first.events));
+    const firstNotes = first.events.filter((e) => e.type === "note" && e.key === "acp-agy-version-unverified");
+    assert.equal(firstNotes.length, 1, "首轮新版本应警告一次: " + JSON.stringify(first.events));
+    // 第二轮：全新 cwd → 全新 client（非池复用），同版本同协议版本
+    const second = await drive(mock);
+    assert.equal(second.res.ok, true, second.res.error || JSON.stringify(second.events));
+    assert.equal(mock.countOf("initialize"), 2, "第二轮必须是新 client（重新 initialize）");
+    const secondNotes = second.events.filter((e) => e.type === "note" && e.key === "acp-agy-version-unverified");
+    assert.equal(secondNotes.length, 0, "同版本第二台新 client 不应再警告: " + JSON.stringify(second.events));
   } finally { closeAllAcpClients(); }
 });
