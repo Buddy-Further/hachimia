@@ -2,7 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { CFG, HERE, PATHS, PREFIX, log, tz } from "./config.mjs";
-import { verifiedInfo } from "./ccverified.mjs";
+import "./ccverified.mjs";   // 只为副作用：Claude 那份验证记录的定时刷新（Updater.java 的 knownBad 还读它当后备）；选单的内容源已是 agy 那份
+import { agyVerifiedInfo } from "./agyverified.mjs";
 import { ledger } from "./claude.mjs";
 import { onSealUnknown } from "./claudeseal.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
@@ -66,10 +67,18 @@ async function devUpdCheck() {
     if (!vs.ok || !vs.latest) throw new Error(vs.message || tz("取不到 Antigravity CLI 版本列表"));
     const v = vs.latest;
     c.latest = v; c.latestCh = ch;
+    // P0-6：渠道新版被标成有问题时，自动更新不装它（held，和 Updater.java 的 claudeHeld 一个意思）；
+    // 用户自己点更新仍可装（devUpdInstall 的 manual 路），已经装了的坏版本也不拦启动——只拦自动装。
+    let heldReason = "";
+    try {
+      const b = (await agyVerifiedInfo()).bad?.[v];
+      if (b) heldReason = b.text || "";
+    } catch {}
+    c.held = !!heldReason;
     if (c.state !== "installing") {
       const d = cmpVer(v, c.current);
       c.state = d === 0 ? "uptodate" : "available";
-      c.message = devUpd.channel === "latest" ? "latest 渠道" : "";
+      c.message = c.held && c.state === "available" ? heldReason : devUpd.channel === "latest" ? "latest 渠道" : "";
     }
     devUpd.lastCheck = Date.now();
   } catch (e) { devUpd.error = e.message; }
@@ -84,12 +93,17 @@ async function devUpdCheck() {
  * 装进 ~/.local/share/hachimia/agy/<版本>/ 并更新 current 软链（PATHS.agy 指的地方）。
  * 装完按 agy --version 核对版本；对不上就报 error，不留一个半吊子版本。
  * version 不给就装清单里的最新版；给了（版本选单点的）就装指定版。
+ * manual=true（用户在版本选单点的）：标成有问题的版本也照装——坏版本只拦自动更新（P0-6，D4）。
  */
-async function devUpdInstall(version) {
+async function devUpdInstall(version, manual = false) {
   const c = devUpd.agy;
   if (c.state === "installing" || (!version && !c.latest)) return;
   if (!version && c.latestCh && c.latestCh !== devUpd.channel) return;   // 查到的是换渠道之前那个渠道的版本
   const want = version || c.latest;
+  // 自动更新不装标成有问题的版本（devUpdCheck 置的 held，原因已写进 c.message）；手动点更新不受这道拦
+  if (!manual && !version && c.held) {
+    c.state = "available"; devUpdSave(); return;
+  }
   if (!/^(stable|latest|\d+\.\d+\.\d+(-[0-9A-Za-z.+-]{1,40})?)$/.test(want)) {
     c.state = "error"; c.message = tz("版本号不对：{v}", { v: String(want).slice(0, 40) }); devUpdSave(); return;
   }
@@ -129,7 +143,7 @@ if (!PREFIX) {
   const tick = async () => {
     if (!devUpd.auto || Date.now() - devUpd.lastCheck < 6 * 3600_000) return;
     await devUpdCheck();
-    if (devUpd.auto && devUpd.agy.state === "available") devUpdInstall();
+    if (devUpd.auto && devUpd.agy.state === "available" && !devUpd.agy.held) devUpdInstall();
   };
   setTimeout(tick, 60_000);
   setInterval(tick, 30 * 60_000);
@@ -146,6 +160,9 @@ if (PREFIX && process.env.CCAPP_BIN) {
     execFile(path.join(PREFIX, "bin", "node"), [script, "--recheck"], { env: termEnv(), timeout: 600000 }, (e, out) => {
       const msg = String(out || "").trim();
       if (msg) log("[agy 补核] " + msg.replace(/\n/g, "；"));
+      // 补核结果除了记账本，也写进更新项的状态（upd_status 能看到）：以前只有账本那一行，设置页看不出“校验失败”
+      devUpd.agy.verify = { at: Date.now(), ok: !e, mismatch: !!(e && e.code === 3), detail: msg.slice(0, 500) };
+      devUpdSave();
       if (e && e.code === 3) ledger("verify", false, "Antigravity CLI 与本地清单 sha256 不符", msg);
       else if (/^✓/m.test(msg)) ledger("verify", true, "Antigravity CLI 已完成 sha256 校验", msg);
     });
@@ -188,7 +205,7 @@ async function devApp(op, b) {
           await devUpdCheck();
           if (c.latestCh !== want) await new Promise((r) => setTimeout(r, 1000));
         }
-        if (devUpd.channel === want && c.latestCh === want && c.state === "available") devUpdInstall();
+        if (devUpd.channel === want && c.latestCh === want && c.state === "available") devUpdInstall(undefined, true);
       })().catch(() => {});
     }
     devUpdSave();
@@ -197,7 +214,7 @@ async function devApp(op, b) {
   if (op === "upd_apply") {
     if (b.item !== "agy") return { ok: false, message: tz("开发端只管 Antigravity CLI (agy)（应用本体由你在本机构建安装）") };
     if (devUpd.agy.state !== "available" && devUpd.agy.state !== "error") return { ok: false, message: tz("没有可装的新版，先检查更新") };
-    devUpdInstall(b.version);
+    devUpdInstall(b.version, true);
     return { ok: true, message: tz("开始更新 Antigravity CLI (agy)") };
   }
   return { ok: false, message: tz("开发端不支持：{op}", { op }) };
@@ -244,7 +261,9 @@ const APP_FIELDS = {
 // ── 路由：/api/mem/status /api/mem/clear /api/priv/status /api/priv/request /api/priv/open /api/priv/audit /api/priv/keepalive /api/app/ ──
 export async function routeDevside(req, res, u, p) {
   if (req.method === "GET" && p === "/api/claude/versions") {
-    const [vs, vi] = await Promise.all([claudeVersions(u.searchParams.get("refresh") === "1"), verifiedInfo((u.searchParams.get("lang") || "zh").startsWith("zh") ? "zh" : "en")]);
+    // 路由名还是 /api/claude/versions（前端就这么叫），但验证/坏版本的内容源已经是 agy 的那份
+    // （gw/agyverified.mjs，agy-code/verified.json）；Claude 那份不再往选单里供数
+    const [vs, vi] = await Promise.all([claudeVersions(u.searchParams.get("refresh") === "1"), agyVerifiedInfo((u.searchParams.get("lang") || "zh").startsWith("zh") ? "zh" : "en")]);
     return sendJson(res, 200, { ...vs, ...vi });
   }
   if (req.method === "GET" && p === "/api/mem/status") return sendJson(res, 200, await ccMem(["status", "--json"]));

@@ -785,12 +785,20 @@ final class Updater {
     private volatile boolean claudeOlder;
 
     /**
-     * 维护者标成「有已知问题」的 agy 版本（scripts/claude-verified.mjs 发布、网关 gw/ccverified.mjs 验过签存在 home 里的那份）。
+     * 维护者标成「有已知问题」的 agy 版本（scripts/agy-verified.mjs 发布、网关 gw/agyverified.mjs 验过签存在 home 里的那份；
+     * Claude 那份 claude-verified.json 也还读着——两个通道平行，坏版本只要有一边标了就拦自动更新）。
      * 返回原因（按界面语言，中文以外都用英文），没标就返回 null。文件不在、读不了都当没标：只少一道提醒，不挡更新
      */
     private String knownBad(String v) {
+        String r = badReasonFrom(new File(env.home, ".cache/cccodroid/agy-verified.json"), v);
+        if (r != null) return r;
+        return badReasonFrom(new File(env.home, ".cache/cccodroid/claude-verified.json"), v);
+    }
+
+    /** 从一份验过签的验证记录（正文 + .sig）里取某版本的「有已知问题」原因；验不过、没标都返回 null */
+    private String badReasonFrom(File f, String v) {
         try {
-            File f = new File(env.home, ".cache/cccodroid/claude-verified.json"), sf = new File(f.getPath() + ".sig");
+            File sf = new File(f.getPath() + ".sig");
             if (!f.isFile() || !sf.isFile() || f.length() > (4 << 20)) return null;
             // 网关存的是验过签的原样字节加 .sig：这里再验一遍，同 uid 写进来的假记录不认（审查 11-05 安全 1）
             byte[] body = java.nio.file.Files.readAllBytes(f.toPath());
