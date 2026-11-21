@@ -20,8 +20,10 @@ const INSTALL_URL = process.env.HACHIMIA_AGY_INSTALL_URL || "https://antigravity
 // 官方 install.sh 从这份 manifest 取版本号与下载地址（install.sh 本身不含版本变量，--check 直接问这里）
 const MANIFEST_BASE = process.env.HACHIMIA_AGY_MANIFEST_BASE || "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests";
 // P0-6/7：下载的 install.sh 执行前先对哈希（见下面安装流程里的校验；Google 不发布 install.sh 的签名或
-// 官方哈希，唯一能钉住的就是这份随 APK 发的文件，改一处就够；测试可用 HACHIMIA_AGY_PINS 指到别处）
-const PINS_PATH = process.env.HACHIMIA_AGY_PINS || path.join(path.dirname(fileURLToPath(import.meta.url)), "agy-install-pins.json");
+// 官方哈希，唯一能钉住的就是这份随 APK 发的文件，改一处就够；测试时（且仅当 CCAPP_TEST=1）可用
+// HACHIMIA_AGY_PINS 指到别处——生产环境里谁能设安装器的环境变量就能指到自己控制的 pins 文件、绕过
+// 钉住校验，所以非测试环境下这个覆盖一律忽略，只读脚本旁边的 agy-install-pins.json）
+const PINS_PATH = (process.env.CCAPP_TEST === "1" && process.env.HACHIMIA_AGY_PINS) || path.join(path.dirname(fileURLToPath(import.meta.url)), "agy-install-pins.json");
 const PREFIX = process.env.PREFIX || "";
 const CURL = PREFIX ? path.join(PREFIX, "bin", "curl") : "curl";
 const SH = fs.existsSync(path.join(PREFIX, "bin", "bash"))

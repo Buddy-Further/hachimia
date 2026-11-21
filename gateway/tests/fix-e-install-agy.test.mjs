@@ -3,7 +3,8 @@
 // 全程只动临时 HOME 下的 .local/share/hachimia/agy，不碰真机、不联网。
 // P0-6/7：install-agy.mjs 执行下载的 install.sh 之前先对 agy-install-pins.json 里钉住的 sha256；
 // 假脚本的哈希当然和仓库里那份不一样，所以 run() 默认给一个按假脚本现算的 pins 文件（HACHIMIA_AGY_PINS），
-// 钉住校验的测试再另外传错的 / 缺失的 pins 文件。
+// 钉住校验的测试再另外传错的 / 缺失的 pins 文件。HACHIMIA_AGY_PINS 只在 CCAPP_TEST=1 时生效
+// （测试跑在它之下，所以默认覆盖有效；非测试环境下覆盖被忽略，只读随 APK 发的 pins 文件）。
 // 运行：node scripts/test.mjs fix-e-install-agy
 import "../gw/config.mjs";
 import test, { after } from "node:test";
@@ -81,10 +82,11 @@ after(() => { server.close(); fs.rmSync(DEST, { recursive: true, force: true });
 const resetDest = () => fs.rmSync(DEST, { recursive: true, force: true });
 // 注意：必须用异步 spawn——同步 spawnSync 会堵住本进程的事件循环，同进程的 https 冒充服务就没法完成握手
 const run = (args, extraEnv = {}) => new Promise((resolve, reject) => {
-  const child = spawn(process.execPath, [SCRIPT, ...args], {
-    env: { ...process.env, HOME, PREFIX, CURL_CA_BUNDLE: CA_CRT, HACHIMIA_AGY_INSTALL_URL: B + "/install.sh",
-      HACHIMIA_AGY_MANIFEST_BASE: B + "/manifests", HACHIMIA_AGY_PINS: PINS_GOOD, ...extraEnv },
-  });
+  const env = { ...process.env, HOME, PREFIX, CURL_CA_BUNDLE: CA_CRT, HACHIMIA_AGY_INSTALL_URL: B + "/install.sh",
+    HACHIMIA_AGY_MANIFEST_BASE: B + "/manifests", HACHIMIA_AGY_PINS: PINS_GOOD, ...extraEnv };
+  // extraEnv 里传 undefined 表示把这个变量从子进程环境里删掉（用来模拟“非测试环境”：CCAPP_TEST 未设）
+  for (const k of Object.keys(env)) if (env[k] === undefined) delete env[k];
+  const child = spawn(process.execPath, [SCRIPT, ...args], { env });
   let stdout = "", stderr = "";
   child.stdout.on("data", (d) => { stdout += d; });
   child.stderr.on("data", (d) => { stderr += d; });
@@ -198,6 +200,7 @@ test("P0-6/7：钉住的校验值只存在于 agy-install-pins.json 一个地方
   const src = fs.readFileSync(SCRIPT, "utf8");
   assert.doesNotMatch(src, /[0-9a-f]{64}/, "脚本里不应有写死的 64 位哈希：轮换只改 pins 文件");
   assert.match(src, /HACHIMIA_AGY_PINS/, "测试要能用环境变量指到别的 pins 文件");
+  assert.match(src, /CCAPP_TEST === "1" && process\.env\.HACHIMIA_AGY_PINS/, "pins 覆盖只在 CCAPP_TEST=1 时生效，生产环境下忽略");
   assert.match(src, /agy-install-pins\.json/, "默认从脚本旁边的 pins 文件读");
 });
 
@@ -206,6 +209,24 @@ test("P0-6/7 对照：校验值对上时正常安装（HACHIMIA_AGY_PINS 覆盖�
   const m = JSON.parse(fs.readFileSync(path.join(DEST, "1.5.13", "manifest.json"), "utf8"));
   assert.equal(m.installShSha256, crypto.createHash("sha256").update(INSTALL_SH).digest("hex"),
     "本地清单应记下实际执行的 install.sh 的哈希（来源可查）");
+});
+
+test("P0-6/7 审查 M1：CCAPP_TEST 未设时，HACHIMIA_AGY_PINS 覆盖被忽略、只读随 APK 发的 pins 文件", { skip: SKIP_TLS }, async () => {
+  resetDest();
+  // PINS_GOOD 是按假脚本现算的：覆盖若生效就会装上；被忽略时读默认 pins（钉住的真 Google install.sh 哈希），
+  // 和假脚本对不上，退出码 4、什么都不装
+  const r = await run(["stable"], { FAKE_AGY_MODE: "good", CCAPP_TEST: undefined });
+  assert.equal(r.status, 4, "非测试环境下 pins 覆盖应被忽略，默认 pins 与假脚本对不上就该拒绝执行：\n" + r.stdout + r.stderr);
+  assert.match(r.stderr, /安装脚本校验值已变化/);
+  assert.equal(fs.existsSync(path.join(DEST, "current")), false, "不应切换 current");
+  assert.equal(fs.existsSync(path.join(DEST, "1.5.13")), false, "假安装脚本根本不该跑起来");
+});
+
+test("P0-6/7 审查 M1 对照：CCAPP_TEST=1 时，HACHIMIA_AGY_PINS 覆盖生效、校验值对上就正常安装", { skip: SKIP_TLS }, async () => {
+  resetDest();
+  const r = await run(["stable"], { FAKE_AGY_MODE: "good", CCAPP_TEST: "1" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /✓ Antigravity CLI 1\.5\.13 安装完成/);
 });
 
 test("P0-6/7：本地清单同时记已装二进制 sha256 与 manifest sha512 / 地址 / 版本（来源，不混为一谈）", { skip: SKIP_TLS }, async () => {
