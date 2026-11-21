@@ -47,7 +47,7 @@
       const cur = state.providers.find((p) => p.id === r.active) || {};
       $("provider-info").textContent = t("当前在用：{name}", { name: pLabel(cur) || r.active });
       $("provider-info").title = cur.baseUrl || "";
-      renderProvCard();
+      if (setOpen) renderProvCard();
     } catch (e) {
       $("provider-info").textContent = t("读取接口清单失败：{msg}", { msg: e.message });
     }

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFile, spawn } from "node:child_process";
 import { CFG, PATHS, log, tz } from "./config.mjs";
-import { dropModelCache, isLoginMode, loggedInKnown, noteLoggedIn, parseAgyModelsOutput } from "./models.mjs";
+import { dropModelCache, execAgyModelsShared, isLoginMode, loggedInKnown, noteLoggedIn, parseAgyModelsOutput } from "./models.mjs";
 import { hasAgySessionFiles, listAgyCredentialFiles } from "./agy-creds.mjs";
 export { hasAgySessionFiles, listAgyCredentialFiles };
 import { agyEnv, claudeBlocked, killTree } from "./claude.mjs";
@@ -137,7 +137,32 @@ let AUTH_GOOD = null;   // 最后一次问出结果的状态
 let AUTH_INFLIGHT = null;
 const TIER_FILE = path.join(CFG.home, ".cache", "hachimia-tier.json");
 const QUOTA_FILE = path.join(CFG.home, ".cache", "hachimia-quota.json");
+const AUTH_FILE = path.join(CFG.home, ".cache", "hachimia-auth.json");
 const AGY_QUOTA_TTL_MS = 60e3;
+let AGY_QUOTA_BOOT_T = null;
+let AUTH_BG_T = null;
+
+function readAuthDisk() {
+  try {
+    const j = JSON.parse(fs.readFileSync(AUTH_FILE, "utf8"));
+    if (j && j.v && typeof j.v === "object" && j.v.loggedIn === true) return j.v;
+  } catch {}
+  return null;
+}
+
+function writeAuthDisk(v) {
+  try {
+    if (!v || !v.loggedIn) { fs.unlinkSync(AUTH_FILE); return; }
+    fs.mkdirSync(path.dirname(AUTH_FILE), { recursive: true });
+    const tmp = `${AUTH_FILE}.${process.pid}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify({ at: Date.now(), v }));
+    fs.renameSync(tmp, AUTH_FILE);
+  } catch {}
+}
+
+function clearAuthDisk() {
+  try { fs.unlinkSync(AUTH_FILE); } catch {}
+}
 let AUTH_TIER = (() => {
   try { const j = JSON.parse(fs.readFileSync(TIER_FILE, "utf8")); return typeof j?.name === "string" && j.name ? j.name : null; }
   catch { return null; }
@@ -322,13 +347,7 @@ function looksLikeModelList(out) {
 }
 
 function execAgyModels(bin, env) {
-  return new Promise((resolve) => {
-    execFile(bin, ["models"], { cwd: CFG.home, env: env || authEnv(), encoding: "utf8", timeout: 10000, maxBuffer: 2 << 20 }, (err, stdout, stderr) => {
-      const status = err ? (typeof err.code === "number" ? err.code : 1) : 0;
-      const errMsg = err && !stdout && !stderr ? (err.killed ? "timeout" : err.message || String(err.code || "")) : "";
-      resolve({ status, stdout: String(stdout || ""), stderr: String(stderr || errMsg) });
-    });
-  });
+  return execAgyModelsShared(bin, env || authEnv(), { timeoutMs: 10000, shared: !env });
 }
 
 export async function authStatus(force) {
@@ -341,22 +360,44 @@ export async function authStatus(force) {
     return v;
   }
 
+  // API Key 模式：探针必须带 key 才能问出模型（A13）。authEnv() 会删 GEMINI_API_KEY，
+  // 只适合 OAuth 探针；生效厂商是 API Key 模式、且它自己配了 key（apiKey / apiKeyEnv）
+  // 时，用该厂商的 agyEnv 探。只认厂商自己的 key 来源，不拿别的厂商回落的 key 来探。
+  const keyProv = PROVIDER;
+  const isKeyMode = !!(keyProv && !keyProv.login && (keyProv.authType === "gemini-api-key" || keyProv.authStyle === "gemini-api-key"));
+  const apiKey = isKeyMode && (keyProv.apiKey || keyProv.apiKeyEnv) ? (keyOf(keyProv) || null) : null;
+
+  // 冷启动 SWR：非强刷、内存尚无缓存且本地存在 OAuth 凭据文件时，秒回上次落盘结果或凭据推断，
+  // 后台异步复核 `agy models`，避免首屏请求被 6s+ 的子进程冷启动堵住连接池。
+  if (!force && !AUTH_CACHE && !apiKey && hasAgySessionFiles()) {
+    const cached = readAuthDisk();
+    const v = cached
+      ? { ...cached, plan: cached.plan || AUTH_TIER }
+      : { loggedIn: true, authMethod: loginAuthMethod(), email: null, org: null, plan: AUTH_TIER };
+    AUTH_CACHE = { at: Date.now(), v };
+    AUTH_GOOD = v;
+    noteLoggedIn(true);
+    if (!AUTH_BG_T) {
+      AUTH_BG_T = setTimeout(() => {
+        AUTH_BG_T = null;
+        authStatus(true).catch(() => {});
+      }, 1500);
+      AUTH_BG_T.unref?.();
+    }
+    return v;
+  }
+
   // 零成本异步探测：`agy models`（官方 agy 没有 auth 子命令，agy auth status 会被当 prompt
   // 参数忽略报错）。必须用异步 execFile：以前用 spawnSync 会把整个网关事件循环冻住数秒，
   // 导致冷启动并发 /__proof 超时、WebView 收到 502 并闪「网关离线」再重连。
   const run = (async () => {
-    // API Key 模式：探针必须带 key 才能问出模型（A13）。authEnv() 会删 GEMINI_API_KEY，
-    // 只适合 OAuth 探针；生效厂商是 API Key 模式、且它自己配了 key（apiKey / apiKeyEnv）
-    // 时，用该厂商的 agyEnv 探。只认厂商自己的 key 来源，不拿别的厂商回落的 key 来探。
-    const keyProv = PROVIDER;
-    const isKeyMode = !!(keyProv && !keyProv.login && (keyProv.authType === "gemini-api-key" || keyProv.authStyle === "gemini-api-key"));
-    const apiKey = isKeyMode && (keyProv.apiKey || keyProv.apiKeyEnv) ? (keyOf(keyProv) || null) : null;
     const r = await execAgyModels(bin, apiKey ? agyEnv({ provider: keyProv }) : undefined);
     const out = `${r.stdout || ""}\n${r.stderr || ""}`.trim();
     // 未登录的文案先认（不赌退出码：实测 1.5.13 是 exit 1，别的版本可能不同）
     if (/please sign in|sign in to view/i.test(out)) {
       const v = { loggedIn: false, authMethod: "none", email: null, org: null, plan: null };
       AUTH_CACHE = { at: Date.now(), v }; AUTH_GOOD = v;
+      if (!apiKey) clearAuthDisk();
       noteLoggedIn(false);
       return v;
     }
@@ -366,6 +407,7 @@ export async function authStatus(force) {
       const em = acctLine ? acctLine.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/) : null;
       const v = { loggedIn: true, authMethod: apiKey ? "gemini-api-key" : loginAuthMethod(), email: em ? em[0] : null, org: null, plan: AUTH_TIER };
       AUTH_CACHE = { at: Date.now(), v }; AUTH_GOOD = v;
+      if (!apiKey) writeAuthDisk(v);
       noteLoggedIn(true);
       return v;
     }
@@ -416,7 +458,19 @@ export async function routeLogin(req, res, u, p) {
       } else {
         agyLimits = AGY_QUOTA;
         if (!AGY_QUOTA || Date.now() - AGY_QUOTA.at >= AGY_QUOTA_TTL_MS) {
-          fetchAgyQuota(false).catch(() => {});
+          // 网关刚起前 8 秒错峰延后后台额度拉取：先让 WebView 完成首屏渲染和历史会话加载，
+          // 避免立刻并发拉起 agy /usage + /credits（各 7s）与首屏抢 CPU
+          if (process.uptime() < 8) {
+            if (!AGY_QUOTA_BOOT_T) {
+              AGY_QUOTA_BOOT_T = setTimeout(() => {
+                AGY_QUOTA_BOOT_T = null;
+                fetchAgyQuota(false).catch(() => {});
+              }, 4000);
+              AGY_QUOTA_BOOT_T.unref?.();
+            }
+          } else {
+            fetchAgyQuota(false).catch(() => {});
+          }
         }
       }
     }
@@ -466,7 +520,7 @@ export async function routeLogin(req, res, u, p) {
   }
   if (req.method === "POST" && p === "/api/login/cancel") {
     if (LOGIN && !LOGIN.done) try { killTree(LOGIN.child); } catch {}
-    AUTH_CACHE = null; AUTH_GOOD = null;   // 取消登录后别在 30 秒缓存里继续显旧的登录态
+    AUTH_CACHE = null; AUTH_GOOD = null; clearAuthDisk();   // 取消登录后别在 30 秒缓存里继续显旧的登录态
     return sendJson(res, 200, { ok: true });
   }
   if (req.method === "POST" && p === "/api/login/logout") {
@@ -484,6 +538,7 @@ export async function routeLogin(req, res, u, p) {
       } catch {}
     }
     AUTH_CACHE = null; AUTH_GOOD = null; AUTH_TIER = null; AGY_QUOTA = null;
+    clearAuthDisk();
     try { fs.unlinkSync(TIER_FILE); } catch {}
     try { fs.unlinkSync(LOGIN_METHOD_FILE); } catch {}
     LAST_LOGIN_METHOD = "personal";

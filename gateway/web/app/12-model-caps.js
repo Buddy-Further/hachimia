@@ -438,12 +438,14 @@
       renderDirs();
       fillMem();
       await loadProviders();
-      // 清单拉成功时下拉框已经按网关算好的「实际生效」选上了；再拿原始设置盖一遍，
-      // 存的值这家不支持（比如 high，这家只有 low/medium）就成了空白（审查 D-03）。拉失败才退回原始值
-      if ((await loadModels()) === false) {
-        $("set-model").value = state.settings.model || "";
-        $("set-effort").value = state.settings.effort || "";
-      }
+      // 不阻塞 loadSettings() 等待 /api/models：首屏 boot() 可立即继续渲染，清单回来后再异步回填下拉框；
+      // 拉失败时退回原始设置值（审查 D-03）
+      Promise.resolve(loadModels()).then((ok) => {
+        if (ok === false) {
+          $("set-model").value = state.settings.model || "";
+          $("set-effort").value = state.settings.effort || "";
+        }
+      }).catch(() => {});
       const pe = $("set-parallel");
       if (pe && document.activeElement !== pe) { pe.max = state.settings.maxParallelCap || 16; pe.value = state.settings.maxParallel || 3; }
       $("set-static").checked = state.settings.staticCompat !== false;

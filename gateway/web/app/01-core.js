@@ -629,7 +629,19 @@ if (/[?&](t|k)=/.test(location.search) || /[#&]k=/.test(location.hash)) history.
   // 默认给足长操作（LibreOffice 转换、组件安装之类）；要更快失败 / 知道会跑很久的调用自己传 { timeout }，0 = 不设上限。
   // 上传（/api/upload）和下载另走 fetch / 链接，不经过这里。
   const API_TIMEOUT = 10 * 60 * 1000;
+  // 冷启动易并发的只读接口前端单飞复用：避免同一时刻多处同时发 GET /api/login/status 或 /api/models
+  // 占满 WebView 的 6 条同源连接池，把历史会话与消息列表堵在队列里
+  const API_INFLIGHT = new Map();
+  const API_COALESCE = new Set(["/api/login/status", "/api/models"]);
   async function api(path, opts) {
+    const canCoalesce = API_COALESCE.has(path) && (!opts || ((!opts.method || opts.method === "GET") && !opts.body && !opts.signal && opts.timeout === undefined));
+    if (canCoalesce && API_INFLIGHT.has(path)) return API_INFLIGHT.get(path);
+    const run = apiOnce(path, opts);
+    if (!canCoalesce) return run;
+    API_INFLIGHT.set(path, run);
+    return run.finally(() => { if (API_INFLIGHT.get(path) === run) API_INFLIGHT.delete(path); });
+  }
+  async function apiOnce(path, opts) {
     // X-CC-Lang：网关据此选提示语的语言（网关侧本地化见 claude-apk/i18n/HANDOFF.md）
     opts = Object.assign({}, opts);
     opts.headers = Object.assign({ "X-CC-Lang": I18N.lang }, opts.headers);

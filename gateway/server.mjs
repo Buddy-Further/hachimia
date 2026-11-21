@@ -226,20 +226,28 @@ server.listen(CFG.port, "127.0.0.1", () => {
   // 而“已启动”已对外宣告网关就绪——a0610-b3-head-sweep 因此竞态挂掉（CI 44768480875）。
   // 只在启动时清一次的话，长期不重启的应用里过期回收站永远不清（195-A.9）；每天一次，unref 不拦着退出
   setInterval(guarded("回收站清理", expireTrash), 24 * 3600e3).unref();
-  // 启动后的巡检与清理延后 150ms：不阻塞冷启动第一波 /__proof、/api/status 与 /api/events（避免首启偶发超时触发「网关离线」）
-  setTimeout(() => {
+  // 启动后的巡检与清理延后并分片错峰：避开 WebView 首屏加载窗口（前 1.5s），
+  // 且把同步扫盘/子进程分散到独立事件循环轮次，避免在 t=150ms 撞上首波请求冻住事件循环。
+  const deferBoot = (ms, fn) => setTimeout(fn, ms).unref();
+  deferBoot(1500, () => {
     log(`  历史会话 ${listSessions(500).length} 个`);
     try { reapOrphans(); } catch (e) { log("孤儿进程清理失败: " + e.message); }
+  });
+  deferBoot(1800, () => {
     // 上次被结束时留下的隐藏临时文件（原子写换名前、导入没导完、上传没传完）：清掉一小时前的（FIND-016）
     try { const n = sweepTemps([CFG.home, UPLOAD_DIR]); if (n) log(`清掉 ${n} 个上次留下的临时文件`); } catch (e) { log("临时文件清理失败: " + e.message); }
     try { expireTrash(); } catch (e) { log("回收站清理失败: " + e.message); }
+  });
+  deferBoot(2100, () => {
     try { customRefresh(); } catch (e) { log("自定义组件入口重写失败: " + e.message); }
     try { cleanOrphans(); } catch (e) { log("旧工具包残留清理失败: " + e.message); }
+  });
+  deferBoot(2400, () => {
     try { startWorkIsland(); } catch (e) { log("工作岛启动失败: " + e.message); }
     migrateHookPause().catch((e) => log("转换 hooks 暂停失败: " + e.message));
     ensureSessionRetention().catch((e) => log("补会话保留期失败: " + e.message));
     try { startAutoClean(); } catch (e) { log("存储自动清理启动失败: " + e.message); }
-  }, 150).unref();
+  });
   // 托管桥（OpenAI 兼容端点）是应用的子进程：应用升级/被系统清掉时桥跟着没了，以前要等下一句消息才冷启动。
   // 启动后台预热一次，不阻塞网关；尊重停用状态，只恢复上个进程周期留下的故障锁。
   setTimeout(() => {

@@ -230,19 +230,71 @@ export function parseAgyModelsOutput(raw) {
   return out;
 }
 
+const AGY_MODELS_FILE = path.join(CFG.home, ".cache", "hachimia-agy-models.json");
+let AGY_RAW_INFLIGHT = null;
+const FETCH_INFLIGHT = new Map();
+
+function readAgyModelsDisk() {
+  try {
+    const j = JSON.parse(fs.readFileSync(AGY_MODELS_FILE, "utf8"));
+    if (j && Array.isArray(j.list) && j.list.length && j.list.every((m) => m && typeof m.id === "string")) {
+      return { at: Number(j.at) || 0, list: j.list };
+    }
+  } catch {}
+  return null;
+}
+
+function writeAgyModelsDisk(list) {
+  if (!Array.isArray(list) || !list.length) return;
+  try {
+    fs.mkdirSync(path.dirname(AGY_MODELS_FILE), { recursive: true });
+    const tmp = `${AGY_MODELS_FILE}.${process.pid}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify({ at: Date.now(), list }));
+    fs.renameSync(tmp, AGY_MODELS_FILE);
+  } catch {}
+}
+
+function clearAgyModelsDisk() {
+  try { fs.unlinkSync(AGY_MODELS_FILE); } catch {}
+}
+
+function defaultAgyModelsEnv() {
+  const env = { ...process.env, HOME: CFG.home, NO_COLOR: "1" };
+  delete env.GEMINI_API_KEY;
+  delete env.GOOGLE_GEMINI_BASE_URL;
+  return env;
+}
+
+/** 共享单飞执行 `agy models`：models.mjs 与 login.mjs 共用，冷启动时避免并发拉起多个 agy 子进程 */
+export function execAgyModelsShared(bin = PATHS.agy, env = null, { timeoutMs = 12000, shared = true } = {}) {
+  if (!bin || !fs.existsSync(bin)) {
+    return Promise.resolve({ status: 1, stdout: "", stderr: "agy not found" });
+  }
+  const canShare = shared && bin === PATHS.agy;
+  if (canShare && AGY_RAW_INFLIGHT) return AGY_RAW_INFLIGHT;
+  const run = new Promise((resolve) => {
+    execFile(bin, ["models"], { cwd: CFG.home, env: env || defaultAgyModelsEnv(), encoding: "utf8", timeout: timeoutMs, maxBuffer: 2 << 20 }, (err, stdout, stderr) => {
+      const status = err ? (typeof err.code === "number" ? err.code : 1) : 0;
+      const errMsg = err && !stdout && !stderr ? (err.killed ? "timeout" : err.message || String(err.code || "")) : "";
+      resolve({ status, stdout: String(stdout || ""), stderr: String(stderr || errMsg) });
+    });
+  }).finally(() => {
+    if (canShare && AGY_RAW_INFLIGHT === run) AGY_RAW_INFLIGHT = null;
+  });
+  if (canShare) AGY_RAW_INFLIGHT = run;
+  return run;
+}
+
 function fetchAgyCliModels() {
   const bin = PATHS.agy;
   if (!bin || !fs.existsSync(bin)) return Promise.resolve([]);
-  return new Promise((resolve) => {
-    const env = { ...process.env, HOME: CFG.home, NO_COLOR: "1" };
-    delete env.GEMINI_API_KEY;
-    delete env.GOOGLE_GEMINI_BASE_URL;
-    execFile(bin, ["models"], { cwd: CFG.home, env, encoding: "utf8", timeout: 12000, maxBuffer: 2 << 20 }, (err, stdout, stderr) => {
-      // 非零退出也保留已打印的清单：部分失败/警告后 exit 1 时 stdout 里往往是完整清单，
-      // 丢掉它就只能回落到写死的 fallbackModels（C12；与 login.mjs 的 execAgyModels 同口径）。
-      // 没打印出任何模型行时 parse 出空列表，调用方再走 fallback。
-      resolve(parseAgyModelsOutput(`${stdout || ""}\n${stderr || ""}`));
-    });
+  return execAgyModelsShared(bin, null, { timeoutMs: 12000, shared: true }).then((r) => {
+    // 非零退出也保留已打印的清单：部分失败/警告后 exit 1 时 stdout 里往往是完整清单，
+    // 丢掉它就只能回落到写死的 fallbackModels（C12；与 login.mjs 的 execAgyModels 同口径）。
+    // 没打印出任何模型行时 parse 出空列表，调用方再走 fallback。
+    const list = parseAgyModelsOutput(`${r.stdout || ""}\n${r.stderr || ""}`);
+    if (list.length) writeAgyModelsDisk(list);
+    return list;
   });
 }
 
@@ -422,7 +474,10 @@ function withCatalog(list, p) {
 // 清空 / 让它过期：别的模块改不了这几个变量（ES 模块的导入是只读的），走这两个函数
 // 代次：接口配置一改就加一。改之前发出去、改之后才回来的清单请求只交给当时的调用方，不再写回缓存（#77）
 let CACHE_GEN = 0, REQ_SEQ = 0;
-export function dropModelCache() { CACHE_GEN++; MODELS = null; MODELS_AT = 0; MODELS_FOR = null; CACHE.clear(); }
+export function dropModelCache() {
+  CACHE_GEN++; MODELS = null; MODELS_AT = 0; MODELS_FOR = null; CACHE.clear();
+  FETCH_INFLIGHT.clear(); AGY_RAW_INFLIGHT = null; clearAgyModelsDisk();
+}
 export function expireModelCache() { CACHE_GEN++; MODELS_AT = 0; for (const c of CACHE.values()) c.at = 0; }   // 在途的旧结果别把过期的又续上（复核 L1）
 
 /** p：哪家（缺省 = 全局生效的）。按家各缓存 10 分钟；全局那家的结果同时放进 MODELS。
@@ -445,70 +500,96 @@ async function fetchModelsOf(p, force, guess) {
   if (!force && c && c.at && Date.now() - c.at < 600000) return c.list;
 
   if (p.local) return keep(localModels(), false);   // 端侧：模型目录里有什么就是什么（每次现扫，刚放进去的文件马上能选）
-  if (isLoginMode(p)) {
-    if (p.group === "antigravity" && PATHS.agy && fs.existsSync(PATHS.agy)) {
-      const liveList = await fetchAgyCliModels();
-      if (liveList.length) return keep(liveList);
-    }
-    return keep((p.fallbackModels && p.fallbackModels.length) ? p.fallbackModels : LOGIN_MODELS);
-  }
+  const flightKey = !force ? `${p.id}|${sig}|${guess ? 1 : 0}` : null;
+  if (flightKey && FETCH_INFLIGHT.has(flightKey)) return FETCH_INFLIGHT.get(flightKey);
 
-  // 写在配置里的内嵌清单（data:application/json,…）：本地解析，不发请求、不带密钥，网络那边的同主机限制不用放宽（#57）
-  const inline = inlineModels(p.modelsUrl);
-  if (inline) {
-    const list = withCatalog(withConfigured(mergeKnown(inline, p.fallbackModels, true), p), p);
-    if (list.length) return keep(list);
-  }
+  const work = (async () => {
+    if (isLoginMode(p)) {
+      if (p.group === "antigravity" && PATHS.agy && fs.existsSync(PATHS.agy)) {
+        // 冷启动 SWR：已有落盘清单且本地存在登录凭据时秒回上次清单，后台异步刷新，避免首屏干等 agy models（6s+）
+        if (!force && hasAgySessionFiles()) {
+          const disk = readAgyModelsDisk();
+          if (disk && disk.list.length) {
+            keep(disk.list);
+            const t = setTimeout(() => {
+              fetchAgyCliModels().then((live) => {
+                if (live.length && gen === CACHE_GEN) {
+                  CACHE.set(p.id, { list: live, at: Date.now(), sig, seq: ++REQ_SEQ });
+                  if (p.id === PROVIDER.id && sigOf(PROVIDER) === sig) { MODELS = live; MODELS_AT = Date.now(); MODELS_FOR = sig; }
+                }
+              }).catch(() => {});
+            }, 1500);
+            t.unref?.();
+            return disk.list;
+          }
+        }
+        const liveList = await fetchAgyCliModels();
+        if (liveList.length) return keep(liveList);
+      }
+      return keep((p.fallbackModels && p.fallbackModels.length) ? p.fallbackModels : LOGIN_MODELS);
+    }
 
-  const key = keyOf(p);
-  // 一次拉取：头按 modelsAuth 配；拉到像样的清单返回 list，否则 null（失败原因记日志）
-  const pull = async (url) => {
-    try {
-      const headers = {};
-      if (key) {
-        if (isGeminiProvider(p)) {
-          headers["x-goog-api-key"] = key;
-        } else if (p.modelsAuth === "x-api-key") {
-          headers["x-api-key"] = key;
-          headers["anthropic-version"] = "2023-06-01";
-        } else if (p.modelsAuth !== "none") {
-          headers.Authorization = `Bearer ${key}`;
-        }
-      }
-      const r = await fetchKeyed(url, { headers, signal: AbortSignal.timeout(15000) });
-      if (r.ok) {
-        const list = withCatalog(withConfigured(mergeKnown(normalizeModels(await morePages(url, headers, await fetchJsonCapped(r))), p.fallbackModels), p), p);
-        if (list.length) {
-          log(`[${p.id}] 模型清单：${list.map((m) => m.id).join(", ")}`);
-          return list;
-        }
-      }
-      log(`[${p.id}] 拉模型清单失败 HTTP ${r.status}${url !== p.modelsUrl ? `（试 ${url}）` : ""}`);
-    } catch (e) {
-      log(`[${p.id}] 拉模型清单出错: ${e.message}${url !== p.modelsUrl ? `（试 ${url}）` : ""}`);
+    // 写在配置里的内嵌清单（data:application/json,…）：本地解析，不发请求、不带密钥，网络那边的同主机限制不用放宽（#57）
+    const inline = inlineModels(p.modelsUrl);
+    if (inline) {
+      const list = withCatalog(withConfigured(mergeKnown(inline, p.fallbackModels, true), p), p);
+      if (list.length) return keep(list);
     }
-    return null;
-  };
-  // 不带密钥（modelsAuth:"none"）也一样要过 modelsUrlOk：配置能分享导入，不能让它拿网关当跳板，每轮去敲内网地址（v0513b 中-2）
-  if (p.modelsUrl && (key || p.modelsAuth === "none") && modelsUrlOk(p)) {
-    const list = await pull(p.modelsUrl);
-    if (list) return keep(list);
-  } else if (!p.modelsUrl && p.custom && key && (guess || GUESSED.has(sig))) {
-    // 自定义端口没填清单地址：按接口地址猜几个同主机的 /models（第三方端口多半同时开着 OpenAI 形状的清单）。
-    // 只试和接口同主机同端口的地址（照样过 modelsUrlOk），密钥不会被带去别处；猜中的记在这份配置名下，下次直接用
-    const hit = GUESSED.get(sig);
-    const isGemini = isGeminiProvider(p);
-    for (const url of hit ? [hit] : guessModelsUrls(p.baseUrl, { gemini: isGemini })) {
-      if (!modelsUrlOk({ baseUrl: p.baseUrl, modelsUrl: url })) continue;
-      const list = await pull(url);
-      if (list) { GUESSED.set(sig, url); return keep(list); }
+
+    const key = keyOf(p);
+    // 一次拉取：头按 modelsAuth 配；拉到像样的清单返回 list，否则 null（失败原因记日志）
+    const pull = async (url) => {
+      try {
+        const headers = {};
+        if (key) {
+          if (isGeminiProvider(p)) {
+            headers["x-goog-api-key"] = key;
+          } else if (p.modelsAuth === "x-api-key") {
+            headers["x-api-key"] = key;
+            headers["anthropic-version"] = "2023-06-01";
+          } else if (p.modelsAuth !== "none") {
+            headers.Authorization = `Bearer ${key}`;
+          }
+        }
+        const r = await fetchKeyed(url, { headers, signal: AbortSignal.timeout(15000) });
+        if (r.ok) {
+          const list = withCatalog(withConfigured(mergeKnown(normalizeModels(await morePages(url, headers, await fetchJsonCapped(r))), p.fallbackModels), p), p);
+          if (list.length) {
+            log(`[${p.id}] 模型清单：${list.map((m) => m.id).join(", ")}`);
+            return list;
+          }
+        }
+        log(`[${p.id}] 拉模型清单失败 HTTP ${r.status}${url !== p.modelsUrl ? `（试 ${url}）` : ""}`);
+      } catch (e) {
+        log(`[${p.id}] 拉模型清单出错: ${e.message}${url !== p.modelsUrl ? `（试 ${url}）` : ""}`);
+      }
+      return null;
+    };
+    // 不带密钥（modelsAuth:"none"）也一样要过 modelsUrlOk：配置能分享导入，不能让它拿网关当跳板，每轮去敲内网地址（v0513b 中-2）
+    if (p.modelsUrl && (key || p.modelsAuth === "none") && modelsUrlOk(p)) {
+      const list = await pull(p.modelsUrl);
+      if (list) return keep(list);
+    } else if (!p.modelsUrl && p.custom && key && (guess || GUESSED.has(sig))) {
+      // 自定义端口没填清单地址：按接口地址猜几个同主机的 /models（第三方端口多半同时开着 OpenAI 形状的清单）。
+      // 只试和接口同主机同端口的地址（照样过 modelsUrlOk），密钥不会被带去别处；猜中的记在这份配置名下，下次直接用
+      const hit = GUESSED.get(sig);
+      const isGemini = isGeminiProvider(p);
+      for (const url of hit ? [hit] : guessModelsUrls(p.baseUrl, { gemini: isGemini })) {
+        if (!modelsUrlOk({ baseUrl: p.baseUrl, modelsUrl: url })) continue;
+        const list = await pull(url);
+        if (list) { GUESSED.set(sig, url); return keep(list); }
+      }
+      if (hit) GUESSED.delete(sig);
     }
-    if (hit) GUESSED.delete(sig);
-  }
-  // 该猜而这次没猜（开跑前那次）：先用兜底清单，但不记 10 分钟，用户打开清单时照样去猜
-  const skipped = !p.modelsUrl && p.custom && key && !guess && !GUESSED.has(sig);
-  return keep(c && c.list ? c.list
-    : withConfigured((p.fallbackModels || []).map((m) => ({ context_window: 0, max_output_tokens: 0, input_modalities: ["text"], effort: null, ...m })), p), !skipped);
+    // 该猜而这次没猜（开跑前那次）：先用兜底清单，但不记 10 分钟，用户打开清单时照样去猜
+    const skipped = !p.modelsUrl && p.custom && key && !guess && !GUESSED.has(sig);
+    return keep(c && c.list ? c.list
+      : withConfigured((p.fallbackModels || []).map((m) => ({ context_window: 0, max_output_tokens: 0, input_modalities: ["text"], effort: null, ...m })), p), !skipped);
+  })().finally(() => {
+    if (flightKey && FETCH_INFLIGHT.get(flightKey) === work) FETCH_INFLIGHT.delete(flightKey);
+  });
+  if (flightKey) FETCH_INFLIGHT.set(flightKey, work);
+  return work;
 }
 // 自定义端口猜中的清单地址（按配置指纹记；改了配置指纹就变，重新猜）
 const GUESSED = new Map();

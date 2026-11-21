@@ -2168,9 +2168,15 @@ public class MainActivity extends Activity {
         loadUi();
     }
 
-    /** 异步写入网关会话 Cookie，待 Chromium CookieStore 确认落地后再执行回调，消除首启 loadUrl 与种 Cookie 竞态 */
+    private String appliedGatewayCookie = "";
+
+    /** 异步写入网关会话 Cookie，待 Chromium 内存 CookieStore 确认生效后立即执行回调，再延迟刷盘，避免阻塞首启 loadUrl */
     private void applyGatewayCookie(String v, Runnable then) {
         if (v == null || v.isEmpty()) {
+            if (then != null) then.run();
+            return;
+        }
+        if (v.equals(appliedGatewayCookie)) {
             if (then != null) then.run();
             return;
         }
@@ -2183,8 +2189,10 @@ public class MainActivity extends Activity {
         cm.setCookie("http://" + Env.HOST + ":" + Env.PORT,
             "cc_t_" + Env.PORT + "=" + v + "; Path=/; HttpOnly; SameSite=Strict",
             ok -> {
-                cm.flush();
+                appliedGatewayCookie = v;
                 if (then != null) then.run();
+                // 内存 CookieStore 已就绪可立即导航，SQLite 刷盘延后异步执行，不卡 UI 线程首帧
+                ui.postDelayed(cm::flush, 250);
             });
     }
 
