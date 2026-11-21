@@ -11,7 +11,7 @@ import { CFG, PATHS } from "../gw/config.mjs";
 import { addMcp, removeMcp, editMcp, getMcp, _extForTest } from "../gw/extensions.mjs";
 import { buildAcpMcpServers } from "../gw/mcp-acp.mjs";
 import { extOff, saveExtOff, EXT_OFF_FILE } from "../gw/extoff.mjs";
-import { AGY_MCP_REL, _agyMcpTest } from "../gw/agy-mcp.mjs";
+import { AGY_MCP_REL, _agyMcpTest, setAgyMcpServer } from "../gw/agy-mcp.mjs";
 
 const H = (r) => path.join(CFG.home, r);
 const AGY_FILE = PATHS.agyMcpConfig;
@@ -27,7 +27,12 @@ const clean = () => {
   for (const f of [AGY_FILE, CLAUDE_FILE, EXT_OFF_FILE]) fs.rmSync(f, { force: true });
   saveExtOff({ mcp: {}, comp: [], mod: [] });
   fs.rmSync(EXT_OFF_FILE, { force: true });
+  _agyMcpTest.failAfterWrites = -1; _agyMcpTest.failOnWrites = null; _agyMcpTest.writeCount = 0; _agyMcpTest.failAfterOpen = false;
 };
+/** 按写计数布防第几次写失败（回滚那步也要写，failAfterWrites 触发一次就关掉，测回滚失败得用它） */
+const armWrites = (...ns) => { _agyMcpTest.writeCount = 0; _agyMcpTest.failOnWrites = new Set(ns); };
+/** 只复位注入钩子，不动文件（finally 里用：断言还要读文件，别调 clean()） */
+const resetHook = () => { _agyMcpTest.failAfterWrites = -1; _agyMcpTest.failOnWrites = null; _agyMcpTest.writeCount = 0; _agyMcpTest.failAfterOpen = false; };
 after(() => {
   clean();
   fs.rmSync(H(".gemini"), { recursive: true, force: true });
@@ -203,4 +208,133 @@ test("MCP 安装全程不建 settings.json（agy 1.5.13 下它根本不存在）
   assert.ok((await removeMcp("p02z")).ok);
   assert.equal(fs.existsSync(SETTINGS_FILE), false);
   assert.equal(AGY_MCP_REL, ".gemini/config/mcp_config.json", "盯的文件是 mcp_config.json 不是 settings.json");
+});
+
+// ── P0-2 审后修复 ────────────────────────────────────────────────
+
+test("edit 改名撞名拒绝，目标定义原样保留（顺序调用）", async () => {
+  clean();
+  putAgy({ p02t1: { command: "node", args: ["a.mjs"], disabled: false }, p02t2: { command: "node", args: ["b.mjs"], disabled: false } });
+  const r = await editMcp({ name: "p02t1", newName: "p02t2", transport: "stdio", target: "node c.mjs", env: [], headers: [] });
+  assert.equal(r.ok, false);
+  assert.match(r.message, /已经有叫这个名字/);
+  assert.deepEqual(agyServers().p02t2, { command: "node", args: ["b.mjs"], disabled: false });
+  assert.deepEqual(agyServers().p02t1, { command: "node", args: ["a.mjs"], disabled: false });
+});
+
+test("edit 改名 TOCTOU：两个并发改名抢同一个新名，只有一个成功，另一个被锁内复核拒绝", async () => {
+  clean();
+  putAgy({ p02c1: { command: "node", args: ["a.mjs"], disabled: false }, p02c2: { command: "node", args: ["b.mjs"], disabled: false } });
+  // 两个 editMcp 的进锁前检查都通过（新名当时还不存在），串行进锁后第二个在
+  // execEdit 里复核到新名已被占，就必须拒绝，不能盖掉第一个的定义。
+  const [r1, r2] = await Promise.all([
+    editMcp({ name: "p02c1", newName: "p02c3", transport: "stdio", target: "node a2.mjs", env: [], headers: [] }),
+    editMcp({ name: "p02c2", newName: "p02c3", transport: "stdio", target: "node b2.mjs", env: [], headers: [] }),
+  ]);
+  assert.equal([r1.ok, r2.ok].filter(Boolean).length, 1, "恰好一个成功");
+  const loser = r1.ok ? r2 : r1;
+  assert.match(loser.message, /已经有叫这个名字/);
+  const loserName = r1.ok ? "p02c2" : "p02c1";
+  assert.deepEqual(agyServers()[loserName], { command: "node", args: [r1.ok ? "b.mjs" : "a.mjs"], disabled: false }, "输的那方旧名原样保留，没被盖掉");
+  assert.deepEqual(agyServers().p02c3, { command: "node", args: [r1.ok ? "a2.mjs" : "b2.mjs"], disabled: false }, "赢的那方新名是它自己的新定义");
+});
+
+test("edit 改名回滚失败要如实说：回滚删新名那步也失败时不报「已原样恢复」", async () => {
+  clean();
+  putAgy({ p02rb: { command: "npx", args: ["-y", "x"], disabled: false } });
+  armWrites(2, 3);   // 写 1 写新名成功；写 2 删旧名失败 → 回滚；写 3 回滚删新名也失败
+  try {
+    const r = await editMcp({ name: "p02rb", newName: "p02rb2", transport: "stdio", target: "npx -y y", env: [], headers: [] });
+    assert.equal(r.ok, false);
+    assert.match(r.message, /回滚也没能恢复，请手动检查/);
+    assert.match(r.message, /删新名 p02rb2 失败/);
+    assert.doesNotMatch(r.message, /已原样恢复/);
+  } finally { resetHook(); }
+  assert.deepEqual(Object.keys(agyServers()).sort(), ["p02rb", "p02rb2"], "旧名原样在，新名也没删掉——两边都在，用户得手动处理");
+  assert.deepEqual(agyServers().p02rb, { command: "npx", args: ["-y", "x"], disabled: false });
+});
+
+test("edit 改名回滚失败要如实说：Claude 那步失败、回滚恢复旧名也失败时报哪步坏了", async () => {
+  clean();
+  putAgy({ p02rc: { command: "npx", args: ["-y", "x"], disabled: false } });
+  putClaude({ p02rc: { type: "stdio", command: "npx", args: ["-y", "x"] } });
+  armWrites(3, 5);   // 写 1 写新名、写 2 删 agy 旧名成功；写 3 删 Claude 旧名失败 → 回滚；写 4 回滚删新名成功；写 5 回滚恢复旧名失败
+  try {
+    const r = await editMcp({ name: "p02rc", newName: "p02rc2", transport: "stdio", target: "npx -y y", env: [], headers: [] });
+    assert.equal(r.ok, false);
+    assert.match(r.message, /回滚也没能恢复，请手动检查/);
+    assert.match(r.message, /恢复旧名 p02rc 失败/);
+    assert.doesNotMatch(r.message, /已原样恢复/);
+  } finally { resetHook(); }
+  assert.deepEqual(Object.keys(agyServers()), [], "新名已被回滚删掉，旧名没恢复——agy 里空了");
+  assert.deepEqual(claudeServers().p02rc, { type: "stdio", command: "npx", args: ["-y", "x"] }, "Claude 那份本来就没删掉");
+});
+
+test("remove 回滚失败要如实说：Claude 删失败、agy 恢复也失败时不报「已恢复」", async () => {
+  clean();
+  putAgy({ p02rm: { command: "node", args: ["d.mjs"], disabled: false } });
+  putClaude({ p02rm: { type: "stdio", command: "node", args: ["d.mjs"] } });
+  armWrites(2, 3);   // 写 1 删 agy 成功；写 2 删 Claude 失败 → 回滚；写 3 恢复 agy 也失败
+  try {
+    const r = await removeMcp("p02rm");
+    assert.equal(r.ok, false);
+    assert.match(r.message, /也没能恢复，请手动检查/);
+    assert.doesNotMatch(r.message, /已恢复 agy 那份/);
+  } finally { resetHook(); }
+  assert.deepEqual(agyServers(), {}, "agy 那份删了又没恢复回来");
+  assert.deepEqual(claudeServers().p02rm, { type: "stdio", command: "node", args: ["d.mjs"] }, "Claude 那份还在");
+});
+
+test("两边都有的服务器停用：列表还显示在用、getMcp 报停用、启用被拒，删掉再启用才恢复", async () => {
+  clean();
+  const { disableMcp, enableMcp, listMcp } = _extForTest;
+  putAgy({ p02both: { command: "node", args: ["agy.mjs"], disabled: false } });
+  putClaude({ p02both: { type: "stdio", command: "node", args: ["claude.mjs"] } });
+  assert.ok((await disableMcp("p02both")).ok);
+  assert.deepEqual(extOff().mcp.p02both, { command: "node", args: ["agy.mjs"], disabled: false }, "停用名单里存的是 agy 那份定义");
+  assert.deepEqual(agyServers(), {}, "agy 里删掉了");
+  assert.deepEqual(claudeServers().p02both, { type: "stdio", command: "node", args: ["claude.mjs"] }, "Claude 那份留着（不替用户删他原来的配置）");
+  // 列表与详情看法不一致：这是已知的、故意的（见 disableMcp 注释）
+  const li = (await listMcp()).find((m) => m.name === "p02both");
+  assert.ok(li, "列表里还有它");
+  assert.equal(li.disabled, undefined, "列表里仍显示成在用的（停用名单那一圈按名字跳过已列出的）");
+  assert.equal(li.source, "claude", "列表看到的是 Claude 那份");
+  const g = await getMcp({ name: "p02both" });
+  assert.equal(g.ok, true);
+  assert.equal(g.disabled, true);
+  assert.equal(g.source, "off-list");
+  assert.equal(g.target, "node agy.mjs", "详情读的是停用名单里 agy 那份定义");
+  // 停用→启用往返走不通：Claude 那份撞名
+  const en = await enableMcp("p02both");
+  assert.equal(en.ok, false);
+  assert.match(en.message, /~\/\.claude\.json 里还有/);
+  assert.deepEqual(extOff().mcp.p02both, { command: "node", args: ["agy.mjs"], disabled: false }, "启用被拒，名单不动");
+  // 恢复办法：先删掉文件里的那份（只删 agy/Claude，不动停用名单），再启用
+  assert.ok((await removeMcp("p02both")).ok);
+  assert.deepEqual(claudeServers(), {});
+  assert.deepEqual(extOff().mcp.p02both, { command: "node", args: ["agy.mjs"], disabled: false }, "删除不动停用名单");
+  assert.ok((await enableMcp("p02both")).ok);
+  assert.deepEqual(agyServers().p02both, { command: "node", args: ["agy.mjs"], disabled: false });
+  assert.equal(extOff().mcp.p02both, undefined);
+});
+
+test("agy-mcp 助手层：注入的写失败原样返回 {ok:false}、文件不动；打开后失败不留 *.tmp", async () => {
+  clean();
+  putAgy({ p02h1: { command: "node", args: ["a.mjs"], disabled: false } }, { keepMe: "yes" });
+  const before = fs.readFileSync(AGY_FILE, "utf8");
+  armWrites(1);
+  try {
+    const r = setAgyMcpServer("p02h2", { command: "node", args: ["b.mjs"], disabled: false });
+    assert.equal(r.ok, false);
+    assert.match(r.error, /测试注入/);
+  } finally { resetHook(); }
+  assert.equal(fs.readFileSync(AGY_FILE, "utf8"), before, "写失败文件字节不变");
+  // 打开临时文件之后失败（写 / fsync 那步）：临时文件要清掉，原文件不动
+  _agyMcpTest.failAfterOpen = true;
+  try {
+    const r2 = setAgyMcpServer("p02h2", { command: "node", args: ["b.mjs"], disabled: false });
+    assert.equal(r2.ok, false);
+  } finally { _agyMcpTest.failAfterOpen = false; }
+  assert.equal(fs.readFileSync(AGY_FILE, "utf8"), before);
+  assert.deepEqual(fs.readdirSync(path.dirname(AGY_FILE)).filter((n) => n.endsWith(".tmp")), [], "没有 *.tmp 孤儿");
 });

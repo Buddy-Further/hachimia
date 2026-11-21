@@ -153,6 +153,12 @@ async function listMcp() {
     if (cur) { cur.user = true; cur.hdr = headerNames(def); cur.source = source; }
     else byName.set(name, { name, target: mcpTarget(def), ok: false, status: "", cloud: false, user: true, hdr: headerNames(def), source });
   }
+  // 停用名单里的名字已经在上面出现过（两边都有的服务器停用后 Claude 那份还
+  // 在，见 disableMcp）就跳过：列表里它照样显示成在用的，getMcp 那边却报
+  // disabled:true / source off-list——两者看法不一致是已知的（P0-2 审后注）：
+  // 删掉用户的 Claude 旧配置会丢数据，所以不停用时不删它；要停用到底，得先
+  // 把 Claude 那份也删掉。启用时同名撞上也会被拒，恢复办法是先删（removeMcp
+  // 只删文件里的两份，不动停用名单）再启用，见 enableMcp。
   for (const [name, d] of Object.entries(extOff().mcp)) if (!byName.has(name)) byName.set(name, { name, target: mcpTarget(d), ok: false, status: "", disabled: true, source: "off-list" });
   // 文件里没有定义的（账户连接器之类）：既不是 agy 也不是 Claude 的文件，标 external，别冒充来源
   for (const e of byName.values()) if (!e.source) e.source = "external";
@@ -258,8 +264,12 @@ export async function removeMcp(name) {
     if (claude) {
       const r = deleteClaudeMcpServer(String(name));
       if (!r.ok) {
-        if (agy) setAgyMcpServer(String(name), agy);   // 回滚：Claude 那份没删掉，agy 的也别删
-        return { ok: false, message: tz("删不掉 ~/.claude.json 里的旧配置，已恢复 agy 那份：{msg}", { msg: r.error }) };
+        if (agy) {
+          const rb = setAgyMcpServer(String(name), agy);
+          if (!rb.ok) return { ok: false, message: tz("删不掉 ~/.claude.json 里的旧配置，agy 那份也没能恢复，请手动检查 agy 的 MCP 配置：{msg}", { msg: r.error + "；" + rb.error }) };
+          return { ok: false, message: tz("删不掉 ~/.claude.json 里的旧配置，已恢复 agy 那份：{msg}", { msg: r.error }) };
+        }
+        return { ok: false, message: tz("删不掉 ~/.claude.json 里的旧配置：{msg}", { msg: r.error }) };
       }
     }
     ucAppWrote([...(agy ? [AGY_MCP_REL] : []), ...(claude ? [".claude.json"] : [])], ucb,
@@ -361,12 +371,28 @@ export async function editMcp(b) {
 }
 
 /** 写新定义 → 删旧名；删旧名失败就回滚（删新名、把旧定义写回 agy）。
- *  同名编辑是单次原子写，失败时文件根本没动，不需要回滚。 */
+ *  同名编辑是单次原子写，失败时文件根本没动，不需要回滚。
+ *  回滚的每一步都查返回值：回滚本身也可能写失败，那时不许再报「已原样恢复」，
+ *  要如实说哪一步没恢复（调用方据此告诉用户手动检查）。 */
 function execEdit(name, newName, nd, oldDef) {
   const ucb = ucAppBegin();
+  // 锁内复核（TOCTOU）：editMcp 进锁前的重名检查和这里之间，另一个并发的
+  // addMcp / editMcp 可能已经占了新名；mcpWriteJob 串行，进锁后再查一次，
+  // 撞名就拒绝，不盖掉别人的定义。
+  if (newName !== name) {
+    const offNow = extOff();
+    if (offNow.mcp[newName] || userMcpDef(newName)) return { ok: false, message: tz("已经有叫这个名字的 MCP 服务器了") };
+  }
+  // 回滚哪步失败就记哪步（删新名 / 恢复旧名），返回失败清单，空 = 回滚成功。
   const rollbackRename = (oldSources) => {
-    setAgyMcpServer(newName, null);
-    if (oldSources.agy) setAgyMcpServer(name, oldDef);
+    const failed = [];
+    const r1 = setAgyMcpServer(newName, null);
+    if (!r1.ok) failed.push(`删新名 ${newName} 失败：${r1.error}`);
+    if (oldSources.agy) {
+      const r2 = setAgyMcpServer(name, oldDef);
+      if (!r2.ok) failed.push(`恢复旧名 ${name} 失败：${r2.error}`);
+    }
+    return failed;
   };
   if (newName === name) {
     const r = setAgyMcpServer(name, nd);
@@ -375,21 +401,22 @@ function execEdit(name, newName, nd, oldDef) {
     return { ok: true };
   }
   const oldSources = mcpDefSources(name);
+  // 删旧名（agy 或 Claude）失败时的统一出口：按改名前的来源回滚（不能现查——
+  // agy 那份旧名可能已经被删掉了，现查会以为不用恢复），成功才报「已原样恢复」。
+  const failAfterRename = (err) => {
+    const failed = rollbackRename(oldSources);
+    if (failed.length) return { ok: false, message: tz("保存失败：{msg}，回滚也没能恢复，请手动检查 agy 的 MCP 配置（{detail}）", { msg: err, detail: failed.join("；") }) };
+    return { ok: false, message: tz("保存失败：{msg}，旧配置已原样恢复", { msg: err }) };
+  };
   const w = setAgyMcpServer(newName, nd);
   if (!w.ok) return { ok: false, message: tz("保存失败：{msg}，旧配置没动", { msg: w.error }) };
   if (oldSources.agy) {
     const d = setAgyMcpServer(name, null);
-    if (!d.ok) {
-      rollbackRename(oldSources);
-      return { ok: false, message: tz("保存失败：{msg}，旧配置已原样恢复", { msg: d.error }) };
-    }
+    if (!d.ok) return failAfterRename(d.error);
   }
   if (oldSources.claude) {
     const d = deleteClaudeMcpServer(name);
-    if (!d.ok) {
-      rollbackRename(oldSources);
-      return { ok: false, message: tz("保存失败：{msg}，旧配置已原样恢复", { msg: d.error }) };
-    }
+    if (!d.ok) return failAfterRename(d.error);
   }
   ucAppWrote([AGY_MCP_REL, ...(oldSources.claude ? [".claude.json"] : [])], ucb,
     { [AGY_MCP_REL]: ["mcpServers"] });
@@ -733,7 +760,12 @@ const mcpTarget = (d) => {
  *  删哪边按来源定：agy 里有的删 agy；只在 Claude 里有的删 ~/.claude.json；
  *  两边都有的只删 agy 的，Claude 那份是用户原来的配置，留着——已知缺口：
  *  删完 agy 那份，Claude 那份会按读两边再次生效，等于没停掉；要真停掉得再删
- *  Claude 那份，本节不替用户动他原来的配置。 */
+ *  Claude 那份，本节不替用户动他原来的配置。
+ *  这个缺口在列表里也看得见（P0-2 审后注）：两边都有的服务器停用后，listMcp
+ *  里它还显示成在用的（停用名单那一圈按名字跳过已列出的），只有 getMcp 报
+ *  disabled:true / source off-list；enableMcp 也会因同名撞上拒绝，停用→启用
+ *  往返走不通，恢复办法是先删掉文件里的那份（removeMcp，不动停用名单）再启用。
+ *  行为本身不动：为「列表好看」删掉用户的 Claude 旧配置会丢数据，这个取舍是故意的。 */
 async function disableMcp(name) {
   if (!extIdOk(name) || badArg(name)) return { ok: false, message: tz("名字格式不对") };
   return mcpWriteJob(async () => {
@@ -756,7 +788,10 @@ async function disableMcp(name) {
   });
 }
 /** 启用 = 把存着的定义写回 agy 的 mcp_config.json，成功了才从名单里删。
- *  停用期间同名又被装了就不覆盖，等用户先处理。 */
+ *  停用期间同名又被装了就不覆盖，等用户先处理。
+ *  两边都有的服务器停用后 Claude 那份还在（见 disableMcp），启用会在这里因
+ *  同名撞上被拒——不是启用坏了，是停用本来就没停掉它；先删掉文件里的那份
+ *  （removeMcp，停用名单里的定义不动）再启用就能恢复。 */
 async function enableMcp(name) {
   const off = extOff(), def = extIdOk(name) ? off.mcp[name] : null;
   if (!def) return { ok: false, message: tz("停用名单里没有它") };
@@ -764,7 +799,11 @@ async function enableMcp(name) {
   if (breach) return breach;
   return mcpWriteJob(async () => {
     const ucb = ucAppBegin();
-    if (userMcpSource(name)) return { ok: false, message: tz("已经有叫这个名字的 MCP 服务器了，先把它删掉再启用") };
+    const src = userMcpSource(name);
+    if (src) {
+      if (src === "claude" || src === "both-shadowed") return { ok: false, message: tz("~/.claude.json 里还有叫这个名字的 MCP 服务器，先把它删掉再启用（停用名单里的定义还在，删完就能启用）") };
+      return { ok: false, message: tz("已经有叫这个名字的 MCP 服务器了，先把它删掉再启用") };
+    }
     const r = setAgyMcpServer(name, def);
     if (!r.ok) return { ok: false, message: tz("启用失败：{msg}", { msg: r.error }) };
     const o2 = extOff(); delete o2.mcp[name]; saveExtOff(o2);

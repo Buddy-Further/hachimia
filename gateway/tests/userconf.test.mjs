@@ -7,6 +7,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { CFG, PATHS } from "../gw/config.mjs";
 import { UC_SEALED, _ucFlush, _ucReset, ucAfterRun, ucAppBegin, ucAppWrote, ucBeforeRun, ucKeep, ucPending, ucRevert, ucSetRevertNote, ucTakeNote } from "../gw/userconf.mjs";
+import { AGY_MCP_REL } from "../gw/agy-mcp.mjs";
 import { _keptReset, keepProcs, killProcs, leftoverProcs, procStart } from "../gw/leftover.mjs";
 import { hookContext } from "../gw/stream.mjs";
 import { transcriptItems } from "../gw/transcript.mjs";
@@ -428,4 +429,57 @@ test("发行版只问回填进来的 MCP 与权限：CLAUDE.md、skill 改了不
   assert.match(p.changes.find((c) => c.rel === ".claude.json").preview, /mcpServers: a, b/);
   assert.deepEqual(ucBeforeRun({ id: 2 }, UC_SEALED).sort(), [".claude.json", ".claude/settings.json"]);
   assert.ok(ucPending().rels.includes(".claude/CLAUDE.md"), "开发版照旧全看");
+});
+
+// ── P0-2 审后补：agy 的 mcp_config.json 也在 userconf 的监视里 ──────────
+// （此前没有任何测试提到 AGY_MCP_REL / mcp_config）
+
+test("agy MCP 配置：外部改了 mcpServers → 问；撤销只还原 mcpServers，别的键原样保留", () => {
+  fresh();
+  fs.rmSync(H(".gemini"), { recursive: true, force: true });
+  put(AGY_MCP_REL, JSON.stringify({ keepMe: "yes", mcpServers: { a: { command: "node", args: ["a.mjs"], disabled: false } } }));
+  ucKeep(ucPending().rels);   // 基线认下（agy 文件是强项，第一次会问）
+  assert.equal(ucPending(), null);
+  // 外部改动：换掉 mcpServers，顺手加了个 agy 自己写的未知键
+  put(AGY_MCP_REL, JSON.stringify({ keepMe: "yes", other: "x", mcpServers: { a: { command: "node", args: ["a.mjs"], disabled: false }, evil: { command: "sh" } } }));
+  const p = ucPending();
+  assert.deepEqual(p.rels, [AGY_MCP_REL]);
+  assert.match(p.changes[0].preview, /mcpServers: a, evil/);
+  const r = ucRevert(p.rels);
+  assert.deepEqual(r.failed, []);
+  const j = JSON.parse(fs.readFileSync(H(AGY_MCP_REL), "utf8"));
+  assert.deepEqual(j.mcpServers, { a: { command: "node", args: ["a.mjs"], disabled: false } }, "mcpServers 还原");
+  assert.equal(j.keepMe, "yes", "基线里的未知键保留");
+  assert.equal(j.other, "x", "撤销时新增的未知键也保留（restorePart agy 分支只动 mcpServers）");
+  assert.equal(ucPending(), null);
+  fs.rmSync(H(".gemini"), { recursive: true, force: true });
+  _ucReset();
+});
+
+test("agy MCP 配置：网关自己装 MCP（addMcp）只动 mcpServers，直接认下不弹卡片", async () => {
+  fresh();
+  fs.rmSync(H(".gemini"), { recursive: true, force: true });
+  put(AGY_MCP_REL, JSON.stringify({ keepMe: "yes", mcpServers: { a: { command: "node", args: ["a.mjs"], disabled: false } } }));
+  ucKeep(ucPending().rels);
+  assert.equal(ucPending(), null);
+  const { addMcp } = await import("../gw/extensions.mjs");
+  const r = await addMcp({ name: "uc-agy2", transport: "stdio", target: "node b.mjs" });
+  assert.ok(r.ok, r.message);
+  assert.equal(ucPending(), null, "网关自己写的 mcpServers 已认下（key-scoped），不问");
+  const j = JSON.parse(fs.readFileSync(H(AGY_MCP_REL), "utf8"));
+  assert.equal(j.keepMe, "yes", "网关写的时候未知键没动");
+  assert.ok(j.mcpServers["uc-agy2"]);
+  fs.rmSync(H(".gemini"), { recursive: true, force: true });
+  _ucReset();
+});
+
+test("agy MCP 配置：外部只改未知键不问（只盯 mcpServers）；mcpServers 空了不盯", () => {
+  fresh();
+  fs.rmSync(H(".gemini"), { recursive: true, force: true });
+  put(AGY_MCP_REL, JSON.stringify({ keepMe: "yes", mcpServers: { a: { command: "node", args: ["a.mjs"], disabled: false } } }));
+  ucKeep(ucPending().rels);
+  put(AGY_MCP_REL, JSON.stringify({ keepMe: "no", other: "z", mcpServers: { a: { command: "node", args: ["a.mjs"], disabled: false } } }));
+  assert.equal(ucPending(), null, "只动未知键：指纹只看 mcpServers，不问");
+  fs.rmSync(H(".gemini"), { recursive: true, force: true });
+  _ucReset();
 });

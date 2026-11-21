@@ -37,8 +37,12 @@ export const CLAUDE_JSON = path.join(CFG.home, ".claude.json");
 const MAX_CFG_BYTES = 1 << 20;
 
 /** 仅测试用：让第 N 次原子写失败（模拟磁盘故障），测回滚用；生产代码不碰它。
- *  failAfterWrites = 0 → 下一次写就失败；= 1 → 下一次成功、再下一次失败；< 0 → 关掉。 */
-export const _agyMcpTest = { failAfterWrites: -1 };
+ *  failAfterWrites = 0 → 下一次写就失败；= 1 → 下一次成功、再下一次失败；< 0 → 关掉。
+ *  failOnWrites（Set<number>）：按写计数（writeCount，从 0 起每调一次 writeJsonFileAtomic
+ *  加一）指定第几次写失败——回滚本身也要写，单次 failAfterWrites 触发后就自动关掉，
+ *  测「回滚那步也失败」得用它（先把 writeCount 清零再填序号）。用完把两个都复位。
+ *  failAfterOpen：打开临时文件之后、真正写入之前失败，测临时文件残留清理用。 */
+export const _agyMcpTest = { failAfterWrites: -1, failOnWrites: null, writeCount: 0, failAfterOpen: false };
 
 /**
  * 安全读一份 JSON 配置（只读，不修不建）。
@@ -59,22 +63,34 @@ export function readJsonFileSafe(file) {
   return { ok: true, obj, exists: true };
 }
 
-/** 原子写一份 JSON 配置（目录不存在就建；临时文件 O_EXCL 0600 + fsync + rename）。 */
+/** 原子写一份 JSON 配置（目录不存在就建；临时文件 O_EXCL 0600 + fsync + rename）。
+ *  临时文件任何失败路径都清掉（打开后写失败、fsync 失败、改名失败都一样），
+ *  不在 ~/.gemini/config 里留 *.tmp 孤儿。 */
 export function writeJsonFileAtomic(file, obj) {
+  _agyMcpTest.writeCount++;
+  if (_agyMcpTest.failOnWrites instanceof Set && _agyMcpTest.failOnWrites.has(_agyMcpTest.writeCount)) {
+    _agyMcpTest.failOnWrites.delete(_agyMcpTest.writeCount);
+    return { ok: false, error: "测试注入：写入失败" };
+  }
   if (_agyMcpTest.failAfterWrites >= 0) {
     if (_agyMcpTest.failAfterWrites === 0) { _agyMcpTest.failAfterWrites = -1; return { ok: false, error: "测试注入：写入失败" }; }
     _agyMcpTest.failAfterWrites--;
   }
+  let tmp = null;
   try {
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    const tmp = file + "." + crypto.randomBytes(12).toString("hex") + ".tmp";
+    tmp = file + "." + crypto.randomBytes(12).toString("hex") + ".tmp";
     const fd = fs.openSync(tmp, "wx", 0o600);
-    try { fs.writeFileSync(fd, JSON.stringify(obj, null, 2) + "\n"); fs.fsyncSync(fd); }
+    try {
+      if (_agyMcpTest.failAfterOpen) { _agyMcpTest.failAfterOpen = false; throw new Error("测试注入：写入失败"); }
+      fs.writeFileSync(fd, JSON.stringify(obj, null, 2) + "\n"); fs.fsyncSync(fd);
+    }
     finally { fs.closeSync(fd); }
-    try { fs.renameSync(tmp, file); }
-    catch (e) { try { fs.rmSync(tmp, { force: true }); } catch {} throw e; }
+    fs.renameSync(tmp, file);
+    tmp = null;   // 已改名就位，不再是孤儿
     return { ok: true };
   } catch (e) {
+    if (tmp) { try { fs.rmSync(tmp, { force: true }); } catch {} }
     log(`[agy-mcp] 写入 ${file} 失败：${e.message}`);
     return { ok: false, error: `写入 ${file} 失败：${e.message}` };
   }
