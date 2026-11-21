@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { spawn } from "node:child_process";
 import { CFG, LAST_LANG, PATHS, log, tr, tz, permModeAction } from "./config.mjs";
 import { SETTINGS, capList, settingsDiskCheck } from "./settings-store.mjs";
-import { PERM_MODES, PROVIDER, acpAuthType, billAfterRun, hasAcpKeyChannel, hasAdcCredentials, keyOf, noteTokenDelta, providerById, providersDiskCheck } from "./providers.mjs";
+import { PERM_MODES, PROVIDER, acpAuthType, billAfterRun, hasAcpKeyChannel, hasAdcCredentials, keyOf, noteTokenDelta, providerById, providerRoute, providersDiskCheck, usesAcp } from "./providers.mjs";
 import { ALIAS_SEEN, defaultAcpCompactLine, effortLevelsOf, fetchModels, isLoginMode, learnWindow, modelsCached, normEffort } from "./models.mjs";
 import { agyEnv, bridgeSwitching, claudeAtLeast, claudeCmd, claudeEnv, currentModelInfo, ensureBridge, safeModePerm, settingsArgs } from "./claude.mjs";
 import { runAcpTurn, stopAcpBgTask } from "./acp.mjs";
@@ -380,13 +380,24 @@ export async function startRun(item) {
     return endRun(run, { failed: true });
   }
   const agyOnly = !!(PATHS.agy && fs.existsSync(PATHS.agy) && !(PATHS.claude && fs.existsSync(PATHS.claude)));
-  const useAcp = !P.local && (agyOnly || P.group === "antigravity" || P.authStyle === "gemini-api-key" || P.protocol === "gemini" || P.authStyle === "adc" || P.authType === "oauth-personal" || P.authType === "oauth-business" || P.authType === "agent-platform" || process.env.CCAPP_PROTOCOL === "acp");
+  // P0-5：useAcp 直接调 providers.mjs 的 usesAcp，不再自带判定副本（两边以前逐字相同，
+  // 只是写了两份）。路由走 providerRoute() 这个单点 oracle。
+  const useAcp = usesAcp(P);
+  const route = providerRoute(P);
+  run.route = route;   // P0-5：这一轮的路由进运行记录（MIG-9 失败时还进 run_end）
+  log(`${runTag(run)} 路由 ${P.id} → ${route}（${useAcp ? "ACP" : "密封 Claude"}）`);
   // MIG-9（rem-C2 方案 b）：无 key 通道的第三方厂商在发消息前就拦截，别等模型调用才报 agy 原文错。
   // 只有 ACP 路径 + 有 key 时才拦：Claude 路径（开发端走 claude 的第三方厂商）本来就有通道，不拦；
   // 没 key 的由上面“未配置 API 密钥”那条先拦。
+  // P0-5：按 oracle 分流 —— route "claude" 时根本走不到这里（useAcp 为假，除非开发端强制
+  // CCAPP_PROTOCOL=acp）；route "unavailable" 时在原有 MIG-9 文案后补一句设备原因（本机没有
+  // Claude Code 二进制，改走密封 Claude 也没门）。绝不静默换厂商、不把第三方 key 送进 agy。
+  // 两句分开 tr：拼好的整句不在词典里，分开翻才能各自命中已有的 / 新补的译文。
   if (useAcp && KEY && !hasAcpKeyChannel(P)) {
-    emit({ type: "error", message: tr(LAST_LANG, tz("该厂商在 Antigravity 下暂不支持：Antigravity CLI 没有通用第三方 API Key 通道，密钥送不进 agy。请声明 protocol:\"gemini\"（端点须讲 Gemini 协议），或换用 Gemini / 订阅登录厂商。")) });
-    return endRun(run, { failed: true });
+    const msg = tr(LAST_LANG, tz("该厂商在 Antigravity 下暂不支持：Antigravity CLI 没有通用第三方 API Key 通道，密钥送不进 agy。请声明 protocol:\"gemini\"（端点须讲 Gemini 协议），或换用 Gemini / 订阅登录厂商。"))
+      + (route === "unavailable" ? tr(LAST_LANG, tz("此设备没有 Claude Code，无法改走 Claude 运行。")) : "");
+    emit({ type: "error", message: msg });
+    return endRun(run, { failed: true, route });
   }
   const cliBin = useAcp ? (PATHS.agy || PATHS.claude) : PATHS.claude;
   if (!fs.existsSync(cliBin)) {
