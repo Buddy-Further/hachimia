@@ -249,4 +249,5 @@ test("P0-5 UI：设置卡与模型选单按 route 标注（经 Claude 运行 / �
   assert.match(caps, /经 Claude 运行/);
   assert.match(caps, /route === "unavailable"/, '模型选单应按 route==="unavailable" 标注');
   assert.match(caps, /此设备不可用/);
+  assert.match(caps, /p\.noAcpKeyChannel && p\.route !== "claude"/, "模型选单贴 MIG-9“暂不支持”提示时须排除 route \"claude\" 的厂商（它走密封 Claude，本来就支持），否则 route-claude 的厂商会被误标");
 });
