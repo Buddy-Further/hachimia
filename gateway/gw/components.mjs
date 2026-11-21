@@ -7,7 +7,8 @@ import { claudeEnv, killTree } from "./claude.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
 import { termEnv } from "./terminal.mjs";
 import { SKILLS_DIR, addMcp, removeMcp, skillMeta } from "./extensions.mjs";
-import { modulesMissingFor } from "./modules.mjs";
+import { modulesInfo, modulesMissingFor } from "./modules.mjs";
+import { relocateTree } from "./comp-relocate.mjs";
 import { ghProxy, pget } from "./pget.mjs";
 import { retireManagedBridge } from "./managed-bridge.mjs";
 import { clearBridgeConfigMapping, handleBridgeConfig, handleBridgeModels, handleBridgeRepair } from "./bridge-config.mjs";
@@ -28,14 +29,21 @@ import { writeAtomic } from "./statefile.mjs";
 //     记录里列着装进去的每个文件，卸载就按它删，不会误删工具包自己的东西。
 //   · 状态：absent / downloading / verifying / installing / ok / outdated（工具包变了）/ damaged / error
 // 只在 cccodroid（有 Termux 前缀）上可用；开发端没有 $PREFIX，接口返回 supported:false。
-// 预置组件索引：hachimia 的 components Release（E-01）。该 Release 尚不存在时扩展页会报索引错误——
-// 这是发布缺口（需发布方补 components Release），不要改回 cccodroid 的地址：
-// 那里的构建全是按 cccodroid 工具包打的，base 永远对不上 hachimia 工具包，一个都装不上。
+// 组件索引：兼容上游 cccodroid 预置组件（Chromium）与社区组件市场（cccodroid-components）。
+// hachimia 包名（ha.chi.mia）与 cc.codroid 同为 10 字节，验签并按原 MANIFEST 逐文件校验通过后，
+// 在暂存区执行逐字节等长前缀迁移（/data/data/cc.codroid/ → /data/data/ha.chi.mia/）再装入 $PREFIX。
 // 环境变量显式设空 = 停用该来源（?? 而不用 ||：空字符串就是“停用”，不是“用默认”）。
 const COMP_INDEX = process.env.CCAPP_COMPONENTS_INDEX ??
-  "https://github.com/Buddy-Further/hachimia/releases/download/components/components.json";
-// 社区组件：hachimia 尚无对应的社区仓库，默认停用；有了之后把地址填到这里（或用环境变量指过去）
-const COMP_COMMUNITY_INDEX = process.env.CCAPP_COMPONENTS_COMMUNITY_INDEX ?? "";
+  "https://github.com/greyoak111/cccodroid/releases/download/components/components.json";
+// 社区组件：greyoak111/cccodroid-components 仓库，CI 按配方打包、出签名索引
+const COMP_COMMUNITY_INDEX = process.env.CCAPP_COMPONENTS_COMMUNITY_INDEX ??
+  "https://github.com/greyoak111/cccodroid-components/releases/download/index/components.json";
+const UPSTREAM_PKG = "cc.codroid";
+function ownPkgId() {
+  if (process.env.CCAPP_COMP_TARGET_PKG) return process.env.CCAPP_COMP_TARGET_PKG;
+  if (!PREFIX) return "";
+  return (/\/data\/(?:data|user\/\d+|user_de\/\d+)\/([^/]+)\/files\/usr\/?$/.exec(PREFIX) || [])[1] || "";
+}
 // 索引签名公钥（ed25519）：每份索引旁边都有 <索引>.sig（对原始字节的签名，base64），验不过整份不用。
 // 索引里有每个包的 sha256，所以验了索引就等于验了包。私钥只在发布机和组件仓库的 CI 密钥里。
 const COMP_INDEX_PUBKEY = crypto.createPublicKey(
@@ -102,7 +110,7 @@ function compWriteRecord(id, rec) {
   return writeAtomic(compRecFile(id), JSON.stringify(rec, null, 1));
 }
 export const _compForTest = { compWriteRecord, compRecordInfo, compRecFile, compDropDanglingDocs, compSweepDanglingDocs,
-  compState, compVerCmp, compOlder, compInstall, compSwitch, compRecover, compClearStage, compMcpSpec,
+  compBuildFor, ownPkgId, compState, compVerCmp, compOlder, compInstall, compSwitch, compRecover, compClearStage, compMcpSpec,
   compInjectMoveError, compClearMoveError,
   compRecovering: () => compRecovering };   // 只给测试用：恢复单飞当前登记（复核第三轮 §1）
 
@@ -115,10 +123,9 @@ function compFetch(src, quick) {
       (e, so, se) => (e ? reject(new Error(String(se || e.message).trim().slice(0, 200))) : resolve(so)));
   });
 }
-// 备用镜像：hachimia 暂无镜像站（E-01），默认都不走镜像；以后有了自己的镜像再把地址填回来。
-// 主地址拉不到才用镜像；照样验签，镜像不需要被信任
-const COMP_INDEX_MIRROR = { preset: process.env.CCAPP_COMPONENTS_INDEX_MIRROR ?? "",
-  community: process.env.CCAPP_COMPONENTS_COMMUNITY_INDEX_MIRROR ?? "" };   // 环境变量只给测试用
+// 备用镜像：cccodroid.net 镜像了两份签名索引（逐字节同 GitHub）。主地址拉不到才用；照样验签，镜像不需要被信任
+const COMP_INDEX_MIRROR = { preset: process.env.CCAPP_COMPONENTS_INDEX_MIRROR ?? "https://cccodroid.net/components/official/components.json",
+  community: process.env.CCAPP_COMPONENTS_COMMUNITY_INDEX_MIRROR ?? "https://cccodroid.net/components/community/components.json" };   // 环境变量只给测试用
 /** 取一份索引并验签。没签名、签名不对一律拒绝；只有网关启动时带了 CCAPP_COMPONENTS_ALLOW_UNSIGNED=1（测试用）才放行。
  *  以前看私有目录里有没有 allow-unsigned 文件，应用身份跑的任何程序（包括模型自己）touch 一下就把签名关了（审查 v0.5.9 D2） */
 const allowUnsigned = () => process.env.CCAPP_COMPONENTS_ALLOW_UNSIGNED === "1";
@@ -262,10 +269,74 @@ async function compIndexFetch() {
   return compIndexCache;
 }
 
-/** 给当前工具包挑一个构建：base 等于已装工具包 gz 的 sha256 */
-function compBuildFor(entry, dk) {
+/** 当前工具包（全部已装与可装模块）包含的底座包集合；非模块化工具包或未读到 modules.json 时返回 null */
+function devkitAllPackages() {
+  const mj = modulesInfo();
+  if (!mj || !Array.isArray(mj.modules)) return null;
+  const pkgs = new Set();
+  for (const m of mj.modules) for (const p of m.packages || []) if (p && p.name) pkgs.add(p.name);
+  return pkgs.size ? pkgs : null;
+}
+
+/** 汇总索引里全部 base → baseTag 的映射（社区索引带 baseTag，官方预置组件可复用同一映射排序） */
+function baseTagMap(comps) {
+  const map = new Map();
+  const src = comps || (compIndexCache.data && compIndexCache.data.components) || {};
+  for (const e of Object.values(src)) {
+    for (const b of (e && e.builds) || []) {
+      if (b && b.base && b.baseTag && !map.has(b.base)) map.set(b.base, b.baseTag);
+    }
+  }
+  return map;
+}
+
+function isUpstreamCompatBuild(b) {
+  if (!b || typeof b !== "object") return false;
+  if (b.compat === true) return true;
+  const u = String(b.url || "");
+  return /^https:\/\/github\.com\/greyoak111\/cccodroid(?:-components)?\//.test(u) ||
+    /^https:\/\/(?:dl\.)?cccodroid\.net\/components\//.test(u);
+}
+
+/** 给当前工具包挑一个构建：
+ *  1) 优先精确匹配 base === 已装工具包 gz 的 sha256（原生构建，无需前缀迁移）；
+ *  2) 未命中且本应用包名与 cc.codroid 等长（10 字节，如 ha.chi.mia）时，从 cccodroid 组件市场构建里
+ *     挑选 baseDeps 全部存在于当前工具包（含可装模块）且底座最新的构建，安装时就地等长迁移前缀。 */
+function compBuildFor(entry, dk, comps) {
   const sha = dk && dk.sha256;
-  return (entry.builds || []).find((b) => sha && b.base === sha) || null;
+  const builds = (entry && entry.builds) || [];
+  if (!sha || !builds.length) return null;
+  const exact = builds.find((b) => b.base === sha);
+  if (exact) return exact;
+  const pkg = ownPkgId();
+  if (!pkg || pkg === UPSTREAM_PKG || pkg.length !== UPSTREAM_PKG.length) return null;
+  const allPkgs = devkitAllPackages();
+  const tags = baseTagMap(comps);
+  const cands = [];
+  for (let i = 0; i < builds.length; i++) {
+    const b = builds[i];
+    if (!isUpstreamCompatBuild(b)) continue;
+    if (allPkgs && Array.isArray(b.baseDeps)) {
+      const deps = b.baseDeps.map((d) => (typeof d === "string" ? d : d && d.name)).filter(Boolean);
+      if (deps.some((n) => !allPkgs.has(n))) continue;
+    }
+    cands.push({ b, idx: i, tag: b.baseTag || tags.get(b.base) || "" });
+  }
+  if (!cands.length) return null;
+  cands.sort((x, y) => {
+    if (x.tag !== y.tag) {
+      if (!x.tag) return 1;
+      if (!y.tag) return -1;
+      const d = compVerCmp(y.tag.replace(/^devkit-/, ""), x.tag.replace(/^devkit-/, ""));
+      if (d) return d;
+    }
+    if (x.b.version !== y.b.version) {
+      const d = compVerCmp(y.b.version || "", x.b.version || "");
+      if (d) return d;
+    }
+    return x.idx - y.idx;
+  });
+  return { ...cands[0].b, _compat: true };
 }
 
 // 版本号比较：数字段逐段比，缺的当 0（和 custom.mjs 的 verCmp 同一个口径）
@@ -277,7 +348,7 @@ function compOlder(build, rec) {
     typeof rec.version === "string" && rec.version && compVerCmp(build.version, rec.version) < 0);
 }
 
-function compState(id, entry, dk) {
+function compState(id, entry, dk, comps) {
   const job = COMP_JOBS.get(id);
   if (job && !job.finished) return job.phase;
   const { rec, bad } = compRecordInfo(id);
@@ -293,7 +364,7 @@ function compState(id, entry, dk) {
   // 没有命令的组件（库 / 驱动）光看 bin 会漏：记录里的包内 MANIFEST 不在了，就是文件已经被整批删掉
   const man = `libexec/devkit/components/${id}/MANIFEST`;
   if ((rec.files || []).includes(man) && !fs.existsSync(path.join(PREFIX, man))) return "damaged";
-  const build = entry && compBuildFor(entry, dk);
+  const build = entry && compBuildFor(entry, dk, comps);
   // 索引能是旧的（镜像晚一拍、磁盘缓存用了十分钟）：里面的构建比已装的还旧时不算「可更新」，
   // 否则界面推着用户降级（0.6.9 审计 195-V.1）
   if (build && build.sha256 !== rec.sha256 && !compOlder(build, rec)) return "update";
@@ -305,7 +376,7 @@ function compState(id, entry, dk) {
 const GPU_NODE = { adreno: "/dev/kgsl-3d0", mali: "/dev/mali0" };
 const compUnsupported = (e) => { const g = e && e.needs && e.needs.gpu; return GPU_NODE[g] && !fs.existsSync(GPU_NODE[g]) ? g : ""; };
 // 依赖的组件装好了没有（有新版本可更新也算装好）
-const compDepOk = (rid, comps, dk) => ["ok", "update"].includes(compState(rid, comps[rid] || null, dk));
+const compDepOk = (rid, comps, dk) => ["ok", "update"].includes(compState(rid, comps[rid] || null, dk, comps));
 const compName = (rid, comps) => (comps[rid] && comps[rid].name) || { zh: rid, en: rid };
 /** 这条记录还属于当前工具包吗：base 对不上的记录，文件已随旧工具包没了，
  *  不能再拿它认领文件 / 拦卸载 / 拦安装（0.6.9 审计 195-M.3、05-工具包重装丢组件） */
@@ -335,12 +406,12 @@ async function compList(force) {
   const ids = new Set([...Object.keys(comps)]);
   try { for (const f of fs.readdirSync(COMP_DIR)) if (f.endsWith(".json")) ids.add(f.slice(0, -5)); } catch {}
   const items = [...ids].map((id) => {
-    const e = comps[id] || null, b = e && compBuildFor(e, dk), rec = compRecord(id), job = COMP_JOBS.get(id);
+    const e = comps[id] || null, b = e && compBuildFor(e, dk, comps), rec = compRecord(id), job = COMP_JOBS.get(id);
     return {
       id, name: e ? e.name : { zh: id, en: id }, desc: e ? e.desc : null,
       version: b ? b.version : null, bytes: b ? b.bytes : 0, installed: b ? b.installed : 0,
       available: !!b, installedVersion: rec ? rec.version : null,
-      state: compState(id, e, dk),
+      state: compState(id, e, dk, comps),
       progress: job && !job.finished ? { phase: job.phase, done: job.done, total: job.total, files: !!job.files, via: job.phase === "downloading" ? job.via || "" : "" } : null,
       error: job && job.error ? tr(LAST_LANG, job.error) : "",
       bin: (b && b.bin) || (rec && rec.bin) || [],
@@ -725,7 +796,8 @@ async function compStart(id) {
   if (un) return { ok: false, message: un === "mali" ? tz("这个组件只能用在 ARM Mali GPU（天玑、Exynos 等）的设备上，本机用不了") : tz("这个组件只能用在高通骁龙（Adreno GPU）的设备上，本机用不了") };
   const miss = (entry.requires || []).filter((rid) => !compDepOk(rid, ix.data.components, dk));
   if (miss.length) return { ok: false, message: tz("要先装：{names}", { names: miss.map((rid) => compName(rid, ix.data.components).zh || rid).join("、") }) };
-  const b0 = compBuildFor(entry, dk), b = b0 && { ...b0, source: entry.source, requires: entry.requires || [], mcp: compMcpSpec(entry) };
+  const b0 = compBuildFor(entry, dk, ix.data.components),
+    b = b0 && { ...b0, installedBase: dk.sha256, source: entry.source, requires: entry.requires || [], mcp: compMcpSpec(entry) };
   if (!b) return { ok: false, message: tz("这个组件还没有对应当前工具包的版本，先更新工具包或稍后再试") };
   // 防回滚：已装好且索引里的构建版本更旧，不装。过期索引（镜像晚一拍、缓存十分钟）里常有上一版，
   // 用户点一下「更新」反而把新版换掉；损坏/装到一半的记录不拦，那是修复（0.6.9 审计 195-V.1）。
@@ -1055,9 +1127,9 @@ async function compClearStage(id, beat = () => {}) {
   }
 }
 
-// 组件包的镜像地址：hachimia 暂无镜像站（E-01），默认不走镜像，只走索引里的 GitHub 地址 + gh-proxy 兜底。
-// 以后有了自己的镜像，把根地址放到 CCAPP_COMPONENTS_MIRROR_BASE（测试用），格式 https://<host>/components
-const COMP_MIRROR_BASE = process.env.CCAPP_COMPONENTS_MIRROR_BASE ?? "";
+// 组件包的镜像地址：cccodroid 官网镜像把两份签名索引里的包同步到 dl.cccodroid.net/components/<official|community>/<文件名>
+// 内容一律按签名索引里的 sha256 把关，镜像不需要被信任
+const COMP_MIRROR_BASE = process.env.CCAPP_COMPONENTS_MIRROR_BASE ?? "https://dl.cccodroid.net/components";
 const COMP_MIRROR_HOST = (() => { try { return COMP_MIRROR_BASE ? new URL(COMP_MIRROR_BASE).host : ""; } catch { return ""; } })();
 let compMirrorFirst = false;
 function compMirrorUrl(b) {
@@ -1136,6 +1208,16 @@ async function compRunInstall(id, b, job) {
     if (st.size !== Number(n) || (await sha256File(f, null, st.size)) !== h) throw new Error(tz("组件包里的文件校验不符：{file}", { file: rel }));
     job.done += st.size;
   }
+  // 2.5) 跨包名兼容迁移：cccodroid 组件包按原 MANIFEST 验完后，在暂存区把 /data/data/cc.codroid/（及 /data/user/0/cc.codroid/）
+  // 逐字节等长改写成当前应用包名（如 ha.chi.mia），保证 ELF RUNPATH、shebang、dpkg 清单与 first-run.sh 一次生效
+  if (b._compat) {
+    const pkg = ownPkgId();
+    if (!pkg || pkg.length !== UPSTREAM_PKG.length) throw new Error("incompatible package id for relocation");
+    if (pkg !== UPSTREAM_PKG) {
+      const rel = await relocateTree(path.join(tree, "usr"), UPSTREAM_PKG, pkg, { yieldFn: breathe, cancelled: () => !!job.cancelled });
+      log(`[comp] ${id} 兼容迁移（${UPSTREAM_PKG} → ${pkg}）：改写 ${rel.files} 个文件、${rel.links} 条软链、${rel.paths} 条路径`);
+    }
+  }
   // 下载、校验跨了很久：依赖的工具包模块这期间可能被卸了，搬进去之前再核一次（#134）
   // 剩下的窗口只有「核完到搬完」这几毫秒：模块和组件两个管理器之间没有锁，真要严丝合缝得加一把（DeepSeek 复核 11-04）
   const goneMods = modulesMissingFor(b.baseDeps);
@@ -1208,7 +1290,8 @@ async function compSwitch(id, b, tree, job) {
     // 备份还在 = 上次安装回滚失败没恢复（compRunInstall 开头那次恢复也没放回去）：现在接着装会把残留备份和本次备份
     // 混在一起。要在改 .prev / 记录之前就停手，否则反复重试会丢旧记录身份（复核 R2-P2-3）
     if (fs.existsSync(bak)) throw new Error(tz("上次安装的备份还没恢复，请重试；不行就先卸载再重装"));
-    const rec = { id, source: b.source || "", version: b.version, upstream: b.upstream, base: b.base, sha256: b.sha256, bin: b.bin || [],
+    const rec = { id, source: b.source || "", version: b.version, upstream: b.upstream, base: b.installedBase || b.base,
+      ...(b._compat ? { upstreamBase: b.base } : {}), sha256: b.sha256, bin: b.bin || [],
       requires: b.requires || [], skill: "", state: "installing", at: Date.now(), files: [], shared: [],
       // 依赖的底座包：卸工具包模块时据此判断有没有组件在用。不记的话要靠索引，刚启动 / 离线 / 索引里这个构建没了就判断不了（#104 05-001）
       ...(Array.isArray(b.baseDeps) ? { baseDeps: b.baseDeps.map((d) => (typeof d === "string" ? d : d && d.name)).filter(Boolean) } : {}) };
