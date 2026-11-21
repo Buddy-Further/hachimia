@@ -110,6 +110,22 @@ test("升级前认下过的运行标记：从确认记录里剔掉，删了也�
   assert.equal(ucPending(), null);
 });
 
+// B1：升级前确认记录里认下过 ~/.claude.json（P0-2b 之前它在 FILES 里）：
+// 升级后它不在监视里了，记录里那一项要剔掉——不然 ucPending 报 "removed"、
+// ucBeforeRun 挡起进程，点撤销还会把 live 的 ~/.claude.json 挪进隔离目录。
+test("升级前认下过的 .claude.json：从确认记录里剔掉，不问、不挡起进程、文件原样不动", () => {
+  fresh();
+  const before = JSON.stringify({ numStartups: 7, mcpServers: { old: { command: "node", args: ["old.mjs"] } } });
+  put(".claude.json", before);
+  // 升级前的确认记录形状：.claude.json 有指纹，连 modes 一起
+  fs.writeFileSync(H("ccapp-userconf.json"), JSON.stringify({ v: 1, at: Date.now(), files: { ".claude.json": "deadbeef" }, modes: { ".claude.json": 0o600 } }));
+  _ucReset();
+  assert.equal(ucPending(), null);
+  assert.deepEqual(ucBeforeRun({ id: "r-b1" }), []);
+  assert.equal(fs.readFileSync(H(".claude.json"), "utf8"), before, "文件一个字节都没动");
+  ucAfterRun({ id: "r-b1" });
+});
+
 test("副本也被改了：还原后对不上，报没法还原", () => {
   fresh();
   put(".claude/CLAUDE.md", "原来的\n");

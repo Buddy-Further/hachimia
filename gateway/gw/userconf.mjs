@@ -113,7 +113,10 @@ function loadRec() {
   if (REC) return REC;
   try { const j = JSON.parse(fs.readFileSync(RECORD(), "utf8")); if (j && j.files && typeof j.files === "object") REC = { files: Object.assign(Object.create(null), j.files), modes: Object.assign(Object.create(null), j.modes && typeof j.modes === "object" ? j.modes : {}) }; } catch {}
   // 以前认下过的运行标记（见 MARKER）：现在不算了，不然升级后它们一删就又被报成「删掉了」
-  if (REC) for (const k of Object.keys(REC.files)) if (MARKER.test(k)) { delete REC.files[k]; delete REC.modes[k]; }
+  // P0-2b 审后补（B1）：升级前认下过的 ~/.claude.json 也一样剔掉——它已不在 FILES 里，
+  // 不剔的话 ucPending/ucBeforeRun 会报 kind "removed"，卡住起进程；点撤销还会走到
+  // ucRevert 的通用分支，把 live 文件挪进隔离目录。剔法与 MARKER 一样：只删 files 与 modes。
+  if (REC) for (const k of Object.keys(REC.files)) if (MARKER.test(k) || k === ".claude.json") { delete REC.files[k]; delete REC.modes[k]; }
   return REC;
 }
 function saveRec() {
