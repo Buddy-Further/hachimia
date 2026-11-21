@@ -171,6 +171,30 @@ if (installShSha256 !== wantPin) {
 }
 say(`✓ 安装脚本 sha256 与钉住的校验值一致（${installShSha256.slice(0, 12)}…）`);
 
+// P0-6/7：先问官方 manifest 再执行 install.sh，把版本 / 下载地址 / sha512 记下来写进本地清单。
+// 注意这份 sha512 校验的是下载的安装包（tar.gz），不是装好的二进制——两者字节不同、算法也不同，
+// 而且 install.sh 把下载的包放在它自己的暂存目录、退出时就清掉（trap cleanup EXIT），hachimia 从头到尾
+// 拿不到那个包，所以**没法独立核对**这份 sha512：唯一核它的是 install.sh 自己拿它刚取的 manifest 现算
+// （同一条 TLS 通道，主机被攻破就一起是坏的）。这里只记下来当作来源（provenance）：
+// 本地清单里的 sha256 才是 hachimia 自己算的、seal 和 --recheck 实际核对的东西；manifestSha512 只说明
+// “装的时候上游 manifest 是这么说的”，不要把它和已装二进制的 sha256 混为一谈。
+const mfUrl = manifestUrl();
+const mfRes = curlSmall(mfUrl, 20);
+let manifestSha512 = "", manifestVersion = "";
+if (!mfRes.ok) {
+  die(`取不到官方 agy 版本清单（${mfUrl}：${mfRes.err || "HTTP/网络错误"}），未安装。install.sh 自己也要问这份清单，问不到它一样装不了。`);
+}
+try {
+  const mj = JSON.parse(mfRes.data.toString("utf8"));
+  manifestVersion = parseVersion(mj.version || "");
+  manifestSha512 = typeof mj.sha512 === "string" ? mj.sha512.trim().toLowerCase() : "";
+  if (!mj.url || !/^[0-9a-f]{128}$/.test(manifestSha512)) {
+    die(`官方 agy 版本清单（${mfUrl}）里没有可用的下载地址 / sha512，清单可能坏了，未安装。`);
+  }
+} catch (e) {
+  die(`官方 agy 版本清单（${mfUrl}）解析失败（${e.message}），未安装。`);
+}
+
 const stage = fs.mkdtempSync(path.join(DEST, ".stage-"));
 const stageHome = path.join(stage, "home");
 const stageScript = path.join(stage, "install.sh");
@@ -251,11 +275,18 @@ try {
   }
 
   const sum = sha256(finalBin);
+  // 本地清单同时记两套哈希，别混为一谈（D6）：
+  //  - sha256：hachimia 自己对装好的二进制算的，seal 和 --recheck 核的就是它；
+  //  - manifestSha512：上游 manifest 里写着的安装包（tar.gz）sha512，hachimia 没法独立核对（见上面），只记来源；
+  //    installShSha256：实际执行的 install.sh 的 sha256（已对过 pins 文件）。
   fs.writeFileSync(path.join(verDir, "manifest.json"), JSON.stringify({
     name: "agy",
     version: ver,
     sha256: sum,
     installShSha256,
+    manifestSha512,
+    manifestUrl: mfUrl,
+    manifestVersion,
     source: INSTALL_URL,
     installedAt: new Date().toISOString(),
   }, null, 2) + "\n");

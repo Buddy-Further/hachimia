@@ -56,7 +56,8 @@ AGYEOF
 chmod +x "$dir/agy"
 `;
 
-const S = { manifest: JSON.stringify({ version: "1.5.99" }) };
+const S = { manifest: JSON.stringify({ version: "1.5.99", url: "https://example.invalid/agy-1.5.99.tar.gz", sha512: "ab".repeat(64) }) };
+const FAKE_SHA512 = "cd".repeat(64);
 const PINS_GOOD = path.join(TLSDIR, "pins-good.json");
 fs.writeFileSync(PINS_GOOD, JSON.stringify({ installSh: { sha256: crypto.createHash("sha256").update(INSTALL_SH).digest("hex"),
   source: "https://antigravity.google/cli/install.sh", updated: "2026-11-21" } }));
@@ -153,6 +154,7 @@ test("A11：--check 在上游 manifest 没有版本号时，不拿已装版本�
   assert.equal(j.installed, "1.5.13");
   assert.equal(j.latest, "", "manifest 里没有版本号时 latest 应为空，不能填已装版本");
   assert.notEqual(r.status, 0, "查不到可用版本号时 --check 应返回非零，让调用方报检查失败而不是“已是最新”");
+  S.manifest = JSON.stringify({ version: "1.5.99", url: "https://example.invalid/agy-1.5.99.tar.gz", sha512: "ab".repeat(64) });
 });
 
 test("A11 对照：manifest 有版本号时 --check 正常返回 latest", { skip: SKIP_TLS }, async () => {
@@ -164,6 +166,7 @@ test("A11 对照：manifest 有版本号时 --check 正常返回 latest", { skip
   assert.equal(j.ok, true);
   assert.equal(j.installed, "1.5.13");
   assert.equal(j.latest, "1.5.99");
+  S.manifest = JSON.stringify({ version: "1.5.99", url: "https://example.invalid/agy-1.5.99.tar.gz", sha512: "ab".repeat(64) });
 });
 
 test("P0-6/7：下载的 install.sh 与钉住的校验值不符时，拒绝执行、退出码 4、不装任何东西", { skip: SKIP_TLS }, async () => {
@@ -203,6 +206,39 @@ test("P0-6/7 对照：校验值对上时正常安装（HACHIMIA_AGY_PINS 覆盖�
   const m = JSON.parse(fs.readFileSync(path.join(DEST, "1.5.13", "manifest.json"), "utf8"));
   assert.equal(m.installShSha256, crypto.createHash("sha256").update(INSTALL_SH).digest("hex"),
     "本地清单应记下实际执行的 install.sh 的哈希（来源可查）");
+});
+
+test("P0-6/7：本地清单同时记已装二进制 sha256 与 manifest sha512 / 地址 / 版本（来源，不混为一谈）", { skip: SKIP_TLS }, async () => {
+  resetDest();
+  S.manifest = JSON.stringify({ version: "1.5.99", url: B + "/payload/agy.tar.gz", sha512: FAKE_SHA512 });
+  const r = await run(["stable"], { FAKE_AGY_MODE: "good" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const m = JSON.parse(fs.readFileSync(path.join(DEST, "1.5.13", "manifest.json"), "utf8"));
+  assert.equal(m.version, "1.5.13", "version 是装好的二进制自己报的");
+  assert.match(m.sha256, /^[0-9a-f]{64}$/, "sha256 是已装二进制的");
+  assert.equal(m.manifestSha512, FAKE_SHA512, "manifestSha512 是上游 manifest 里写的安装包 sha512");
+  assert.equal(m.manifestUrl, B + "/manifests/" + (process.arch === "arm64" ? "android_arm64.json" : "android_amd64.json"));
+  assert.equal(m.manifestVersion, "1.5.99", "manifestVersion 是清单里写的版本，和装好的可能不一样");
+  assert.notEqual(m.sha256, m.manifestSha512, "两套哈希不能混为一谈");
+  S.manifest = JSON.stringify({ version: "1.5.99", url: "https://example.invalid/agy-1.5.99.tar.gz", sha512: "ab".repeat(64) });
+});
+
+test("P0-6/7：manifest 里没有可用的 sha512 时，安装在执行 install.sh 之前就失败", { skip: SKIP_TLS }, async () => {
+  resetDest();
+  S.manifest = JSON.stringify({ version: "1.5.99", url: B + "/payload/agy.tar.gz" });
+  const r = await run(["stable"], { FAKE_AGY_MODE: "good" });
+  assert.notEqual(r.status, 0, "清单没有 sha512 就不该继续装：\n" + r.stdout + r.stderr);
+  assert.match(r.stderr, /没有可用的下载地址 \/ sha512/, "要说明是清单缺 sha512");
+  assert.equal(fs.existsSync(path.join(DEST, "current")), false, "install.sh 根本不该跑起来");
+  S.manifest = JSON.stringify({ version: "1.5.99", url: "https://example.invalid/agy-1.5.99.tar.gz", sha512: "ab".repeat(64) });
+});
+
+test("P0-6/7：取不到官方 manifest 时，安装失败且不执行 install.sh", { skip: SKIP_TLS }, async () => {
+  resetDest();
+  const r = await run(["stable"], { FAKE_AGY_MODE: "good", HACHIMIA_AGY_MANIFEST_BASE: B + "/nope" });
+  assert.notEqual(r.status, 0, "问不到清单就不能装：\n" + r.stdout + r.stderr);
+  assert.match(r.stderr, /取不到官方 agy 版本清单/, "要说明是清单问不到");
+  assert.equal(fs.existsSync(path.join(DEST, "current")), false, "install.sh 根本不该跑起来");
 });
 
 test("A10：--recheck 时版本目录缺 manifest 或缺二进制，要计入损坏而不是直接跳过", { skip: SKIP_TLS }, async () => {
