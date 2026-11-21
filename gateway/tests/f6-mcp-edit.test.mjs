@@ -11,7 +11,6 @@ import path from "node:path";
 import { CFG, PATHS } from "../gw/config.mjs";
 
 const { editMcp, getMcp, _extForTest } = await import("../gw/extensions.mjs");
-const { mcpAddArgs } = _extForTest;
 const { extOff, saveExtOff, EXT_OFF_FILE } = await import("../gw/extoff.mjs");
 const { _agyMcpTest } = await import("../gw/agy-mcp.mjs");
 const H = (r) => path.join(CFG.home, r);
@@ -33,19 +32,6 @@ after(() => {
   fs.rmSync(H(".gemini"), { recursive: true, force: true });
 });
 
-test("mcpAddArgs：stdio 选项顺序与 -- 收尾，parts 直传不重切", () => {
-  assert.deepEqual(mcpAddArgs("stdio", "a", "npx -y pkg x", ["FOO=1", "bad"], ["X-Test: v"]),
-    ["mcp", "add", "-s", "user", "--transport", "stdio", "a", "-e", "FOO=1", "--header", "X-Test: v", "--", "npx", "-y", "pkg", "x"]);
-  // 带空格的参数：走 parts 时原样保留，重切会把 "a b" 拆成两个
-  assert.deepEqual(mcpAddArgs("stdio", "a", "npx pkg", [], [], ["npx", "pkg", "a b"]),
-    ["mcp", "add", "-s", "user", "--transport", "stdio", "a", "--", "npx", "pkg", "a b"]);
-});
-
-test("mcpAddArgs：远程 transport 地址是位置参数，-e 不进命令行", () => {
-  assert.deepEqual(mcpAddArgs("http", "b", "http://x/mcp", [], ["Authorization: Bearer <redacted>"]),
-    ["mcp", "add", "-s", "user", "--transport", "http", "b", "http://x/mcp", "--header", "Authorization: Bearer <redacted>"]);
-});
-
 test("getMcp：预填命令/地址与键名，不带值；停用名单里的也能读；找不到报错", async () => {
   clean();
   putAgy("rmc", { type: "http", url: "http://h/mcp", headers: { Authorization: "x", "X-A": "1" }, disabled: false });
@@ -64,11 +50,11 @@ test("getMcp：预填命令/地址与键名，不带值；停用名单里的也�
   assert.equal(d.transport, "http");
   assert.deepEqual(d.headerNames, ["Authorization"]);
   assert.equal(d.source, "off-list");
-  // 只在 Claude 里的也能读（来源标 claude）
+  // P0-2b：只在 ~/.claude.json 里的服务器现在找不到（agy-only），文件原样保留
   putClaude("cmc", { type: "stdio", command: "node", args: ["c.mjs"] });
-  const c = await getMcp({ name: "cmc" });
-  assert.equal(c.ok, true);
-  assert.equal(c.source, "claude");
+  const claudeBefore = fs.readFileSync(CLAUDE_FILE, "utf8");
+  assert.match((await getMcp({ name: "cmc" })).message, /找不到这条/);
+  assert.equal(fs.readFileSync(CLAUDE_FILE, "utf8"), claudeBefore);
   assert.match((await getMcp({ name: "nope" })).message, /找不到这条/);
 });
 
@@ -142,7 +128,7 @@ test("editMcp：停用中的条目只改停用名单，不碰配置文件，可�
   assert.equal(off.mcp.dx, undefined);
 });
 
-test("editMcp：改名撞已有名字直接拒（两边名单都查）；远程传环境变量照拒", async () => {
+test("editMcp：改名撞已有名字直接拒（停用名单和 agy 文件都查）；远程传环境变量照拒", async () => {
   clean();
   putAgy("e5", { type: "http", url: "http://a/mcp", disabled: false });
   putAgy("e6", { type: "http", url: "http://b/mcp", disabled: false });
@@ -166,14 +152,4 @@ test("editMcp：校验（找不到、坏名字、坏地址）", async () => {
   putAgy("e4", { type: "http", url: "http://x/mcp", headers: {}, disabled: false });
   assert.match((await editMcp({ name: "e4", newName: "-bad", transport: "http", target: "http://x/mcp" })).message, /名字只能/);
   assert.match((await editMcp({ name: "e4", transport: "http", target: "notaurl" })).message, /http/);
-});
-
-test("editMcp：只在 Claude 里的服务器，同名编辑写进 agy，Claude 里旧定义留着被盖住", async () => {
-  clean();
-  putClaude("legacy", { type: "stdio", command: "npx", args: ["-y", "old"], env: { A: "1" } });
-  const r = await editMcp({ name: "legacy", transport: "stdio", target: "npx -y new", env: [], headers: [] });
-  assert.ok(r.ok, r.message);
-  assert.deepEqual(agyServers().legacy, { command: "npx", args: ["-y", "new"], env: { A: "1" }, disabled: false });
-  assert.deepEqual(claudeServers().legacy, { type: "stdio", command: "npx", args: ["-y", "old"], env: { A: "1" } });
-  assert.equal((await getMcp({ name: "legacy" })).source, "both-shadowed");
 });
