@@ -41,7 +41,7 @@ import { scanText } from "./breach.mjs";
 
 const MAX_CFG_BYTES = 1 << 20;
 
-/** ACP mcpServers 里一个 stdio 服务的 env 是 [{ name, value }]；Claude 侧是 { K: V } 对象。 */
+/** ACP mcpServers 里一个 stdio 服务的 env 是 [{ name, value }]；对象式 MCP 配置（agy `mcp_config.json`；与 `~/.claude.json` 同形）里是 { K: V } 对象。 */
 function envObjectToAcp(env) {
   if (!env || typeof env !== "object" || Array.isArray(env)) return [];
   const out = [];
@@ -56,7 +56,7 @@ function headersObjectToAcp(headers) {
 }
 
 /**
- * Claude 对象式 MCP 配置 → ACP 数组式。
+ * 对象式 MCP 配置（agy `mcp_config.json`；与 `~/.claude.json` 同形）→ ACP 数组式。
  * @param {object} input { mcpServers: { name: def } } 或裸 { name: def } 映射。
  * @returns {{ servers: Array, skipped: Array<{name, reason}> }}
  *   servers 只含 stdio；http/sse/未知传输与缺 command 的 stdio 进 skipped。
@@ -165,15 +165,18 @@ function droppedClaudeMcpNames(cwd) {
     const j = JSON.parse(fs.readFileSync(file, "utf8"));
     if (!j || typeof j !== "object" || Array.isArray(j)) return [];
     const out = [];
+    // 两处循环共用一个 seen：同名既在顶层又在 projects[cwd] 里，只在 skipped 里出现一次
+    const seen = new Set();
     const top = j.mcpServers;
     if (top && typeof top === "object" && !Array.isArray(top)) {
       for (const name of Object.keys(top)) {
+        if (seen.has(name)) continue;
+        seen.add(name);
         out.push({ name, reason: "in ~/.claude.json only (top-level) — agy-only: move it to ~/.gemini/config/mcp_config.json", source: "claude.json (not loaded)" });
       }
     }
     const projects = j.projects;
     if (projects && typeof projects === "object" && !Array.isArray(projects)) {
-      const seen = new Set();
       for (const key of [cwd, path.resolve(cwd || CFG.workspace)]) {
         const proj = key ? projects[key] : null;
         const m = proj && proj.mcpServers;

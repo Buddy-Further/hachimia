@@ -101,6 +101,17 @@ test("只在 ~/.claude.json 里的服务器：列表里没有、getMcp 找不到
     "skipped 只含名字与原因，不含命令/路径");
 });
 
+test("同名既在顶层又在 projects[cwd]：skipped 里只出现一次（M2）", () => {
+  clean();
+  putClaude(
+    { dup: { type: "stdio", command: "node", args: ["top.mjs"] } },
+    { projects: { [CFG.workspace]: { mcpServers: { dup: { command: "node", args: ["proj.mjs"] } } } } },
+  );
+  const { servers, skipped } = buildAcpMcpServers({ cwd: CFG.workspace });
+  assert.equal(servers.some((s) => s.name === "dup"), false, "ACP 还是不发");
+  assert.equal(skipped.filter((s) => s.name === "dup").length, 1, "顶层与 projects 循环共用一个 seen，不重复进 skipped（也不重复进 run.mjs 的日志行）");
+});
+
 test("agy mcp list 解析：按真机探针表格，enabled/disabled 与命令/地址都对上", async () => {
   clean();
   putAgy({ "probe-echo": { command: "node", args: ["/tmp/agy-mcp-probe/echo.mjs"], disabled: false } });
