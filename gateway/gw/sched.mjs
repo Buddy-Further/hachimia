@@ -21,7 +21,7 @@ import { projectById } from "./projects.mjs";
 import { isLoginMode } from "./models.mjs";
 import { pickProvider } from "./run.mjs";
 import { privCall } from "./usage.mjs";
-import { providerById, usdCny } from "./providers.mjs";
+import { isAgyOnlyMode, providerById, usdCny } from "./providers.mjs";
 
 // node 在安卓上可能没拿到时区（TZ 没设就是 UTC）：「每天 09:00」必须按本地时间算
 // 按系统设置取的就要跟着系统变：出差、手动改时区后，每天 09:00 要按新时区的 09:00（#107 06-012）。tick 里隔几分钟再问一次
@@ -88,6 +88,33 @@ export function clearFollowingTaskModels() {
   for (const t of DB.tasks) if (t.model && !t.provider) { t.model = ""; n++; }
   if (n) save();
   return n;
+}
+/** F-G4-3（reg-models B1/O3）：定时任务的 provider 钉选与会话/项目钉选同一机制——
+ *  taskItem 把 t.provider 以最高优先级喂给 run.mjs 的 pickProvider，而 fireNow 的
+ *  “接口已删”守卫只拦 providerById 查不到的厂商，拦不住仍存在但被隐藏的 Claude 预置。
+ *  agy-only 下把这类钉选迁回 antigravity，模型置空（接口默认，跟 clearFollowingTaskModels
+ *  的做法一致），逐条记日志并落盘。只在 agy-only 下迁。返回迁了的任务号。
+ *  同样不得在模块顶层跑（循环 import 的暂时性死区，会话迁移已复现过）：首次 tick /
+ *  路由 / 开跑时懒迁移。 */
+export function migrateHiddenTaskPins() {
+  if (!isAgyOnlyMode()) return [];
+  const moved = [];
+  for (const t of DB.tasks) {
+    const prov = t && typeof t.provider === "string" && t.provider ? providerById(t.provider) : null;
+    if (!prov || prov.group !== "claude") continue;
+    log(`[厂商] 纯 Antigravity 模式：定时任务「${t.name}」钉在 Claude 预置 ${t.provider} 上，不可用，已自动切回 antigravity`);
+    if (t.model) t.model = "";
+    t.provider = "antigravity";
+    moved.push(t.id);
+  }
+  if (moved.length) save();
+  return moved;
+}
+let MIGRATED_ONCE = false;
+function ensureMigrated() {
+  if (MIGRATED_ONCE) return;
+  MIGRATED_ONCE = true;
+  migrateHiddenTaskPins();
 }
 // 最近一次要跑的时刻（毫秒，0 = 没有）→ 外壳的系统闹钟。只在变了的时候报
 const NEXT_FILE = path.join(CFG.home, "ccapp-sched-next");
@@ -378,6 +405,7 @@ async function fire(t, { reason = "due", attempt = 0, trial = false, occurrence 
   try { return await fireNow(t, { reason, attempt, trial, occurrence }); } finally { WAITING.delete(t.id); }
 }
 async function fireNow(t, { reason, attempt, trial, occurrence }) {
+  ensureMigrated();   // F-G4-3 B1/O3：开跑前再核一次（重试/手动跑可能抢在首次 tick 之前）
   const ctx = { taskId: t.id, reason, attempt, trial, epoch: cancelEpoch(t) };   // 在第一次 await 之前拍下
   const skip = (msg, consumeSkip = false) => {
     log(`⏭ 定时任务「${t.name}」跳过：${msg}`);
@@ -652,6 +680,7 @@ function dispatchOccurrence(t, o, missed) {
 }
 /** alarmAt：外壳的系统闹钟响时带的计划时刻（没有 = 0）。Doze 把它推迟了几分钟时，这次计划照常执行（0.6.9 审计 13-04） */
 function tick(alarmAt = 0) {
+  ensureMigrated();   // F-G4-3 B1/O3：首次 tick 时把钉在 Claude 预置的任务迁回 antigravity
   const now = Date.now();
   followSysTz(now);
   const gap = DB.lastTick ? now - DB.lastTick : 0;
@@ -802,6 +831,7 @@ function monthStats() {
 // ── 路由：/api/sched ──
 export async function routeSched(req, res, u, p) {
   if (!p.startsWith("/api/sched")) return NEXT;
+  ensureMigrated();   // F-G4-3 B1/O3：列表直接返回存下的 provider，先迁再读
   const body = async () => { try { return JSON.parse((await readBody(req)) || "{}"); } catch { return {}; } };
   if (p === "/api/sched" && req.method === "GET") {
     DB.missed = DB.missed.filter((m) => byId(m.taskId));

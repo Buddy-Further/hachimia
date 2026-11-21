@@ -20,6 +20,7 @@ import { pathBlocked, writeNoFollow } from "./files.mjs";
 import { holdsPrivate, isPrivate } from "./pathguard.mjs";
 import { loadState, saveState } from "./statefile.mjs";
 import { syncGitSafe } from "./gitsafe.mjs";
+import { isAgyOnlyMode, providerById } from "./providers.mjs";
 
 const FILE = path.join(CFG.home, "ccapp-projects.json");
 // 项目颜色：和界面强调色同一套饱和度，按顺序分配（用户可改）
@@ -61,9 +62,43 @@ export function clearFollowingModels() {
   return n;
 }
 export function projectDefaults(p) {
+  ensureMigrated();   // F-G4-3 B1：首次读项目默认时把钉在 Claude 预置的旧默认迁回 antigravity
   if (!p) return {};
   const v = (x) => (SAME.includes(x || "") ? undefined : x);
   return { model: v(p.model), effort: v(p.effort), perm: v(p.perm), provider: v(p.provider) };   // provider：项目里的会话默认用哪家（模型名是给这家的）
+}
+/** F-G4-3（reg-models B1）：补 MIG-10 未做的项目默认钉选迁移，与 sessmodel.mjs 的
+ *  会话迁移同口径。项目默认钉在 Claude 预置（anthropic / anthropic-key）上时，
+ *  会话无钉选会回落到它（effectiveModel、run.mjs 的 pickProvider / startRun 都经
+ *  projectDefaults），看到的是 0 个 Gemini 的 Claude 静态清单 LOGIN_MODELS（INV-4 G4）。
+ *  agy-only 下那家已被隐藏，把这类钉选迁回 antigravity，模型置空（接口默认，跟
+ *  clearFollowingModels 换家时的做法一致；本来就跟随的保持跟随），逐条记日志并落盘。
+ *  只在 agy-only 下迁：非 agy-only 设备上 Claude 预置仍可用，不动。返回迁了的项目号。
+ *
+ *  注意：迁移不得在模块顶层跑。providers.mjs → models.mjs → sessmodel.mjs →
+ *  projects.mjs → providers.mjs 是循环 import；providers 先被 import 时，projects
+ *  的顶层求值早于 providers.mjs 的 `let PROVIDER` 初始化，此时调 providerById 会撞上
+ *  暂时性死区（ReferenceError，会话迁移已复现过）。所以改成首次读项目默认时懒迁移——
+ *  读默认的调用一定发生在全部模块初始化完成之后。 */
+export function migrateHiddenProjectPins() {
+  if (!isAgyOnlyMode()) return [];
+  const moved = [];
+  for (const p of PROJECTS) {
+    const prov = p && typeof p.provider === "string" && p.provider ? providerById(p.provider) : null;
+    if (!prov || prov.group !== "claude") continue;
+    log(`[厂商] 纯 Antigravity 模式：项目「${p.name}」默认钉在 Claude 预置 ${p.provider} 上，不可用，已自动切回 antigravity`);
+    if (p.model && !SAME.includes(p.model)) p.model = "";
+    p.provider = "antigravity";
+    moved.push(p.id);
+  }
+  if (moved.length && !save()) log("⚠️ 项目清单没保存上（迁移隐藏厂商钉选）");
+  return moved;
+}
+let MIGRATED_ONCE = false;
+function ensureMigrated() {
+  if (MIGRATED_ONCE) return;
+  MIGRATED_ONCE = true;
+  migrateHiddenProjectPins();
 }
 
 function slugName(name) {
@@ -189,6 +224,7 @@ function freeDir(name) {
 
 export async function routeProjects(req, res, u, p) {
   if (!p.startsWith("/api/projects") && !/^\/api\/sessions\/[^/]+\/move$/.test(p)) return NEXT;
+  ensureMigrated();   // F-G4-3 B1：列表直接返回存下的 provider，先迁再读
   const body = async () => { try { return JSON.parse((await readBody(req)) || "{}"); } catch { return {}; } };
 
   const mv = p.match(/^\/api\/sessions\/([^/]+)\/move$/);
