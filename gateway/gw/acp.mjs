@@ -21,7 +21,8 @@ import { CFG, LIVE, PATHS, log, tz } from "./config.mjs";
 import { onShutdown } from "./crashguard.mjs";
 import { buildCapabilities, setLastInit } from "./caps.mjs";
 import { publish } from "./bus.mjs";
-import { noteAuthTier } from "./login.mjs";
+import { noteAuthTier, invalidateAuthCache } from "./login.mjs";
+import { classifyAcpError, retryDelayMs, ACP_RETRY } from "./acp-errors.mjs";
 import { acpAgentSpawn, acpAgentDone, acpAgentMsg, acpAgentMsgOk } from "./agents.mjs";
 import { parseGoalPrompt, applyGoalCommand } from "./goal.mjs";
 import { mcpServersHash } from "./mcp-acp.mjs";
@@ -416,7 +417,10 @@ export function createAcpClient({ bin, args = ["acp"], cwd, env, onNotification,
     closed = true;
     if (jsonBuf) { log(`[acp] 进程退出时仍有未拼完的 stdout 内容: ${jsonBuf}`); jsonBuf = ""; }
     rl.close();
-    rejectAll(new Error(signal ? `agy acp terminated by ${signal}` : `agy acp exited with code ${code}`));
+    // P0-3：进程退出要挂码，分类器才能区分“进程死了”与普通报错
+    const exitErr = new Error(signal ? `agy acp terminated by ${signal}` : `agy acp exited with code ${code}`);
+    exitErr.code = signal ? "ACP_PROCESS_SIGNAL" : "ACP_PROCESS_EXIT";
+    rejectAll(exitErr);
     try { handlers.onClose?.(code, signal); } catch {}
   });
 
@@ -434,7 +438,10 @@ export function createAcpClient({ bin, args = ["acp"], cwd, env, onNotification,
     return new Promise((resolve, reject) => {
       const timer = timeoutMs > 0 ? setTimeout(() => {
         pending.delete(id);
-        reject(new Error(`ACP request timeout: ${method}`));
+        // P0-3：超时挂 ACP_TIMEOUT 码，分类器按它认 timeout 类
+        const e = new Error(`ACP request timeout: ${method}`);
+        e.code = "ACP_TIMEOUT";
+        reject(e);
       }, timeoutMs) : null;
       if (timer) timer.unref?.();
       pending.set(id, { resolve, reject, timer });
@@ -1247,7 +1254,8 @@ export async function runAcpTurn({
     }
   }
 
-  const client = reused ? poolEntry.client : createAcpClient({
+  // P0-3：建会重试要换全新 client + 完整握手，client 必须是 let
+  let client = reused ? poolEntry.client : createAcpClient({
     bin,
     args,
     cwd,
@@ -1268,6 +1276,26 @@ export async function runAcpTurn({
   let sessModes = poolEntry?.modes || null;
   let sessConfig = poolEntry?.configOptions || null;
 
+  // P0-3：建会阶段的单次请求重试（set_mode / set_config_option 这类幂等小请求）。
+  // 复用健康 client，不重建进程；只重试可重试类，耗尽后把原错抛回，由调用方
+  // 按原有路径处理（applyMode 发 error 事件、set_config_option 发 note）。
+  // prompt 阶段绝不经这里——session/prompt 没有重试入口。
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const retrySetupRequest = async (fn) => {
+    let attempt = 0;
+    for (;;) {
+      attempt++;
+      try { return await fn(); }
+      catch (e) {
+        const c = classifyAcpError(e);
+        if (client.closed || !c.retryable || attempt >= ACP_RETRY.maxAttempts) throw e;
+        const delay = retryDelayMs(attempt, e);
+        emit({ type: "phase", phase: "retry", attempt, max: ACP_RETRY.maxAttempts, error: String(e?.message || e).slice(0, 200), delayMs: delay });
+        await sleep(delay);
+      }
+    }
+  };
+
   // MIG-7：agent 实际在跑的权限模式。init 宣称的是用户要的模式（permMode），但 agent
   // 只有在 set_mode 成功后才真切过去；新会话默认 default，复用会话沿用池里记的。
   // set_mode 被拒时按这个值纠回（发 perm_mode 事件），不能按 state.permMode 纠——
@@ -1280,7 +1308,8 @@ export async function runAcpTurn({
     const modeId = mapUiModeToAcp(mode, sessModes?.availableModes);
     if (!modeId) return false;
     try {
-      await client.request("session/set_mode", { sessionId: activeSessionId, modeId }, 5000);
+      // P0-3：可重试类（限流/超时/进程异常）先在内部重试完，再发 error 事件
+      await retrySetupRequest(() => client.request("session/set_mode", { sessionId: activeSessionId, modeId }, 5000));
       effectivePermMode = mode;
       return true;
     } catch (e) {
@@ -1315,13 +1344,18 @@ export async function runAcpTurn({
 
   let usedLoad = false;
   // 本轮进来时用户指着的旧会话号；agent 不支持 resume/load 时会被静默换成新会话（B8），要明示
-  const requestedSessionId = activeSessionId;
+  // （runSetup 里每次尝试都按当前 activeSessionId 重算，不用这里的旧值）
   let sessionSwitched = false;
   // MIG-6：agent 确认生效的 effort（池里只记这个；不记请求值，否则下轮以为已生效不再重发）
   let effortApplied = null;
 
-  try {
-    if (!reused) {
+  // P0-3：建会（initialize → authenticate → session/resume|load|new）抽成 runSetup，
+  // 供下面的重试循环调用。每次重试都换全新 client + 完整握手；续聊仍指着同一
+  // 会话号，resume/load 失败绝不静默建新会话（沿用“保留原会话号”规则）。
+  const runSetup = async () => {
+    sessModels = sessModes = sessConfig = null;
+    usedLoad = false;
+    {
       // 1. initialize
       const initRes = await client.request("initialize", {
         protocolVersion: ACP_PROTOCOL_VERSION,
@@ -1365,7 +1399,10 @@ export async function runAcpTurn({
           if (/already (authenticated|authorized|logged in|signed in)|authentication (not required|not needed)/i.test(e.message || "")) {
             log(`[agy-acp] authenticate(${authType})：已认证过，继续`);
           } else {
-            throw new Error(`[agy-acp] authenticate(${authType}) 失败：${e.message}`);
+            // P0-3：包一层错别把原 code/data 丢了，分类器要靠它认 auth-expired
+            const w = new Error(`[agy-acp] authenticate(${authType}) 失败：${e.message}`);
+            w.code = e.code; w.data = e.data;
+            throw w;
           }
         }
       }
@@ -1414,8 +1451,12 @@ export async function runAcpTurn({
       // 续聊已有会话且 Agent 支持 resume/load 时，若两者均失败/超时，绝不静默清空 activeSessionId 建新会话；
       // 仅当 Agent 明确不支持 resume/load（!canResume && !canLoad）时，才按 B8 建新会话并发切换提示。
       if (!sessRes && requestedSessionId && (canResume || canLoad)) {
-        const why = loadErr?.message || resumeErr?.message || "恢复会话失败";
-        throw new Error(tz("无法恢复原会话（{why}），已保留当前会话未新建，请重试或手动开启新对话", { why }));
+        const whyErr = loadErr || resumeErr;
+        const why = whyErr?.message || "恢复会话失败";
+        // P0-3：原错的 code/data 带上，分类器才能认出 429/登录过期
+        const w = new Error(tz("无法恢复原会话（{why}），已保留当前会话未新建，请重试或手动开启新对话", { why }));
+        w.code = whyErr?.code; w.data = whyErr?.data;
+        throw w;
       }
       if (!sessRes) {
         sessRes = await client.request("session/new", {
@@ -1441,6 +1482,37 @@ export async function runAcpTurn({
         setLastInit({ tier: String(tier.name) });
         noteAuthTier(tier);
       }
+    }
+  };
+
+  try {
+    if (!reused) {
+      // P0-3：建会阶段重试——只重试可重试类（限流/超时/进程异常），最多
+      // ACP_RETRY.maxAttempts 次尝试。失败的 client 先销毁再换新的；
+      // 耗尽后把原错抛给下面的 catch，由它分类、发 error 事件、回 errorClass。
+      const setupStart = Date.now();
+      let setupAttempt = 0;
+      let setupErr = null;
+      for (;;) {
+        setupAttempt++;
+        try { await runSetup(); setupErr = null; break; }
+        catch (e) {
+          setupErr = e;
+          const c = classifyAcpError(e);
+          if (!c.retryable || setupAttempt >= ACP_RETRY.maxAttempts) break;
+          const delay = retryDelayMs(setupAttempt, e);
+          emit({ type: "phase", phase: "retry", attempt: setupAttempt, max: ACP_RETRY.maxAttempts, error: String(e?.message || e).slice(0, 200), delayMs: delay });
+          log(`[agy-acp] 建会失败（${c.class}），${delay}ms 后重试 ${setupAttempt + 1}/${ACP_RETRY.maxAttempts}：${String(e?.message || e).slice(0, 200)}`);
+          const dead = client;
+          destroyClient();
+          killAcpChild(dead.child);
+          client = createAcpClient({ bin, args, cwd, env, ...makeHandlers() });
+          if (run) run.child = client.child;
+          await sleep(delay);
+        }
+      }
+      if (setupErr) throw setupErr;
+      if (setupAttempt > 1) log(`[agy-acp] 建会完成（共 ${Date.now() - setupStart}ms，尝试 ${setupAttempt} 次）`);
     }
 
     state.sessionId = activeSessionId;
@@ -1494,12 +1566,21 @@ export async function runAcpTurn({
 
     // 4. 可选：应用模型、思考强度与权限模式（兼容 models.availableModels 与 configOptions）
     //    模型不在清单里时上面已在 init 前抛错，这里只剩“清单没列 / 在清单里”两种情况，直接发。
+    // P0-3：模型设置被拒不再 .catch(()=>{}) 吞掉——可重试类（限流/超时）先在
+    // 内部重试，耗尽或不可重试时发 note 明示（与 thought_level 同口径），
+    // 继续用原模型跑，不让本轮悄悄按错模型算。
     if (modelSwitchNeeded) {
-      await client.request("session/set_config_option", {
-        sessionId: activeSessionId,
-        configId: "model",
-        value: model,
-      }, 10000).catch(() => {});
+      try {
+        await retrySetupRequest(() => client.request("session/set_config_option", {
+          sessionId: activeSessionId,
+          configId: "model",
+          value: model,
+        }, 10000));
+      } catch (e) {
+        const c = classifyAcpError(e);
+        emit({ type: "note", key: "acp-model-rejected", text: tz("模型「{model}」设置被 agent 拒绝（{msg}），已按原模型继续。", { model, msg: String(e?.message || e) }) });
+        log(`[agy-acp] set_config_option model 被拒（${c.class}）：${String(e?.message || e).slice(0, 200)}`);
+      }
     }
     // MIG-6：thought_level 不在 agent 的 options 里时不得静默跳过——发 note 明示
     // “该模型不支持此档位，已按默认跑”，不发 set_config_option；被 agent 拒绝时同样发 note，
@@ -1510,11 +1591,12 @@ export async function runAcpTurn({
         emit({ type: "note", key: "acp-effort-unsupported", text: tz("该模型不支持思考强度「{effort}」，已按默认跑。", { effort }) });
       } else {
         try {
-          await client.request("session/set_config_option", {
+          // P0-3：与 model 同口径，可重试类先内部重试
+          await retrySetupRequest(() => client.request("session/set_config_option", {
             sessionId: activeSessionId,
             configId: "thought_level",
             value: effort,
-          }, 10000);
+          }, 10000));
           effortApplied = effort;
         } catch (e) {
           emit({ type: "note", key: "acp-effort-rejected", text: tz("思考强度「{effort}」设置被 agent 拒绝（{msg}），已按默认跑。", { effort, msg: String(e?.message || e) }) });
@@ -1713,7 +1795,22 @@ export async function runAcpTurn({
     };
   } catch (err) {
     const msg = String(err?.message || err);
-    const detail = client.stderr ? `\n${client.stderr.slice(-800)}` : "";
+    // P0-3：错误先分类再报。prompt 已发出去 = 本轮可能已部分执行（工具调用
+    // 可能已跑、用量可能已扣、部分正文已落盘），ACP 1 没有幂等键，“没输出”
+    // 不等于“没执行”——一律不自动重试，error 事件里明说让用户先检查再重发。
+    const c = classifyAcpError(err);
+    const inPrompt = state.promptSent;
+    // 服务端全量记一笔：{code,message,data} 一个不少，别只记 hint
+    log(`[agy-acp] 回合失败（${c.class}，prompt 阶段：${inPrompt ? "是" : "否"}）：${msg.slice(0, 500)}${c.code != null ? ` [code ${c.code}]` : ""}${c.data != null ? ` [data ${JSON.stringify(c.data).slice(0, 500)}]` : ""}`);
+    if (c.class === "auth-expired") {
+      try { invalidateAuthCache(); } catch {}
+    }
+    // detail = 原文 + code/data + stderr 尾巴（800 字），原文打头、绝不丢
+    const detailParts = [c.raw];
+    if (c.code != null) detailParts.push(`code: ${c.code}`);
+    if (c.data != null) detailParts.push(`data: ${JSON.stringify(c.data).slice(0, 500)}`);
+    if (client.stderr) detailParts.push(client.stderr.slice(-800));
+    const detail = detailParts.join("\n").slice(0, 3000);
     // 回合中途失败/被取消：提问、已完成工具、思考与已流出的正文都要落盘，别让整轮凭空消失（B5）。
     // 只有 prompt 已发出去才落盘：prompt 没发出去说明问题没递到 agent，用户重发时不应多出一份。
     if (activeSessionId && state.promptSent) {
@@ -1745,7 +1842,12 @@ export async function runAcpTurn({
       }
     }
     if (!run?.aborted) {
-      emit({ type: "error", message: tz("Antigravity CLI 执行出错：{msg}", { msg }) + detail });
+      // P0-3：发分类后的 error 事件（与 stream.mjs:329-333 的 {type:"error",
+      // message:hint, detail:raw} 同形）：message 是中文处理建议，原文在 detail。
+      const partialNote = inPrompt
+        ? tz("本轮可能已部分执行（工具可能已跑、用量可能已扣）：请先检查本轮已产生的内容，再决定是否重发，不要直接重发同一条消息。")
+        : "";
+      emit({ type: "error", message: c.hint + (partialNote ? " " + partialNote : ""), detail });
     }
     return {
       ok: false,
@@ -1756,6 +1858,11 @@ export async function runAcpTurn({
       resultText: state.text,
       usage: state.usage,
       error: msg,
+      // P0-3：调用方（run.mjs）凭这两个字段记账与展示；prompt 阶段的
+      // retryable 一律 false——重发同一条消息可能重复执行，不可自动重试。
+      errorClass: c.class,
+      errorHint: c.hint,
+      retryable: inPrompt ? false : c.retryable,
       durationMs: Date.now() - t0,
     };
   } finally {

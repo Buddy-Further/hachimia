@@ -579,6 +579,8 @@ export async function startRun(item) {
         });
       },
     });
+    // P0-3：分类失败只记一行日志（errorClass），不改任何行为
+    if (acpRes.errorClass) log(`ACP 回合失败（${acpRes.errorClass}${acpRes.retryable ? "，可重试" : ""}）：${String(acpRes.error || "").slice(0, 200)}`);
     if (acpRes.sessionId) {
       run.sessionId = acpRes.sessionId;
       RUN_SESSIONS.set(run.id, acpRes.sessionId);
