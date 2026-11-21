@@ -1080,12 +1080,12 @@
       `<span class="mono">${esc(m.target)}</span>` + (m.hdr ? ` <span class="badge">${esc(t("请求头"))}: ${esc(m.hdr)}</span>` : ""),
       m.cloud ? "" : m.disabled ? `<button data-x="mcp-on" data-id="${esc(m.name)}" data-target="${esc(m.target)}">${t("启用")}</button><button data-x="mcp-edit" data-id="${esc(m.name)}">${t("编辑")}</button><button data-x="mcp-forget" data-id="${esc(m.name)}">${t("移除")}</button>`
         : (m.user ? `<button data-x="mcp-off" data-id="${esc(m.name)}">${t("停用")}</button><button data-x="mcp-edit" data-id="${esc(m.name)}">${t("编辑")}</button>` : "") + `<button data-x="mcp-rm" data-id="${esc(m.name)}">${t("移除")}</button>`,
-      m.disabled ? `<div class="tiny ext-st">${esc(t("已停用：Claude 不会连它，定义存着，点启用就加回来。"))}</div>` : `<div class="tiny ext-st ${m.ok ? "ok" : "warn"}">${esc(m.status)}</div>`,
+      m.disabled ? `<div class="tiny ext-st">${esc(t("已停用：agy 不会连它，定义存着，点启用就加回来。"))}</div>` : `<div class="tiny ext-st ${m.ok ? "ok" : "warn"}">${esc(m.status)}</div>`,
       m.cloud ? ["cloud"] : m.disabled ? ["off"] : [m.ok ? "ok" : "bad", /^https?:/i.test(m.target || "") ? "remote" : "local"])).join("")
       || `<div class="tiny">${esc(r.err || t("还没有 MCP 服务器。"))}</div>`;
     // 长按编辑要知道按的是哪条：条目顺序和 items 一一对应，渲染完把名字挂上去，不塞进 innerHTML 省得再转义一遍
     [...box.querySelectorAll(".item")].forEach((el, i) => { const m = (r.items || [])[i]; if (m) el.dataset.mcp = m.name; });
-    renderIdx("mcp", [["ok", t("已连接")], ["bad", t("连不上")], ["off", t("已停用")], ["cloud", t("账户连接器")], ["local", t("本地")], ["remote", t("远程")]]);
+    renderIdx("mcp", [["ok", t("已启用")], ["bad", t("未启用")], ["off", t("已停用")], ["cloud", t("账户连接器")], ["local", t("本地")], ["remote", t("远程")]]);
   }
 
   // ── 官方技能目录（anthropics/skills）：展开时才拉；装好后上面「技能」列表跟着刷新 ──
@@ -1103,7 +1103,7 @@
   }
   $("ext-s-catbox").addEventListener("toggle", () => { if ($("ext-s-catbox").open) loadSkillCat(); });
 
-  // ── 官方 MCP 注册表：搜索 → 条目里展开小表单（名字、装法、环境变量 / 请求头）→ 交给 claude mcp add ──
+  // ── 官方 MCP 注册表：搜索 → 条目里展开小表单（名字、装法、环境变量 / 请求头）→ 交给 addMcp（写 agy 的 mcp_config.json）──
   const mcpCat = { q: "", next: "", npx: false, items: new Map(), seq: 0 };
   const mcpShort = (n) => (String(n).split("/").pop() || "mcp").replace(/[^A-Za-z0-9._-]/g, "-").slice(0, 64);
   async function searchMcpCat(more) {
@@ -1314,14 +1314,14 @@
     const extra = (raw.includes("\n") ? raw.split("\n") : raw.split(",")).map((x) => x.trim()).filter(Boolean);
     const envLike = extra.filter((x) => /^[A-Za-z_][A-Za-z0-9_]*=/.test(x));
     const hdrLike = extra.filter((x) => x.includes(":") && !/^[A-Za-z_][A-Za-z0-9_]*=/.test(x));
-    // 远程 MCP 只认请求头。旧代码把 Authorization=Bearer … 静默塞进 -e，claude
+    // 远程 MCP 只认请求头。旧代码把 Authorization=Bearer … 静默塞进 -e，agy
     // 收不到 --header → 服务器 401 → 按 MCP 规范转去 OAuth 动态客户端注册 →
     // 界面只报 "Dynamic Client Registration rejected (HTTP 404)"，用户看不出是令牌没带上。
     // 这里直接拦下并给出正确写法，不再生成一条注定连不上的配置。
     if (transport !== "stdio" && envLike.length) {
       return toast(t("远程 MCP 要填请求头：把 {bad} 改成冒号写法，例如 Authorization: Bearer 你的令牌", { bad: envLike[0] }), true);
     }
-    // claude 对 stdio 条目不存请求头：留着头的条目切成 stdio 会静默丢令牌（和 #225 同类），先问一句
+    // agy 的 stdio 条目不存请求头：留着头的条目切成 stdio 会静默丢令牌（和 #225 同类），先问一句
     if (transport === "stdio") {
       const keep = mcpEdit.fullHdr.filter((k) => !mcpEdit.dropHdr.has(k));
       if (keep.length && !confirm(t("stdio 不保存请求头：{names} 会被丢掉，继续吗？", { names: keep.join("、") }))) return;

@@ -813,10 +813,15 @@
     try {
       const r = await api("/api/cli?cmd=" + encodeURIComponent("mcp list"));
       const lines = (r.out || "").split("\n").map((s) => s.trim()).filter(Boolean);
-      // claude mcp list 一行一个：「名字: 命令 - ✓ Connected」/「✗ Failed to connect」
-      $("caps-mcp").innerHTML = capRows(lines.filter((l) => /:\s/.test(l) && /connect|fail|need/i.test(l)).slice(0, 40), (l) => {
-        const name = l.split(":")[0], ok = /✓|connected/i.test(l) && !/fail|✗/i.test(l);
-        return `<div class="row"><span class="mono grow">${esc(name)}</span>${sdot(ok ? "ok" : "err", ok ? t("已连接") : t("没连上"))}</div>`;
+      // agy mcp list 是表格：首行 NAME TYPE STATUS COMMAND/URL，每行「名字 类型 enabled|disabled 命令/地址」；
+      // 空时一行 "No MCP servers configured."；没有 --json，也不做连通检查——这里只分已启用 / 未启用。
+      const rows = lines.filter((l) => !/^NAME\s+TYPE\s+STATUS\s+COMMAND\/URL/i.test(l) && l !== "No MCP servers configured.").map((l) => {
+        const p = l.split(/\s+/);
+        return p.length >= 3 && /^(stdio|http|sse)$/i.test(p[1]) && /^(enabled|disabled)$/i.test(p[2])
+          ? { name: p[0], ok: /^enabled$/i.test(p[2]) } : null;
+      }).filter(Boolean);
+      $("caps-mcp").innerHTML = capRows(rows, ({ name, ok }) => {
+        return `<div class="row"><span class="mono grow">${esc(name)}</span>${sdot(ok ? "ok" : "err", ok ? t("已启用") : t("未启用"))}</div>`;
       }) || '<div class="row"><span class="tiny">' + esc(t("(无 MCP 服务器)")) + "</span></div>";
     } catch (e) { $("caps-mcp").innerHTML = '<div class="row"><span class="tiny">' + esc(t("查询失败：{msg}", { msg: e.message })) + "</span></div>"; }
   });
