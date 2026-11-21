@@ -46,6 +46,9 @@ test("读保留期：没写、写坏、不是正整数都按永久；合法的�
 
 test("启动补写：没有文件就新建；有别的键照留并留 .bak；用户写过的（含写坏的值）不动；整份坏了不碰", async () => {
   fs.rmSync(F, { force: true });
+  // 同池前面测试可能改动过 .claude/settings.json，先按正常流程认下「当前不存在」基线
+  ucPending();
+  ucKeep([".claude/settings.json"]);
   let r = await ensureSessionRetention();
   assert.equal(r.changed, true);
   assert.deepEqual(read(), { cleanupPeriodDays: RETENTION_DAYS });

@@ -70,11 +70,11 @@ test("rem/copy Updater.java:467 用 hachimia.net 镜像活键", () => {
   assert.doesNotMatch(s, /来自 cccodroid\.net 镜像/);
 });
 
-// ── java-*.json 九语：活键改名 + 11 死键删除 + 其余 8 语值里的 cccodroid ──
-test("rem/copy java-*.json 九语 551 键一致，键与值均无 cccodroid / Claude Code", () => {
+// ── java-*.json 九语：活键改名 + 11 死键删除 + 其余 8 语值里的 cccodroid（+ #248 终端桥接 4 键 = 555）──
+test("rem/copy java-*.json 九语 555 键一致，键与值均无 cccodroid / Claude Code", () => {
   const langs = ["ar", "en", "es", "fr", "id", "ja", "ko", "ru", "zh-Hant"];
   const dicts = langs.map((l) => JSON.parse(read(`android/assets/i18n/java-${l}.json`)));
-  for (const d of dicts) assert.equal(Object.keys(d).length, 551);
+  for (const d of dicts) assert.equal(Object.keys(d).length, 555);
   const base = Object.keys(dicts[1]).sort();
   for (const d of dicts) assert.deepEqual(Object.keys(d).sort(), base);
   for (const d of dicts) {
