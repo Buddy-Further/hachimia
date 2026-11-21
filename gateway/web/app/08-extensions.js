@@ -1076,16 +1076,16 @@
     if (r.ok === false) r.err = r.message || "?";   // 200 + {ok:false} 也是失败，不能画成空列表（195-X.2）
     $("ext-m-count").textContent = r.err ? "—" : (r.items || []).length;
     box.innerHTML = (r.items || []).map((m) => extItem(
-      esc(m.name) + (m.cloud ? ` <span class="badge">${t("账户连接器")}</span>` : ""),
+      esc(m.name),
       `<span class="mono">${esc(m.target)}</span>` + (m.hdr ? ` <span class="badge">${esc(t("请求头"))}: ${esc(m.hdr)}</span>` : ""),
-      m.cloud ? "" : m.disabled ? `<button data-x="mcp-on" data-id="${esc(m.name)}" data-target="${esc(m.target)}">${t("启用")}</button><button data-x="mcp-edit" data-id="${esc(m.name)}">${t("编辑")}</button><button data-x="mcp-forget" data-id="${esc(m.name)}">${t("移除")}</button>`
+      m.disabled ? `<button data-x="mcp-on" data-id="${esc(m.name)}" data-target="${esc(m.target)}">${t("启用")}</button><button data-x="mcp-edit" data-id="${esc(m.name)}">${t("编辑")}</button><button data-x="mcp-forget" data-id="${esc(m.name)}">${t("移除")}</button>`
         : (m.user ? `<button data-x="mcp-off" data-id="${esc(m.name)}">${t("停用")}</button><button data-x="mcp-edit" data-id="${esc(m.name)}">${t("编辑")}</button>` : "") + `<button data-x="mcp-rm" data-id="${esc(m.name)}">${t("移除")}</button>`,
       m.disabled ? `<div class="tiny ext-st">${esc(t("已停用：agy 不会连它，定义存着，点启用就加回来。"))}</div>` : `<div class="tiny ext-st ${m.ok ? "ok" : "warn"}">${esc(m.status)}</div>`,
-      m.cloud ? ["cloud"] : m.disabled ? ["off"] : [m.ok ? "ok" : "bad", /^https?:/i.test(m.target || "") ? "remote" : "local"])).join("")
+      m.disabled ? ["off"] : [m.ok ? "ok" : "bad", /^https?:/i.test(m.target || "") ? "remote" : "local"])).join("")
       || `<div class="tiny">${esc(r.err || t("还没有 MCP 服务器。"))}</div>`;
     // 长按编辑要知道按的是哪条：条目顺序和 items 一一对应，渲染完把名字挂上去，不塞进 innerHTML 省得再转义一遍
     [...box.querySelectorAll(".item")].forEach((el, i) => { const m = (r.items || [])[i]; if (m) el.dataset.mcp = m.name; });
-    renderIdx("mcp", [["ok", t("已启用")], ["bad", t("未启用")], ["off", t("已停用")], ["cloud", t("账户连接器")], ["local", t("本地")], ["remote", t("远程")]]);
+    renderIdx("mcp", [["ok", t("已启用")], ["bad", t("未启用")], ["off", t("已停用")], ["local", t("本地")], ["remote", t("远程")]]);
   }
 
   // ── 官方技能目录（anthropics/skills）：展开时才拉；装好后上面「技能」列表跟着刷新 ──

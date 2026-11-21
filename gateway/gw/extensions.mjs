@@ -177,12 +177,12 @@ async function listMcp() {
   const byName = new Map();
   for (const [name, lv] of live) {
     byName.set(name, { name, target: lv.target, ok: lv.enabled, status: lv.enabled ? "enabled" : "disabled",
-      cloud: false, user: false, hdr: "" });
+      user: false, hdr: "" });
   }
   for (const [name, { def, source }] of listMcpDefs()) {
     const cur = byName.get(name);
     if (cur) { cur.user = true; cur.hdr = headerNames(def); cur.source = source; }
-    else byName.set(name, { name, target: mcpTarget(def), ok: false, status: "", cloud: false, user: true, hdr: headerNames(def), source });
+    else byName.set(name, { name, target: mcpTarget(def), ok: false, status: "", user: true, hdr: headerNames(def), source });
   }
   for (const [name, d] of Object.entries(extOff().mcp)) if (!byName.has(name)) byName.set(name, { name, target: mcpTarget(d), ok: false, status: "", disabled: true, source: "off-list" });
   // 文件里没有定义的（agy 外部配的）：既不是 agy 文件也不是停用名单，标 external，别冒充来源
