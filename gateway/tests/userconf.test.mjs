@@ -119,7 +119,7 @@ test("副本也被改了：还原后对不上，报没法还原", () => {
   assert.deepEqual(ucRevert(ucPending().rels).failed, [".claude/CLAUDE.md"]);
 });
 
-test("应用自己装的（ucAppWrote）直接认下；.claude.json 只看 MCP 服务器", () => {
+test("应用自己装的（ucAppWrote）直接认下；.claude.json 不再盯（P0-2b），MCP 只盯 agy 的 mcp_config.json", () => {
   fresh();
   put(".claude.json", JSON.stringify({ numStartups: 1 }));
   ucPending();
@@ -128,14 +128,20 @@ test("应用自己装的（ucAppWrote）直接认下；.claude.json 只看 MCP �
   ucAppWrote([H(".claude/skills/comp-x")], b0);
   put(".claude.json", JSON.stringify({ numStartups: 2, tipsHistory: {} }));
   assert.equal(ucPending(), null);
+  // ~/.claude.json 里加 MCP 服务器也不问：那是另一个应用的配置，网关的 MCP 不再读它
   put(".claude.json", JSON.stringify({ numStartups: 3, mcpServers: { evil: { command: "sh" } } }));
+  assert.equal(ucPending(), null, ".claude.json 不在 FILES 里，改了也不问");
+  // 同样的改动发生在 agy 的 mcp_config.json 里就要问，撤销只还原 mcpServers
+  put(AGY_MCP_REL, JSON.stringify({ keepMe: "yes", mcpServers: { evil: { command: "sh" } } }));
   const p = ucPending();
-  assert.deepEqual(p.rels, [".claude.json"]);
+  assert.deepEqual(p.rels, [AGY_MCP_REL]);
   assert.match(p.changes[0].preview, /mcpServers: evil/);
   ucRevert(p.rels);
-  const j = JSON.parse(fs.readFileSync(H(".claude.json"), "utf8"));
+  const j = JSON.parse(fs.readFileSync(H(AGY_MCP_REL), "utf8"));
   assert.equal(j.mcpServers, undefined);
-  assert.equal(j.numStartups, 3, "claude 自己记的别的东西照留");
+  assert.equal(j.keepMe, "yes", "agy 自己记的别的东西照留");
+  assert.equal(JSON.parse(fs.readFileSync(H(".claude.json"), "utf8")).numStartups, 3, ".claude.json 原样没动");
+  fs.rmSync(H(".gemini"), { recursive: true, force: true });
 });
 
 test("运行期间改的：卡片上标出来；撤销后给模型的提醒只说一次", () => {
@@ -408,26 +414,25 @@ test("卡片之后改了又改回同一版：常驻监视看见了，也不认",
   assert.deepEqual(ucKeep(p.rels, p.ticket), [".claude/CLAUDE.md"]);
 });
 
-test("发行版只问回填进来的 MCP 与权限：CLAUDE.md、skill 改了不问；.claude.json 加 MCP、settings 加 allow 要问，起进程紧前也只核这两份（199-11-06）", () => {
+test("发行版只问回填进来的 MCP 与权限（P0-2b）：CLAUDE.md、skill、.claude.json 改了不问；settings 加 allow 要问，起进程紧前也只核它（199-11-06）", () => {
   fresh();
+  // ~/.claude.json 里加 MCP 也不问了：userconf 不再盯它（P0-2b，agy-only）；
+  // UC_SEALED 里那一项留着（sealed 版 Claude 启动路径仍在读它），但没有指纹来源就不会触发
   put(".claude.json", JSON.stringify({ mcpServers: { a: { command: "node", args: ["a.js"] } } }));
   put(".claude/CLAUDE.md", "# x\n");
   const first = ucPending(UC_SEALED);
-  assert.ok(first && first.first);
-  assert.deepEqual(first.rels, [".claude.json"], "第一次：有 MCP 的问一次，CLAUDE.md 发行版不读、不出现");
-  ucKeep(first.rels, first.ticket);
+  assert.equal(first, null, "第一次：.claude.json 不问，CLAUDE.md 发行版不读、不出现");
   assert.equal(ucPending(UC_SEALED), null);
   put(".claude/CLAUDE.md", "# y\n");
   put(".claude/skills/s/SKILL.md", "---\nname: s\n---\n");
-  assert.equal(ucPending(UC_SEALED), null, "发行版不读的不问");
+  put(".claude.json", JSON.stringify({ mcpServers: { a: { command: "node", args: ["a.js"] }, b: { command: "sh", args: ["b.sh"] } } }));
+  assert.equal(ucPending(UC_SEALED), null, "发行版不读的（.claude.json 也不再盯）不问");
   assert.deepEqual(ucBeforeRun({ id: 1 }, UC_SEALED), [], "也不挡起进程");
   ucAfterRun({ id: 1 });
   put(".claude/settings.json", JSON.stringify({ permissions: { allow: ["Bash(*)"] } }));
-  put(".claude.json", JSON.stringify({ mcpServers: { a: { command: "node", args: ["a.js"] }, b: { command: "sh", args: ["b.sh"] } } }));
   const p = ucPending(UC_SEALED);
-  assert.deepEqual(p.rels.sort(), [".claude.json", ".claude/settings.json"]);
-  assert.match(p.changes.find((c) => c.rel === ".claude.json").preview, /mcpServers: a, b/);
-  assert.deepEqual(ucBeforeRun({ id: 2 }, UC_SEALED).sort(), [".claude.json", ".claude/settings.json"]);
+  assert.deepEqual(p.rels.sort(), [".claude/settings.json"]);
+  assert.deepEqual(ucBeforeRun({ id: 2 }, UC_SEALED).sort(), [".claude/settings.json"]);
   assert.ok(ucPending().rels.includes(".claude/CLAUDE.md"), "开发版照旧全看");
 });
 
