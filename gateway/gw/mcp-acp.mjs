@@ -20,8 +20,12 @@
 //  未决问题（无真机 agy 可验证，见 buildAcpMcpServers 注释）：
 //  仓库读 ~/.gemini/antigravity-cli/settings.json 的 mcpServers，
 //  外部文档却说 agy MCP 在 ~/.gemini/config/mcp_config.json（全局）
-//  与 <workspace>/.agents/mcp_config.json；两处都读，以有完整
+//  与 <workspace>/.agents/mcp_config.json；前两处都读，以有完整
 //  command/args 的定义为准，只知道名字的一律不编造。
+//  安全（P0-1 修复）：工作区 <cwd>/.agents/mcp_config.json 绝不自动加载——
+//  它是克隆仓库带来的不可信内容，ACP 分支在 projectRisks()/sealPrepare()
+//  之前就返回，网关来不及对它做任何确认；任意 command/args 会直达 agent。
+//  需要工作区 MCP 的用户请把它配进家目录文件（见上）。
 //
 //  安全：env/headers 的值是凭据，绝不记日志、不回显、不进报错；
 //  本模块只返回名字与跳过原因，调用方记日志时同样只许记名字。
@@ -123,14 +127,16 @@ function readJsonFile(file) {
 
 /**
  * 只读收集 agy 侧 MCP 定义（best-effort，文件缺失/解析失败都静默跳过）。
- * 读两处来源——仓库既有的 ~/.gemini/antigravity-cli/settings.json，
- * 与外部文档所说的 ~/.gemini/config/mcp_config.json（全局）及
- * <cwd>/.agents/mcp_config.json（工作区）：
+ * 只读家目录两处来源——仓库既有的 ~/.gemini/antigravity-cli/settings.json，
+ * 与外部文档所说的 ~/.gemini/config/mcp_config.json（全局）：
  * 未决：两处到底哪处是 agy 真正读的，本机无 agy 二进制无法验证；
  * 两处都读、有完整定义的才采用，绝不只凭名字编造服务条目。
+ * 工作区 <cwd>/.agents/mcp_config.json 故意不读：它是克隆仓库带来的
+ * 不可信内容，ACP 分支在 projectRisks()/sealPrepare() 之前就返回，
+ * 网关来不及对它做任何确认；用户须把 MCP 配进家目录文件。
  * @returns {{ servers: Array, skipped: Array<{name, reason}> }}
  */
-export function readAgyMcpConfigs({ cwd = "" } = {}) {
+export function readAgyMcpConfigs() {
   const home = CFG.home;
   const servers = [];
   const skipped = [];
@@ -147,10 +153,6 @@ export function readAgyMcpConfigs({ cwd = "" } = {}) {
   }
   const globalCfg = readJsonFile(path.join(home, ".gemini", "config", "mcp_config.json"));
   if (globalCfg) take(globalCfg, "agy-mcp_config.json(global)");
-  if (cwd) {
-    const wsCfg = readJsonFile(path.join(cwd, ".agents", "mcp_config.json"));
-    if (wsCfg) take(wsCfg, "agy-mcp_config.json(workspace)");
-  }
   return { servers, skipped };
 }
 
@@ -169,7 +171,7 @@ export function buildAcpMcpServers({ cwd = "", deviceJson = null } = {}) {
   const claude = claudeMcpConfig(cwd);
   const claudeConv = claudeMcpToAcp(claude || {});
   skipped.push(...claudeConv.skipped.map((s) => ({ ...s, source: "claude.json" })));
-  const agy = readAgyMcpConfigs({ cwd });
+  const agy = readAgyMcpConfigs();
   skipped.push(...agy.skipped);
   let device = [];
   if (deviceJson) {

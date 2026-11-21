@@ -58,6 +58,8 @@ test("P0-1 汇总：Claude + agy 多来源合并，设备同名胜出，破甲�
   fs.mkdirSync(path.dirname(agyGlobalCfg), { recursive: true });
   fs.writeFileSync(agyGlobalCfg, JSON.stringify({ mcpServers: { "agy-global": { command: "g", args: [] } } }));
   fs.mkdirSync(path.dirname(wsCfg), { recursive: true });
+  // 工作区 .agents/mcp_config.json 故意留着：网关绝不自动加载它（P0-1 修复），
+  // 下面的断言验证 agy-ws 既不进 servers、也不进 skipped（根本没读）。
   fs.writeFileSync(wsCfg, JSON.stringify({ mcpServers: { "agy-ws": { command: "w", args: [] } } }));
   const deviceJson = JSON.stringify({ mcpServers: {
     device: { type: "stdio", command: process.execPath, args: ["/fake/device-mcp.mjs"] },
@@ -65,7 +67,9 @@ test("P0-1 汇总：Claude + agy 多来源合并，设备同名胜出，破甲�
   } });
   const { servers, skipped, blocked } = buildAcpMcpServers({ cwd: CFG.workspace, deviceJson });
   const byName = new Map(servers.map((s) => [s.name, s]));
-  assert.deepEqual([...byName.keys()].sort(), ["agy-global", "agy-srv", "agy-ws", "claude-srv", "device", "proj-srv"]);
+  assert.deepEqual([...byName.keys()].sort(), ["agy-global", "agy-srv", "claude-srv", "device", "proj-srv"]);
+  assert.ok(!byName.has("agy-ws"));                       // 工作区来源不自动加载：克隆仓库的任意 command 不直达 agent
+  assert.ok(!skipped.some((s) => s.name === "agy-ws"));   // 连读都没读，不是“读了再跳过”
   assert.equal(byName.get("claude-srv").command, "device-override");   // 设备同名胜出
   assert.deepEqual(byName.get("device"), { name: "device", command: process.execPath, args: ["/fake/device-mcp.mjs"] });
   assert.deepEqual(byName.get("claude-srv").env, undefined);            // 胜出的 device 版无 env，不带旧 env
@@ -90,6 +94,8 @@ test("P0-1 池 key：MCP 列表变了 key 就变，顺序不影响", () => {
 });
 
 // 录下 session/new|resume|load 收到参数的假 agy（initialize 声明 resume/load/additionalDirectories）
+// MOCK_AGY_FAIL_RESUME=1 时 session/resume 回 JSON-RPC 错误，
+// 触发 runAcpTurn 回落 session/load（P0-1：load 路径也要发 additionalDirectories）。
 function makeCapturingAgy(dir, logFile) {
   const script = path.join(dir, "mock-agy-p01");
   fs.writeFileSync(script, `#!${process.execPath}
@@ -108,6 +114,10 @@ rl.on("line", (line) => {
       agentCapabilities: { loadSession: true, sessionCapabilities: { resume: true, load: true, additionalDirectories: true } },
       authMethods: [],
     } });
+  }
+  if (msg.method === "session/resume" && process.env.MOCK_AGY_FAIL_RESUME === "1") {
+    fs.appendFileSync(logFile, JSON.stringify({ method: msg.method, params: msg.params }) + "\\n");
+    return send({ jsonrpc: "2.0", id: msg.id, error: { code: -32603, message: "no such session" } });
   }
   if (msg.method === "session/new" || msg.method === "session/resume" || msg.method === "session/load") {
     fs.appendFileSync(logFile, JSON.stringify({ method: msg.method, params: msg.params }) + "\\n");
@@ -153,6 +163,30 @@ test("P0-1 会话建会：session/new 与 session/resume 都收到合并后的 m
     assert.deepEqual(c.params.mcpServers, mcpServers);   // 不是 []，形态与传入一致
     assert.deepEqual(c.params.additionalDirectories, [extraDir]);
   }
+});
+
+test("P0-1 会话建会：session/resume 失败回落 session/load 也收到 mcpServers 与 additionalDirectories", async () => {
+  const logFile = path.join(tmp, "agy-calls-load.jsonl");
+  fs.writeFileSync(logFile, "");
+  const mockBin = makeCapturingAgy(tmp, logFile);
+  const extraDir = fs.mkdtempSync(path.join(tmp, "extra-load-"));
+  const mcpServers = [{ name: "std", command: "npx", args: ["-y", "srv"] }];
+  const env = { ...process.env, MOCK_AGY_LOG: logFile, MOCK_AGY_FAIL_RESUME: "1" };
+  const res = await runAcpTurn({
+    bin: process.execPath, args: [mockBin], cwd: CFG.workspace, env,
+    prompt: "hi again", model: "", sessionId: "sess-p01-1", keepAlive: false, emit: () => {},
+    mcpServers, addDirs: [extraDir],
+  });
+  assert.equal(res.ok, true, res.error || "");
+  assert.equal(res.sessionId, "sess-p01-1");
+  const calls = fs.readFileSync(logFile, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+  const resumed = calls.find((c) => c.method === "session/resume");
+  const loaded = calls.find((c) => c.method === "session/load");
+  assert.ok(resumed, JSON.stringify(calls));   // resume 确实尝试过且失败
+  assert.ok(loaded, JSON.stringify(calls));    // 回落到 load，而不是静默新建
+  assert.deepEqual(loaded.params.mcpServers, mcpServers);
+  assert.deepEqual(loaded.params.additionalDirectories, [extraDir]);
+  assert.ok(!calls.some((c) => c.method === "session/new"), JSON.stringify(calls));
 });
 
 function fakeRes() {
