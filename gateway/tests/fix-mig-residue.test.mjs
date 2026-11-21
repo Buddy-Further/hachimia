@@ -266,13 +266,13 @@ test("C-03 install-claude.sh 已删；测试临时目录名前缀改成 hachimia
   assert.match(read("gateway/web/vendor/cc-pick.js"), /hachimia 预览里的「选取元素」/);
   assert.match(read("gateway/web/vendor/cc-pick.js"), /hachimia 界面/);
   assert.match(read("gateway/web/vendor/cc-pick.js"), /\{cc:"pick"\}/);
-  // install-claude.sh 删掉后，它的报错键也随之改名（九语同步，551 键不变）
+  // install-claude.sh 删掉后，它的报错键也随之改名（九语键数与 en 保持完全一致）
   const en = JSON.parse(read("android/assets/i18n/java-en.json"));
   assert.equal(en["install-agy.sh 返回 "], "install-agy.sh returned ");
   assert.equal(en["install-claude.sh 返回 "], undefined);
   for (const l of ["ar", "es", "fr", "id", "ja", "ko", "ru", "zh-Hant"]) {
     const d = JSON.parse(read(`android/assets/i18n/java-${l}.json`));
-    assert.equal(Object.keys(d).length, 551);
+    assert.equal(Object.keys(d).length, Object.keys(en).length);
     assert.ok("install-agy.sh 返回 " in d);
     assert.equal("install-claude.sh 返回 " in d, false);
   }
