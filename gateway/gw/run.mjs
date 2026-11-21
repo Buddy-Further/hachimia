@@ -801,13 +801,15 @@ export async function startRun(item) {
   checkAppFiles();
   // 设置、厂商配置网关跑着时只有网关自己写：被别人改了按内存写回，留痕（换了接口地址就能把密钥送出去）
   for (const [f, chk] of [["ccapp-settings.json", settingsDiskCheck], ["ccapp-providers.json", providersDiskCheck]]) if (chk()) tamperRecord("runtime", [f]);
-  // claude 程序本身：和版本目录里存的 Anthropic 签名清单对不上就不起（被改过字符串的二进制，见 claudeseal.mjs）
+  // agy 程序本身：和版本目录里存的本地清单 sha256 对不上就不起（被改过字符串的二进制，见 claudeseal.mjs）。
+  // 注意这份清单是安装时本地现算的，不是官方签过名的清单——Google 不发布 agy 的签名清单，seal 只核“装完之后没被改过”。
   if (!P.local) {
     const gwBad = gwRuntimeBlocked();
     if (gwBad) { emit({ type: "error", message: tr(LAST_LANG, gwBad) }); return endRun(run, { failed: true }); }
     const seal = await claudeSeal();
     if (seal.ok === false) {
-      emit({ type: "error", message: tr(LAST_LANG, seal.pending ? "这个版本的 Antigravity CLI 还没有官方签名清单，这一轮没有启动。正在联网补核，过一两分钟再发送；一直不行就到 设置 → 更新 里重新安装。" : "Antigravity CLI 程序和官方签名清单对不上，可能被改过，这一轮没有启动。到 设置 → 更新 里重新安装后再试。") });
+      // claudeSeal() 从不返回 pending（死分支已删）：只有“本地清单 sha256 对不上”这一种拦法
+      emit({ type: "error", message: tr(LAST_LANG, "Antigravity CLI 程序和本地安装清单的 sha256 对不上，可能被改过，这一轮没有启动。到 设置 → 更新 里重新安装后再试。") });
       return endRun(run, { failed: true });
     }
     if (run.aborted) { log("⏹ 核验 Claude Code 时停止"); return endRun(run, { durationMs: 0 }); }
@@ -877,7 +879,7 @@ export async function startRun(item) {
   if (!P.local && !sealStillValid()) {
     log(`${runTag(run)} ⚠️ [Claude Code 核验] 核过之后程序文件又变了，停掉这一轮`);
     tamperRecord("claude", ["claude: changed right after it was verified"]);
-    emit({ type: "error", message: tr(LAST_LANG, "Antigravity CLI 程序和官方签名清单对不上，可能被改过，这一轮没有启动。到 设置 → 更新 里重新安装后再试。") });
+    emit({ type: "error", message: tr(LAST_LANG, "Antigravity CLI 程序和本地安装清单的 sha256 对不上，可能被改过，这一轮没有启动。到 设置 → 更新 里重新安装后再试。") });
     abortRun(run);
   }
   if (item.timeoutMs > 0) run.limitTimer = setTimeout(() => { run.timedOut = true; log(`${runTag(run)} ⏱ 超过时长上限 ${Math.round(item.timeoutMs / 60000)} 分钟，停止`); abortRun(run); }, item.timeoutMs);

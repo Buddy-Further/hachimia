@@ -3193,3 +3193,4 @@
 3186	Perangkat ini tidak memiliki Claude Code, jadi tidak bisa beralih ke Claude.
 3187	Dijalankan via Claude
 3188	Tidak tersedia di perangkat ini
+3189	Biner Antigravity CLI tidak cocok dengan sha256 di manifes instalasi lokal — mungkin telah diubah. Giliran ini tidak dimulai. Instal ulang dari Pengaturan → Pembaruan lalu coba lagi.

@@ -104,7 +104,10 @@ test("D-09 网关报错文案不指 cccodroid / Claude Code", () => {
   assert.match(read("gateway/gw/run.mjs"), /打开 hachimia 发一条消息/);
   assert.doesNotMatch(read("gateway/gw/run.mjs"), /Claude Code 程序和官方签名清单对不上/);
   assert.doesNotMatch(read("gateway/gw/run.mjs"), /这个版本的 Claude Code 还没有官方签名清单/);
-  assert.match(read("gateway/gw/run.mjs"), /Antigravity CLI 程序和官方签名清单对不上/);
+  // P0-6/7：seal 核的是本地安装清单的 sha256，不是“官方签名清单”（Google 不发布 agy 的签名清单），文案不能这么写
+  assert.doesNotMatch(read("gateway/gw/run.mjs"), /官方签名清单/);
+  assert.doesNotMatch(read("gateway/gw/run.mjs"), /seal\.pending/);
+  assert.match(read("gateway/gw/run.mjs"), /Antigravity CLI 程序和本地安装清单的 sha256 对不上/);
   assert.doesNotMatch(read("gateway/gw/reconcile.mjs"), /找不到 Claude Code 程序/);
   assert.doesNotMatch(read("gateway/gw/reconcile.mjs"), /重装 Claude Code/);
   assert.match(read("gateway/gw/reconcile.mjs"), /找不到 Antigravity CLI/);

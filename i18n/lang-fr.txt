@@ -3193,3 +3193,4 @@
 3186	Claude Code n'est pas installé sur cet appareil, il ne peut donc pas non plus passer par Claude.
 3187	Exécuté via Claude
 3188	Indisponible sur cet appareil
+3189	Le binaire Antigravity CLI ne correspond pas au sha256 du manifeste d’installation local — il a peut-être été modifié. Ce tour n’a pas démarré. Réinstallez-le depuis Réglages → Mises à jour puis réessayez.

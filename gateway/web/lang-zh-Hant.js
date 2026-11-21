@@ -3191,4 +3191,5 @@ window.I18N_DICT["zh-Hant"] = {
   "此设备没有 Claude Code，无法改走 Claude 运行。": "此裝置沒有 Claude Code，無法改走 Claude 執行。",
   "经 Claude 运行": "經 Claude 執行",
   "此设备不可用": "此裝置不可用",
+  "Antigravity CLI 程序和本地安装清单的 sha256 对不上，可能被改过，这一轮没有启动。到 设置 → 更新 里重新安装后再试。": "Antigravity CLI 程式和本地安裝清單的 sha256 對不上，可能被改過，這一輪沒有啟動。到「設定 → 更新」裡重新安裝後再試。",
 };

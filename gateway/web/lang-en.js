@@ -3231,4 +3231,5 @@ window.I18N_DICT.en = {
   "此设备没有 Claude Code，无法改走 Claude 运行。": "This device has no Claude Code installed, so it can't fall back to running via Claude either.",
   "经 Claude 运行": "Runs via Claude",
   "此设备不可用": "Not available on this device",
+  "Antigravity CLI 程序和本地安装清单的 sha256 对不上，可能被改过，这一轮没有启动。到 设置 → 更新 里重新安装后再试。": "The Antigravity CLI binary does not match the sha256 in the local install manifest — it may have been tampered with. This turn was not started. Reinstall it from Settings → Updates and try again.",
 };

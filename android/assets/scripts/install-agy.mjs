@@ -129,7 +129,8 @@ if (ARG === "--recheck") {
       } else {
         bad++;
         fs.writeFileSync(path.join(dir, ".mismatch"), got + "\n");
-        say(`✗ ${d}：sha256 不符（期望 ${String(m.sha256 || "").slice(0, 12)}…，实得 ${got.slice(0, 12)}…）`);
+        // 说清是哪两个值在比：已装二进制现算的 sha256 vs 本地清单里安装时记的那份（不是官方签名清单，Google 不发布）
+        say(`✗ ${d}：已装二进制 sha256 与本地清单不符（期望 ${String(m.sha256 || "").slice(0, 12)}…，实得 ${got.slice(0, 12)}…），已写 .mismatch。到 设置 → 更新 里重新安装。`);
       }
     } catch (e) {
       bad++;

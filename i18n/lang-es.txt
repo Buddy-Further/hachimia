@@ -3193,3 +3193,4 @@
 3186	Este dispositivo no tiene Claude Code instalado, así que tampoco puede ejecutarse a través de Claude.
 3187	Se ejecuta con Claude
 3188	No disponible en este dispositivo
+3189	El binario de Antigravity CLI no coincide con el sha256 del manifiesto de instalación local; es posible que haya sido modificado. Este turno no se inició. Reinstálalo desde Ajustes → Actualizaciones e inténtalo de nuevo.

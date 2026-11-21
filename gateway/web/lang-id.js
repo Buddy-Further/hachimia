@@ -3191,4 +3191,5 @@ window.I18N_DICT["id"] = {
   "此设备没有 Claude Code，无法改走 Claude 运行。": "Perangkat ini tidak memiliki Claude Code, jadi tidak bisa beralih ke Claude.",
   "经 Claude 运行": "Dijalankan via Claude",
   "此设备不可用": "Tidak tersedia di perangkat ini",
+  "Antigravity CLI 程序和本地安装清单的 sha256 对不上，可能被改过，这一轮没有启动。到 设置 → 更新 里重新安装后再试。": "Biner Antigravity CLI tidak cocok dengan sha256 di manifes instalasi lokal — mungkin telah diubah. Giliran ini tidak dimulai. Instal ulang dari Pengaturan → Pembaruan lalu coba lagi.",
 };

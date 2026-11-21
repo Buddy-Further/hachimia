@@ -241,6 +241,26 @@ test("P0-6/7：取不到官方 manifest 时，安装失败且不执行 install.s
   assert.equal(fs.existsSync(path.join(DEST, "current")), false, "install.sh 根本不该跑起来");
 });
 
+test("P0-6/7：--recheck 发现已装二进制被改过时，退出码 3、消息里有期望/实得哈希前缀、写 .mismatch", { skip: SKIP_TLS }, async () => {
+  await goodInstall();
+  const bin = path.join(DEST, "1.5.13", "agy");
+  const before = JSON.parse(fs.readFileSync(path.join(DEST, "1.5.13", "manifest.json"), "utf8"));
+  fs.appendFileSync(bin, "\n# tampered\n");
+  const r = await run(["--recheck"]);
+  assert.equal(r.status, 3, "sha256 不符应用 distinct 的退出码 3：\n" + r.stdout + r.stderr);
+  assert.match(r.stdout, /已装二进制 sha256 与本地清单不符/, "要说清是已装二进制和本地清单在比");
+  assert.match(r.stdout, new RegExp(`期望 ${before.sha256.slice(0, 12)}…，实得 [0-9a-f]{12}…`), "期望/实得哈希前缀要写出来");
+  assert.ok(fs.existsSync(path.join(DEST, "1.5.13", ".mismatch")), "要写 .mismatch 标记，Updater / seal 才拦得住");
+});
+
+test("P0-6/7 对照：没被改过的安装，--recheck 退出 0、不写 .mismatch", { skip: SKIP_TLS }, async () => {
+  await goodInstall();
+  const r = await run(["--recheck"]);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /1\.5\.13：sha256 一致/);
+  assert.equal(fs.existsSync(path.join(DEST, "1.5.13", ".mismatch")), false);
+});
+
 test("A10：--recheck 时版本目录缺 manifest 或缺二进制，要计入损坏而不是直接跳过", { skip: SKIP_TLS }, async () => {
   resetDest();
   fs.mkdirSync(path.join(DEST, "1.5.13"), { recursive: true });
