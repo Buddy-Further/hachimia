@@ -143,8 +143,9 @@ test("P0-5 源码：run.mjs 不再自带 useAcp 判定，改调 usesAcp（与 or
 // ── MIG-9：发消息前按 oracle 路由 ──
 test("P0-5 MIG-9：agy-only 下第三方 + key → 报错含设备原因、run 记录记 route，绝不 spawn", async () => {
   setBinaries({ agy: true, claude: false });
-  PATHS.loader = PATHS.claudeLoader = cli;   // 假 CLI 在，起了就会留 marker
-  script([{ raw: `: > ${root}/ran-p05-mig9` }, init(crypto.randomUUID()), result], 0);
+  // marker 由假 agy 自己写：ACP 路径直接 spawn PATHS.agy（run.mjs），loader 只供密封路径，
+  // 旧写法把 marker 挂在 loader 上，MIG-9 删了也永远起不来，断言是空的。
+  fakeAgyWrites(path.join(root, "ran-p05-mig9"));
   const id = "p05-mig9";
   await startRun({ id, message: "fixture", cwd: root });
   await until(() => endOf(id));
