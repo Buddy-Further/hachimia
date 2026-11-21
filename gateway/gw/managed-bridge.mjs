@@ -56,6 +56,8 @@ function jsonSnapshot(file, max = 4096) {
 function registryDirectory() {
   // HOME 是宿主指定的信任根。逐级固定目录 fd，既不跟 .cccodroid/services 的链接，
   // 也不让并发改名把 unlink 引到别处；最后的注册链接只会被 unlink，绝不跟随。
+  // P0-7b：注册留在这里不搬家（桥组件写、GUI 读）；ACP 路径从不读它，
+  // run.mjs 的 ACP 轮次直接跳过 ensureManagedBridge 门。
   let fd = fs.openSync(CFG.home, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY);
   try {
     for (const name of [".cccodroid", "services"]) {

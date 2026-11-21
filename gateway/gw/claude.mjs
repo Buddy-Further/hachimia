@@ -829,6 +829,9 @@ export function agyEnv(o = {}) {
     env.SSL_CERT_FILE = env.SSL_CERT_FILE || path.join(PREFIX, "etc", "tls", "cert.pem");
   }
   delete env.CCAPP_TOKEN_FILE;
+  // P0-7b：这里故意不设 ANTHROPIC_BASE_URL——agy 不读 ANTHROPIC_* 环境变量
+  // （Section 5 的真机探针已证实），设了也不会把 ACP 流量指去 Managed 桥；
+  // 桥只服务 Claude -p 路径（run.mjs 的 ensureManagedBridge 门，ACP 轮次跳过）。
   delete env.GEMINI_API_KEY;
   delete env.GOOGLE_GEMINI_BASE_URL;
   delete env.AGY_ADC_AUTH;

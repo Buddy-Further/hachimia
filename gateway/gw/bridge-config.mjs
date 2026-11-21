@@ -424,6 +424,9 @@ export async function handleBridgeModels(req, res, signal) {
   }
 }
 
+// P0-7b：桥状态不搬家——注册由桥组件自己写在这里、GUI 配置也从这里读，
+// ACP 路径从不读桥状态（run.mjs 的 ACP 轮次直接跳过 ensureManagedBridge 门），
+// 所以 ~/.cccodroid/services（+ ~/.local/share/ccr-bridge-kit）保持原样。
 const providerStateFile = () => path.join(HOME_ROOT(), ".cccodroid", "services", "openai-bridge-app.json");
 
 export function clearBridgeConfigMapping(id) {

@@ -136,6 +136,11 @@ Antigravity CLI（agy 1.5.13）没有给任意 Anthropic 兼容端点留通用�
 | 端侧小模型 | 纯 Antigravity 设备 | ❌ 不可用（同上） |
 
 “不可用”是设备的属性，不是厂商的属性：设备上有 Claude Code 二进制时（比如旧版残留），同一家厂商就走密封 Claude 跑起来。已登录的 Antigravity 行为在没有已登录设备的情况下仍未验证。
+## 12. Antigravity（ACP）轮次不再等 Managed OpenAI 桥（已修）
+
+Managed OpenAI 桥——注册在 `~/.cccodroid/services/openai-bridge.json`、厂商映射在 `~/.cccodroid/services/openai-bridge-app.json`、运行数据在 `~/.local/share/ccr-bridge-kit/`——只服务 Claude（`-p`）路径。Antigravity CLI（`agy`）从不读桥状态，也不往桥发流量，所以以前桥一坏，ACP 轮次会直接以「本地 OpenAI 桥未就绪…」失败——哪怕只是某个自定义 Gemini 协议厂商恰好与桥共用同一个回环端点。现在 ACP 轮次直接跳过这道门；桥门只拦 Claude 路径的轮次。
+
+桥状态留在原地不动：注册是桥组件自己写在那里的，图形界面的配置也从那里读，搬走会弄坏组件。改的只有 ACP 路径。
 
 ## 给开发者：测试动作本身会制造假问题
 

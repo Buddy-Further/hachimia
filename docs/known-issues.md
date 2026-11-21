@@ -137,6 +137,12 @@ The Antigravity CLI (agy 1.5.13) has no generic channel for an arbitrary Anthrop
 
 "Unavailable" is a property of the device, not of the provider: on a device where a Claude Code binary is present (for example an older install), the same provider runs via the sealed path. Logged-in Antigravity behaviour is still unverified without a logged-in device.
 
+## 12. Antigravity (ACP) turns no longer wait on the Managed OpenAI bridge (fixed)
+
+The Managed OpenAI bridge — registration in `~/.cccodroid/services/openai-bridge.json`, provider mapping in `~/.cccodroid/services/openai-bridge-app.json`, runtime data in `~/.local/share/ccr-bridge-kit/` — only serves the Claude (`-p`) path. Antigravity CLI (`agy`) never reads bridge state and sends no traffic to it, so an ACP turn used to fail outright with "本地 OpenAI 桥未就绪…" whenever the bridge was down — even for a custom Gemini-protocol provider that happened to share the bridge's loopback endpoint. ACP turns now skip that gate entirely; the bridge gate still applies to Claude-path turns.
+
+The bridge state stays where it is: the bridge component itself writes the registration there and the GUI configuration reads it, so moving it would break the component. Only the ACP path was changed.
+
 ## For developers: tests can create fake bugs
 
 Item 1 is tied to automated testing (item 2 has been confirmed not to be). Before fixing a problem like this, make sure it **also happens with no tests running**:
