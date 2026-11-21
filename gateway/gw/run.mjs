@@ -418,7 +418,10 @@ export async function startRun(item) {
   if (sw) { await sw; if (run.aborted || run.ended) return endRun(run, {}); }
   run.readyAbort = new AbortController();
   try {
-    await ensureManagedBridge(P, { signal: run.readyAbort.signal });
+    // P0-7b：ACP 轮次跳过 Managed 桥门——agy 不读桥注册、不发桥流量
+    // （acp.mjs 全文无 bridge/127.0.0.1/openai-bridge/ANTHROPIC 引用），
+    // 桥坏了也不应拦本轮。只有 Claude（-p）路径才需要这道门。
+    if (!useAcp) await ensureManagedBridge(P, { signal: run.readyAbort.signal });
   } catch (e) {
     if (!run.aborted) emit({ type: "error", message: tr(LAST_LANG, e.message) });
     return endRun(run, { failed: !run.aborted });
