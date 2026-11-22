@@ -18,8 +18,7 @@
 //  sha512 只防传输损坏与中间人，不防上游主机被攻破；这和以前 install.sh 在内部验 sha512 的强度一样。
 //  官方 install.sh 末尾那步 `agy install`（|| true 吸收失败）不跑：它只往暂存 HOME 写东西，随暂存
 //  清理一起丢掉，对装好的二进制没有持久影响；装好的二进制由 --version 门与 verify-agy.mjs 的 ACP
-//  握手确认能跑。macOS 那步 xattr 去隔离属性是 install.sh 的 macOS 专属步骤，本安装器只在
-//  Android/Linux 上跑，不复现。
+//  握手确认能跑。macOS 那步 xattr 去隔离属性也照做（只在 darwin 平台上跑，清不掉不拦安装）。
 //
 //  官方 Android (bionic) 原生构建，直接运行在安卓内核上，无需 glibc 加载器或 proot。
 //  安装目录：$HOME/.local/share/hachimia/agy/<version>/agy + current 软链。
@@ -252,6 +251,8 @@ try {
     // --no-same-owner：包里记的 uid/gid（官方包常记 root）和安装者不一定一致，非 root 解压时
     // chown 会 EPERM；和仓库里 components.mjs / modules.mjs 解压组件包的做法一样，只取内容、
     // 不恢复属主。解出的文件归运行安装器的用户（设备上就是 App 自己），随后 chmod 0755。
+    // 这个 flag 是 GNU tar / BSD tar / toybox / busybox 都接受的标准选项；万一哪天某
+    // 个 tar 不认它，解压会当场失败（loud），不会装出一个坏的二进制。
     const ext = spawnSync(TAR, ["-xzf", payload, "-C", stage, "--no-same-owner", "antigravity"], { encoding: "utf8", timeout: 60000 });
     if (ext.status !== 0) {
       const detail = String(ext.stderr || "").trim().slice(0, 200);
@@ -289,6 +290,12 @@ try {
     try { fs.rmSync(path.join(verDir, "manifest.json"), { force: true }); } catch {}
     if (!verDirExisted) { try { fs.rmSync(verDir, { recursive: true, force: true }); } catch {} }
     throw new Error(`拷贝后的 agy 无法运行或版本号不对（期望 ${ver}），未安装`);
+  }
+
+  // macOS：清掉 Gatekeeper 隔离属性（install.sh 同款；curl 下的包通常没有这属性，
+  // 没有 xattr 或清不掉也不拦安装——只在 darwin 平台上跑）。
+  if (_platform.startsWith("darwin")) {
+    try { spawnSync("xattr", ["-d", "com.apple.quarantine", finalBin], { encoding: "utf8", timeout: 10000 }); } catch {}
   }
 
   const sum = sha256(finalBin);

@@ -311,7 +311,7 @@ test("PR1fix 建会停止：停止落在 backoff 里时醒来不换新进程、�
   } finally { closeAllAcpClients(); }
 });
 
-test("PR1fix set_config_option 停止：429 重试时停止，不再重发，只发一次", { timeout: 15000 }, async () => {
+test("PR1fix set_config_option 停止：429 重试时停止，不发 prompt、回合按已停止返回", { timeout: 15000 }, async () => {
   const mock = makeMock(freshDir("mock"), {
     setConfigOptionErrors: [{ code: 429, message: "Too many requests" }],
   });
@@ -334,10 +334,50 @@ test("PR1fix set_config_option 停止：429 重试时停止，不再重发，只
         if (ev.type === "phase" && ev.phase === "retry") run.aborted = true;
       },
     });
-    assert.equal(res.ok, true, res.error || JSON.stringify(events));
+    // 复核 M1：停在 set_config_option 重试里时，prompt 绝不能再发出去——上一版这里是 ok:true，
+    // 等于把“停止后照发 prompt”定型了。现在回合按已停止返回，且不发“被拒、按原模型继续”的 note。
+    assert.equal(res.ok, false, JSON.stringify(res));
+    assert.equal(res.failed, false, "已停止的回合不算失败");
+    assert.equal(res.retryable, false, "已停止的回合不可重试");
     assert.equal(mock.countOf("session/set_config_option"), 1, "停止后不得重发 set_config_option");
+    assert.equal(mock.countOf("session/prompt"), 0, "停止后不得发 prompt");
     assert.equal(events.filter((e) => e.type === "phase" && e.phase === "retry").length, 1);
-    assert.ok(events.some((e) => e.type === "note" && e.key === "acp-model-rejected"), "被拒仍要发 note");
+    assert.ok(!events.some((e) => e.type === "note" && e.key === "acp-model-rejected"), "已停止时不应发“被拒、按原模型继续”的 note");
+    assert.ok(!events.some((e) => e.type === "error"), "已停止不得发 error 事件");
+  } finally { closeAllAcpClients(); }
+});
+
+test("PR1fix set_mode 停止：429 重试时停止，不发“切换失败”事件、不发 prompt、回合按已停止返回", { timeout: 15000 }, async () => {
+  const mock = makeMock(freshDir("mock"), {
+    setModeErrors: [{ code: 429, message: "Too many requests" }],
+  });
+  try {
+    const run = { aborted: false };
+    const events = [];
+    const dir = freshDir("cwd");
+    const res = await runAcpTurn({
+      bin: process.execPath,
+      args: [mock.script],
+      cwd: dir,
+      env: process.env,
+      prompt: "hi",
+      model: "gemini-4-neon",
+      permMode: "acceptEdits",
+      authType: "oauth-personal",
+      keepAlive: false,
+      run,
+      emit: (ev) => {
+        events.push(ev);
+        if (ev.type === "phase" && ev.phase === "retry") run.aborted = true;
+      },
+    });
+    assert.equal(res.ok, false, JSON.stringify(res));
+    assert.equal(res.failed, false, "已停止的回合不算失败");
+    assert.equal(res.retryable, false, "已停止的回合不可重试");
+    assert.equal(mock.countOf("session/set_mode"), 1, "停止后不得重发 set_mode");
+    assert.equal(mock.countOf("session/prompt"), 0, "停止后不得发 prompt");
+    assert.equal(events.filter((e) => e.type === "phase" && e.phase === "retry").length, 1);
+    assert.ok(!events.some((e) => e.type === "error"), "已停止不得发“切换失败”的 error 事件");
   } finally { closeAllAcpClients(); }
 });
 

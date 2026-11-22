@@ -1326,7 +1326,13 @@ export async function runAcpTurn({
       permMode = prev;
       state.permMode = prev;
       if (run) run.permMode = prev;
-      emit({ type: "error", message: tz("切换权限模式失败（agent 拒绝了 {mode}）：{msg}", { mode, msg: String(e?.message || e) }) });
+      // 用户已停止：不是 agent 拒绝，不发“切换失败”的 error 事件（外层 catch 在已停止时
+      // 本来也不发 error 事件）；模式纠回后照常发 perm_mode，回合由发 prompt 前的守卫收尾。
+      // 注意：run.setMode 是 fire-and-forget 调的（queue.mjs / run.mjs），这里不能抛错，
+      // 否则未处理的 rejection 会崩网关——只跳过 error 事件，不抛。
+      if (!run?.aborted) {
+        emit({ type: "error", message: tz("切换权限模式失败（agent 拒绝了 {mode}）：{msg}", { mode, msg: String(e?.message || e) }) });
+      }
       emit({ type: "perm_mode", mode: prev });
       return false;
     }
@@ -1546,9 +1552,11 @@ export async function runAcpTurn({
           setupErr = e;
           const c = classifyAcpError(e);
           if (!c.retryable || setupAttempt >= ACP_RETRY.maxAttempts) break;
-          // 用户已停止：不再重试——既不换新进程，也不再等 backoff。
+          // 用户已停止：不再重试、不换新进程。
           // 停在建会阶段的 SIGTERM 也会被分类成可重试的 network-process，
           // 光靠分类器拦不住，必须在这里看 run.aborted。
+          // 注意：停止若落在 backoff 睡眠里，sleep 不可中断，仍须等完剩余时间、
+          // 醒来再 break，只是不再建进程（见下面的 sleep 后检查）。
           if (run?.aborted) break;
           const delay = retryDelayMs(setupAttempt, e);
           emit({ type: "phase", phase: "retry", attempt: setupAttempt, max: ACP_RETRY.maxAttempts, error: String(e?.message || e).slice(0, 200), delayMs: delay });
@@ -1631,6 +1639,9 @@ export async function runAcpTurn({
           value: model,
         }, 10000));
       } catch (e) {
+        // 用户已停止：不是 agent 拒绝，不发“已按原模型继续”的 note——直接抛回外层 catch，
+        // 回合按已停止返回；发 prompt 前的守卫是第二道防线。
+        if (run?.aborted) throw e;
         const c = classifyAcpError(e);
         emit({ type: "note", key: "acp-model-rejected", text: tz("模型「{model}」设置被 agent 拒绝（{msg}），已按原模型继续。", { model, msg: String(e?.message || e) }) });
         log(`[agy-acp] set_config_option model 被拒（${c.class}）：${String(e?.message || e).slice(0, 200)}`);
@@ -1653,6 +1664,8 @@ export async function runAcpTurn({
           }, 10000));
           effortApplied = effort;
         } catch (e) {
+          // 用户已停止：不是 agent 拒绝，不发“已按默认跑”的 note，直接抛回外层 catch。
+          if (run?.aborted) throw e;
           emit({ type: "note", key: "acp-effort-rejected", text: tz("思考强度「{effort}」设置被 agent 拒绝（{msg}），已按默认跑。", { effort, msg: String(e?.message || e) }) });
         }
       }
@@ -1678,6 +1691,13 @@ export async function runAcpTurn({
         await new Promise((r) => setTimeout(r, 60));
       }
     }
+
+    // 用户已停止：set_config_option / set_mode 重试里停下后，调用方只把错吞掉（note /
+    // error 事件），绝不能继续发 prompt——停在限流重试 backoff 里点停止，本意是停掉本轮。
+    // 发 prompt 前最后一道守卫：抛错进外层 catch，得到已停止的返回形
+    //（ok:false/failed:false/retryable:false，不发 error 事件，prompt 未发所以不落盘）。
+    // 同时覆盖 load 排空等待里落下的停止（排空最多等 1.5s，醒来在这里拦住）。
+    if (run?.aborted) throw new Error("用户已停止，prompt 未发送");
 
     // 5. session/prompt
     const contentBlocks = [{ type: "text", text: prompt }];

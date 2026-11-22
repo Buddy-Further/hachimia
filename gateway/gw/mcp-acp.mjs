@@ -11,7 +11,7 @@
 //  之前就返回，网关来不及对它做任何确认；任意 command/args 会直达 agent。
 //  需要工作区 MCP 的用户请把它配进家目录文件（见上）。
 //
-//  边界（PR #1 复核，2026-11-22 真机验证，agy 1.5.14，见 ~/workspace/agy-verify/MCP-DUP-PROBE-REPORT.md）：
+//  边界（PR #1 复核，2026-11-22 真机验证，agy 1.5.14，见 docs/mcp-dedup-probe.md）：
 //  agy acp 自己加载 mcp_config.json，网关又把同一份文件经 session/new 再发一遍——
 //  实测不会双起：同名服务器在两边都出现时 agy 只起一个进程（session/new 成功、无冲突，
 //  日志 "Preloading 1 MCP servers"）。所以文件里的服务器照常经 session/new 发，不过滤；
