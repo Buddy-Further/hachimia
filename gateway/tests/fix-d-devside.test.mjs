@@ -17,7 +17,10 @@ test("D-03 devside 不再从 downloads.claude.ai 拉 Claude Code，改走官方 
   assert.doesNotMatch(src, /downloads\.claude\.ai/);
   assert.doesNotMatch(src, /CC_BASE/);
   assert.match(src, /install-agy\.mjs/);
-  assert.match(src, /antigravity\.google\/cli\/install\.sh|INSTALL_URL/);
+  // PR #1 复核：安装器不再下 install.sh，改按官方 manifest 直装 tarball——这里钉新说法，
+  // 而不是旧的 install.sh 地址（旧地址已从 devside 的注释里删掉，见 install-agy.mjs 文件头）
+  assert.match(src, /官方 manifest.*tarball|按清单直装 tarball/);
+  assert.doesNotMatch(src, /antigravity\.google\/cli\/install\.sh/);
   assert.doesNotMatch(src, /name:\s*"Claude Code"/);
   assert.match(src, /id:\s*"agy"/);
 });
