@@ -894,7 +894,7 @@ window.I18N_DICT["id"] = {
   "系统估算（自上次充满，{ago}）：整机已用 {used} mAh，本应用没有记录。": "Perkiraan sistem (sejak pengisian penuh terakhir, {ago}): perangkat memakai {used} mAh; tidak ada data untuk aplikasi ini.",
   "安卓把亮屏时的屏幕耗电记在前台应用头上，开着看得越久排名越靠前；CPU 那部分才是应用自己干活用掉的。{time} 查询。": "Android membebankan daya layar ke aplikasi yang sedang di latar depan, jadi makin lama aplikasi dibuka makin tinggi peringkatnya; bagian CPU-lah yang benar-benar dipakai aplikasi untuk bekerja. Diperiksa {time}.",
   "正在向系统查询…": "Sedang menanyakan ke sistem…",
-  "查不到：{msg}（要先在上面开好 Shizuku）": "Tidak bisa diambil: {msg} (siapkan Shizuku di atas dulu)",
+  "查不到：{msg}（要先到 设置 → 设备与权限 开好 Shizuku）": "Tidak bisa diambil: {msg} (siapkan Shizuku di atas dulu)",
   "没拿到数据": "Tidak ada data",
   "今天": "Hari ini",
   "7 天内": "7 hari terakhir",

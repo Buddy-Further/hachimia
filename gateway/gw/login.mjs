@@ -267,7 +267,6 @@ function execAgyJsonCmd(bin, slashCmd, timeoutMs = 15000) {
     });
   });
 }
-
 /** 通过官方 `agy --output-format json -p "/usage"`（及 `/credits`）零消耗查询订阅 5h / 周额度 */
 export async function fetchAgyQuota(force = false) {
   if (!force && AGY_QUOTA && Date.now() - AGY_QUOTA.at < AGY_QUOTA_TTL_MS) return AGY_QUOTA;

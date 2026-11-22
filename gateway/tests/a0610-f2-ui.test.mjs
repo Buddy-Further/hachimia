@@ -61,7 +61,7 @@ test("195-K.2/K.6/K.7/BB.4 已删项目保留在任务下拉；型号晚到补�
 
 test("195-K.8 脉络后台重取保持用户位置：只有头一回拿到图才归位", () => {
   const s = src("18b-lineage.js");
-  has(s, /const first = !LIN\.g;[\s\S]*?linPaint\(first\);/, "只有首次 linPaint(true)");
+  has(s, /const first = !LIN\.(?:g|map);[\s\S]*?linPaint\(first\);/, "只有首次 linPaint(true)");
   assert.doesNotMatch(s, /LIN\.g = g; LIN\.stale = false;\s*\n\s*linPaint\(true\)/, "后台重取不再强制归位");
 });
 

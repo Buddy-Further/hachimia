@@ -42,12 +42,17 @@
     if (act === "ack") { const st = await post("/api/app/freeze_ack").catch(() => null); if (st) renderBg(st.frozen); }
   });
 
+  let privBusy = false;
   async function loadPriv() {
     let st;
-    try { st = await api("/api/priv/status"); } catch { return; }
-    if (st.state === "unsupported") return;          // 旧版：没有这项集成
-    renderBg(st.frozen);
-    $("priv-field").classList.remove("hidden");
+    try { st = await api("/api/priv/status"); } catch {
+      if (privBusy && cat === "device" && setVisible("device", visit)) privLater(2000, visit);
+      return;
+    }
+    if (!setVisible(cat, visit)) return;
+    if (cat === "run") { renderBg(st.frozen); return; }
+    $("priv-field").classList.toggle("hidden", st.state === "unsupported");
+    if (st.state === "unsupported") { privBusy = false; return; }          // 旧版：没有这项集成
     const el = $("priv-state");
     if (st.state === "ok") {
       el.className = "prov-state ok";
@@ -60,6 +65,7 @@
     // 一键安装 / 激活的进度
     const su = st.setup || { phase: "idle" };
     const busy = SETUP_BUSY.includes(su.phase);
+    privBusy = busy;
     const se = $("priv-setup");
     const showSetup = su.message && !(st.state === "ok" && su.phase !== "done");
     se.classList.toggle("hidden", !showSetup);
@@ -212,13 +218,28 @@
     $("upd-last").textContent = "✗ " + msg;
     const rt = $("upd-retry"); if (rt) rt.onclick = loadUpd;   // 反复失败也只挂一个监听
   }
-  async function loadUpd() {
+  let updWasMoving = false;
+  async function loadUpd(changed = false) {
+    if (changed) updRev++;
+    const visit = setVisit, rev = updRev;
+    const live = () => setVisible("update", visit) && rev === updRev;
+    if (!live()) return;
     let st;
-    try { st = await api("/api/app/upd_status"); }
-    catch (e) { return updFailed(e.message || "?"); }
-    if (st && st.ok === false && st.message) return updFailed(st.message);
-    if (!st || !st.ok || !st.items) return;          // 旧版 / 开发端：确实没有这项
-    lastUpd = st;
+    try { st = await readUpdateStatus(); }
+    catch (e) {
+      if (live()) {
+        updFailed(e.message || "?");
+        if (updWasMoving || Date.now() < updFollowUntil) updLater(2000, visit);
+      }
+      return;
+    }
+    if (!live() || !st) return;
+    if (st?.ok === false && st.message && st.state !== "unsupported") {
+      updFailed(st.message);
+      if (updWasMoving || Date.now() < updFollowUntil) updLater(2000, visit);
+      return;
+    }
+    if (!st?.ok || !st.items) { updWasMoving = false; $("upd-field").classList.add("hidden"); setDiscovery("update", t("不可用")); return; }
     $("upd-field").classList.remove("hidden");
     $("upd-auto").checked = !!st.auto;
     $("upd-channel").value = st.channel === "pinned" ? "pinned" : st.channel || "stable";
@@ -268,6 +289,7 @@
     $("upd-last").textContent = st.checking ? t("检查中…") : st.error ? "✗ " + st.error
       : st.lastCheck ? t("上次检查：{at}", { at: new Date(st.lastCheck).toLocaleString() }) : t("还没检查过");
     clearTimeout(updPoll);
+    updWasMoving = !!(moving || st.checking);
     // 点完按钮 / 换完渠道后的一小段时间也接着刷：后台的检查、换版本要过一会儿才开始，只看「正在进行」会漏掉结果
     if ((moving || st.checking || Date.now() < updFollowUntil) && pageOn("settings")) updPoll = setTimeout(loadUpd, 1500);
   }
@@ -333,9 +355,10 @@
     });
   }
   $("upd-items").addEventListener("click", async (e) => {
-    const item = e.target.dataset && e.target.dataset.item;
-    if (!item) return;
-    const act = e.target.dataset.act;
+    const btn = e.target.closest && e.target.closest("button[data-item]");
+    const item = btn ? btn.dataset.item : (e.target.dataset && e.target.dataset.item);
+    if (!item || (btn && btn.disabled)) return;
+    const act = btn ? btn.dataset.act : e.target.dataset.act;
     if (act === "pick" || act === "versions") { openClaudeVersions(); return; }   // 卸载后重装、平时换版本：都走版本选单
     if (act === "uninstall") {
       const msg = item === "devkit"
@@ -352,15 +375,21 @@
     }
     if (act === "verify" || act === "repair") {
       if (act === "repair" && !confirm(t("修复开发工具包？\n\n会重新下载当前这一版你装着的部分（断点续传）并重装，装的时候暂停服务 1–2 分钟。\n你用 pip / npm -g 装进工具包的东西会被保留。"))) return;
-      const r = await post(act === "verify" ? "/api/app/upd_verify" : "/api/app/upd_repair", { full: true }).catch((e2) => ({ ok: false, message: e2.message }));
-      toast(r.message || (r.ok ? t("开始") : t("失败")), !r.ok);
-      followUpd(); setTimeout(loadUpd, 500);
+      if (btn) btn.disabled = true;
+      try {
+        const r = await post(act === "verify" ? "/api/app/upd_verify" : "/api/app/upd_repair", { full: true }).catch((e2) => ({ ok: false, message: e2.message }));
+        toast(r.message || (r.ok ? t("开始") : t("失败")), !r.ok);
+        followUpd(); updRev++; updLater(500);
+      } finally { if (btn && btn.isConnected) btn.disabled = false; }
       return;
     }
     if (item === "devkit" && !confirm(t("更新开发工具包？\n\n要下多少见这一项旁边标的大小（断点续传），装的时候会暂停服务 1–2 分钟。\n你用 pip / npm -g 装进工具包的东西会被保留。"))) return;
-    const r = await post("/api/app/upd_apply", { item }).catch((e2) => ({ ok: false, message: e2.message }));
-    toast(r.message || (r.ok ? t("开始") : t("失败")), !r.ok);
-    followUpd(); setTimeout(loadUpd, 500);
+    if (btn) btn.disabled = true;
+    try {
+      const r = await post("/api/app/upd_apply", { item }).catch((e2) => ({ ok: false, message: e2.message }));
+      toast(r.message || (r.ok ? t("开始") : t("失败")), !r.ok);
+      followUpd(); updRev++; updLater(500);
+    } finally { if (btn && btn.isConnected) btn.disabled = false; }
   });
   // ── 通知（只有 hachimia：GatewayService 订阅事件流发通知）──
   async function loadNotify() {

@@ -49,18 +49,23 @@ public class MainActivity extends Activity {
     // 但口令无论如何不写回磁盘。旧版本存在 shared_prefs 里的明文 k 启动时删掉
     static final String IK = "cc.ik";
     private static final String IK_ALIAS = "cc-ik";
+    private static final Object IK_LOCK = new Object();
     private static volatile String ikCache;
     static String intentKey(android.content.Context c) {
-        if (ikCache != null) return ikCache;
-        android.content.SharedPreferences sp = c.getSharedPreferences("intent", MODE_PRIVATE);
-        if (sp.contains("k")) sp.edit().remove("k").commit();   // 旧版的明文口令作废
-        String k = ikFromKeystore();
-        if (k == null) {
-            byte[] b = new byte[24]; new java.security.SecureRandom().nextBytes(b);
-            StringBuilder h = new StringBuilder(); for (byte x : b) h.append(String.format("%02x", x & 0xff));
-            k = h.toString();
+        String cached = ikCache;
+        if (cached != null) return cached;
+        synchronized (IK_LOCK) {
+            if (ikCache != null) return ikCache;
+            android.content.SharedPreferences sp = c.getSharedPreferences("intent", MODE_PRIVATE);
+            if (sp.contains("k")) sp.edit().remove("k").commit();   // 旧版的明文口令作废
+            String k = ikFromKeystore();
+            if (k == null) {
+                byte[] b = new byte[24]; new java.security.SecureRandom().nextBytes(b);
+                StringBuilder h = new StringBuilder(); for (byte x : b) h.append(String.format("%02x", x & 0xff));
+                k = h.toString();
+            }
+            return ikCache = k;
         }
-        return ikCache = k;
     }
     /** 从 Keystore 的 HMAC 密钥派生口令；设备不支持 / 密钥损坏时返回 null，由调用方退回内存随机 */
     private static String ikFromKeystore() {
@@ -1172,33 +1177,36 @@ public class MainActivity extends Activity {
     /** 更新卡片的「从本地文件安装」：选好文件后切到进度页，认身份、替换，装完回到界面 */
     private void applyLocalDevkitUi(Uri uri) {
         Updater upd = Updater.get(this);
+        if (!DEVKIT_APPLYING.compareAndSet(false, true)) return;
         new Thread(() -> {
-            if (Updater.gatewayBusy() || upd.devkitMoving()) {
-                ui.post(() -> android.widget.Toast.makeText(this, Tr.t("有任务正在跑，等它结束再更新开发工具包"), android.widget.Toast.LENGTH_LONG).show());
-                return;
-            }
-            CountDownLatch shown = new CountDownLatch(1);
-            ui.post(() -> {
-                if (web != null) { web.destroy(); web = null; }
-                booted = false;
-                buildSetupUi();
-                shown.countDown();
-            });
             try {
-                if (!awaitShown(shown)) return;
-                say(Tr.t("从本地文件安装开发工具包…"));
-                boolean done = installLocal(new Installer(env, new Installer.Progress() {
-                    public void step(String m) { say(m); }
-                    public void bytes(long d, long t) { progress(d, t); }
-                }), uri, true);
-                if (done) say(Tr.t("✓ 开发工具包已更新，等待网关…"));
-            } catch (Exception e) {
-                say("✗ " + e.getMessage());
-                say(Tr.t("（旧的工具包已经不在了的话，划掉应用重新打开会重新安装）"));
-                try { Thread.sleep(4000); } catch (InterruptedException ignored) {}
-            }
-            try { waitGateway(true); } catch (InterruptedException ignored) {}
-            ui.post(() -> { if (!isDestroyed()) { showWeb(); booted = true; } });
+                if (Updater.gatewayBusy() || upd.devkitMoving()) {
+                    ui.post(() -> android.widget.Toast.makeText(this, Tr.t("有任务正在跑，等它结束再更新开发工具包"), android.widget.Toast.LENGTH_LONG).show());
+                    return;
+                }
+                CountDownLatch shown = new CountDownLatch(1);
+                ui.post(() -> {
+                    if (web != null) { web.destroy(); web = null; }
+                    booted = false;
+                    buildSetupUi();
+                    shown.countDown();
+                });
+                try {
+                    if (!awaitShown(shown)) return;
+                    say(Tr.t("从本地文件安装开发工具包…"));
+                    boolean done = installLocal(new Installer(env, new Installer.Progress() {
+                        public void step(String m) { say(m); }
+                        public void bytes(long d, long t) { progress(d, t); }
+                    }), uri, true);
+                    if (done) say(Tr.t("✓ 开发工具包已更新，等待网关…"));
+                } catch (Exception e) {
+                    say("✗ " + e.getMessage());
+                    say(Tr.t("（旧的工具包已经不在了的话，划掉应用重新打开会重新安装）"));
+                    try { Thread.sleep(4000); } catch (InterruptedException ignored) {}
+                }
+                try { waitGateway(true); } catch (InterruptedException ignored) {}
+                ui.post(() -> { if (!isDestroyed()) { showWeb(); booted = true; } });
+            } finally { DEVKIT_APPLYING.set(false); }
         }, "devkit-local").start();
     }
 
@@ -1229,26 +1237,32 @@ public class MainActivity extends Activity {
                 }
                 return;
             }
-            CountDownLatch shown = new CountDownLatch(1);
-            ui.post(() -> {
-                if (web != null) { web.destroy(); web = null; }
-                booted = false;
-                buildSetupUi();
-                shown.countDown();
-            });
-            try {
-                if (!awaitShown(shown)) return;
-                say(Tr.t("卸载开发工具包…"));
-                GatewayService.pause(true);
-                try { ins.uninstallDevkit(); }
-                finally { GatewayService.pause(false); }
-                Ledger.add(env, "uninstall", true, Tr.t("卸载开发工具包"), null);
-                say(Tr.t("✓ 已卸载。接下来重新安装开发工具包："));
-            } catch (Exception e) {
-                Ledger.add(env, "uninstall", false, e.getMessage(), null);
-                say("✗ " + e.getMessage());
+            if (!DEVKIT_APPLYING.compareAndSet(false, true)) {
+                toast(Tr.t("有任务正在跑，等它结束再卸载"));
+                return;
             }
-            ui.post(() -> { if (!isDestroyed()) boot(); });
+            try {
+                CountDownLatch shown = new CountDownLatch(1);
+                ui.post(() -> {
+                    if (web != null) { web.destroy(); web = null; }
+                    booted = false;
+                    buildSetupUi();
+                    shown.countDown();
+                });
+                try {
+                    if (!awaitShown(shown)) return;
+                    say(Tr.t("卸载开发工具包…"));
+                    GatewayService.pause(true);
+                    try { ins.uninstallDevkit(); }
+                    finally { GatewayService.pause(false); }
+                    Ledger.add(env, "uninstall", true, Tr.t("卸载开发工具包"), null);
+                    say(Tr.t("✓ 已卸载。接下来重新安装开发工具包："));
+                } catch (Exception e) {
+                    Ledger.add(env, "uninstall", false, e.getMessage(), null);
+                    say("✗ " + e.getMessage());
+                }
+                ui.post(() -> { if (!isDestroyed()) boot(); });
+            } finally { DEVKIT_APPLYING.set(false); }
         }, "uninstall").start();
     }
 
@@ -1307,9 +1321,12 @@ public class MainActivity extends Activity {
      *  show：把取回的进度显示在启动页上，并说明断了会续传、别关应用 */
     private void waitGateway(boolean show) throws InterruptedException {
         String shown = null;
-        for (int i = 0; i < 120 && !ping(); ) {
+        long elapsedMs = 0;
+        long lastTick = android.os.SystemClock.elapsedRealtime();
+        while (elapsedMs < 60_000L && GatewayService.gwBlocked == null && !isDestroyed() && !ping()) {
+            long now = android.os.SystemClock.elapsedRealtime();
             String st = GatewayService.gwFetchStep;
-            if (st == null) i++;
+            if (st == null) elapsedMs += Math.max(0, now - lastTick);
             else if (show) {
                 if (!st.equals(shown)) {
                     if (shown == null) say(Tr.t("网关自己的运行库和安装包对不上，正在联网取回（下载断了会接着下，请别关掉应用）"));
@@ -1318,6 +1335,8 @@ public class MainActivity extends Activity {
                 long d = GatewayService.gwFetchDone, t = GatewayService.gwFetchTotal;
                 if (t > 0) progress(d, t);
             }
+            lastTick = now;
+            if (elapsedMs >= 60_000L || GatewayService.gwBlocked != null || isDestroyed()) break;
             Thread.sleep(500);
         }
     }
@@ -1347,8 +1366,9 @@ public class MainActivity extends Activity {
         try {
             AppFiles.deploy(this, env.app);
         } finally {
-            // 守护线程若恰好在 pause 前一刻已经在拉 node，这里再杀一次，保证起来的一定是新文件
-            GatewayService.pause(true);
+            // 守护线程若恰好在 pause 前一刻已经在拉 node，这里再杀一次，保证起来的一定是新文件。
+            // 必须用 pauseKick：pause(true) 是引用计数，再调一次却没有配对的 pause(false) 会让网关永远停在暂停里
+            GatewayService.pauseKick();
             GatewayService.pause(false);
         }
     }
@@ -1486,8 +1506,8 @@ public class MainActivity extends Activity {
     private void pushInsets() {
         if (web == null) return;
         float d = getResources().getDisplayMetrics().density;
-        web.evaluateJavascript("document.documentElement.style.setProperty('--safe-t','" + insetTop / d + "px');"
-            + "document.documentElement.style.setProperty('--safe-b','" + insetBot / d + "px')", null);
+        web.evaluateJavascript(guarded("pushInsets", "var r=document.documentElement;if(r){r.style.setProperty('--safe-t','" + insetTop / d + "px');"
+            + "r.style.setProperty('--safe-b','" + insetBot / d + "px')}"), null);
         pushFold();
     }
     /** 折痕交给页面：html[data-fold=none|flat|half]、data-fold-dir=v（竖折痕，左右分）|h（横折痕，上下分），
@@ -1770,7 +1790,8 @@ public class MainActivity extends Activity {
                 return shouldOverrideUrlLoading(v, req.getUrl().toString());
             }
             @Override public boolean shouldOverrideUrlLoading(WebView v, String url) {
-                // 网关起不来时的等待页 / 拦截页上的两个自救链接（页面不许跑脚本，只能靠跳转）。都只是弹原生对话框，谁点的都一样要用户确认
+                // 网关起不来时的等待页 / 拦截页上的自救链接（页面不许跑脚本，只能靠跳转）。重置 / 诊断弹原生对话框确认；重试清限流再连
+                if (RESCUE_RETRY.equals(url)) { java.util.Arrays.fill(recoverAt, 0); recovering = false; recoverGateway(true); return true; }
                 if (RESCUE_RESET.equals(url)) { askFactoryReset(); return true; }
                 if (RESCUE_LOGS.equals(url)) { stuck.performClick(); return true; }
                 if (isOwnGateway(url)) return false;
@@ -1806,7 +1827,7 @@ public class MainActivity extends Activity {
                     if (p == null || p.isEmpty()) p = "/";
                     if (!p.startsWith("/api/")) {
                         android.webkit.WebResourceResponse r = Env.fetchStatic(p + (u.getEncodedQuery() != null ? "?" + u.getEncodedQuery() : ""));
-                        if (r != null) {
+                        if (r != null && (!req.isForMainFrame() || r.getStatusCode() == 200)) {
                             if (req.isForMainFrame()) waitingShown = false;   // 真页面到了：等待页的状态可以清掉
                             return r;
                         }
@@ -1975,9 +1996,10 @@ public class MainActivity extends Activity {
                 boolean ok = false;
                 try {
                     java.net.HttpURLConnection c = Env.gateway("/api/file?path=" + Uri.encode(p));
-                    c.setConnectTimeout(3000); c.setReadTimeout(3000);
-                    ok = c.getResponseCode() == 200;
-                    c.disconnect();
+                    try {
+                        c.setConnectTimeout(3000); c.setReadTimeout(3000);
+                        ok = c.getResponseCode() == 200;
+                    } finally { c.disconnect(); }
                 } catch (Exception ignored) {}
                 final boolean pass = ok;
                 ui.post(() -> { if (pass) startSaveAs(p, new File(p).getName(), mime); else savedJs(false, "forbidden"); });
@@ -2019,10 +2041,31 @@ public class MainActivity extends Activity {
                 jsDialog(fromPage(url, msg), true, def == null ? "" : def, r, r); return true;
             }
         });
-        // 网关换了一个（重启、崩溃重拉）：它只认按新启动号派生的 Cookie，这里种上，界面的事件总线重连时就接上了（审查 S1）
-        Env.onBoot = myOnBoot = (v) -> ui.post(() -> applyGatewayCookie(v, () -> {
-            if (squatShown || waitingShown) { squatShown = false; waitingShown = false; loadUi(); }
-        }));
+        // 网关换了一个（重启、崩溃重拉）：它只认按新启动号派生的 Cookie，这里当场同步入内存 CookieStore（SQLite 刷盘延后异步），
+        // 避免放行首个 /api/* 时还带着旧 Cookie 吃 401，也不卡 UI 首帧（审查 S1）
+        Env.onBoot = myOnBoot = (v) -> {
+            android.webkit.CookieManager cm = android.webkit.CookieManager.getInstance();
+            cm.setAcceptCookie(true);
+            String mainUrl = "http://" + Env.HOST + ":" + Env.PORT;
+            String oldUrl = "http://" + ("127.0.0.1".equals(Env.HOST) ? "127.0.0.2" : "127.0.0.1") + ":" + Env.PORT;
+            String mainCookie = "cc_t_" + Env.PORT + "=" + v + "; Path=/; HttpOnly; SameSite=Strict";
+            String oldCookie = "cc_t_" + Env.PORT + "=; Path=/; Max-Age=0";
+            if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+                cm.setCookie(mainUrl, mainCookie);
+                cm.setCookie(oldUrl, oldCookie);
+                ui.postDelayed(cm::flush, 250);
+            } else {
+                java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+                cm.setCookie(oldUrl, oldCookie, null);
+                cm.setCookie(mainUrl, mainCookie, ok -> latch.countDown());
+                try { latch.await(300, java.util.concurrent.TimeUnit.MILLISECONDS); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+                ui.postDelayed(cm::flush, 250);
+            }
+            ui.post(() -> {
+                if (uiLoading) { bootSeenWhileLoading = true; return; }
+                if (squatShown || waitingShown) { squatShown = false; waitingShown = false; loadUi(); }
+            });
+        };
         // 守护线程核过 /proc、确认端口被别的应用占着：正开着的界面（或等待页）换成说明页；网关起来后（onBoot）再接回界面
         GatewayService.onSquat = mySquat = () -> ui.post(() -> { if (web != null && !squatShown && (waitingShown || isOwnGateway(web.getUrl()))) showSquatted(); });
         loadUi();
@@ -2143,8 +2186,11 @@ public class MainActivity extends Activity {
     }
     private String waitingHtml() {
         boolean night = systemNight();
+        String link = night ? "#8fb4ff" : "#2a5db0";
         return "<!doctype html><meta charset=utf-8><meta name=viewport content=\"width=device-width\"><body style=\"margin:0;height:100vh;display:flex;align-items:center;justify-content:center;font:15px sans-serif;"
-            + (night ? "background:#1b1b1b;color:#bbb" : "background:#fafafa;color:#555") + "\"><div style=\"text-align:center\">" + android.text.TextUtils.htmlEncode(Tr.t("等待网关…")) + rescueLinks(night ? "#8fb4ff" : "#2a5db0") + "</div></body>";
+            + (night ? "background:#1b1b1b;color:#bbb" : "background:#fafafa;color:#555") + "\"><div style=\"text-align:center\">" + android.text.TextUtils.htmlEncode(Tr.t("等待网关…"))
+            + "<p style=\"font-size:14px;margin-top:20px\"><a style=\"color:" + link + "\" href=\"" + RESCUE_RETRY + "\">" + android.text.TextUtils.htmlEncode(Tr.t("重新载入")) + "</a></p>"
+            + rescueLinks(link) + "</div></body>";
     }
     private android.webkit.WebResourceResponse waitingPage() {
         java.util.Map<String, String> h = new java.util.HashMap<>();
@@ -2168,52 +2214,26 @@ public class MainActivity extends Activity {
         loadUi();
     }
 
-    private String appliedGatewayCookie = "";
-
-    /** 异步写入网关会话 Cookie，待 Chromium 内存 CookieStore 确认生效后立即执行回调，再延迟刷盘，避免阻塞首启 loadUrl */
-    private void applyGatewayCookie(String v, Runnable then) {
-        if (v == null || v.isEmpty()) {
-            if (then != null) then.run();
-            return;
-        }
-        if (v.equals(appliedGatewayCookie)) {
-            if (then != null) then.run();
-            return;
-        }
-        android.webkit.CookieManager cm = android.webkit.CookieManager.getInstance();
-        cm.setAcceptCookie(true);
-        // 旧版种在另一个界面地址上的那份清掉：网关已经不认了，留着只会被别的端口收走。
-        // 回退设备上界面就在 127.0.0.1（Env.checkHost），清的是旧版留在 127.0.0.2 上的死值（复核报告发现 #2）
-        cm.setCookie("http://" + ("127.0.0.1".equals(Env.HOST) ? "127.0.0.2" : "127.0.0.1") + ":" + Env.PORT,
-            "cc_t_" + Env.PORT + "=; Path=/; Max-Age=0", null);
-        cm.setCookie("http://" + Env.HOST + ":" + Env.PORT,
-            "cc_t_" + Env.PORT + "=" + v + "; Path=/; HttpOnly; SameSite=Strict",
-            ok -> {
-                appliedGatewayCookie = v;
-                if (then != null) then.run();
-                // 内存 CookieStore 已就绪可立即导航，SQLite 刷盘延后异步执行，不卡 UI 线程首帧
-                ui.postDelayed(cm::flush, 250);
-            });
-    }
+    private final java.util.concurrent.atomic.AtomicInteger uiLoadGen = new java.util.concurrent.atomic.AtomicInteger();
+    private volatile boolean uiLoading;
+    private volatile boolean bootSeenWhileLoading;
 
     /** 打开界面。地址里带着令牌和桥口令，先在后台核网关身份，过了才交出去（审查 S1）；
      *  端口上没人在听就照旧打开（只会显示连不上，什么也漏不出去）；有人在听却证明不了自己，换成一页说明 */
     private void loadUi() {
+        final int gen = uiLoadGen.incrementAndGet();
+        uiLoading = true;
+        bootSeenWhileLoading = false;
         new Thread(() -> {
             Env.resetBoot();       // 这一次核身份一定回调 onBoot，种好 Cookie 再加载
             boolean proved = Env.proveGateway();
-            String cookie = proved ? Env.currentCookie() : "";
             int decision = uiPageDecision(proved, !proved && Env.portBusy(), GatewayService.gwBlocked != null);
             ui.post(() -> {
+                if (gen != uiLoadGen.get()) return;
+                uiLoading = false;
                 if (web == null) return;
-                if (decision == UI_LOAD) {
-                    applyGatewayCookie(cookie, () -> {
-                        if (web == null) return;
-                        waitingShown = false;
-                        web.loadUrl(Env.uiUrl());
-                    });
-                    return;
-                }
+                if (decision == UI_LOAD) { bootSeenWhileLoading = false; squatShown = false; waitingShown = false; web.loadUrl(Env.uiUrl()); return; }
+                if (bootSeenWhileLoading && decision != UI_SQUAT) { bootSeenWhileLoading = false; loadUi(); return; }
                 // 运行库对不上：原因已经确定，直接给说明页
                 if (decision == UI_SQUAT) { showSquatted(); return; }
                 // 端口上有人答话、但这次启动证明不了它：先停在「等待网关」。
@@ -2256,7 +2276,7 @@ public class MainActivity extends Activity {
     private boolean squatShown;
 
     // ── 恢复初始设置（FactoryReset）：入口在设置页排障栏、启动页「我卡住了」、网关起不来时的等待页 ──
-    private static final String RESCUE_RESET = "hachimia-rescue:reset", RESCUE_LOGS = "hachimia-rescue:logs";
+    private static final String RESCUE_RETRY = "hachimia-rescue:retry", RESCUE_RESET = "hachimia-rescue:reset", RESCUE_LOGS = "hachimia-rescue:logs";
     private static String rescueLinks(String color) {
         String a = "style=\"color:" + color + ";display:inline-block;margin:10px 12px 0\"";
         return "<p style=\"font-size:14px;margin-top:28px\"><a " + a + " href=\"" + RESCUE_LOGS + "\">" + android.text.TextUtils.htmlEncode(Tr.t("我卡住了：分享诊断")) + "</a>"
@@ -2444,7 +2464,7 @@ public class MainActivity extends Activity {
             pane = new BrowserPane(this, new BrowserPane.Host() {
                 @Override public void onPaneClose() { closePane(true); }
                 // json 已经是 evaluateJavascript 编好的 JS 字符串字面量，原样当参数传，界面那边再 JSON.parse、只取文字
-                @Override public void onPicked(String json) { if (web != null) web.evaluateJavascript("window.__ccPickIn&&__ccPickIn(" + json + ")", null); }
+                @Override public void onPicked(String json) { if (web != null) web.evaluateJavascript(guarded("__ccPickIn", "window.__ccPickIn&&__ccPickIn(" + json + ")"), null); }
             }, 9);
             pane.setVisibility(View.GONE);               // 等页面报来位置再显示，免得先闪一下全屏
             root.addView(pane, new FrameLayout.LayoutParams(0, 0));

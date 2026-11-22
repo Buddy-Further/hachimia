@@ -294,11 +294,13 @@
 
   /** 成功返回 true，失败返回错误（同 loadSessions，「刷新列表」在回收站里刷的是回收站） */
   async function loadTrash() {
+    const ok = latest("trash");
     let ret = true;
     try {
       const r = await api("/api/trash");
+      if (!ok()) return ret;
       sess.trash = r.items || []; sess.keepDays = r.keepDays || 30; sess.trashErr = "";
-    } catch (e) { sess.trashErr = e.message || String(e); ret = e; }
+    } catch (e) { if (!ok()) return e; sess.trashErr = e.message || String(e); ret = e; }
     renderSessions();
     return ret;
   }
@@ -392,7 +394,7 @@
       toast(!r.failed.length ? t("已移进回收站")
         : !nGone ? t("{n} 个已删除，{m} 个正在生成没删", { n: r.done.length, m: nBusy })
         : !nBusy ? t("{n} 个已删除，{m} 个已经不在了（别处删了或已在回收站）", { n: r.done.length, m: nGone })
-        : t("{n} 个已删除，{m} 个正在生成没删，{k} 个已经不在了", { n: r.done.length, m: nBusy, k: nGone }), true);
+        : t("{n} 个已删除，{m} 个正在生成没删，{k} 个已经不在了", { n: r.done.length, m: nBusy, k: nGone }), !!r.failed.length);
       sess.mode = "list"; sess.sel.clear(); loadSessions();
       return;
     }

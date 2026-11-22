@@ -40,5 +40,5 @@ test("D-02 源码：网关不再含 claude auth login，前端透传 method", ()
   assert.doesNotMatch(gw, /claude auth login/);
   const fe = fs.readFileSync(path.join(ROOT, "gateway", "web", "app", "18-terminal.js"), "utf8");
   assert.doesNotMatch(fe, /method === "console" \? "console" : true/);
-  assert.match(fe, /newTerm\(\{\s*login:\s*method\s*\}\)/);
+  assert.match(fe, /newTerm\(\{[^}]*\blogin:\s*method\b[^}]*\}\)/);
 });

@@ -33,14 +33,23 @@ function fpOf(...files) {
     catch { return f + ":-"; }
   }).join("|");
 }
-
-function sha256(f) {
-  const h = crypto.createHash("sha256"), fd = fs.openSync(f, "r"), b = Buffer.alloc(4 << 20);
-  try { let n; while ((n = fs.readSync(fd, b, 0, b.length)) > 0) h.update(b.subarray(0, n)); }
-  finally { fs.closeSync(fd); }
+async function sha256Async(f) {
+  const h = crypto.createHash("sha256");
+  const fh = await fs.promises.open(f, "r");
+  const b = Buffer.alloc(2 << 20);
+  try {
+    let pos = 0;
+    while (true) {
+      const { bytesRead } = await fh.read(b, 0, b.length, pos);
+      if (!bytesRead) break;
+      h.update(b.subarray(0, bytesRead));
+      pos += bytesRead;
+    }
+  } finally { await fh.close().catch(() => {}); }
   return h.digest("hex");
 }
 
+const SEAL_INFLIGHT = new Map();
 /**
  * 返回 { ok: true }（校验通过）/ { ok: false, why }（检测到篡改或不符）/ { ok: null, why }（开发模式或无清单，放行）。
  */
@@ -54,32 +63,37 @@ export async function claudeSeal(bin0 = PATHS.agy || PATHS.claude, { force = fal
   let fresh = false;
   try { fresh = Date.now() - fs.statSync(bin).ctimeMs <= 2000; } catch {}
   if (cache.fp === fp && cache.res && !fresh) return cache.res;
-
-  let res;
-  if (fs.existsSync(path.join(dir, ".mismatch"))) {
-    res = { ok: false, why: "recheck found agy binary does not match manifest" };
-  } else if (!fs.existsSync(mf)) {
-    res = { ok: null, why: "no local manifest" };
-  } else {
-    try {
-      const j = JSON.parse(fs.readFileSync(mf, "utf8"));
-      const want = j && typeof j.sha256 === "string" ? j.sha256 : "";
-      if (!/^[a-f0-9]{64}$/.test(want)) {
-        res = { ok: null, why: "manifest has no sha256" };
-      } else if (sha256(bin) !== want) {
-        res = { ok: false, why: "agy binary sha256 mismatch" };
-      } else {
-        res = { ok: true, version: j.version || (isVer(path.basename(dir)) ? path.basename(dir) : "unknown") };
+  const flightKey = `${bin}|${home}|${fp}|${force ? 1 : 0}`;
+  if (SEAL_INFLIGHT.has(flightKey)) return SEAL_INFLIGHT.get(flightKey);
+  const run = (async () => {
+    let res;
+    if (fs.existsSync(path.join(dir, ".mismatch"))) {
+      res = { ok: false, why: "recheck found agy binary does not match manifest" };
+    } else if (!fs.existsSync(mf)) {
+      res = { ok: null, why: "no local manifest" };
+    } else {
+      try {
+        const j = JSON.parse(await fs.promises.readFile(mf, "utf8"));
+        const want = j && typeof j.sha256 === "string" ? j.sha256 : "";
+        if (!/^[a-f0-9]{64}$/.test(want)) {
+          res = { ok: null, why: "manifest has no sha256" };
+        } else if ((await sha256Async(bin)) !== want) {
+          res = { ok: false, why: "agy binary sha256 mismatch" };
+        } else {
+          res = { ok: true, version: j.version || (isVer(path.basename(dir)) ? path.basename(dir) : "unknown") };
+        }
+      } catch (e) {
+        res = { ok: null, why: "manifest read error: " + e.message };
       }
-    } catch (e) {
-      res = { ok: null, why: "manifest read error: " + e.message };
     }
-  }
 
-  if (res.ok === false && !(cache.res && cache.res.ok === false && cache.fp === fp)) {
-    log(`⚠️ [Antigravity CLI 核验] ${bin}：${res.why}`);
-    tamperRecord("agy", [`${path.basename(dir)}/agy: ${res.why}`]);
-  }
-  cache = { fp, res };
-  return res;
+    if (res.ok === false && !(cache.res && cache.res.ok === false && cache.fp === fp)) {
+      log(`⚠️ [Antigravity CLI 核验] ${bin}：${res.why}`);
+      tamperRecord("agy", [`${path.basename(dir)}/agy: ${res.why}`]);
+    }
+    cache = { fp, res };
+    return res;
+  })().finally(() => { if (SEAL_INFLIGHT.get(flightKey) === run) SEAL_INFLIGHT.delete(flightKey); });
+  SEAL_INFLIGHT.set(flightKey, run);
+  return run;
 }

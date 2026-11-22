@@ -923,7 +923,7 @@ window.I18N_DICT.en = {
   "系统估算（自上次充满，{ago}）：整机已用 {used} mAh，本应用没有记录。": "System estimate (since last full charge, {ago}): the device used {used} mAh; nothing recorded for this app.",
   "安卓把亮屏时的屏幕耗电记在前台应用头上，开着看得越久排名越靠前；CPU 那部分才是应用自己干活用掉的。{time} 查询。": "Android charges screen power to whichever app is in the foreground, so the longer an app stays open the higher it ranks; the CPU part is what the app itself used. Checked {time}.",
   "正在向系统查询…": "Asking the system…",
-  "查不到：{msg}（要先在上面开好 Shizuku）": "Couldn't get it: {msg} (set up Shizuku above first)",
+  "查不到：{msg}（要先到 设置 → 设备与权限 开好 Shizuku）": "Couldn't get it: {msg} (set up Shizuku in Settings → Device & permissions first)",
   "没拿到数据": "No data returned",
   "今天": "Today",
   "7 天内": "Previous 7 days",

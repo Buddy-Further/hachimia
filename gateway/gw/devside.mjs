@@ -139,11 +139,15 @@ if (!PREFIX) {
 if (PREFIX && process.env.CCAPP_BIN) {
   const dest = path.join(CFG.home, ".local", "share", "hachimia", "agy");
   const script = path.join(process.env.CCAPP_BIN, "..", "scripts", "install-agy.mjs");
+  let rechecking = false;
   const recheck = () => {
+    if (rechecking) return;
     let pending = false;
     try { pending = fs.readdirSync(dest).some((d) => /^\d/.test(d) && fs.existsSync(path.join(dest, d, "agy")) && (fs.existsSync(path.join(dest, d, ".mismatch")) || !fs.existsSync(path.join(dest, d, "manifest.json")))); } catch {}
     if (!pending || !fs.existsSync(script)) return;
+    rechecking = true;
     execFile(path.join(PREFIX, "bin", "node"), [script, "--recheck"], { env: termEnv(), timeout: 600000 }, (e, out) => {
+      rechecking = false;
       const msg = String(out || "").trim();
       if (msg) log("[agy 补核] " + msg.replace(/\n/g, "；"));
       if (e && e.code === 3) ledger("verify", false, "Antigravity CLI 与本地清单 sha256 不符", msg);
@@ -205,28 +209,34 @@ async function devApp(op, b) {
 
 // ── Antigravity CLI (agy) 版本清单：查官方 android manifest + 本机已装版本目录 ──
 let ccVersions = { at: 0, data: null };
+let ccVersionsInFlight = null;
 async function claudeVersions(force) {
   if (!force && ccVersions.data && Date.now() - ccVersions.at < 600e3) return ccVersions.data;
-  const manifestBase = process.env.HACHIMIA_AGY_MANIFEST_BASE || "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests";
-  const arch = process.arch === "arm64" ? "arm64" : "amd64";
-  const url = `${manifestBase}/android_${arch}.json`;
-  let latest = "", err = "";
-  try {
-    const r = await fetch(url, { signal: AbortSignal.timeout(12000) });
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    const j = await r.json();
-    if (typeof j?.version === "string" && /^\d+\.\d+\.\d+/.test(j.version)) latest = j.version.trim();
-  } catch (e) { err = e.message; }
-  const set = new Set();
-  if (latest) set.add(latest);
-  const dest = path.join(CFG.home, ".local", "share", "hachimia", "agy");
-  try {
-    for (const d of fs.readdirSync(dest)) if (/^\d+\.\d+\.\d+/.test(d)) set.add(d);
-  } catch {}
-  const versions = [...set].sort((a, b) => cmpVer(b, a));
-  const data = { ok: versions.length > 0, versions, stable: latest, latest, message: versions.length ? "" : tz("取不到 Antigravity CLI 版本列表：{err}", { err }) };
-  if (data.ok) ccVersions = { at: Date.now(), data };
-  return data;
+  if (ccVersionsInFlight) return ccVersionsInFlight;
+  const run = (async () => {
+    const manifestBase = process.env.HACHIMIA_AGY_MANIFEST_BASE || "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests";
+    const arch = process.arch === "arm64" ? "arm64" : "amd64";
+    const url = `${manifestBase}/android_${arch}.json`;
+    let latest = "", err = "";
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(12000) });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const j = await r.json();
+      if (typeof j?.version === "string" && /^\d+\.\d+\.\d+/.test(j.version)) latest = j.version.trim();
+    } catch (e) { err = e.message; }
+    const set = new Set();
+    if (latest) set.add(latest);
+    const dest = path.join(CFG.home, ".local", "share", "hachimia", "agy");
+    try {
+      for (const d of fs.readdirSync(dest)) if (/^\d+\.\d+\.\d+/.test(d)) set.add(d);
+    } catch {}
+    const versions = [...set].sort((a, b) => cmpVer(b, a));
+    const data = { ok: versions.length > 0, versions, stable: latest, latest, message: versions.length ? "" : tz("取不到 Antigravity CLI 版本列表：{err}", { err }) };
+    if (data.ok) ccVersions = { at: Date.now(), data };
+    return data;
+  })().finally(() => { if (ccVersionsInFlight === run) ccVersionsInFlight = null; });
+  ccVersionsInFlight = run;
+  return run;
 }
 
 // /api/app/* 各操作收哪些字段（对照 Priv.java、Updater.set、Notify.set、DeviceTools.set）

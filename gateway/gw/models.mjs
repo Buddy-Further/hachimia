@@ -478,7 +478,7 @@ export function dropModelCache() {
   CACHE_GEN++; MODELS = null; MODELS_AT = 0; MODELS_FOR = null; CACHE.clear();
   FETCH_INFLIGHT.clear(); AGY_RAW_INFLIGHT = null; clearAgyModelsDisk();
 }
-export function expireModelCache() { CACHE_GEN++; MODELS_AT = 0; for (const c of CACHE.values()) c.at = 0; }   // 在途的旧结果别把过期的又续上（复核 L1）
+export function expireModelCache() { CACHE_GEN++; MODELS_AT = 0; for (const c of CACHE.values()) c.at = 0; FETCH_INFLIGHT.clear(); }   // 在途的旧结果别把过期的又续上（复核 L1）
 
 /** p：哪家（缺省 = 全局生效的）。按家各缓存 10 分钟；全局那家的结果同时放进 MODELS。
  *  guess：自定义端口没填清单地址时去猜 /models。只在用户打开清单（面板、/model）时猜：开跑前要等清单，
@@ -498,9 +498,8 @@ async function fetchModelsOf(p, force, guess) {
     return list;
   };
   if (!force && c && c.at && Date.now() - c.at < 600000) return c.list;
-
   if (p.local) return keep(localModels(), false);   // 端侧：模型目录里有什么就是什么（每次现扫，刚放进去的文件马上能选）
-  const flightKey = !force ? `${p.id}|${sig}|${guess ? 1 : 0}` : null;
+  const flightKey = !force ? `${p.id}|${sig}|${guess ? 1 : 0}|${gen}` : null;
   if (flightKey && FETCH_INFLIGHT.has(flightKey)) return FETCH_INFLIGHT.get(flightKey);
 
   const work = (async () => {

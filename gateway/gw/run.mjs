@@ -24,7 +24,7 @@ import { latestContextTokens } from "./transcript.mjs";
 import { archiveHint } from "./archive.mjs";
 import { autoTitle } from "./autotitle.mjs";
 import { SUBAGENT_HINT, agentBook, takeAgentNote, putAgentNote, onShared, privateAgentsBase } from "./agents.mjs";
-import { findSessionFile, peekSession } from "./sessions.mjs";
+import { findSessionFile, isSessionRewinding, peekSession } from "./sessions.mjs";
 import { projectById, projectDefaults, projectOfDir } from "./projects.mjs";
 import { sessLostProvider, sessModel, sessProvider, setSessModel } from "./sessmodel.mjs";
 import { noteManaged } from "./sessmanaged.mjs";
@@ -33,7 +33,7 @@ import { pathWatch, previewHint, putPathNote, settlePathNote, takePathNote } fro
 import { claudeSeal, sealStillValid } from "./claudeseal.mjs";
 import { gwRuntimeBlocked } from "./gwpin.mjs";
 import { tamperNote, tamperRecord, tamperRetell } from "./tamper.mjs";
-import { SPOOF_NOTE, checkSession, integrityHint, integrityNote, neutralizeMarkers, sealSession, sessionAnchor } from "./integrity.mjs";
+import { SPOOF_NOTE, checkSessionAsync, integrityHint, integrityNote, neutralizeMarkers, sealSessionAsync, sessionAnchorAsync } from "./integrity.mjs";
 import { ruleblockHint } from "./ruleblock.mjs";
 import { recordExtra } from "./lineage-store.mjs";
 import { refNote, refNoteSync } from "./merge.mjs";
@@ -718,7 +718,12 @@ export async function startRun(item) {
   // 会话封签（见 integrity.mjs）：上一轮之后记录在应用外被改过、或是导入的，这一轮告诉模型别把那段历史当成自己说过的。
   // 起进程前核对：claude --resume 一起来就可能往文件里写
   const sfile = () => run.sessionId ? findSessionFile(String(run.sessionId), run.cwd)?.file : null;   // 按这一轮的目录找（F8）
-  let integ = checkSession(run.sessionId, sfile());
+  if (isSessionRewinding(run.sessionId)) {
+    const msg = tr(LAST_LANG, tz("这个会话正在生成中。"));
+    emit({ type: "error", message: msg });
+    return endRun(run, { failed: true, finalText: msg });
+  }
+  let integ = await checkSessionAsync(run.sessionId, sfile());
   let integNote = isCmd || P.local ? "" : integrityNote(integ);
   // 消息里提到档号（0ab2·61）：附上那一章的压缩摘要（见 merge.mjs refNote）。读不出来就算了，不挡这一轮
   const refN = isCmd || P.local ? "" : await refNote(message, run.sessionId).catch((e) => { log("档号引用失败: " + e.message); return ""; });
@@ -819,8 +824,8 @@ export async function startRun(item) {
   }
   // 会话封签起进程紧前再核一次：上面等卡片、核程序可能等很久，这期间记录被改了，这一轮就该带提醒（199-S-04）。
   // 同时拍底，收尾时核这一轮只是往后追加
-  if (!integ) { integ = checkSession(run.sessionId, sfile()); if (integ) integNote = isCmd || P.local ? "" : integrityNote(integ); }
-  run.sealBase = run.sessionId ? { sid: run.sessionId, ...sessionAnchor(sfile()) } : null;
+  if (!integ) { integ = await checkSessionAsync(run.sessionId, sfile()); if (integ) integNote = isCmd || P.local ? "" : integrityNote(integ); }
+  run.sealBase = run.sessionId ? { sid: run.sessionId, ...(await sessionAnchorAsync(sfile())) } : null;
   if (run.sealBase) saveRunMark();     // 底要进运行标记：这一轮被系统结束时，下次启动凭它重新封签（195-A.8）
   if (run.aborted || run.ended) { log("⏹ 起进程前已停止"); return endRun(run, { durationMs: 0 }); }
   try { promptFiles(argv, run.id, appendPrompt, subPrompt); }
@@ -885,15 +890,23 @@ export async function startRun(item) {
   // 这两条不分会话：没人看着的（定时任务）不取，留给用户下一次自己发的那轮
   const tamperN = isCmd || P.local || run.unattended ? "" : tamperNote(back.tamper);
   const ucN = back.uc = isCmd || P.local || run.unattended ? "" : ucTakeNote();
-  writeUser(withNotes(message, [tamperN, ucN, integNote, arch?.note, pathNote, refN].filter(Boolean).join("\n\n"), imgs0));
+  const textOf = (c) => (typeof c === "string" ? c : Array.isArray(c) ? c.filter((x) => x && x.type === "text").map((x) => x.text).join("\n") : "").trim();
+  const initContent = withNotes(message, [tamperN, ucN, integNote, arch?.note, pathNote, refN].filter(Boolean).join("\n\n"), imgs0);
+  const initText = textOf(initContent);
+  writeUser(initContent);
   run.inputOpen = true;
+  run.initReplayed = false;    // 本轮首条用户消息是否已收到 claude 的 isReplay 回显
+  let orphanTaskNotif = 0;     // 首条消息回显前见到的孤儿 <task-notification> 计数（--resume 遗留未完结后台任务）
+  let turnSawMainOutput = false; // 本轮主会话是否已见过正文/流式输出（区分 0 轮孤儿通知 result）
+  let bgDroppedMidTurn = false;  // 本轮进行中曾有后台任务自然清零：紧接着的 result 后留宽限等 <task-notification> 跟进轮次
   run.pendingInject = [];      // 已写进 stdin、还没被 claude 吃进去的插话
   run.slashFlight = [];        // 空闲时送进去的斜杠命令（见 run.inject）：等它的 result。只在空闲时送，同时最多一条
   run.slashMark = { seen: false, bg: false, yielded: false };   // 那条命令有没有动静（回显、压缩事件、<synthetic> 输出）、送进去后后台任务有没有变
   const WROTE = new WeakMap();  // 普通插话 → 写进 stdin 的文字（回显按它认，别按内容猜成斜杠命令的，复核 v067b-1）
-  const textOf = (c) => (typeof c === "string" ? c : Array.isArray(c) ? c.filter((x) => x && x.type === "text").map((x) => x.text).join("\n") : "").trim();
   run.bgTasks = 0;             // claude 报的后台任务数（见 feed）
   run.bgList = [];             // 后台任务明细：{ id, type, desc }（shell / 子代理 / monitor / 工作流），界面列出来、可单独停
+  let bgIds = [];              // 完整后台任务 id 列表（不受 bgList 30 条上限影响），用于区分是不是全部由 stop_task 停掉
+  run.stopIds = new Set();     // 用户经 stop_task 主动请求停止的任务 id
   run.replays = 0;
   run.usageTools = new Set();   // 使用统计：本轮见过的工具调用（流式会重复报同一个）
   let subDir = null;
@@ -938,9 +951,17 @@ export async function startRun(item) {
     try { writeUser(content); } catch { return false; }
     WROTE.set(item, textOf(content));
     run.pendingInject.push(item);
-    // 空闲轮次的收尾定时器（6 秒 / IDLE_CLOSE_MS）要撤掉：claude 吃进这条、吐出第一个事件之前它到点了，
-    // 就会把 stdin 关掉，这一轮被打断、之后的工具确认也写不进去（0.6.9 审计 195-W.3）。这一轮的 result 之后照常判断收尾
+    // 空闲轮次的收尾定时器（6 秒 / IDLE_CLOSE_MS）要撤掉，并立刻切回忙态、标记上次 result 已过期：
+    // 否则在 claude 吐出下一轮首个事件前，armIdleClose 或意外退出仍会把它当成空闲已完结轮次提前关 stdin / 拿旧 result 顶替
     if (run.idleClose) { clearTimeout(run.idleClose); run.idleClose = null; }
+    if (run.idle) {
+      run.idle = false;
+      resultStale = true;
+      run.stopAsked = false;
+      run.stopIds.clear();
+      emit({ type: "run_busy", startedAt: Date.now() });
+      publishState();
+    }
     saveRunMark();     // 马上落盘：送达前 App 被强停，下次启动它还能回到队列里，不会凭空消失
     log(`↪ 插话 ${promptLogLine(item.message, false)}`);
     return true;
@@ -956,8 +977,28 @@ export async function startRun(item) {
   let ctlN = 0;
   run.setMode = (mode) => { run.permMode = mode; return run.inputOpen && writeCtl({ type: "control_request", request_id: "ccapp-" + (++ctlN), request: { subtype: "set_permission_mode", mode } }); };
   // 停掉一个后台任务（stop_task 控制请求；claude 停完会再报一次 background_tasks_changed）
-  run.stopTask = (taskId) => run.inputOpen && run.bgList.some((t) => t.id === taskId) &&
-    writeCtl({ type: "control_request", request_id: "ccapp-" + (++ctlN), request: { subtype: "stop_task", task_id: taskId } }) && (run.stopAsked = true);
+  run.stopTask = (taskId) => {
+    if (!run.inputOpen || !run.bgList.some((t) => t.id === taskId)) return false;
+    if (!writeCtl({ type: "control_request", request_id: "ccapp-" + (++ctlN), request: { subtype: "stop_task", task_id: taskId } })) return false;
+    run.stopIds.add(String(taskId));
+    run.stopAsked = true;
+    return true;
+  };
+  const closeInput = () => {
+    if (!run.inputOpen || run.perms.size) return;
+    run.inputOpen = false;
+    try { child.stdin.end(); } catch {}
+  };
+  const armIdleClose = () => {
+    clearTimeout(run.idleClose);
+    run.idleClose = null;
+    if (run.idle && !run.bgTasks && !run.perms.size && !run.pendingInject.length && !run.slashFlight.length && !run.ended && run.inputOpen) {
+      run.idleClose = setTimeout(() => {
+        if (run.idle && !run.bgTasks && !run.perms.size && !run.pendingInject.length && !run.slashFlight.length && !run.ended) closeInput();
+      }, run.stopAsked ? 6000 : IDLE_CLOSE_MS);
+      run.idleClose.unref?.();
+    }
+  };
   run.answerPerm = (id, a) => {
     const p = run.perms.get(id);
     if (!p || run.ended || run.aborted) return false;
@@ -1043,12 +1084,7 @@ export async function startRun(item) {
       log(`${runTag(run)} ↩ 不支持的控制请求 ${String(r.subtype || "?")}（${id}），回了 error`);
       writeCtl({ type: "control_response", response: { subtype: "error", request_id: id, error: `unsupported: ${r.subtype}` } });
     }
-  };
-
-  const closeInput = () => {
-    if (!run.inputOpen || run.perms.size) return;
-    run.inputOpen = false;
-    try { child.stdin.end(); } catch {}
+    armIdleClose();
   };
 
   // lastResult 只证明「它那一轮」答完了：后台回报 / 插话会在同一进程里再起一轮，
@@ -1120,7 +1156,21 @@ export async function startRun(item) {
       return;
     }
     if (rk) { seenResults.add(rk); if (seenResults.size > 200) seenResults.delete(seenResults.keys().next().value); }
+    // --resume 恢复留有未完结后台任务的会话时，claude 启动会先出队一条孤儿 <task-notification>，
+    // 在首条用户消息尚未回显前就吐出 0 轮空 result；此时绝不能 closeInput()，否则紧接着执行的
+    // 真正用户轮次全程在已关闭的 stdin 下运行，一触发 cc-guard 确认就报 AbortError: Stream closed。
+    const orphanEmpty = !isCmd && !run.initReplayed && !r.is_error && !turnSawMainOutput && (
+      orphanTaskNotif > 0 || (Number(r.num_turns) === 0 && !String(r.result || "").trim())
+    );
+    if (orphanEmpty) {
+      if (orphanTaskNotif > 0) orphanTaskNotif--;
+      bgDroppedMidTurn = false;
+      resultStale = true;
+      log(`${runTag(run)} ↺ 跳过首条用户消息送达前的孤儿通知 result，保持 stdin 打开`);
+      return;
+    }
     lastResult = r; resultStale = false;
+    turnSawMainOutput = false;
     // 这一轮走到了结果（答完或报错）：不再是「没跑完」（FIND-040）
     clearIncomplete(run.sessionId);
     if (run.intrPending && !r.is_error) { run.intrPending = false; clearInterrupted(run.sessionId); }
@@ -1148,8 +1198,29 @@ export async function startRun(item) {
         return;
       }
     }
-    if (run.pendingInject.length || run.slashFlight.length) { resultStale = true; return; }   // 插话还没送到 / 命令还没办完：claude 接着还要答一轮
-    if (!run.bgTasks) return closeInput();
+    // 孤儿 <task-notification> 自己跑了一轮并出了 result，但首条用户消息还在队列里没回显：留着 stdin 等真正的首条消息
+    if (!isCmd && !run.initReplayed && orphanTaskNotif > 0) {
+      orphanTaskNotif--;
+      bgDroppedMidTurn = false;
+      resultStale = true;
+      return;
+    }
+    if (run.pendingInject.length || run.slashFlight.length) { bgDroppedMidTurn = false; resultStale = true; return; }   // 插话还没送到 / 命令还没办完：claude 接着还要答一轮
+    if (!run.bgTasks) {
+      // 本轮进行中曾有后台任务自然清零：claude 往往在几十毫秒内出队它的 <task-notification> 接着跑下一轮，
+      // 此时不能同步 closeInput()，转入空闲收尾倒计时（同后台任务空闲清零口径）留足开口窗口
+      if (bgDroppedMidTurn && !run.overBudget) {
+        bgDroppedMidTurn = false;
+        run.idle = true;
+        emit({ type: "run_idle", bg: 0, at: Date.now() });
+        publishState();
+        armIdleClose();
+        return;
+      }
+      bgDroppedMidTurn = false;
+      return closeInput();
+    }
+    bgDroppedMidTurn = false;
     // 答完了，只是后台任务（本地服务之类）还在跑：界面上算这一轮结束，进程和 stdin 留着等任务回报
     run.idle = true;
     emit({ type: "run_idle", bg: run.bgTasks, at: Date.now() });
@@ -1158,17 +1229,36 @@ export async function startRun(item) {
   // 斜杠命令在途时才认它的回显：「<local-command-…」或命令原文
   const slashEcho = (txt) => run.slashFlight.length > 0 && (/^<local-command-(?:stdout|stderr)>/.test(txt) || run.slashFlight.some((it) => it.message.trim() === txt));
   const onReplay = (ev) => {
+    const txt = textOf(ev.message?.content);
+    // 合成的 <task-notification> 回显不能算作首条用户消息或 pendingInject 的送达
+    if (txt.startsWith("<task-notification>")) {
+      const head = run.pendingInject[0];
+      const matchesInit = run.replays === 0 && initText.startsWith("<task-notification>");
+      const matchesInject = !!(head && WROTE.get(head) === txt);
+      if (!matchesInit && !matchesInject) {
+        if (!run.initReplayed) orphanTaskNotif++;
+        return;
+      }
+    }
     // 第一条回显是本轮的原始消息；之后每条都是一条送达的插话（按写入顺序）
     // 斜杠命令的回显吞掉：它在送进去时已经画过了，也不占普通插话的位置。和排在最前的普通插话写进去的一字不差的，算那条插话
     if (run.replays > 0) {
-      const txt = textOf(ev.message?.content), head = run.pendingInject[0];
+      const head = run.pendingInject[0];
       if (!(head && WROTE.get(head) === txt) && slashEcho(txt)) { run.slashMark.seen = true; return; }
     }
     const said = run.replays === 0 ? message : run.pendingInject[0] && run.pendingInject[0].message;
     if (said && usageIsPrompt(said)) usageAdd({ m: 1 }, run.sessionId);
-    if (run.replays++ === 0) return;
+    if (run.replays++ === 0) { run.initReplayed = true; orphanTaskNotif = 0; return; }
     const it = run.pendingInject.shift();
-    if (it) { emit({ type: "inject", text: it.message, cid: it.cid, itemId: it.id }); saveRunMark(); }
+    if (it) {
+      if (run.idle) {
+        run.idle = false; resultStale = true; run.stopAsked = false; run.stopIds.clear();
+        emit({ type: "run_busy", startedAt: Date.now() });
+        publishState();
+      }
+      emit({ type: "inject", text: it.message, cid: it.cid, itemId: it.id });
+      saveRunMark();
+    }
   };
   const feed = (line) => {
     let ev; try { ev = JSON.parse(line); } catch { return; }
@@ -1180,6 +1270,11 @@ export async function startRun(item) {
         (ev.type === "assistant" && ev.message?.model === "<synthetic>"))) run.slashMark.seen = true;
     // 清单工具一出结果就推，不等 4 秒轮询
     if (ev.type === "user" && ev.tool_use_result && (ev.tool_use_result.task || ev.tool_use_result.statusChange || ev.tool_use_result.updatedFields)) setImmediate(() => tasksCheck(run.sessionId));
+    // 首条用户消息送达且主会话尚未输出（或已处于孤儿通知序列）前出现的 <task-notification>（--resume 孤儿后台任务停止通知）
+    if (!run.initReplayed && (!turnSawMainOutput || orphanTaskNotif > 0) && ((ev.type === "system" && ev.subtype === "task_notification")
+        || (ev.type === "user" && !ev.isReplay && textOf(ev.message?.content).startsWith("<task-notification>")))) {
+      orphanTaskNotif++;
+    }
     // 我们发的 set_permission_mode 的回执：被拒要记下来（以前直接丢掉，切了没生效也看不出来）
     if (ev.type === "control_response") {
       // 说清楚是「控制请求回了错误」，不是用户拒绝：以前一律写成「claude 拒绝了控制请求」，排查时误导（FIND-043）
@@ -1203,24 +1298,31 @@ export async function startRun(item) {
     if (run.idleClose && !(ev.type === "system" && ev.subtype === "background_tasks_changed")) { clearTimeout(run.idleClose); run.idleClose = null; }
     if (ev.type === "system" && ev.subtype === "background_tasks_changed" && Array.isArray(ev.tasks)) {
       if (run.slashFlight.length && ev.tasks.length !== run.bgTasks) run.slashMark.bg = true;
+      const prevBgCount = run.bgTasks;
+      const prevBgIds = bgIds;
+      bgIds = ev.tasks.map((t) => String(t.task_id || ""));
       run.bgTasks = ev.tasks.length;
       run.bgList = ev.tasks.slice(0, 30).map((t) => ({ id: String(t.task_id || ""), type: String(t.task_type || ""), desc: String(t.description || "").slice(0, 200) }));
+      if (!run.bgTasks) run.stopAsked = prevBgIds.length > 0 && prevBgIds.every((id) => run.stopIds.has(id));
+      // 本轮进行中后台任务自然清零（非 stop_task 主动停掉）：它的 <task-notification> 可能已排队等待本轮 result 后紧接出队
+      if (!run.idle && prevBgCount > 0 && !run.bgTasks && !run.stopAsked) bgDroppedMidTurn = true;
       if (run.idle && run.bgTasks) emit({ type: "run_idle", bg: run.bgTasks });
       publishState();                    // 明细跟着状态走（runInfo.bgList），断线重连也补得上
       // 空闲中后台任务全没了：任务自己跑完时 claude 会接着起一轮（之后的 result 会关 stdin）；
       // 被 stop_task 停掉的只排进它的队列、不起新一轮，这一轮就永远挂着：我们发过 stop_task 的等 6 秒没动静就收尾。
       // 自己跑完的不能这么快关：上下文大时 claude 起新一轮的第一个字常常超过 6 秒，stdin 先关了，那一轮里再起的后台任务
       // （比如重开一条 SSH 隧道）就成了插话发不进、停止按不动的死局，消息永远排着（11-02 群友）。这种只留个兜底
-      clearTimeout(run.idleClose);
-      if (run.idle && !run.bgTasks) run.idleClose = setTimeout(() => { if (run.idle && !run.bgTasks && !run.ended) closeInput(); }, run.stopAsked ? 6000 : IDLE_CLOSE_MS);
+      armIdleClose();
     }
     // 空闲中 claude 又动起来了（后台任务回报、或用户发来的新消息）：重新算「生成中」。
     // 只认主会话自己的事件：后台子代理的消息也从这条流出来（带 parent_tool_use_id），它们说话不等于主会话开了新一轮——
     // 以前不分，主会话答完「请稍等」、子代理一开口，界面就又是「生成中」加一个空的「连接中」，一直挂到子代理跑完
     const mainEv = !ev.parent_tool_use_id && !ev.isSidechain;
+    if (mainEv && (ev.type === "assistant" || ev.type === "stream_event")) turnSawMainOutput = true;
     if (run.idle && mainEv && (ev.type === "assistant" || ev.type === "stream_event" || (ev.type === "system" && ev.subtype === "init"))) {
       run.idle = false; resultStale = true;
       run.stopAsked = false;   // 发过的 stop_task 只管那一次空闲；新一轮之后再空闲，照「自己跑完」的兜底算（DeepSeek 复核 中-1）
+      run.stopIds.clear();
       emit({ type: "run_busy", startedAt: Date.now() });
       publishState();
     }
@@ -1285,7 +1387,7 @@ export async function startRun(item) {
   };
   run.requeuePending = requeuePending;
 
-  const finish = (code, signal) => {
+  const finish = async (code, signal) => {
     if (buf.trim()) feed(buf.trim());
     buf = "";
     noteSessionFile("finish");           // 记录只在退出前才落盘的情况：收尾前再核一次
@@ -1293,7 +1395,7 @@ export async function startRun(item) {
     try { run.agents?.close(); } catch (e) { log(`${runTag(run)} 子代理收尾出错: ${e.message}`); }
     // claude 已经退出，这时的记录就是下一轮的基准；提醒这一轮已经交出去（正常答完）才清掉标记
     if (!lastResult || lastResult.is_error) run.giveNotesBack?.();
-    try { sealSession(run.sessionId, sfile(), { clear: !!integNote && !run.aborted && !!lastResult && !lastResult.is_error, base: run.sealBase?.sid === run.sessionId && run.sealBase.hash ? run.sealBase : null }); } catch (e) { log(`${runTag(run)} [封签] ${e.message}`); }
+    try { await sealSessionAsync(run.sessionId, sfile(), { clear: !!integNote && !run.aborted && !!lastResult && !lastResult.is_error, base: run.sealBase?.sid === run.sessionId && run.sealBase.hash ? run.sealBase : null }); } catch (e) { log(`${runTag(run)} [封签] ${e.message}`); }
     run.inputOpen = false;
     run.perms.clear();                // 卡片随 run_end 一起作废（前端按 run_end 收起）
     requeuePending();
@@ -1361,8 +1463,8 @@ export async function startRun(item) {
   const finishSafe = (code, signal) => {
     if (closed) return;
     closed = true;
-    try { finish(code, signal); }
-    catch (e) { log(`${runTag(run)} ⚠️ 收尾出错: ${(e && e.stack) || e}`); try { endRun(run, { failed: true }); } catch {} }
+    Promise.resolve().then(() => finish(code, signal))
+      .catch((e) => { log(`${runTag(run)} ⚠️ 收尾出错: ${(e && e.stack) || e}`); try { endRun(run, { failed: true }); } catch {} });
   };
   // 管道关不掉的兜底（queue.abortRun 5+2 秒后调）：走和正常退出同一条 finish —— 封签、账本、权限卡、未送达消息都要收，
   // 以前直接 endRun 把这些全跳过了（FIND-002）。进程树由调用方负责杀，这里只把管道拆掉

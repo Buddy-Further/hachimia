@@ -36,7 +36,9 @@ let warned = false;
 // am 子进程串成一条队：同一时刻最多一个，按入队顺序送达，旧 UPDATE 不会晚于 DONE / IDLE 到（0.6.9 审计 200-13-08）
 let amQ = [];
 let amBusy = null;                               // 在途的 am 子进程
+let amMuted = false;                             // blocked 停机清理 core 时不再补发必败的 IDLE
 function amSend(...args) {
+  if (amMuted) return;
   // 排着队还没发出去的 UPDATE 被新的一条盖过：只发新的
   if (args[0] === "UPDATE" && amQ.length && amQ[amQ.length - 1][0] === "UPDATE") amQ.pop();
   amQ.push(args);
@@ -68,7 +70,11 @@ function amFailed(e, err) {
     started = false;
     amQ = [];
     if (unsub) { try { unsub(); } catch {} unsub = null; }
-    if (core) { try { core.stop(true, false); } catch {} core = null; }
+    if (core) {
+      amMuted = true;
+      try { core.stop(false, false); } catch {} finally { amMuted = false; }
+      core = null;
+    }
   }
 }
 function amSendSync(...args) {
@@ -152,7 +158,7 @@ export function startWorkIsland() {
     });
     const live = runList().filter((r) => r && !r.ended);
     if (live.length) core.start(live[0]);        // 开设置时已经有轮次在跑
-    else core.stop(true, true);                  // 没有轮次：先发一次 IDLE，收掉上一任网关被 SIGKILL 后留下的胶囊（195-P.1）
+    else core.stop(false, true);                 // 没有轮次：先异步发一次 IDLE，收掉上一任网关被 SIGKILL 后留下的胶囊（不阻塞主线程）
     lastErr = null;
     log("[work-island] 已订阅网关事件");
   });

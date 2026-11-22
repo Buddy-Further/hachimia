@@ -21,8 +21,19 @@ import { RETENTION_DAYS } from "./retention.mjs";
 // 格式随 claude 版本变，自己写迟早写坏。技能目录（~/.claude/skills）例外：它就是一堆文件夹，没有命令。
 // 同一时刻只跑一个改配置的命令，免得两个安装同时写 settings.json。
 let EXT_LOCK = Promise.resolve();
-function extRun(args, timeoutMs = 180000) {
-  const job = EXT_LOCK.then(() => claudeBlocked()).then((blocked) => blocked ? { code: -1, out: "", err: blocked } : new Promise((resolve) => {
+function withExtLock(fn) {
+  const job = EXT_LOCK.then(fn);
+  EXT_LOCK = job.catch(() => {});
+  return job;
+}
+function extExecRaw(args, timeoutMs = 180000) {
+  const writes = ["plugin", "mcp"].includes(args[0]) && !args.includes("list") && !args.includes("get");
+  const appWrote = (ucb) => {
+    if (!writes) return;
+    if (args[0] === "mcp") ucAppWrote([".claude.json"], ucb);
+    else ucAppWrote([".claude/settings.json", ".claude/plugins/"], ucb, { ".claude/settings.json": ["enabledPlugins", "extraKnownMarketplaces"] });
+  };
+  return Promise.resolve().then(() => claudeBlocked()).then((blocked) => blocked ? { code: -1, out: "", err: blocked } : new Promise((resolve) => {
     const [cmd0, args0] = claudeCmd(args);
     const ucb = writes ? ucAppBegin() : null;
     const child = spawn(cmd0, args0, {
@@ -36,16 +47,9 @@ function extRun(args, timeoutMs = 180000) {
     child.on("close", (code) => { clearTimeout(t); appWrote(code === 0 ? ucb : null); resolve({ code, out, err }); });
     child.on("error", (e) => { clearTimeout(t); resolve({ code: -1, out, err: err + e.message }); });
   }));
-  // 装卸插件、加删 MCP 是应用替用户做的：这次命令改到的当场认下，别下一轮反过来问他（见 userconf.mjs）。命令失败的不认，下一轮照问。
-  // 只认对应的地方：插件只动 plugins/ 和设置里的 enabledPlugins / extraKnownMarketplaces，MCP 只动 .claude.json
-  const writes = ["plugin", "mcp"].includes(args[0]) && !args.includes("list") && !args.includes("get");
-  const appWrote = (ucb) => {
-    if (!writes) return;
-    if (args[0] === "mcp") ucAppWrote([".claude.json"], ucb);
-    else ucAppWrote([".claude/settings.json", ".claude/plugins/"], ucb, { ".claude/settings.json": ["enabledPlugins", "extraKnownMarketplaces"] });
-  };
-  EXT_LOCK = job.catch(() => {});
-  return job;
+}
+function extRun(args, timeoutMs = 180000) {
+  return withExtLock(() => extExecRaw(args, timeoutMs));
 }
 const lastJson = (s) => {
   const lines = String(s).trim().split("\n").reverse();
@@ -57,14 +61,20 @@ const lastJson = (s) => {
 const cliMsg = (r) => (r.err || r.out || "").replace(/\x1b\[[0-9;]*m/g, "").trim().slice(-600);
 
 let PLUGIN_CATALOG = null;   // 可安装清单有三千多条，缓存 10 分钟，搜索在网关这边做
+let PLUGIN_STATE_FLIGHT = null;
 async function pluginState(withAvailable) {
-  const fresh = PLUGIN_CATALOG && Date.now() - PLUGIN_CATALOG.at < 600000;
-  const r = await extRun(["plugin", "list", "--json", ...(withAvailable && !fresh ? ["--available"] : [])], 120000);
-  const j = lastJson(r.out);
-  if (!j) throw new Error(cliMsg(r) || "claude plugin list 没有输出");
-  const installed = Array.isArray(j) ? j : j.installed || [];
-  if (!Array.isArray(j) && j.available) PLUGIN_CATALOG = { at: Date.now(), list: j.available };
-  return installed;
+  if (PLUGIN_STATE_FLIGHT && (!withAvailable || PLUGIN_STATE_FLIGHT.withAvailable)) return PLUGIN_STATE_FLIGHT.p;
+  const p = withExtLock(async () => {
+    const fresh = PLUGIN_CATALOG && Date.now() - PLUGIN_CATALOG.at < 600000;
+    const r = await extExecRaw(["plugin", "list", "--json", ...(withAvailable && !fresh ? ["--available"] : [])], 120000);
+    const j = lastJson(r.out);
+    if (!j) throw new Error(cliMsg(r) || "claude plugin list 没有输出");
+    const installed = Array.isArray(j) ? j : j.installed || [];
+    if (!Array.isArray(j) && j.available) PLUGIN_CATALOG = { at: Date.now(), list: j.available };
+    return installed;
+  }).finally(() => { if (PLUGIN_STATE_FLIGHT && PLUGIN_STATE_FLIGHT.p === p) PLUGIN_STATE_FLIGHT = null; });
+  PLUGIN_STATE_FLIGHT = { withAvailable: !!withAvailable, p };
+  return p;
 }
 
 async function listPlugins(q, offset, withAvailable) {
@@ -151,8 +161,8 @@ const mcpAddArgs = (transport, name, target, env, headers, parts) => {
   for (const kv of [].concat(env || [])) if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(kv)) args.push("-e", kv);
   for (const h of [].concat(headers || [])) if (String(h).includes(":")) args.push("--header", String(h));
   if (transport === "stdio") {
-    // 命令行按空白切开；带空格的参数用引号括起来
-    args.push("--", ...(parts || target.match(/"[^"]*"|'[^']*'|\S+/g).map((x) => x.replace(/^(["'])(.*)\1$/, "$2"))));
+    // 命令行按 shell 引号规则切开（与 editMcp 共用 parseStdioTarget，支持双引号内转义 \" / \\ 与单引号）
+    args.push("--", ...(parts || parseStdioTarget(target)));
   }
   return args;
 };
@@ -214,63 +224,65 @@ export async function getMcp(b) {
 /** 编辑 = remove + add-json（claude 的 mcp add / add-json 对同名条目都直接报错，没有 update）。
  *  写回用 add-json：定义整体作为单个 JSON 参数，值里的逗号、等号、引号、换行都不会被切坏，
  *  也不走命令行选项解析（停用/启用已在用这个写法）。add 失败就把旧定义原样加回。 */
-export async function editMcp(b) {
-  const name = String(b.name || "").trim();
-  const off = extOff();
-  const disabled = !!(extIdOk(name) && off.mcp[name]);
-  const def = disabled ? off.mcp[name] : userMcpDef(name);
-  if (!def) return { ok: false, message: tz("找不到这条 MCP 配置（账户连接器不能编辑）") };
-  const newName = String(b.newName || name).trim();
-  if (!/^[A-Za-z0-9._-]{1,64}$/.test(newName) || badArg(newName)) return { ok: false, message: tz("名字只能用字母、数字、点、下划线、横线") };
-  // 两边名单都要查：停用条目改名成活跃条目（或反过来）会留下同名幽灵，列表只显示一条、另一条会「复活」
-  if (newName !== name && (!!off.mcp[newName] || !!userMcpDef(newName))) return { ok: false, message: tz("已经有叫这个名字的 MCP 服务器了") };
-  const transport = ["stdio", "http", "sse"].includes(b.transport) ? b.transport : (def.type === "http" || def.type === "sse" ? def.type : "stdio");
-  const target = String(b.target || "").trim();
-  if (!target) return { ok: false, message: tz("缺少命令或地址") };
-  if (transport !== "stdio" && (badArg(target) || !/^https?:\/\/[^\s]+$/i.test(target))) return { ok: false, message: tz("地址要以 http:// 或 https:// 开头") };
-  const envs = [].concat(b.env || []).filter((kv) => /^[A-Za-z_][A-Za-z0-9_]*=/.test(kv));
-  if (transport !== "stdio" && envs.length) return { ok: false, message: tz("远程 MCP 不支持环境变量：请求头要写成 Header: 值，例如 Authorization: Bearer 你的令牌") };
-  const hdrs = [].concat(b.headers || []).filter((h) => String(h).includes(":") && !/^[A-Za-z_][A-Za-z0-9_]*=/.test(h));
-  // 合并语义：留空 = 保留原值；同名的以这次提交的为准；点掉的（dropEnv / dropHeaders）从配置里删
-  const merged = (oldObj, drops, news, splitAt) => {
-    const out = {};
-    for (const [k, v] of Object.entries(oldObj || {})) if (!drops.has(k)) out[k] = v;
-    for (const s of news) { const i = s.indexOf(splitAt); if (i > 0) out[s.slice(0, i).trim()] = s.slice(i + 1).trim(); }
-    return out;
-  };
-  const dropEnv = new Set([].concat(b.dropEnv || []).map(String).filter((x) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(x)));
-  const dropHdr = new Set([].concat(b.dropHeaders || []).map((x) => String(x).trim()).filter(Boolean));
-  let nd;
-  if (transport !== "stdio") {
-    // 前端已拦 KEY=值，这里不再赘述；重建后 env 键不该存在（claude 对远程条目不写 env）
-    nd = { ...def, type: transport, url: target, headers: merged(def.headers, dropHdr, hdrs, ":") };
-    delete nd.command; delete nd.args; delete nd.env;
-    if (!Object.keys(nd.headers).length) delete nd.headers;
-  } else {
-    const parts = parseStdioTarget(target);
-    if (!parts.length) return { ok: false, message: tz("缺少命令或地址") };
-    // claude 对 stdio 条目不存 headers（实测 add-json 静默剥掉）：这里显式删，
-    // 别让「保存成功」之后令牌悄悄没了（前端在切 transport 时会先弹确认）
-    nd = { ...def, type: "stdio", command: parts[0], args: parts.slice(1), env: merged(def.env, dropEnv, envs, "=") };
-    delete nd.url; delete nd.headers;
-    if (!Object.keys(nd.env).length) delete nd.env;
-  }
-  // 停用中的条目没连 claude：只改停用名单，启用时按新定义加回，不碰 .claude.json
-  if (disabled) {
-    if (newName !== name) delete off.mcp[name];
-    off.mcp[newName] = nd;
-    return saveExtOff(off) ? { ok: true } : { ok: false, message: tz("停用名单写不进去") };
-  }
-  return execEdit(name, newName, nd, def);
+export function editMcp(b) {
+  return withExtLock(async () => {
+    const name = String(b.name || "").trim();
+    const off = extOff();
+    const disabled = !!(extIdOk(name) && off.mcp[name]);
+    const def = disabled ? off.mcp[name] : userMcpDef(name);
+    if (!def) return { ok: false, message: tz("找不到这条 MCP 配置（账户连接器不能编辑）") };
+    const newName = String(b.newName || name).trim();
+    if (!/^[A-Za-z0-9._-]{1,64}$/.test(newName) || badArg(newName)) return { ok: false, message: tz("名字只能用字母、数字、点、下划线、横线") };
+    // 两边名单都要查：停用条目改名成活跃条目（或反过来）会留下同名幽灵，列表只显示一条、另一条会「复活」
+    if (newName !== name && (!!off.mcp[newName] || !!userMcpDef(newName))) return { ok: false, message: tz("已经有叫这个名字的 MCP 服务器了") };
+    const transport = ["stdio", "http", "sse"].includes(b.transport) ? b.transport : (def.type === "http" || def.type === "sse" ? def.type : "stdio");
+    const target = String(b.target || "").trim();
+    if (!target) return { ok: false, message: tz("缺少命令或地址") };
+    if (transport !== "stdio" && (badArg(target) || !/^https?:\/\/[^\s]+$/i.test(target))) return { ok: false, message: tz("地址要以 http:// 或 https:// 开头") };
+    const envs = [].concat(b.env || []).filter((kv) => /^[A-Za-z_][A-Za-z0-9_]*=/.test(kv));
+    if (transport !== "stdio" && envs.length) return { ok: false, message: tz("远程 MCP 不支持环境变量：请求头要写成 Header: 值，例如 Authorization: Bearer 你的令牌") };
+    const hdrs = [].concat(b.headers || []).filter((h) => String(h).includes(":") && !/^[A-Za-z_][A-Za-z0-9_]*=/.test(h));
+    // 合并语义：留空 = 保留原值；同名的以这次提交的为准；点掉的（dropEnv / dropHeaders）从配置里删
+    const merged = (oldObj, drops, news, splitAt) => {
+      const out = {};
+      for (const [k, v] of Object.entries(oldObj || {})) if (!drops.has(k)) out[k] = v;
+      for (const s of news) { const i = s.indexOf(splitAt); if (i > 0) out[s.slice(0, i).trim()] = s.slice(i + 1).trim(); }
+      return out;
+    };
+    const dropEnv = new Set([].concat(b.dropEnv || []).map(String).filter((x) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(x)));
+    const dropHdr = new Set([].concat(b.dropHeaders || []).map((x) => String(x).trim()).filter(Boolean));
+    let nd;
+    if (transport !== "stdio") {
+      // 前端已拦 KEY=值，这里不再赘述；重建后 env 键不该存在（claude 对远程条目不写 env）
+      nd = { ...def, type: transport, url: target, headers: merged(def.headers, dropHdr, hdrs, ":") };
+      delete nd.command; delete nd.args; delete nd.env;
+      if (!Object.keys(nd.headers).length) delete nd.headers;
+    } else {
+      const parts = parseStdioTarget(target);
+      if (!parts.length) return { ok: false, message: tz("缺少命令或地址") };
+      // claude 对 stdio 条目不存 headers（实测 add-json 静默剥掉）：这里显式删，
+      // 别让「保存成功」之后令牌悄悄没了（前端在切 transport 时会先弹确认）
+      nd = { ...def, type: "stdio", command: parts[0], args: parts.slice(1), env: merged(def.env, dropEnv, envs, "=") };
+      delete nd.url; delete nd.headers;
+      if (!Object.keys(nd.env).length) delete nd.env;
+    }
+    // 停用中的条目没连 claude：只改停用名单，启用时按新定义加回，不碰 .claude.json
+    if (disabled) {
+      if (newName !== name) delete off.mcp[name];
+      off.mcp[newName] = nd;
+      return saveExtOff(off) ? { ok: true } : { ok: false, message: tz("停用名单写不进去") };
+    }
+    return execEdit(name, newName, nd, def);
+  });
 }
 
-/** remove → add-json；add 失败就把旧定义原样加回，不丢用户原本的配置 */
+/** remove → add-json（在 editMcp 持有的单把 EXT_LOCK 内原子执行）；add 失败就把旧定义原样加回，不丢用户原本的配置 */
 async function execEdit(name, newName, nd, oldDef) {
-  const rm = await extRun(["mcp", "remove", name], 60000);
+  const rm = await extExecRaw(["mcp", "remove", name], 60000);
   if (rm.code !== 0) return { ok: false, message: cliMsg(rm) };
-  const r = await extRun(["mcp", "add-json", "-s", "user", newName, JSON.stringify(nd)], 60000);
+  const r = await extExecRaw(["mcp", "add-json", "-s", "user", newName, JSON.stringify(nd)], 60000);
   if (r.code === 0) return { ok: true };
-  const back = await extRun(["mcp", "add-json", "-s", "user", name, JSON.stringify(oldDef)], 60000);
+  const back = await extExecRaw(["mcp", "add-json", "-s", "user", name, JSON.stringify(oldDef)], 60000);
   return { ok: false, message: back.code === 0
     ? tz("保存失败：{msg}，旧配置已原样恢复", { msg: cliMsg(r) })
     : tz("保存失败：{msg}，而且旧配置没能恢复，请手动检查", { msg: cliMsg(r) }) };
@@ -574,28 +586,32 @@ const mcpTarget = (d) => {
   return (String(d.url || [d.command, ...(Array.isArray(d.args) ? d.args : [])].filter((x) => x != null).join(" ")).slice(0, 300)
     + (env ? ` [env: ${env}]` : "") + (hdr ? ` [headers: ${hdr}]` : "")).slice(0, 500);
 };
-/** 停用 = 先把定义存进停用名单，再用 claude mcp remove 拿掉；remove 失败就把名单退回去 */
-async function disableMcp(name) {
-  if (!extIdOk(name) || badArg(name)) return { ok: false, message: tz("名字格式不对") };
-  const def = userMcpDef(name);
-  if (!def) return { ok: false, message: tz("只能停用你自己加的（用户级）MCP 服务器") };
-  const off = extOff();
-  off.mcp[name] = def;
-  if (!saveExtOff(off)) return { ok: false, message: tz("停用名单写不进去") };
-  const r = await extRun(["mcp", "remove", "-s", "user", name], 60000);
-  if (r.code !== 0) { const o2 = extOff(); delete o2.mcp[name]; saveExtOff(o2); return { ok: false, message: cliMsg(r) }; }
-  log(`MCP ${name} 已停用`);
-  return { ok: true };
+/** 停用 = 先把定义存进停用名单，再用 claude mcp remove 拿掉；remove 失败就把名单退回去（整段在单把锁内原子化） */
+function disableMcp(name) {
+  if (!extIdOk(name) || badArg(name)) return Promise.resolve({ ok: false, message: tz("名字格式不对") });
+  return withExtLock(async () => {
+    const def = userMcpDef(name);
+    if (!def) return { ok: false, message: tz("只能停用你自己加的（用户级）MCP 服务器") };
+    const off = extOff();
+    off.mcp[name] = def;
+    if (!saveExtOff(off)) return { ok: false, message: tz("停用名单写不进去") };
+    const r = await extExecRaw(["mcp", "remove", "-s", "user", name], 60000);
+    if (r.code !== 0) { const o2 = extOff(); delete o2.mcp[name]; saveExtOff(o2); return { ok: false, message: cliMsg(r) }; }
+    log(`MCP ${name} 已停用`);
+    return { ok: true };
+  });
 }
-/** 启用 = claude mcp add-json 把存着的定义加回去，成功了才从名单里删 */
-async function enableMcp(name) {
-  const off = extOff(), def = extIdOk(name) ? off.mcp[name] : null;
-  if (!def) return { ok: false, message: tz("停用名单里没有它") };
-  const r = await extRun(["mcp", "add-json", "-s", "user", name, JSON.stringify(def)], 60000);
-  if (r.code !== 0) return { ok: false, message: cliMsg(r) };
-  const o2 = extOff(); delete o2.mcp[name]; saveExtOff(o2);
-  log(`MCP ${name} 已启用`);
-  return { ok: true };
+/** 启用 = claude mcp add-json 把存着的定义加回去，成功了才从名单里删（整段在单把锁内原子化） */
+function enableMcp(name) {
+  return withExtLock(async () => {
+    const off = extOff(), def = extIdOk(name) ? off.mcp[name] : null;
+    if (!def) return { ok: false, message: tz("停用名单里没有它") };
+    const r = await extExecRaw(["mcp", "add-json", "-s", "user", name, JSON.stringify(def)], 60000);
+    if (r.code !== 0) return { ok: false, message: cliMsg(r) };
+    const o2 = extOff(); delete o2.mcp[name]; saveExtOff(o2);
+    log(`MCP ${name} 已启用`);
+    return { ok: true };
+  });
 }
 /** 停用着的 MCP 直接删掉（不再加回） */
 function forgetMcp(name) {
@@ -643,6 +659,8 @@ function deleteSkill(dir) {
 // 只读公开目录；装卸都落在用户自己的 ~/.claude：技能拷进 skills/，MCP 走 claude mcp add（见 addMcp）。
 const SKILL_REPO = "anthropics/skills";
 let skillCat = null;                 // { at, sha, items }：一小时内复用，GitHub 未登录的 API 一小时只给 60 次
+let skillCatFlight = null;
+const SKILL_INSTALLING = new Set();
 const ghGet = async (url, json) => {
   const r = await fetch(url, { headers: { "User-Agent": "hachimia", ...(json ? { Accept: "application/vnd.github+json" } : {}) }, signal: AbortSignal.timeout(20000) });
   if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
@@ -650,19 +668,31 @@ const ghGet = async (url, json) => {
 };
 async function skillCatalog(force) {
   if (!force && skillCat && Date.now() - skillCat.at < 3600e3) return skillCat;
-  const tree = await ghGet(`https://api.github.com/repos/${SKILL_REPO}/git/trees/HEAD?recursive=1`, true);
-  const blobs = (tree.tree || []).filter((e) => e.type === "blob");
-  const names = [...new Set(blobs.map((e) => /^skills\/([^/]+)\/SKILL\.md$/.exec(e.path)?.[1]).filter((n) => n && SID_RE.test(n)))].sort();
-  const items = await Promise.all(names.map(async (n) => {
-    const files = blobs.filter((e) => e.path.startsWith(`skills/${n}/`)).map((e) => ({ path: e.path.slice(`skills/${n}/`.length), size: e.size || 0 }));
-    let meta = { name: n, description: "" };
-    try {
-      const md = String(await ghGet(`https://raw.githubusercontent.com/${SKILL_REPO}/${tree.sha}/skills/${n}/SKILL.md`)).slice(0, 4000);
-      meta = { name: fmField(md, "name") || n, description: fmField(md, "description").slice(0, 300) };
-    } catch {}
-    return { dir: n, ...meta, files, bytes: files.reduce((a, x) => a + x.size, 0), license: files.some((x) => /^LICENSE/i.test(x.path)) };
-  }));
-  return (skillCat = { at: Date.now(), sha: tree.sha, items });
+  if (skillCatFlight) return skillCatFlight;
+  const run = (async () => {
+    const tree = await ghGet(`https://api.github.com/repos/${SKILL_REPO}/git/trees/HEAD?recursive=1`, true);
+    const blobs = (tree.tree || []).filter((e) => e.type === "blob");
+    const names = [...new Set(blobs.map((e) => /^skills\/([^/]+)\/SKILL\.md$/.exec(e.path)?.[1]).filter((n) => n && SID_RE.test(n)))].sort();
+    // 限制并发数（5 路），避免未认证 GitHub API 突发并发撞限流或拖慢事件循环
+    const items = new Array(names.length);
+    let idx = 0;
+    const worker = async () => {
+      while (idx < names.length) {
+        const i = idx++, n = names[i];
+        const files = blobs.filter((e) => e.path.startsWith(`skills/${n}/`)).map((e) => ({ path: e.path.slice(`skills/${n}/`.length), size: e.size || 0 }));
+        let meta = { name: n, description: "" };
+        try {
+          const md = String(await ghGet(`https://raw.githubusercontent.com/${SKILL_REPO}/${tree.sha}/skills/${n}/SKILL.md`)).slice(0, 4000);
+          meta = { name: fmField(md, "name") || n, description: fmField(md, "description").slice(0, 300) };
+        } catch {}
+        items[i] = { dir: n, ...meta, files, bytes: files.reduce((a, x) => a + x.size, 0), license: files.some((x) => /^LICENSE/i.test(x.path)) };
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(5, names.length || 1) }, worker));
+    return (skillCat = { at: Date.now(), sha: tree.sha, items });
+  })().finally(() => { if (skillCatFlight === run) skillCatFlight = null; });
+  skillCatFlight = run;
+  return run;
 }
 const skillSource = (dir) => { try { const raw = readSmallFile(path.join(SKILLS_DIR, dir, ".cc-source.json"), 64 << 10); return raw == null ? null : JSON.parse(raw); } catch { return null; } };
 async function listSkillCatalog(force) {
@@ -672,30 +702,34 @@ async function listSkillCatalog(force) {
       installed: fs.existsSync(path.join(SKILLS_DIR, x.dir, "SKILL.md")), official: (skillSource(x.dir) || {}).repo === SKILL_REPO })) };
   } catch (e) { return { ok: false, message: tz("取不到官方技能目录：{err}", { err: e.message }) }; }
 }
-/** 装一个官方技能：按目录树逐个下载到临时目录，齐了再改名就位（不会留下半截）；超过 50 MB 不装 */
+/** 装一个官方技能：按目录树逐个下载到随机临时目录，齐了再改名就位（不会留下半截）；超过 50 MB 不装 */
 async function installCatalogSkill(dir) {
   if (!SID_RE.test(dir)) return { ok: false, message: "bad name" };
-  const c = await skillCatalog().catch((e) => null);
-  const it = c && c.items.find((x) => x.dir === dir);
-  if (!it) return { ok: false, message: tz("官方目录里没有这个技能") };
-  const dest = path.join(SKILLS_DIR, dir);
-  if (fs.existsSync(dest)) return { ok: false, message: tz("已经有同名技能，先删掉再装") };
-  if (it.bytes > 50 << 20) return { ok: false, message: tz("太大了（超过 50 MB）") };
-  const tmp = path.join(SKILLS_DIR, `.tmp-${dir}-${process.pid}`);
-  const ucb = ucAppBegin();
-  fs.rmSync(tmp, { recursive: true, force: true });
+  if (SKILL_INSTALLING.has(dir)) return { ok: false, message: "busy" };
+  SKILL_INSTALLING.add(dir);
   try {
-    for (const f of it.files) {
-      const out = path.resolve(tmp, f.path);
-      if (!out.startsWith(tmp + path.sep)) throw new Error("bad path " + f.path);
-      fs.mkdirSync(path.dirname(out), { recursive: true });
-      fs.writeFileSync(out, await ghGet(`https://raw.githubusercontent.com/${SKILL_REPO}/${c.sha}/skills/${dir}/${f.path.split("/").map(encodeURIComponent).join("/")}`));
-    }
-    fs.writeFileSync(path.join(tmp, ".cc-source.json"), JSON.stringify({ repo: SKILL_REPO, sha: c.sha, path: "skills/" + dir, at: new Date().toISOString() }) + "\n");
-    fs.renameSync(tmp, dest);
-    ucAppWrote([dest, tmp], ucb);
-    return { ok: true };
-  } catch (e) { fs.rmSync(tmp, { recursive: true, force: true }); return { ok: false, message: e.message }; }
+    const c = await skillCatalog().catch(() => null);
+    const it = c && c.items.find((x) => x.dir === dir);
+    if (!it) return { ok: false, message: tz("官方目录里没有这个技能") };
+    const dest = path.join(SKILLS_DIR, dir);
+    if (fs.existsSync(dest)) return { ok: false, message: tz("已经有同名技能，先删掉再装") };
+    if (it.bytes > 50 << 20) return { ok: false, message: tz("太大了（超过 50 MB）") };
+    const tmp = path.join(SKILLS_DIR, `.tmp-${dir}-${process.pid}-${crypto.randomBytes(4).toString("hex")}`);
+    const ucb = ucAppBegin();
+    await fs.promises.rm(tmp, { recursive: true, force: true }).catch(() => {});
+    try {
+      for (const f of it.files) {
+        const out = path.resolve(tmp, f.path);
+        if (!out.startsWith(tmp + path.sep)) throw new Error("bad path " + f.path);
+        fs.mkdirSync(path.dirname(out), { recursive: true });
+        await fs.promises.writeFile(out, await ghGet(`https://raw.githubusercontent.com/${SKILL_REPO}/${c.sha}/skills/${dir}/${f.path.split("/").map(encodeURIComponent).join("/")}`));
+      }
+      await fs.promises.writeFile(path.join(tmp, ".cc-source.json"), JSON.stringify({ repo: SKILL_REPO, sha: c.sha, path: "skills/" + dir, at: new Date().toISOString() }) + "\n");
+      fs.renameSync(tmp, dest);
+      ucAppWrote([dest, tmp], ucb);
+      return { ok: true };
+    } catch (e) { await fs.promises.rm(tmp, { recursive: true, force: true }).catch(() => {}); return { ok: false, message: e.message }; }
+  } finally { SKILL_INSTALLING.delete(dir); }
 }
 
 // MCP 注册表：任何人都能发布，没人审 —— 界面写明，装 npm 包前把命令亮给人看。

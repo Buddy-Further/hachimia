@@ -169,6 +169,19 @@ public class Stab2LHostTest {
         eq("STOP 期间 onStartCommand 把 stopping 复位：放弃停机", GatewayService.shouldFinishStop(false, 5, 6), false);
         eq("STOP 期间启动代次递增：放弃停机", GatewayService.shouldFinishStop(true, 5, 6), false);
 
+        // ── Env.probeLoopback：后台探测 127.0.0.2（不走主线程、显式 NO_PROXY）──
+        try {
+            eq("Env.probeLoopback(127.0.0.2) 在支持 127.0.0.2 的主机上返回 true", Env.probeLoopback("127.0.0.2", 300), true);
+            eq("Env.HOST 未被误降级为 127.0.0.1", "127.0.0.2".equals(Env.HOST), true);
+        } catch (java.io.IOException e) {
+            eq("Env.HOST 在 127.0.0.2 不可达时回退 127.0.0.1", "127.0.0.1".equals(Env.HOST), true);
+        }
+
+        // ── Share.secret：大小写不敏感 FUSE 路径拦截 ──
+        eq("Share.secret 拦截大写 FUSE 路径 .SSH/ID_RSA", Share.secret(new java.io.File("/sdcard/.SSH/ID_RSA")), true);
+        eq("Share.secret 拦截大写 FUSE 路径 CCAPP-SEED.JSON", Share.secret(new java.io.File("/sdcard/CCAPP-SEED.JSON")), true);
+        eq("Share.secret 放行普通文档", Share.secret(new java.io.File("/sdcard/Download/report.pdf")), false);
+
         if (fail > 0) { System.out.println(fail + " 条失败"); System.exit(1); }
         System.out.println("全部通过");
     }

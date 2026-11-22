@@ -132,6 +132,47 @@
   // ── 设置分类：宽屏左栏分类 + 右边一类的内容；窄屏先是分类列表，点进去才是内容 ──
   var setCatOpen = null;
   const pagesNarrow = () => innerWidth < 680;
+  let setVisit = 0;
+  function setVisible(cat, visit = setVisit) {
+    return setOpen && !document.hidden && setCatOpen === cat && visit === setVisit;
+  }
+  function pauseSetReads() {
+    setVisit++;
+    clearTimeout(ST.poll); clearTimeout(privPoll); clearTimeout(updPoll);
+    clearTimeout(devPoll); clearTimeout(fixTimer); clearTimeout(envFactsTimer);
+    clearWiTimers();
+    if (!setOpen || setCatOpen !== "provider") stopLoginWatch();
+  }
+  // 设备和更新没有静态设置项。发现前也能进；不支持时显示说明，而不是把正在看的分类拿掉。
+  const setDiscover = new Set(["device", "update"]);
+  function setDiscovery(cat, text) {
+    const pane = document.querySelector(`.set-cat[data-cat="${cat}"]:not(.mo-ghost)`);
+    const hasFields = pane.querySelector(":scope > .sblock:not(.hidden), :scope > .srow:not(.hidden)");
+    let el = pane.querySelector(".set-discovery");
+    if (!el) { el = document.createElement("p"); el.className = "tiny set-discovery"; el.setAttribute("role", "status"); pane.appendChild(el); }
+    el.classList.toggle("hidden", !!hasFields);
+    if (text) el.textContent = text;
+  }
+  function enterSetCat(cat, resumed = false) {
+    const visit = setVisit, live = () => setVisible(cat, visit);
+    if (!cat || !live()) return;
+    if (setDiscover.has(cat)) setDiscovery(cat, t("查询中…"));
+    switch (cat) {
+      case "general": loadFonts(); renderTbList(); renderAccent(); renderMsgActs(); break;
+      case "provider": setBaseRead.then(() => { if (live()) { loadProviders(); loadModels(); } }); break;
+      case "claude": loadWorkIsland(); break;
+      case "run": loadExecMode(); loadPriv(); break;
+      case "storage": stOnOpen(); break;
+      case "usage": loadQuota(); break;
+      case "trouble": loadReconcile(false); loadEnvFacts(); break;
+      case "device":
+        Promise.all([loadPriv(), resumed ? undefined : loadNotify(), loadDev()]).then(() => { if (live()) setDiscovery(cat, t("不可用")); });
+        break;
+      case "update":
+        (resumed ? loadUpd() : updOnOpen()).then(() => { if (live()) setDiscovery(cat, t("不可用")); });
+        break;
+    }
+  }
   // 各类内容是异步填的：有行显示 / 隐藏就在下一帧重画分类（代替原来打开后固定等 900ms 再画一次）
   let setCatRaf = 0;
   new MutationObserver(() => { if (!setOpen || setCatRaf) return; setCatRaf = requestAnimationFrame(() => { setCatRaf = 0; paintSetCats(); }); })

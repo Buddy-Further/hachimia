@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import { spawn } from "node:child_process";
 import { CFG, log } from "./config.mjs";
 import { NEXT, fileKind, readBody, sendJson } from "./http.mjs";
-import { safeFilePath, safeWritePath } from "./files.mjs";
+import { SECRET_NAMES, pathBlocked, safeFilePath, safeWritePath } from "./files.mjs";
 import { holdsPrivate } from "./pathguard.mjs";
 import { ZIP_ENCODINGS, zipExtract, zipList, zipNative } from "./zipread.mjs";
 
@@ -41,7 +41,7 @@ function run7z(args, { cwd, password, stdin, onStdout, signal } = {}) {
   return new Promise((resolve, reject) => {
     const c = spawn(bin, args, { cwd, stdio: [stdin ? "pipe" : password != null ? "pipe" : "ignore", "pipe", "pipe"], signal, env: { ...process.env, LANG: "C.UTF-8" } });
     let out = [], err = "", outLen = 0;
-    c.stdout.on("data", (d) => { if (onStdout) onStdout(d); else if (outLen < 256 << 20) { out.push(d); outLen += d.length; } });
+    c.stdout.on("data", (d) => { if (onStdout) onStdout(d, c); else if (outLen < 256 << 20) { out.push(d); outLen += d.length; } });
     c.stderr.on("data", (d) => { if (err.length < 65536) err += d; });
     if (stdin) stdin.pipe(c.stdin);
     else if (password != null) { c.stdin.on("error", () => {}); c.stdin.end(password + "\n"); }
@@ -88,9 +88,11 @@ export async function archiveList(file, { enc = "auto", password } = {}) {
   if (!r && TAR_OUTER.test(file)) {
     // 外层解到标准输出，直接喂给内层列 tar（不落临时文件）
     const outer = spawnOuter(file);
-    const inner = await run7z(["l", "-slt", "-ba", "-si", "-ttar", "-sccUTF-8"], { stdin: outer.stdout });
-    const oc = await outer.done;
-    if (inner.code === 0 && oc === 0) r = { kind: "tar2", type: "tar", entries: parseSlt(inner.out), encrypted: false };
+    try {
+      const inner = await run7z(["l", "-slt", "-ba", "-si", "-ttar", "-sccUTF-8"], { stdin: outer.stdout });
+      const oc = await outer.done;
+      if (inner.code === 0 && oc === 0) r = { kind: "tar2", type: "tar", entries: parseSlt(inner.out), encrypted: false };
+    } finally { outer.kill(); }
   }
   if (!r) {
     const x = await run7z(["l", "-slt", "-sccUTF-8", "-y", file], { password: password ?? null });
@@ -102,8 +104,10 @@ export async function archiveList(file, { enc = "auto", password } = {}) {
     // 单流压缩（.gz、.xz…）里面恰好是一个 tar：当成 tar.* 展开（扩展名没写成 .tar.gz 的）
     if (ents.length === 1 && /\.tar$/i.test(ents[0].path) && /^(gzip|bzip2|xz|zstd|lzma|Z)$/i.test(r.type)) {
       const outer = spawnOuter(file);
-      const inner = await run7z(["l", "-slt", "-ba", "-si", "-ttar", "-sccUTF-8"], { stdin: outer.stdout });
-      if (inner.code === 0 && (await outer.done) === 0) r = { kind: "tar2", type: "tar", entries: parseSlt(inner.out), encrypted: false };
+      try {
+        const inner = await run7z(["l", "-slt", "-ba", "-si", "-ttar", "-sccUTF-8"], { stdin: outer.stdout });
+        if (inner.code === 0 && (await outer.done) === 0) r = { kind: "tar2", type: "tar", entries: parseSlt(inner.out), encrypted: false };
+      } finally { outer.kill(); }
     }
   }
   r.total = r.entries.length;
@@ -157,6 +161,7 @@ function pick(list, sel) {
 }
 
 // ── 单个文件解到缓存（查看器直接打开） ───────────────────────────────
+const PREV_INFLIGHT = new Map();
 export async function previewEntry(file, entry, { enc, password } = {}) {
   const list = await archiveList(file, { enc, password });
   if (list.needPassword) return { needPassword: true, wrongPassword: !!list.wrongPassword };
@@ -169,19 +174,25 @@ export async function previewEntry(file, entry, { enc, password } = {}) {
   const key = crypto.createHash("sha1").update(`${file}|${st.size}|${st.mtimeMs}|${st.ino}|${st.ctimeMs}|${want}|${list.encoding || ""}`).digest("hex").slice(0, 20);
   const dir = path.join(PREV_DIR(), key), out = path.join(dir, path.basename(want));
   if (fs.existsSync(out)) { const n = new Date(); try { fs.utimesSync(dir, n, n); } catch {} return { path: out, size: fs.statSync(out).size }; }
-  fs.mkdirSync(PREV_DIR(), { recursive: true });
-  checkSpace(PREV_DIR(), e.size);
-  const tmp = dir + ".part-" + process.pid + "-" + Date.now();
-  fs.mkdirSync(tmp, { recursive: true });
-  const tout = path.join(tmp, path.basename(want));
-  try {
-    if (list.kind === "zip" && zipNative(e)) await zipExtract(file, e, tout);
-    else await extractOne(file, list, e, tout, password);
-    fs.rmSync(dir, { recursive: true, force: true });
-    fs.renameSync(tmp, dir);
-  } catch (err) { fs.rmSync(tmp, { recursive: true, force: true }); throw err; }
-  prunePreview();
-  return { path: out, size: fs.statSync(out).size };
+  if (PREV_INFLIGHT.has(key)) return PREV_INFLIGHT.get(key);
+  const run = (async () => {
+    if (fs.existsSync(out)) { const n = new Date(); try { fs.utimesSync(dir, n, n); } catch {} return { path: out, size: fs.statSync(out).size }; }
+    fs.mkdirSync(PREV_DIR(), { recursive: true });
+    checkSpace(PREV_DIR(), e.size);
+    const tmp = dir + ".part-" + process.pid + "-" + Date.now() + "-" + crypto.randomBytes(4).toString("hex");
+    fs.mkdirSync(tmp, { recursive: true });
+    const tout = path.join(tmp, path.basename(want));
+    try {
+      if (list.kind === "zip" && zipNative(e)) await zipExtract(file, e, tout);
+      else await extractOne(file, list, e, tout, password);
+      await fs.promises.rm(dir, { recursive: true, force: true });
+      fs.renameSync(tmp, dir);
+    } catch (err) { await fs.promises.rm(tmp, { recursive: true, force: true }).catch(() => {}); throw err; }
+    prunePreview();
+    return { path: out, size: fs.statSync(out).size };
+  })().finally(() => { if (PREV_INFLIGHT.get(key) === run) PREV_INFLIGHT.delete(key); });
+  PREV_INFLIGHT.set(key, run);
+  return run;
 }
 
 /** 7-Zip 解一条到 out：-so 写标准输出。条目名用清单文件交（-i@，-spd 关掉通配符），名字里的 * ? @ - 都不会被当成参数 */
@@ -189,20 +200,43 @@ async function extractOne(file, list, e, out, password) {
   const lst = out + ".list";
   fs.writeFileSync(lst, e.path + "\n");
   const ws = fs.createWriteStream(out, { flags: "wx", mode: 0o644 });
-  let n = 0, over = false;
+  let n = 0, over = false, outer = null, wsErr = null, curChild = null;
+  ws.on("error", (er) => {
+    wsErr = er;
+    if (curChild) try { curChild.kill("SIGKILL"); } catch {}
+    if (outer) try { outer.kill(); } catch {}
+  });
   try {
     let r;
-    const onStdout = (d) => { n += d.length; if (n > e.size + 1024 && e.size > 0) over = true; if (!over) ws.write(d); };
+    const onStdout = (d, child) => {
+      curChild = child;
+      if (wsErr || over) return;
+      n += d.length;
+      if (n > e.size + 1024 && e.size > 0) {
+        over = true;
+        try { child.kill("SIGKILL"); } catch {}
+        if (outer) try { outer.kill(); } catch {}
+        return;
+      }
+      if (!ws.write(d)) {
+        child.stdout.pause();
+        ws.once("drain", () => { if (!child.stdout.destroyed && !over && !wsErr) child.stdout.resume(); });
+      }
+    };
     if (list.kind === "tar2") {
-      const outer = spawnOuter(file);
+      outer = spawnOuter(file);
       r = await run7z(["e", "-so", "-si", "-ttar", "-spd", "-scsUTF-8", "-i@" + lst], { stdin: outer.stdout, onStdout });
-      outer.kill();
     } else r = await run7z(["e", "-so", "-y", "-spd", "-scsUTF-8", "-i@" + lst, file], { password: password ?? (e.enc ? "" : null), onStdout });
-    await new Promise((res) => ws.end(res));
+    if (!wsErr) await new Promise((res) => { ws.once("error", () => res()); ws.end(res); });
+    if (wsErr) throw wsErr;
     if (over) throw new Error("entry larger than declared");
     if (wrongPw(r)) throw Object.assign(new Error("wrong password"), { status: 401, wrongPassword: true });
     if (r.code !== 0) throw new Error((r.err.trim().split("\n").pop() || `7-Zip exit ${r.code}`).slice(0, 200));
-  } finally { ws.destroy(); fs.rmSync(lst, { force: true }); }
+  } finally {
+    if (outer) try { outer.kill(); } catch {}
+    ws.destroy();
+    fs.rmSync(lst, { force: true });
+  }
 }
 
 function prunePreview() {
@@ -254,9 +288,9 @@ export function startExtract(file, { dest, entries, enc, password }) {
       const native = list.kind === "zip" && items.every((e) => e.dir || zipNative(e) || e.link);
       if (native) await extractZipNative(file, items, stage, j);
       else await extract7z(file, list, items, entries, stage, password, j);
-      sanitizeTree(stage);
+      await sanitizeTree(stage);
       mergeInto(stage, dest);
-    } finally { fs.rmSync(stage, { recursive: true, force: true }); }
+    } finally { await fs.promises.rm(stage, { recursive: true, force: true }).catch(() => {}); }
     log(`[压缩包] 解压 ${file} → ${dest}（${j.files} 个文件）`);
   })().then(() => finish(j), (e) => finish(j, e));
   return j;
@@ -288,32 +322,39 @@ async function extract7z(file, list, items, sel, stage, password, j) {
     args.push("-i@" + lst);
   }
   const onStdout = (d) => { const m = /(\d+)%[^%]*$/.exec(d.toString()); if (m) j.pct = Math.min(99, +m[1]); };
+  let outer = null;
   try {
     let r;
     if (list.kind === "tar2") {
-      const outer = spawnOuter(file);
+      outer = spawnOuter(file);
       r = await run7z([...args, "-si", "-ttar"], { stdin: outer.stdout, onStdout, signal: j.ac.signal });
-      outer.kill();
     } else r = await run7z([...args, file], { password: password ?? (list.encrypted ? "" : null), onStdout, signal: j.ac.signal });
     if (wrongPw(r)) throw Object.assign(new Error("wrong password"), { wrongPassword: true });
     if (r.code !== 0) throw new Error((r.err.trim().split("\n").filter(Boolean).pop() || `7-Zip exit ${r.code}`).slice(0, 300));
-  } finally { if (lst) fs.rmSync(lst, { force: true }); }
+  } finally {
+    if (outer) try { outer.kill(); } catch {}
+    if (lst) fs.rmSync(lst, { force: true });
+  }
 }
 
-/** 解出来的东西里：指向临时目录外面的软链删掉，特殊文件（FIFO、设备）删掉 */
-function sanitizeTree(root) {
+/** 解出来的东西里：指向临时目录外面的软链删掉，特殊文件（FIFO、设备）删掉（异步分批让出事件循环） */
+async function sanitizeTree(root) {
   const realRoot = fs.realpathSync(root);
-  const walk = (d) => {
-    for (const n of fs.readdirSync(d)) {
-      const f = path.join(d, n), st = fs.lstatSync(f);
+  let n = 0;
+  const walk = async (d) => {
+    let ds; try { ds = await fs.promises.readdir(d); } catch { return; }
+    for (const name of ds) {
+      if ((++n & 255) === 0) await new Promise((ok) => setImmediate(ok));
+      const f = path.join(d, name);
+      let st; try { st = await fs.promises.lstat(f); } catch { continue; }
       if (st.isSymbolicLink()) {
-        let t = null; try { t = fs.realpathSync(f); } catch {}
-        if (!t || !(t === realRoot || t.startsWith(realRoot + path.sep))) fs.rmSync(f, { force: true });
-      } else if (st.isDirectory()) walk(f);
-      else if (!st.isFile()) fs.rmSync(f, { force: true });
+        let t = null; try { t = await fs.promises.realpath(f); } catch {}
+        if (!t || !(t === realRoot || t.startsWith(realRoot + path.sep))) await fs.promises.rm(f, { force: true }).catch(() => {});
+      } else if (st.isDirectory()) await walk(f);
+      else if (!st.isFile()) await fs.promises.rm(f, { force: true }).catch(() => {});
     }
   };
-  walk(root);
+  await walk(root);
 }
 
 /** 临时目录里的东西挪进 dest：dest 不存在就整个改名过去；存在就逐个挪，同名的新来者改成「名字 (2)」 */
@@ -337,8 +378,44 @@ export function uniquePath(p) {
 
 // ── 压缩 ────────────────────────────────────────────────────────────────
 export const CREATE_FORMATS = { zip: "zip", "7z": "7z", tar: "tar", "tar.gz": "gzip", "tar.xz": "xz", "tar.bz2": "bzip2" };
-/** 不打进压缩包的：凭据目录（同 files.mjs 的 SECRET_RE） */
-const EXCLUDE = [".ssh", ".gnupg", ".aws"];
+/** 不打进压缩包的：凭据目录与凭据文件名（同 files.mjs 的 SECRET_RE / SECRET_NAMES） */
+const EXCLUDE_DIRS = [".ssh", ".gnupg", ".aws", ".config/gcloud"];
+const SECRET_DIR_RE = /(^|\/)(\.ssh|\.gnupg|\.aws|\.config\/gcloud)$/i;
+
+/** 扫描待压缩条目里的大小写变体凭据路径与逃逸/指向凭据的软链（/sdcard 不区分大小写，7zz 默认 -xr! 区分大小写，
+ *  且 7zz 打包 zip 默认跟随软链会直接把指向的私有/凭据文件内容打进压缩包；
+ *  不传全局 -ssc-，否则 ext4 同目录有 foo.txt 与 Foo.txt 时 7zz 会报 Duplicate filename） */
+async function collectSecretExcludes(items) {
+  const out = [];
+  let seen = 0;
+  const walk = async (abs, rel, realRoot) => {
+    if (seen > 200000) return;
+    let st; try { st = await fs.promises.lstat(abs); } catch { return; }
+    if (st.isSymbolicLink()) {
+      let target = null;
+      try { target = await fs.promises.realpath(abs); } catch {}
+      const outside = !target || !realRoot || (target !== realRoot && !target.startsWith(realRoot + "/"));
+      const base = target ? path.basename(target).toLowerCase() : "";
+      if (outside || pathBlocked(target) || SECRET_NAMES.has(base) || SECRET_DIR_RE.test(target)) out.push(rel);
+      return;
+    }
+    const base = path.basename(abs).toLowerCase();
+    if (SECRET_NAMES.has(base) || SECRET_DIR_RE.test(rel)) { out.push(rel); return; }
+    if (!st.isDirectory()) return;
+    let ds; try { ds = await fs.promises.readdir(abs); } catch { return; }
+    for (const n of ds) {
+      if (++seen > 200000) return;
+      if ((seen & 255) === 0) await new Promise((ok) => setImmediate(ok));
+      await walk(path.join(abs, n), rel + "/" + n, realRoot);
+    }
+  };
+  for (const f of items) {
+    let realRoot = null;
+    try { realRoot = await fs.promises.realpath(f); } catch {}
+    await walk(f, path.basename(f), realRoot);
+  }
+  return out;
+}
 
 export function startCreate({ items, dest, format, level, password, encryptNames }) {
   const j = newJob("create", { dest });
@@ -347,8 +424,16 @@ export function startCreate({ items, dest, format, level, password, encryptNames
     const tmp = path.join(path.dirname(dest), `.cc-pack-${j.id}-` + path.basename(dest));
     const lv = Math.max(0, Math.min(9, Number.isFinite(+level) ? +level : 5));
     const names = items.map((f) => "./" + path.basename(f));
-    const common = ["-y", "-bsp1", "-bso0", "-spd", "-scsUTF-8", ...EXCLUDE.map((x) => "-xr!" + x)];
+    const common = ["-y", "-bsp1", "-bso0", "-spd", "-scsUTF-8", ...EXCLUDE_DIRS.map((x) => "-xr!" + x), ...[...SECRET_NAMES].map((x) => "-xr!" + x)];
+    const extraEx = await collectSecretExcludes(items);
+    let exFile = null;
+    if (extraEx.length) {
+      exFile = tmp + ".ex";
+      fs.writeFileSync(exFile, extraEx.join("\n") + "\n");
+      common.push("-x@" + exFile);
+    }
     const onStdout = (d) => { const m = /(\d+)%[^%]*$/.exec(d.toString()); if (m) j.pct = Math.min(99, +m[1]); };
+    let inner = null;
     try {
       let r;
       if (format === "zip" || format === "7z" || format === "tar") {
@@ -361,7 +446,7 @@ export function startCreate({ items, dest, format, level, password, encryptNames
         r = await run7z([...a, tmp, "--", ...names], { cwd: parent, password: password && format !== "tar" ? password + "\n" + password : null, onStdout, signal: j.ac.signal });
       } else {
         // tar.gz / tar.xz / tar.bz2：内层 tar 写标准输出，外层从标准输入压
-        const inner = spawn(sevenZ(), ["a", "-ttar", "-so", "-an", ...common.filter((x) => x !== "-bsp1" && x !== "-bso0"), "--", ...names], { cwd: parent, stdio: ["ignore", "pipe", "ignore"], signal: j.ac.signal });
+        inner = spawn(sevenZ(), ["a", "-ttar", "-so", "-an", ...common.filter((x) => x !== "-bsp1" && x !== "-bso0"), "--", ...names], { cwd: parent, stdio: ["ignore", "pipe", "ignore"], signal: j.ac.signal });
         const innerDone = new Promise((res) => { inner.on("close", res); inner.on("error", () => res(-1)); });
         r = await run7z(["a", "-t" + CREATE_FORMATS[format], "-mx=" + lv, "-y", "-bsp1", "-bso0", "-si" + path.basename(dest).replace(/\.(gz|xz|bz2)$/i, ""), tmp], { stdin: inner.stdout, onStdout, signal: j.ac.signal });
         const ic = await innerDone;
@@ -370,7 +455,11 @@ export function startCreate({ items, dest, format, level, password, encryptNames
       if (r.code !== 0 && r.code !== 1) throw new Error((r.err.trim().split("\n").filter(Boolean).pop() || `7-Zip exit ${r.code}`).slice(0, 300));
       if (fs.existsSync(dest)) throw Object.assign(new Error("exists"), { status: 409 });
       fs.renameSync(tmp, dest);
-    } finally { fs.rmSync(tmp, { force: true }); }
+    } finally {
+      if (inner) try { inner.kill(); } catch {}
+      if (exFile) fs.rmSync(exFile, { force: true });
+      fs.rmSync(tmp, { force: true });
+    }
     j.size = fs.statSync(dest).size;
     log(`[压缩包] 压缩 ${items.length} 项 → ${dest}（${format}）`);
   })().then(() => finish(j), (e) => finish(j, e));
