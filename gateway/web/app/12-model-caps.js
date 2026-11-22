@@ -421,13 +421,14 @@
       t("档位越高思考越久。这是默认值；单个会话在输入栏下面另选");
   }
 
-  async function loadSettings() {
+  async function loadSettings() { return refreshSettings(true); }
+  async function refreshSettings(lists) {
     try {
       // 读的时候有保存在排队 / 在路上，或者读的途中又点了保存：这份快照可能早于那次保存，
       // 拿它整份盖 state.settings 和控件，刚存上的值就在界面上退回去了。等保存排完再重读一次（UIFS-010 第二条）
       const busy = savePending > 0, gen = saveGen;
       const s = await api("/api/settings");
-      if (busy || gen !== saveGen) return saveQ.then(() => loadSettings());
+      if (busy || gen !== saveGen) return saveQ.then(() => refreshSettings(lists));
       state.settings = s;
       $("set-perm").value = state.settings.permissionMode || "default";
       // 输出风格清单由网关列（内置 + 自定义 .md），不再写死 —— 以前写死的 concise 根本不存在
@@ -441,22 +442,22 @@
       renderPermBar();
       renderDirs();
       fillMem();
-      await loadProviders();
-      // 不阻塞 loadSettings() 等待 /api/models：首屏 boot() 可立即继续渲染，清单回来后再异步回填下拉框；
-      // 拉失败时退回原始设置值（审查 D-03）
-      Promise.resolve(loadModels()).then((ok) => {
-        if (ok === false) {
-          $("set-model").value = state.settings.model || "";
-          $("set-effort").value = state.settings.effort || "";
-        }
-      }).catch(() => {});
+      if (lists) {
+        await loadProviders();
+        // 不阻塞 loadSettings() 等待 /api/models：首屏 boot() 可立即继续渲染，清单回来后再异步回填下拉框；
+        // 拉失败时退回原始设置值（审查 D-03）
+        Promise.resolve(loadModels()).then((ok) => {
+          if (ok === false) {
+            $("set-model").value = state.settings.model || "";
+            $("set-effort").value = state.settings.effort || "";
+          }
+        }).catch(() => {});
+      }
       const pe = $("set-parallel");
       if (pe && document.activeElement !== pe) { pe.max = state.settings.maxParallelCap || 16; pe.value = state.settings.maxParallel || 3; }
       $("set-static").checked = state.settings.staticCompat !== false;
       $("set-idlecompact").checked = state.settings.idleCompaction !== false;
       $("set-workisland").checked = state.settings.workIsland === true;
-      loadWorkIsland();
-      loadExecMode();
     } catch {}
   }
 

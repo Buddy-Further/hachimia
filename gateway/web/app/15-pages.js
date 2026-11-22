@@ -1,21 +1,19 @@
   // ── 设置：弹窗。宽屏居中（左分类、右内容）；窄屏铺满，先列分类，点进去看一类，返回键回分类 ──
   var setOpen = false;
   var setCatShown = "-";   // 上次画的是哪一类：null = 窄屏的分类列表，"-" = 刚打开还没画过
-  let setFrom = null;
+  let setFrom = null, setBaseRead = Promise.resolve();
   function openSettings(cat) {
-    setFrom = document.activeElement;
+    if (!setOpen) { setFrom = document.activeElement; if (curPage) pausePageReads(curPage, false); }
     OV.closeAll();
     setOpen = true;
     MO.cancel($("set-ov"));
     $("set-ov").classList.remove("hidden");
     setCatOpen = cat || (pagesNarrow() ? null : setCatOpen || "general");
-    loadQuota().catch(() => {});
+    // 基础设置仍重读；各分类的额外读取由 enterSetCat 发起。
+    setBaseRead = refreshSettings(false);
     paintSetCats();
     renderSideNav();
     closeDrawer();
-    // 每次打开设置页都重取设置（loadSettings 里也会重拉厂商和型号）：启动时那一次失败/竞态，
-    // 以前就一直显示默认或旧值（195-E.8）
-    loadSettings(); loadPriv(); loadUpd(); loadNotify(); loadDev(); loadReconcile(false); loadEnvFacts(); loadFonts(); renderTbList(); renderAccent(); renderMsgActs();
     // 焦点进模态：不然键盘 / 读屏还停在被盖住的背景上（审查 P2-12）
     // 窄屏的分类列表没有选中项、关闭键也藏着：落到第一个看得见的控件（审查 #52 P2-12）
     requestAnimationFrame(() => { if (setOpen) focusInto($("set-ov"), $("set-cats").querySelector("button.on:not(.hidden)")); });
@@ -23,6 +21,7 @@
   function closeSettings() {
     if (!setOpen) return;
     setOpen = false;
+    pauseSetReads();
     const ov = $("set-ov");
     MO.leave(ov, ov.classList.contains("narrow") ? "mo-out-push" : "mo-out-fade", 170, () => ov.classList.add("hidden"));
     setCatShown = "-";
@@ -31,6 +30,9 @@
     if ($("set-ov").contains(document.activeElement)) document.activeElement.blur();
     if (setFrom && setFrom.isConnected && setFrom.getClientRects().length) try { setFrom.focus({ preventScroll: true }); } catch {}
     setFrom = null;
+    // 有些按钮关设置后立即换整页；等本次点击处理完再判断是否需要恢复原页。
+    const visit = pageVisit;
+    Promise.resolve().then(() => { if (visit === pageVisit) resumePageReads(curPage); });
   }
   // Esc 关设置（窄屏先回分类列表）；菜单、弹层开着时 OV 在捕获阶段先接走了（审查 P2-12）
   addEventListener("keydown", (e) => { if (e.key === "Escape" && setOpen && !e.defaultPrevented) { e.preventDefault(); setBack(); } });
@@ -189,16 +191,14 @@
       }
     }
     const narrow = pagesNarrow(), cats = [...document.querySelectorAll("#set-cats [data-cat]")];
-    // 一类里一项都没显示（比如开发端没有通知 / 更新）就连分类一起藏起来
-    const empty = (k) => ![...document.querySelectorAll(`.set-cat[data-cat="${k}"] > :is(.srow, .sblock)`)].some((f) => !f.classList.contains("hidden"));
+    const empty = (k) => !setDiscover.has(k) && !document.querySelector(`.set-cat[data-cat="${k}"]:not(.mo-ghost) > :is(.srow, .sblock):not(.hidden)`);
     cats.forEach((b) => b.classList.toggle("hidden", empty(b.dataset.cat)));
     if (!narrow && (!setCatOpen || empty(setCatOpen))) setCatOpen = "general";
     $("tab-settings").classList.toggle("set-list", narrow && !setCatOpen);
     $("tab-settings").classList.toggle("set-one", narrow && !!setCatOpen);
     cats.forEach((b) => b.classList.toggle("on", b.dataset.cat === setCatOpen));
-    // 每次进「更新」这一类都重新查一遍（不只读上回的结果）；离开再进来才算一次
-    if (setCatOpen === "update" && setCatShown !== "update") updOnOpen();
-    if (setCatOpen === "storage" && setCatShown !== "storage") stOnOpen();
+    const changed = setCatShown !== setCatOpen;
+    if (changed) pauseSetReads();
     if (setCatShown !== "-" && setCatShown !== setCatOpen) {
       const cur = setCatOpen && document.querySelector(`.set-cat[data-cat="${setCatOpen}"]`);
       if (narrow) { if (cur) MO.play(cur, "mo-in-push", 1400); else if (!setCatOpen) MO.play($("set-cats"), "mo-in-back", 1400); }
@@ -210,6 +210,8 @@
     $("set-ov").classList.toggle("narrow", narrow);
     $("set-back").classList.toggle("hidden", !narrow);
     $("set-x").classList.toggle("hidden", narrow);
+    if (changed) enterSetCat(setCatOpen);
+    else if (setDiscover.has(setCatOpen)) setDiscovery(setCatOpen);
   }
   $("set-cats").addEventListener("click", (e) => {
     const b = e.target.closest("[data-cat]"); if (!b) return;

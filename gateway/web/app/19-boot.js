@@ -596,9 +596,6 @@
     let statusMissed = false;
     setInterval(() => { if (document.hidden) statusMissed = true; else refreshStatus(); }, 45000);
     document.addEventListener("visibilitychange", () => { if (!document.hidden && statusMissed) { statusMissed = false; refreshStatus(); } });
-    // 设置里有几类（设备与权限、更新、通知……）要等接口回话才显示：等首屏彻底空闲后再后台预拉，
-    // 不与冷启动抢连接池（providers 已在 loadSettings 拉过，quota 已在 qbLoad 拉过，不再重复）
-    setTimeout(() => { if (!setOpen) { loadPriv(); loadUpd(); loadNotify(); loadDev(); } }, 6000);
     if (showWhatsNew()) noticeHold = true;     // 刚弹了更新说明：通知等下一次打开 / 切回来
     else loadNotices();
   })();

@@ -35,7 +35,7 @@ test("195-E.3/E.9 删除正在用的接口后强制重拉型号；自定义接�
 
 test("195-E.8 每次打开设置页重取设置，不只吃启动时那一次", () => {
   const s = src("15-pages.js");
-  has(s, /function openSettings\(cat\)[\s\S]*?loadSettings\(\);/, "打开设置页重载");
+  has(s, /function openSettings\(cat\)[\s\S]*?refreshSettings\(false\);/, "打开设置页重载");
   assert.doesNotMatch(s, /openSettings[\s\S]{0,800}?loadProviders\(\); loadModels\(\);/, "不再绕过 loadSettings 单独拉");
 });
 

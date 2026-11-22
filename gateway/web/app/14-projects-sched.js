@@ -715,19 +715,63 @@
   let schedPoll = 0;
   function schedPollSet(on) {
     clearTimeout(schedPoll); schedPoll = 0;
-    if (!on) return;
+    if (!on || !pageVisible("sched")) return;
+    const visit = pageVisit;
     schedPoll = setTimeout(async () => {
-      schedPoll = 0;
-      if (!pageOn("sched")) return;
-      if (!document.hidden) { try { await loadSched(); } catch {} }
-      if (pageOn("sched")) schedPollSet(true);
+      if (!pageVisible("sched", visit)) return;
+      try { await loadSched(); } catch {}
+      if (pageVisible("sched", visit)) schedPollSet(true);
     }, 5000);
   }
+
+  // UI 读取可合并在途请求，不缓存结果、不合并写操作。重进时等旧读退出，再取新快照。
+  const pageReads = new Map();
+  function viewRead(key, ticket, live, read) {
+    if (!live()) return Promise.resolve();
+    const pending = pageReads.get(key);
+    if (pending) {
+      if (pending.ticket === ticket) return pending.done;
+      const next = () => viewRead(key, ticket, live, read);
+      return pending.done.then(next, next);
+    }
+    const done = read().finally(() => pageReads.delete(key));
+    pageReads.set(key, { ticket, done });
+    return done;
+  }
+  const sameGet = (url) => viewRead(url, 0, () => true, () => api(url));
+  let pageVisit = 0;
+  function pageVisible(name, visit = pageVisit) {
+    return visit === pageVisit && pageOn(name);
+  }
+  function pausePageReads(name, leaving) {
+    pageVisit++;
+    if (name === "usage") clearTimeout(us.poll);
+    if (name === "lineage") { clearTimeout(LIN.poll); clearTimeout(FILL.poll); if (leaving) linProfClose(true); }
+    if (name === "ext") pauseExtReads();
+    if (name === "sched") schedPollSet(false);
+  }
+  function resumePageReads(name) {
+    if (!name || !pageVisible(name)) return;
+    if (name === "usage") { loadUsage(); loadEnergy(); loadQuota(); loadAcctCard(false); }
+    if (name === "lineage") { loadLineage(); }
+    if (name === "ext") { loadModules(); loadComponents(); }
+    if (name === "sched") { renderSched(); loadSched(); schedPollSet(true); }
+    if (name === "projects") renderProjects();
+    if (name === "sessions") renderSessions();
+    if (name === "caps") renderCaps();
+    if (name === "changelog") loadChangelog();
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) { pausePageReads(curPage, false); if (setOpen) pauseSetReads(); }
+    else if (setOpen) enterSetCat(setCatOpen, true);
+    else resumePageReads(curPage);
+  });
   /** 打开整页：窄屏收起侧栏、盖住对话；宽屏侧栏照旧常驻，高亮当前项 */
   function openPage(name, cat) {
     if (!PAGES[name] || name === "settings") return openSettings(cat);
     OV.closeAll();
     const prev = curPage;
+    if (prev && prev !== name) pausePageReads(prev, true);
     curPage = name;
     document.documentElement.classList.add("pg-on");   // 整页盖着时藏起会话的上下文用量条（#39：小数缩放下整页上沿和顶栏差一丝，条会漏出来）
     document.documentElement.classList.toggle("pg-lineage", name === "lineage");   // 脉络页整页不滚（地图自己接手势）
@@ -762,8 +806,8 @@
   }
   function closePage() {
     if (!curPage) return;
+    pausePageReads(curPage, true);
     curPage = null;
-    schedPollSet(false);
     pageTitleOv = "";
     document.documentElement.classList.remove("pg-lineage", "pg-on");
     closeTour();
