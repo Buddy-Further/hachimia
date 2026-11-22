@@ -6,7 +6,7 @@
 //  （要验的正好是当前装的那一版就直接用它，不再下载；--bin 直接验给定的二进制，版本号以它 --version 报的为准）
 //
 //  做什么（不动你当前装的那一版）：
-//   1. 用 App 自带的 install-agy.mjs 把这一版装进临时目录（同样先对 install.sh 的钉住哈希，见 install-agy.mjs）
+//   1. 用 App 自带的 install-agy.mjs 把这一版装进临时目录（按官方 manifest 直下 tarball 并验 sha512，见 install-agy.mjs）
 //   2. 不登录、只跑两步零成本探测（agy 是 bionic 原生构建，不套 seccomp 监督器、不用 glibc 加载器）：
 //        version  agy --version 报的是这一版
 //        acp      agy acp 的 initialize 握手：agentInfo.version 是这一版、authMethods 非空

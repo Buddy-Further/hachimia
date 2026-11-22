@@ -10,7 +10,7 @@
    - 网关默认端口：`8791` → **`9793`**，共享目录 `/sdcard/hachimia`，CLI 安装目录 `~/.local/share/hachimia/agy/current/agy`——可与 `cccodroid` 同机共存不冲突。
 
 2. **Android 宿主层（安装 / 更新 / 权限 / 保护）**
-   - 新增 `android/assets/scripts/install-agy.mjs`、`install-agy.sh` 与原生包装脚本 `android/assets/bin/agy`，通过 `https://antigravity.google/cli/install.sh`（支持 `--skip-path --skip-aliases`、`--check`、`--recheck`）安装并维护本地 SHA-256 清单。
+   - 新增 `android/assets/scripts/install-agy.mjs`、`install-agy.sh` 与原生包装脚本 `android/assets/bin/agy`，按官方 manifest 直下 tarball 并验 sha512（不再下载、执行远端 install.sh；支持 `--check`、`--recheck`）安装并维护本地 SHA-256 清单。
    - 改造 `Updater.java`：移除 `downloads.claude.ai` 依赖，改为调用 `install-agy.mjs --check` 检查 `agy` 版本；仓库与 APK 名更新为 `Buddy-Further/hachimia` 与 `hachimia.apk` / `hachimia-36.apk`。
    - 改造 `Env.java`、`Installer.java`、`MainActivity.java`、`DeviceTools.java`、`Docs.java`、`FactoryReset.java`、`Notify.java`、`Priv.java`、`strings.xml`、`scripts/build.sh`。
 

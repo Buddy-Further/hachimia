@@ -5,7 +5,21 @@
 //    node install-agy.mjs [stable|latest|<版本号>]   安装或更新 agy
 //    node install-agy.mjs --check                    查询本机已装版本与在线可用性（输出 JSON）
 //    node install-agy.mjs --recheck                  核对已装版本目录内 agy 的 sha256 清单
-//  退出码：0 成功；1 一般失败；3 --recheck 发现不符；4 下载的 install.sh 与钉住的校验值不符（拒绝执行，见下）
+//  退出码：0 成功；1 一般失败；3 --recheck 发现不符；4 下载的安装包 sha512 与官方清单不符（拒绝安装，见下）
+//
+//  信任链（PR #1 复核后）：不再下载、执行远端 install.sh。
+//  官方 install.sh 是不带版本号的可变脚本，钉它的 sha256 会让上游一改脚本就砖掉所有旧版 App 的
+//  安装，直到新 APK 发下来——2026-11-22 线上那份已从 242 行变成 351 行，钉住的哈希当场失效，
+//  这正是本次复核要修的。现在安装器直接按官方 manifest（{MANIFEST_BASE}/<平台>.json，含 tarball
+//  url + sha512）装：下载 tarball → 自己算 sha512、对不上就拒绝安装（fail-closed，退出码 4）→
+//  只解出单个成员 antigravity → chmod +x → --version 门 → 写进版本目录。平台检测与 install.sh
+//  同款（uname -s/-o/-m + musl 判断），装出来的包和以前走 install.sh 装的是同一个。
+//  残留风险（已接受）：manifest 与安装包同主机、同 TLS——主机本身被攻破时清单与包会一起是坏的，
+//  sha512 只防传输损坏与中间人，不防上游主机被攻破；这和以前 install.sh 在内部验 sha512 的强度一样。
+//  官方 install.sh 末尾那步 `agy install`（|| true 吸收失败）不跑：它只往暂存 HOME 写东西，随暂存
+//  清理一起丢掉，对装好的二进制没有持久影响；装好的二进制由 --version 门与 verify-agy.mjs 的 ACP
+//  握手确认能跑。macOS 那步 xattr 去隔离属性是 install.sh 的 macOS 专属步骤，本安装器只在
+//  Android/Linux 上跑，不复现。
 //
 //  官方 Android (bionic) 原生构建，直接运行在安卓内核上，无需 glibc 加载器或 proot。
 //  安装目录：$HOME/.local/share/hachimia/agy/<version>/agy + current 软链。
@@ -14,30 +28,26 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
 
-const INSTALL_URL = process.env.HACHIMIA_AGY_INSTALL_URL || "https://antigravity.google/cli/install.sh";
-// 官方 install.sh 从这份 manifest 取版本号与下载地址（install.sh 本身不含版本变量，--check 直接问这里）
+// 官方 manifest  base：install.sh 从同一份清单取版本 / 下载地址 / sha512（它用的 base 是
+// https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests，和这里一样）
 const MANIFEST_BASE = process.env.HACHIMIA_AGY_MANIFEST_BASE || "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests";
-// P0-6/7：下载的 install.sh 执行前先对哈希（见下面安装流程里的校验；Google 不发布 install.sh 的签名或
-// 官方哈希，唯一能钉住的就是这份随 APK 发的文件，改一处就够；测试时（且仅当 CCAPP_TEST=1）可用
-// HACHIMIA_AGY_PINS 指到别处——生产环境里谁能设安装器的环境变量就能指到自己控制的 pins 文件、绕过
-// 钉住校验，所以非测试环境下这个覆盖一律忽略，只读脚本旁边的 agy-install-pins.json）
-const PINS_PATH = (process.env.CCAPP_TEST === "1" && process.env.HACHIMIA_AGY_PINS) || path.join(path.dirname(fileURLToPath(import.meta.url)), "agy-install-pins.json");
 const PREFIX = process.env.PREFIX || "";
 const CURL = PREFIX ? path.join(PREFIX, "bin", "curl") : "curl";
-const SH = fs.existsSync(path.join(PREFIX, "bin", "bash"))
-  ? path.join(PREFIX, "bin", "bash")
-  : (fs.existsSync("/system/bin/sh") ? "/system/bin/sh" : "/bin/sh");
+const TAR = fs.existsSync(path.join(PREFIX, "bin", "tar")) ? path.join(PREFIX, "bin", "tar") : "tar";
 const HOME = process.env.HOME || process.env.CCAPP_HOME || "";
 const DEST = path.join(HOME, ".local", "share", "hachimia", "agy");
 const ARG = process.argv[2] || "stable";
 
 const say = (s) => console.log(s);
 const die = (s) => { console.error("✗ " + s); process.exit(1); };
+// try 块里抛出的带退出码的失败：finally 清掉 stage 之后再按这个码退出（die() 的 process.exit 会跳过 finally）
+class ExitError extends Error {
+  constructor(message, code) { super(message); this.code = code; }
+}
 
-const sha256 = (f) => {
-  const h = crypto.createHash("sha256");
+const hashFile = (f, algo) => {
+  const h = crypto.createHash(algo);
   const fd = fs.openSync(f, "r");
   const buf = Buffer.alloc(1 << 20);
   try {
@@ -46,6 +56,8 @@ const sha256 = (f) => {
   } finally { fs.closeSync(fd); }
   return h.digest("hex");
 };
+const sha256 = (f) => hashFile(f, "sha256");
+const sha512 = (f) => hashFile(f, "sha512");
 
 const isVer = (v) => /^\d{1,6}\.\d{1,6}\.\d{1,6}(-[0-9A-Za-z.+-]{1,40})?$/.test(v || "");
 
@@ -79,10 +91,54 @@ function curlSmall(url, timeoutSec = 20) {
   return { ok: false, status: r.status, err: String(r.stderr || r.error?.message || "").trim().slice(0, 200) };
 }
 
-// 官方 install.sh 的平台检测（hachimia 跑在安卓 bionic 上，通常就是 android_arm64）
+// 安装包直接落盘，不进内存（tarball 几十 MB，curlSmall 的 16 MB maxBuffer 装不下）
+function curlDownload(url, dest, timeoutSec = 600) {
+  const r = spawnSync(CURL, [
+    "-fsSL", "--proto", "=https", "--proto-redir", "=https",
+    "--connect-timeout", "10", "--max-time", String(timeoutSec), "-o", dest, url,
+  ], { stdio: ["ignore", "ignore", "pipe"], maxBuffer: 1 << 20 });
+  if (r.status === 0) return { ok: true };
+  return { ok: false, status: r.status, err: String(r.stderr || r.error?.message || "").trim().slice(0, 200) };
+}
+
+// 平台检测：与官方 install.sh（2026-11-22 线上 351 行那份）同款逻辑，装出来的包和以前走 install.sh
+// 装的是同一个。uname -o 认 userland：Termux 里是 Android（要 bionic 构建），proot 进去的发行版
+// （uname -o 报 GNU/Linux）拿常规 Linux 构建。--recheck 不问 manifest，不调这里。
+let _platform = null;
+function detectPlatform() {
+  const uname = (arg) => {
+    for (const u of ["uname", "/system/bin/uname"]) {
+      try {
+        const r = spawnSync(u, [arg], { encoding: "utf8", timeout: 5000 });
+        if (r.status === 0) return (r.stdout || "").trim();
+      } catch {}
+    }
+    return "";
+  };
+  const sys = uname("-s");
+  let os;
+  if (sys === "Darwin") os = "darwin";
+  else if (sys === "Linux") os = uname("-o") === "Android" ? "android" : "linux";
+  else die(`不支持的操作系统：${sys || "（未知）"}。Antigravity CLI 目前只支持 64 位 Windows、macOS 与 Linux。`);
+  const m = uname("-m");
+  const arch = m === "x86_64" || m === "amd64" ? "amd64" : m === "arm64" || m === "aarch64" ? "arm64" : "";
+  if (!arch) die(`不支持的架构：${m || "（未知）"}。Antigravity CLI 目前只支持 64 位 Windows、macOS 与 Linux。`);
+  if (os === "linux") {
+    // musl 判断与 install.sh 一致：两处 libc 文件或 ldd /bin/ls 的输出里有 musl
+    let musl = fs.existsSync("/lib/libc.musl-x86_64.so.1") || fs.existsSync("/lib/libc.musl-aarch64.so.1");
+    if (!musl) {
+      try {
+        const r = spawnSync("ldd", ["/bin/ls"], { encoding: "utf8", timeout: 5000 });
+        musl = /musl/i.test((r.stdout || "") + (r.stderr || ""));
+      } catch {}
+    }
+    return musl ? `linux_${arch}_musl` : `linux_${arch}`;
+  }
+  return `${os}_${arch}`;
+}
 function manifestUrl() {
-  const arch = process.arch === "arm64" ? "arm64" : "amd64";
-  return `${MANIFEST_BASE}/android_${arch}.json`;
+  if (!_platform) _platform = detectPlatform();
+  return `${MANIFEST_BASE}/${_platform}.json`;
 }
 
 // ── --check：供 Updater.java 查询版本状态 ──
@@ -143,116 +199,74 @@ if (ARG === "--recheck") {
 }
 
 // ── 安装 / 更新流程 ──
+// 先问官方 manifest：版本 / 下载地址 / sha512 都从这里来。以前 hachimia 只把它当“来源记录”，
+// 现在直接按它装——不再下载、执行远端 install.sh（见文件头信任链）。
 if (!HOME) die("未设置 HOME 目录");
 fs.mkdirSync(DEST, { recursive: true });
 
-say(`正在获取官方 Antigravity CLI 安装脚本：${INSTALL_URL}`);
-const fetched = curlSmall(INSTALL_URL, 30);
-if (!fetched.ok) {
-  die(`无法下载 Antigravity CLI 安装脚本（${fetched.err || "HTTP/网络错误"}）。请检查网络连接或代理设置后重试。`);
-}
-
-// P0-6/7：执行前先对哈希——只凭 TLS 下载并执行脚本是谁都能冒充的（上游主机被攻破就能发一个“配套”的坏
-// manifest，install.sh 内部的 sha512 校验拦不住它）。Google 不发布 install.sh 的签名或官方哈希，所以唯一能
-// 钉住的就是随 APK 发的 agy-install-pins.json 里的 sha256（2026-11-21 从 Google 下载、实测装出可用 1.5.13
-// 的那份 install.sh 的哈希）。对不上就拒绝执行（fail-closed，退出码 4），绝不回落到只凭 TLS。
-// 轮换风险（已接受）：上游一改脚本，旧版 App 在新校验值发下来之前都会拒绝安装，直到用户更新 App。
-let pins;
-try {
-  pins = JSON.parse(fs.readFileSync(PINS_PATH, "utf8"));
-} catch (e) {
-  die(`读不到 agy 安装脚本校验值文件（${PINS_PATH}）：${e.message}。拒绝执行未校验的安装脚本。`);
-}
-const wantPin = pins?.installSh?.sha256 || "";
-if (!/^[0-9a-f]{64}$/.test(wantPin)) {
-  die(`agy 安装脚本校验值文件（${PINS_PATH}）里没有合法的 installSh.sha256，拒绝执行未校验的安装脚本。`);
-}
-const installShSha256 = crypto.createHash("sha256").update(fetched.data).digest("hex");
-if (installShSha256 !== wantPin) {
-  console.error(`✗ 安装脚本校验值已变化，请等待新版本更新校验值（期望 ${wantPin.slice(0, 12)}…，实得 ${installShSha256.slice(0, 12)}…）。已拒绝执行下载的安装脚本，未安装任何东西。`);
-  process.exit(4);
-}
-say(`✓ 安装脚本 sha256 与钉住的校验值一致（${installShSha256.slice(0, 12)}…）`);
-
-// P0-6/7：先问官方 manifest 再执行 install.sh，把版本 / 下载地址 / sha512 记下来写进本地清单。
-// 注意这份 sha512 校验的是下载的安装包（tar.gz），不是装好的二进制——两者字节不同、算法也不同，
-// 而且 install.sh 把下载的包放在它自己的暂存目录、退出时就清掉（trap cleanup EXIT），hachimia 从头到尾
-// 拿不到那个包，所以**没法独立核对**这份 sha512：唯一核它的是 install.sh 自己拿它刚取的 manifest 现算
-// （同一条 TLS 通道，主机被攻破就一起是坏的）。这里只记下来当作来源（provenance）：
-// 本地清单里的 sha256 才是 hachimia 自己算的、seal 和 --recheck 实际核对的东西；manifestSha512 只说明
-// “装的时候上游 manifest 是这么说的”，不要把它和已装二进制的 sha256 混为一谈。
 const mfUrl = manifestUrl();
 const mfRes = curlSmall(mfUrl, 20);
-let manifestSha512 = "", manifestVersion = "";
 if (!mfRes.ok) {
-  die(`取不到官方 agy 版本清单（${mfUrl}：${mfRes.err || "HTTP/网络错误"}），未安装。install.sh 自己也要问这份清单，问不到它一样装不了。`);
+  die(`取不到官方 agy 版本清单（${mfUrl}：${mfRes.err || "HTTP/网络错误"}），未安装。`);
 }
+let manifestSha512 = "", manifestVersion = "", payloadUrl = "";
 try {
   const mj = JSON.parse(mfRes.data.toString("utf8"));
   manifestVersion = parseVersion(mj.version || "");
   manifestSha512 = typeof mj.sha512 === "string" ? mj.sha512.trim().toLowerCase() : "";
-  if (!mj.url || !/^[0-9a-f]{128}$/.test(manifestSha512)) {
+  payloadUrl = typeof mj.url === "string" ? mj.url.trim() : "";
+  if (!payloadUrl || !/^[0-9a-f]{128}$/.test(manifestSha512)) {
     die(`官方 agy 版本清单（${mfUrl}）里没有可用的下载地址 / sha512，清单可能坏了，未安装。`);
   }
 } catch (e) {
   die(`官方 agy 版本清单（${mfUrl}）解析失败（${e.message}），未安装。`);
 }
+// install.sh 对包的处理：.tar.gz 就只解出单个成员 antigravity，否则把下载的文件直接当二进制用
+const isTarGz = payloadUrl.includes(".tar.gz");
+say(`正在下载 Antigravity CLI 安装包：${payloadUrl}`);
 
 const stage = fs.mkdtempSync(path.join(DEST, ".stage-"));
-const stageHome = path.join(stage, "home");
-const stageScript = path.join(stage, "install.sh");
-fs.mkdirSync(path.join(stageHome, ".local", "bin"), { recursive: true });
-fs.writeFileSync(stageScript, fetched.data, { mode: 0o700 });
+const payload = path.join(stage, isTarGz ? "agy.tar.gz" : "agy");
 
 // 安装失败也要清掉暂存目录：die() 的 process.exit(1) 会跳过 finally（E-04），
 // 所以 try 块里一律 throw，由外面的 catch 在 finally 清理完之后再退出。
 let failed = null;
 try {
-  // 官方 install.sh 只认 -d/--dir（装到 <dir>/agy）；装进暂存 HOME 的 .local/bin，下面从那里搬到版本目录
-  const binDir = path.join(stageHome, ".local", "bin");
-  say(`正在运行官方安装脚本（--dir ${binDir}）…`);
-  const env = {
-    ...process.env,
-    HOME: stageHome,
-    TMPDIR: process.env.TMPDIR || stage,
-  };
-  const run = spawnSync(SH, [stageScript, "--dir", binDir], {
-    cwd: stage,
-    env,
-    stdio: "inherit",
-    timeout: 10 * 60e3,
-  });
-  if (run.status !== 0) {
-    throw new Error(`官方安装脚本退出码 ${run.status ?? "null"}${run.signal ? `（信号 ${run.signal}）` : ""}`);
+  const dl = curlDownload(payloadUrl, payload, 600);
+  if (!dl.ok) {
+    throw new Error(`下载安装包失败（${payloadUrl}：${dl.err || `curl exit ${dl.status}`}），未安装`);
   }
-
-  // 在暂存目录中查找安装好的 agy 二进制
-  const candidates = [
-    path.join(stageHome, ".local", "bin", "agy"),
-    path.join(stageHome, ".antigravity", "bin", "agy"),
-    path.join(stageHome, ".gemini", "bin", "agy"),
-  ];
-  let found = candidates.find((p) => fs.existsSync(p));
-  if (!found) {
-    // 递归兜底查找名为 agy 的可执行文件
-    const walk = (d, depth = 0) => {
-      if (depth > 5) return null;
-      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
-        const p = path.join(d, e.name);
-        if (e.isFile() && e.name === "agy") return p;
-        if (e.isDirectory()) { const r = walk(p, depth + 1); if (r) return r; }
-      }
-      return null;
-    };
-    found = walk(stageHome);
+  // 安装包自己验 sha512（以前是 install.sh 在它内部验，现在安装器自己验——同一份清单、同一个值）：
+  // 对不上就拒绝安装（fail-closed，退出码 4），绝不装一个没验过的包。
+  let got512 = "";
+  try { got512 = sha512(payload); } catch (e) {
+    throw new Error(`算安装包 sha512 失败（${e.message}），未安装`);
   }
-  if (!found) throw new Error("安装脚本运行完成，但未在目标目录找到 agy 可执行文件");
+  if (got512 !== manifestSha512) {
+    throw new ExitError(`安装包 sha512 与官方清单不符，请稍后重试或等待新版本（期望 ${manifestSha512.slice(0, 12)}…，实得 ${got512.slice(0, 12)}…）。已拒绝安装，未安装任何东西。`, 4);
+  }
+  say(`✓ 安装包 sha512 与官方清单一致（${got512.slice(0, 12)}…）`);
 
-  const realFound = fs.realpathSync(found);
-  fs.chmodSync(realFound, 0o755);
+  let stagedBin;
+  if (isTarGz) {
+    // --no-same-owner：包里记的 uid/gid（官方包常记 root）和安装者不一定一致，非 root 解压时
+    // chown 会 EPERM；和仓库里 components.mjs / modules.mjs 解压组件包的做法一样，只取内容、
+    // 不恢复属主。解出的文件归运行安装器的用户（设备上就是 App 自己），随后 chmod 0755。
+    const ext = spawnSync(TAR, ["-xzf", payload, "-C", stage, "--no-same-owner", "antigravity"], { encoding: "utf8", timeout: 60000 });
+    if (ext.status !== 0) {
+      const detail = String(ext.stderr || "").trim().slice(0, 200);
+      throw new Error(`解压安装包失败（tar 退出码 ${ext.status ?? "null"}${ext.signal ? `（信号 ${ext.signal}）` : ""}${detail ? `：${detail}` : ""}），未安装`);
+    }
+    stagedBin = path.join(stage, "antigravity");
+  } else {
+    stagedBin = payload;
+  }
+  if (!fs.existsSync(stagedBin)) throw new Error("安装包里没有找到 agy 可执行文件，未安装");
+  fs.chmodSync(stagedBin, 0o755);
+
   // 刚装好的二进制必须自己能跑、且 --version 报得出版本号（A5/E-11）：
   // 报不出就说明装进来的东西是坏的或输出格式变了，不能把它钉成当前版，更不能回退到 0.0.0-local
-  const vr = spawnSync(realFound, ["--version"], { encoding: "utf8", timeout: 15000 });
+  const vr = spawnSync(stagedBin, ["--version"], { encoding: "utf8", timeout: 15000 });
   if (vr.status !== 0) {
     throw new Error(`刚装好的 agy 无法运行（--version 退出码 ${vr.status ?? "null"}${vr.signal ? `（信号 ${vr.signal}）` : ""}），未安装`);
   }
@@ -265,7 +279,7 @@ try {
   fs.mkdirSync(verDir, { recursive: true });
 
   const finalBin = path.join(verDir, "agy");
-  fs.copyFileSync(realFound, finalBin);
+  fs.copyFileSync(stagedBin, finalBin);
   fs.chmodSync(finalBin, 0o755);
 
   // 拷贝后的最终文件再校验一次 --version（A5）：截断/损坏的拷贝 sha256 是现算的，能自洽过关，但跑不起来
@@ -280,17 +294,17 @@ try {
   const sum = sha256(finalBin);
   // 本地清单同时记两套哈希，别混为一谈（D6）：
   //  - sha256：hachimia 自己对装好的二进制算的，seal 和 --recheck 核的就是它；
-  //  - manifestSha512：上游 manifest 里写着的安装包（tar.gz）sha512，hachimia 没法独立核对（见上面），只记来源；
-  //    installShSha256：实际执行的 install.sh 的 sha256（已对过 pins 文件）。
+  //  - manifestSha512：上游 manifest 里写着的安装包（tar.gz）sha512，安装时已由安装器自己现算核对过
+  //    （manifestSha512Verified: true），verify-agy.mjs 的结果文件里报的就是它。
   fs.writeFileSync(path.join(verDir, "manifest.json"), JSON.stringify({
     name: "agy",
     version: ver,
     sha256: sum,
-    installShSha256,
     manifestSha512,
+    manifestSha512Verified: true,
     manifestUrl: mfUrl,
     manifestVersion,
-    source: INSTALL_URL,
+    source: payloadUrl,
     installedAt: new Date().toISOString(),
   }, null, 2) + "\n");
 
@@ -307,4 +321,7 @@ try {
 } finally {
   try { fs.rmSync(stage, { recursive: true, force: true }); } catch {}
 }
-if (failed) die(failed.message);
+if (failed) {
+  console.error("✗ " + failed.message);
+  process.exit(failed instanceof ExitError ? failed.code : 1);
+}

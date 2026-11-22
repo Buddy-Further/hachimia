@@ -47,7 +47,7 @@ const probe = `
   const http = await import("node:http");
   const feed = Buffer.from(process.env.FEED_BODY, "base64"), sig = process.env.FEED_SIG;   // .sig 是 base64 文本，原样发（别先解成原始字节再发，utf8 一转就坏）
   const feedSrv = http.createServer((req, res) => {
-    if (req.url === "/manifests/android_amd64.json" || req.url === "/manifests/android_arm64.json") {
+    if (req.url.startsWith("/manifests/") && req.url.endsWith(".json")) {
       res.writeHead(200, { "content-type": "application/json" });
       return res.end(JSON.stringify({ version: "1.5.14", url: "https://example.invalid/agy.tar.gz", sha512: "ab".repeat(64) }));
     }

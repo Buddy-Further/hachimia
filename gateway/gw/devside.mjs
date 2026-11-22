@@ -12,11 +12,11 @@ import { ccMem, privCall } from "./usage.mjs";
 
 // ── 开发端（非 hachimia 布局）：没有 Java 那一层，更新和 Shizuku 状态由网关自己做 ──────────
 // hachimia 里这些在 App 进程（Updater / ShizukuSetup）；开发端只有一个 agy 二进制，priv 走 rish。
-// 更新项就是设置页里标的 Antigravity CLI (agy)：查官方 agy 版本清单、装官方 install.sh，
+// 更新项就是设置页里标的 Antigravity CLI (agy)：查官方 agy 版本清单、按清单直装 tarball，
 // 绝不能从旧的 Claude Code 下载站拉程序（D-03：以前这里装的和标的不是同一种程序）。
 
 const DEV_UPD_FILE = path.join(CFG.home, "ccapp-update.json");
-// 官方 agy 安装脚本（android/assets/scripts/install-agy.mjs）：拉官方 install.sh，装进
+// 官方 agy 安装脚本（android/assets/scripts/install-agy.mjs）：按官方 manifest 直下 tarball 并验 sha512，装进
 // ~/.local/share/hachimia/agy/<版本>/ 并更新 current 软链，正好是 PATHS.agy 指的地方
 const INSTALL_AGY_SCRIPT = path.join(HERE, "..", "android", "assets", "scripts", "install-agy.mjs");
 const devUpd = {
@@ -89,7 +89,7 @@ async function devUpdCheck() {
 }
 
 /**
- * 换新版：跑仓库里的 install-agy.mjs（官方 https://antigravity.google/cli/install.sh），
+ * 换新版：跑仓库里的 install-agy.mjs（按官方 manifest 直装 tarball，不再下 install.sh），
  * 装进 ~/.local/share/hachimia/agy/<版本>/ 并更新 current 软链（PATHS.agy 指的地方）。
  * 装完按 agy --version 核对版本；对不上就报 error，不留一个半吊子版本。
  * version 不给就装清单里的最新版；给了（版本选单点的）就装指定版。
