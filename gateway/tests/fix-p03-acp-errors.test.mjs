@@ -253,6 +253,94 @@ test("P0-3 建会 429 重试：session/new 前两次 429、第三次成功，恰
   } finally { closeAllAcpClients(); }
 });
 
+// ── 建会停止：PR #1 复核 ────────────────────────────────────────────────
+// 停止时建会重试循环不得再换新进程、不得再重试；retrySetupRequest 同理。
+test("PR1fix 建会停止：run.aborted 时 session/new 只发 1 次、不换进程、不发 retry 事件", { timeout: 15000 }, async () => {
+  const mock = makeMock(freshDir("mock"), {
+    sessionNewErrors: [
+      { code: 429, message: "Too many requests" },
+      { code: 429, message: "API Error: 429 rate limit exceeded" },
+    ],
+  });
+  try {
+    const run = { aborted: true };
+    const { res, events } = await drive(mock, { run });
+    assert.equal(res.ok, false);
+    assert.equal(res.failed, false, "已停止的回合不算失败");
+    assert.equal(res.retryable, false, "已停止的回合不可重试");
+    assert.equal(mock.countOf("session/new"), 1, "停止后不得再重试建会");
+    assert.equal(mock.countOf("initialize"), 1, "停止后不得再换新进程");
+    assert.ok(!events.some((e) => e.type === "phase" && e.phase === "retry"), "停止后不得发 retry 事件");
+    assert.ok(!events.some((e) => e.type === "error"), "已停止不得发 error 事件");
+  } finally { closeAllAcpClients(); }
+});
+
+test("PR1fix 建会停止：停止落在 backoff 里时醒来不换新进程、不重试", { timeout: 15000 }, async () => {
+  const mock = makeMock(freshDir("mock"), {
+    sessionNewErrors: [
+      { code: 429, message: "Too many requests" },
+      { code: 429, message: "API Error: 429 rate limit exceeded" },
+    ],
+  });
+  try {
+    const run = { aborted: false };
+    const events = [];
+    const dir = freshDir("cwd");
+    const res = await runAcpTurn({
+      bin: process.execPath,
+      args: [mock.script],
+      cwd: dir,
+      env: process.env,
+      prompt: "hi",
+      model: "gemini-4-neon",
+      authType: "oauth-personal",
+      keepAlive: false,
+      run,
+      emit: (ev) => {
+        events.push(ev);
+        // 模拟用户在第一个 retry 事件发出后立刻点停止：此时正在等 backoff
+        if (ev.type === "phase" && ev.phase === "retry") run.aborted = true;
+      },
+    });
+    assert.equal(res.ok, false);
+    assert.equal(res.failed, false, "已停止的回合不算失败");
+    assert.equal(res.retryable, false, "已停止的回合不可重试");
+    assert.equal(mock.countOf("session/new"), 1, "backoff 里停止后不得再发 session/new");
+    assert.equal(mock.countOf("initialize"), 1, "backoff 里停止后不得再换新进程");
+    assert.equal(events.filter((e) => e.type === "phase" && e.phase === "retry").length, 1, "只应有第一个 retry 事件");
+  } finally { closeAllAcpClients(); }
+});
+
+test("PR1fix set_config_option 停止：429 重试时停止，不再重发，只发一次", { timeout: 15000 }, async () => {
+  const mock = makeMock(freshDir("mock"), {
+    setConfigOptionErrors: [{ code: 429, message: "Too many requests" }],
+  });
+  try {
+    const run = { aborted: false };
+    const events = [];
+    const dir = freshDir("cwd");
+    const res = await runAcpTurn({
+      bin: process.execPath,
+      args: [mock.script],
+      cwd: dir,
+      env: process.env,
+      prompt: "hi",
+      model: "gemini-4-neon",
+      authType: "oauth-personal",
+      keepAlive: false,
+      run,
+      emit: (ev) => {
+        events.push(ev);
+        if (ev.type === "phase" && ev.phase === "retry") run.aborted = true;
+      },
+    });
+    assert.equal(res.ok, true, res.error || JSON.stringify(events));
+    assert.equal(mock.countOf("session/set_config_option"), 1, "停止后不得重发 set_config_option");
+    assert.equal(events.filter((e) => e.type === "phase" && e.phase === "retry").length, 1);
+    assert.ok(events.some((e) => e.type === "note" && e.key === "acp-model-rejected"), "被拒仍要发 note");
+  } finally { closeAllAcpClients(); }
+});
+
 test("P0-3 建会不重试：authenticate -32000 只发 1 次，errorClass auth-expired、hint 是重登录", { timeout: 15000 }, async () => {
   const mock = makeMock(freshDir("mock"), {
     authenticateErrors: [{ code: -32000, message: "Authentication required" }],

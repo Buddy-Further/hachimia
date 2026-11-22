@@ -1295,9 +1295,12 @@ export async function runAcpTurn({
       catch (e) {
         const c = classifyAcpError(e);
         if (client.closed || !c.retryable || attempt >= ACP_RETRY.maxAttempts) throw e;
+        // 用户已停止：不再重试（建会循环同理，见下）。
+        if (run?.aborted) throw e;
         const delay = retryDelayMs(attempt, e);
         emit({ type: "phase", phase: "retry", attempt, max: ACP_RETRY.maxAttempts, error: String(e?.message || e).slice(0, 200), delayMs: delay });
         await sleep(delay);
+        if (run?.aborted) throw e;
       }
     }
   };
@@ -1538,15 +1541,22 @@ export async function runAcpTurn({
           setupErr = e;
           const c = classifyAcpError(e);
           if (!c.retryable || setupAttempt >= ACP_RETRY.maxAttempts) break;
+          // 用户已停止：不再重试——既不换新进程，也不再等 backoff。
+          // 停在建会阶段的 SIGTERM 也会被分类成可重试的 network-process，
+          // 光靠分类器拦不住，必须在这里看 run.aborted。
+          if (run?.aborted) break;
           const delay = retryDelayMs(setupAttempt, e);
           emit({ type: "phase", phase: "retry", attempt: setupAttempt, max: ACP_RETRY.maxAttempts, error: String(e?.message || e).slice(0, 200), delayMs: delay });
           log(`[agy-acp] 建会失败（${c.class}），${delay}ms 后重试 ${setupAttempt + 1}/${ACP_RETRY.maxAttempts}：${String(e?.message || e).slice(0, 200)}`);
+          // 先等 backoff 再建新进程：上一版先 spawn 再 sleep，新进程在 backoff
+          // 里空挂着；停止若落在 sleep 里，醒来也不再建进程。
+          await sleep(delay);
+          if (run?.aborted) break;
           const dead = client;
           destroyClient();
           killAcpChild(dead.child);
           client = createAcpClient({ bin, args, cwd, env, ...makeHandlers() });
           if (run) run.child = client.child;
-          await sleep(delay);
         }
       }
       if (setupErr) throw setupErr;
@@ -1900,9 +1910,10 @@ export async function runAcpTurn({
       error: msg,
       // P0-3：调用方（run.mjs）凭这两个字段记账与展示；prompt 阶段的
       // retryable 一律 false——重发同一条消息可能重复执行，不可自动重试。
+      // 被用户停止的回合同样 false：停了就是停了，不再重试。
       errorClass: c.class,
       errorHint: c.hint,
-      retryable: inPrompt ? false : c.retryable,
+      retryable: (run?.aborted || inPrompt) ? false : c.retryable,
       durationMs: Date.now() - t0,
     };
   } finally {
