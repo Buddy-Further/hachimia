@@ -978,7 +978,7 @@ final class Priv {
                 parent = new String(java.nio.file.Files.readAllBytes(new java.io.File("/proc/" + ppid + "/cmdline").toPath()), StandardCharsets.UTF_8);
             } catch (Exception ignored) {}
             if (parent.contains("cc-mem")) return "cc-mem";
-            if (e.contains("\0CCAPP_RUN=1\0")) return "claude";
+            if (e.contains("\0CCAPP_RUN=1\0")) return "agy";
             if (e.contains("\0CCAPP_TERMINAL=1\0")) return "terminal";
             if (e.contains("\0CCAPP_PORT=")) return "gateway";
         } catch (Exception ignored) {}

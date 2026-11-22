@@ -35,6 +35,8 @@ test("app.js 跨分段依赖符号均已声明（防止移植遗漏导致 Refere
     ["clearWiTimers", /\bfunction\s+clearWiTimers\s*\(/],
     ["stopLoginWatch", /\bfunction\s+stopLoginWatch\s*\(/],
     ["pauseExtReads", /\bfunction\s+pauseExtReads\s*\(/],
+    ["ensureLinMap", /\basync\s+function\s+ensureLinMap\s*\(/],
+    ["linPause", /\bfunction\s+linPause\s*\(/],
   ];
   for (const [name, re] of requiredDecls) {
     assert.match(allSrc, re, `app.js 缺少 ${name} 的声明`);

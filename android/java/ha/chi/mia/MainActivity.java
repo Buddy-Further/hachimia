@@ -525,7 +525,7 @@ public class MainActivity extends Activity {
         boolean clipGet = "clip_get".equals(kind) || Tr.t("设备工具：读取剪贴板").equals(cmd),
             clipSet = "clip_set".equals(kind), openUrl = "url".equals(kind);
         // 发起方是按对方进程的环境变量认的，对方能伪造：只作参考
-        String by = "claude".equals(who) ? "Claude" : "terminal".equals(who) ? Tr.t("终端") : "cc-mem".equals(who) ? "cc-mem" : "gateway".equals(who) ? Tr.t("hachimia 网关接口（Antigravity 也能调用）") : Tr.t("不明程序");
+        String by = ("agy".equals(who) || "claude".equals(who)) ? "Antigravity" : "terminal".equals(who) ? Tr.t("终端") : "cc-mem".equals(who) ? "cc-mem" : "gateway".equals(who) ? Tr.t("hachimia 网关接口（Antigravity 也能调用）") : Tr.t("不明程序");
         // 设置页打开「特权命令免确认」：整段是免责说明，标题和按钮换成对应的说法。按 Priv 给的来路认，不看正文（审查 0601 高-2）；
         // 也写上是谁要打开的 —— 设置页之外的程序也能发这个请求，用户没在设置里点就该拒（低-8）
         String noAskHead = Tr.t("特权命令不再逐条确认（风险自负）");

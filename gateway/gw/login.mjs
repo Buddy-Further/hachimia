@@ -51,6 +51,30 @@ function authEnv(enterprise = false) {
   return env;
 }
 
+/** 登录子进程环境：剥离 PATH 中的 app/pre（含 xdg-open / termux-open-url / termux-clipboard-set），
+ *  并在最前挂载仅写入 urlFile 的 xdg-open / termux-open-url 垫片——避免 agy 无视 $BROWSER 直接调
+ *  app/pre/xdg-open 弹出原生「允许打开网址？」确认框阻塞数十秒。 */
+export function loginBrowserEnv(base, loginDir, browserScript) {
+  const env = { ...base, BROWSER: browserScript };
+  const skip = new Set();
+  if (env.CCAPP_BIN) skip.add(path.resolve(env.CCAPP_BIN, "..", "pre"));
+  if (env.CCAPP_RUNTIME) skip.add(path.resolve(env.CCAPP_RUNTIME, "app", "pre"));
+  const parts = String(env.PATH || "").split(":").filter((d) => d && !skip.has(path.resolve(d)));
+  if (loginDir && browserScript) {
+    const shimDir = path.join(loginDir, "bin");
+    try {
+      fs.mkdirSync(shimDir, { recursive: true });
+      const shim = `#!${SYS_SH}\nexec "${browserScript}" "$@"\n`;
+      for (const name of ["xdg-open", "termux-open-url"]) {
+        fs.writeFileSync(path.join(shimDir, name), shim, { mode: 0o700 });
+      }
+      parts.unshift(shimDir);
+    } catch {}
+  }
+  env.PATH = parts.join(":");
+  return env;
+}
+
 async function loginStart(method = "personal") {
   const blocked = await claudeBlocked();
   if (blocked) return { ok: false, message: blocked };
@@ -68,7 +92,7 @@ async function loginStart(method = "personal") {
   const enterprise = method === "enterprise" || method === "console" || method === "business";
   const normMethod = enterprise ? "enterprise" : "personal";
   noteLoginMethod(normMethod);
-  const env = { ...authEnv(enterprise), BROWSER: browser };
+  const env = loginBrowserEnv(authEnv(enterprise), LOGIN_DIR, browser);
   // stdin 必须是 pipe：acp --login 打印授权地址后等在 stdin 上读授权码，
   // 以前设成 ignore，授权码无处可喂，登录永远完不成（登录态带不回来的根因）
   const child = spawn(bin, ["acp", "--login"], { cwd: CFG.home, env, stdio: ["pipe", "pipe", "pipe"], detached: true });

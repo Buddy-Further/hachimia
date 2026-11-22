@@ -26,7 +26,46 @@ import { acpAgentSpawn, acpAgentDone, acpAgentMsg, acpAgentMsgOk } from "./agent
 import { parseGoalPrompt, applyGoalCommand } from "./goal.mjs";
 
 export const ACP_PROTOCOL_VERSION = 1;
-const ACP_IDLE_TTL_MS = Number(process.env.CCAPP_ACP_IDLE_MS) > 0 ? Number(process.env.CCAPP_ACP_IDLE_MS) : 10 * 60e3;
+const ACP_IDLE_TTL_MS = Number(process.env.CCAPP_ACP_IDLE_MS) > 0 ? Number(process.env.CCAPP_ACP_IDLE_MS) : 30 * 60e3;
+/** 存在后台子代理/命令但长时间静默时的保活上限（2 小时，进程仍有 CPU/日志活动时自动续期，不硬杀） */
+const ACP_BG_IDLE_TTL_MS = Number(process.env.CCAPP_ACP_BG_IDLE_MS) > 0 ? Number(process.env.CCAPP_ACP_BG_IDLE_MS) : 2 * 3600e3;
+/** 判定常驻 agy acp 进程仍在干活的日志活跃窗口（2 分钟内有 acp-server-*-<pid>.log 写入即视为活跃） */
+const ACP_ACTIVE_LOG_WINDOW_MS = 2 * 60e3;
+/** 读取 /proc/<pid>/stat 的用户态+内核态 CPU 滴答总和；读不到返回 -1 */
+export function readProcCpuTicks(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return -1;
+  try {
+    const s = fs.readFileSync(`/proc/${pid}/stat`, "utf8");
+    const r = s.lastIndexOf(")");
+    if (r < 0) return -1;
+    const f = s.slice(r + 2).split(" ");
+    const utime = Number(f[11]), stime = Number(f[12]);
+    return Number.isFinite(utime) && Number.isFinite(stime) ? utime + stime : -1;
+  } catch { return -1; }
+}
+/** 探测常驻 agy acp 进程在“看似空闲”期间是否仍在执行后台子代理/工作流/工具：
+ *  子代理运行期间不会给父 ACP 流发 session/update，entry.lastUsed 纹丝不动；
+ *  但 agy 进程本身会持续消耗 CPU 并刷新 ~/.gemini/antigravity-cli/log/acp-server-*-<pid>.log。
+ *  两者任一活跃就说明绝不能空闲回收，防止误杀运行中的子代理导致 Server restart。 */
+export function acpChildActive(pid, prevCpuTicks = -1, now = Date.now(), logDir = path.join(CFG.home, ".gemini", "antigravity-cli", "log")) {
+  const cpuTicks = readProcCpuTicks(pid);
+  if (prevCpuTicks >= 0 && cpuTicks >= 0 && cpuTicks - prevCpuTicks >= 5) {
+    return { active: true, cpuTicks, reason: "cpu" };
+  }
+  if (Number.isInteger(pid) && pid > 0 && logDir) {
+    try {
+      const suffix = `-${pid}.log`;
+      for (const f of fs.readdirSync(logDir)) {
+        if (!f.startsWith("acp-server-") || !f.endsWith(suffix)) continue;
+        const st = fs.statSync(path.join(logDir, f));
+        if (now - st.mtimeMs < ACP_ACTIVE_LOG_WINDOW_MS) {
+          return { active: true, cpuTicks, reason: "log" };
+        }
+      }
+    } catch {}
+  }
+  return { active: false, cpuTicks, reason: "" };
+}
 /** session/prompt 的默认超时：不传 timeoutMs 时不再无限等待（B12）。
  *  其它 ACP 请求默认 120s，唯独最关键的 prompt 是无限等待，agent 假死会永久占住车道。
  *  默认 30 分钟（环境变量 CCAPP_ACP_PROMPT_TIMEOUT_MS 可覆盖，单位毫秒），显式传 timeoutMs 优先。 */
@@ -479,12 +518,32 @@ function firstLineOf(s, max = 80) {
   return line.length > max ? line.slice(0, max - 1) + "…" : line;
 }
 
+/** 识别 agy 原生工具规范名：真实 agy acp 的 tool_call.title 常带 "Run " 前缀（如 "Run invoke_subagent"），
+ *  且 run_command 的 title 直接是命令行原文；先剥 "run " 前缀，再按 rawInput 字段兜底识别。 */
+export function classifyAcpTool(rawName, input) {
+  const norm = String(rawName || "").trim().toLowerCase().replace(/^run\s+/, "");
+  if (norm === "invoke_subagent" || norm === "run_workflow" || norm === "send_message"
+    || norm === "manage_subagents" || norm === "run_command" || norm === "manage_task" || norm === "schedule") {
+    return norm;
+  }
+  const inp = input && typeof input === "object" ? input : {};
+  if (typeof inp.TypeName === "string" && typeof inp.Prompt === "string") return "invoke_subagent";
+  if (typeof inp.Script === "string" || typeof inp.ScriptPath === "string") return "run_workflow";
+  if (typeof inp.Recipient === "string" && typeof inp.Message === "string") return "send_message";
+  if (typeof inp.Action === "string" && (Array.isArray(inp.ConversationIds) || /^(list|kill|kill_all)$/i.test(inp.Action))) return "manage_subagents";
+  if (typeof inp.CommandLine === "string") return "run_command";
+  if (typeof inp.TaskId === "string" && typeof inp.Action === "string") return "manage_task";
+  if (typeof inp.CronExpression === "string" || typeof inp.DurationSeconds === "number") return "schedule";
+  return "";
+}
+
 /** 识别 agy 原生子代理 / 后台任务工具调用并同步发射 `ag` 联络卡与后台任务事件 */
 function trackAcpToolSideEffects(phase, tool, state, emit) {
   if (!tool || !state) return;
   const rawName = String(tool.name || "");
-  const name = rawName.toLowerCase();
   const inp = tool.input && typeof tool.input === "object" ? tool.input : {};
+  const kind = classifyAcpTool(rawName, inp);
+  if (!kind) return;
   const agents = (state.acpAgents ||= new Map());        // toolId -> { id, convId, name }
   const byConv = (state.acpAgentsByConv ||= new Map());  // convId -> toolId
   // F-1：子代理结束记入联络簿（agents.mjs，与 CLI 的 agentBook 同格式），无 cwd/会话号时跳过
@@ -493,13 +552,13 @@ function trackAcpToolSideEffects(phase, tool, state, emit) {
     try { acpAgentDone(state.cwd, state.sessionId, { id: toolId, dir: state.acpAgentDirs?.get(toolId) || null, name: agents.get(toolId)?.name || "agent", status, why, report }); } catch {}
   };
 
-  const isSubagentCall = name === "invoke_subagent" || name === "run_workflow";
+  const isSubagentCall = kind === "invoke_subagent" || kind === "run_workflow";
   if (isSubagentCall) {
     if (phase === "start") {
       const label = String(inp.Role || inp.TypeName || inp.Description || rawName).trim().slice(0, 60) || "subagent";
       agents.set(tool.id, { id: tool.id, convId: null, name: label, status: "running" });
       emit({ type: "ag", k: "spawn", id: tool.id, tool: tool.id, name: label, parent: null, depth: 1, bg: true, by: "main", at: Date.now() });
-      state.onBgAdd?.({ id: tool.id, type: name === "run_workflow" ? "workflow" : "agent", desc: label });
+      state.onBgAdd?.({ id: tool.id, type: kind === "run_workflow" ? "workflow" : "agent", desc: label });
       if (state.cwd && state.sessionId && !state.acpAgentDirs?.has(tool.id)) {
         const d = acpAgentSpawn(state.cwd, state.sessionId, { id: tool.id, name: label, prompt: String(inp.Prompt || inp.Description || "") });
         if (d) (state.acpAgentDirs ||= new Map()).set(tool.id, d);
@@ -512,10 +571,10 @@ function trackAcpToolSideEffects(phase, tool, state, emit) {
         rec.convId = mConv[1];
         byConv.set(rec.convId, rec.id);
       }
-      // F-1：前台完成（输出就是结果，不含 background/running/async 字样）要发 done；
-      // 以前只认 run_workflow，invoke_subagent 前台完成被静默跳过，卡片永久 running。
-      // 后台启动仍不发 done，等空闲回报 / kill 时再结算。
-      const isBgLaunch = /background|running|async/i.test(out);
+      // 真实 agy acp 的 invoke_subagent 始终后台启动，且 tool_result.content 常为空串 "" 或仅含 conversationId/logAbsoluteUri 的 JSON；
+      // 只有明确返回了非空正文结论（不含 background/running/async/conversationId/logAbsoluteUri）才按前台完成结算（兼容 F-1）。
+      const trimmedOut = out.trim();
+      const isBgLaunch = !trimmedOut || /background|running|async|conversationId|logAbsoluteUri/i.test(trimmedOut);
       if (tool.isError) {
         if (rec) rec.status = "failed";
         emit({ type: "ag", k: "done", id: tool.id, status: "failed", why: firstLineOf(out), at: Date.now() });
@@ -531,7 +590,7 @@ function trackAcpToolSideEffects(phase, tool, state, emit) {
     return;
   }
 
-  if (name === "send_message") {
+  if (kind === "send_message") {
     const rawTo = String(inp.Recipient || "").trim();
     const to = byConv.get(rawTo) || rawTo || "subagent";
     const body = String(inp.Message || "");
@@ -550,7 +609,7 @@ function trackAcpToolSideEffects(phase, tool, state, emit) {
     return;
   }
 
-  if (name === "manage_subagents" && phase === "done" && !tool.isError) {
+  if (kind === "manage_subagents" && phase === "done" && !tool.isError) {
     const act = String(inp.Action || "").toLowerCase();
     if (act === "kill_all") {
       for (const rec of agents.values()) {
@@ -576,7 +635,7 @@ function trackAcpToolSideEffects(phase, tool, state, emit) {
     return;
   }
 
-  if (name === "run_command" && phase === "done" && !tool.isError) {
+  if (kind === "run_command" && phase === "done" && !tool.isError) {
     const out = String(tool.output || "");
     const bgMatch = /running in (?:the )?background|background task|TaskId["':=\s]+(\S+)/i.test(out) || !!inp.IsDaemon;
     if (bgMatch) {
@@ -588,13 +647,13 @@ function trackAcpToolSideEffects(phase, tool, state, emit) {
     return;
   }
 
-  if (name === "manage_task" && phase === "done" && !tool.isError) {
+  if (kind === "manage_task" && phase === "done" && !tool.isError) {
     const act = String(inp.Action || "").toLowerCase();
     if (act === "kill" && inp.TaskId) state.onBgRemove?.(String(inp.TaskId));
     return;
   }
 
-  if (name === "schedule" && phase === "done" && !tool.isError) {
+  if (kind === "schedule" && phase === "done" && !tool.isError) {
     const out = String(tool.output || "");
     const mId = /(?:TaskId|id)["':=\s]+([A-Za-z0-9._-]+)/i.exec(out);
     const tid = mId ? mId[1] : tool.id;
@@ -1810,21 +1869,36 @@ export async function runAcpTurn({
           entry.lastUsage = b.state.usage;
           if (Number(b.state.usage.context_tokens) > 0) entry.lastContextTokens = Number(b.state.usage.context_tokens);
         }
-        // 如果空闲期间收到了正文回报，说明之前非 daemon 的后台任务/子代理已完成回报
+        // 如果空闲期间收到了正文回报，结算对应的非 daemon 后台任务/子代理：
+        // 仅 1 个非 daemon 任务时直接结算；多个并行子代理时只结算回报里点名到的那一个，
+        // 避免第一个子代理回报就把其余仍在跑的子代理一并清掉，进而触发空闲超时误杀进程。
         if (b.state.text && entry.bgTasks?.size) {
-          for (const [k, v] of [...entry.bgTasks]) {
-            if (v.type !== "daemon") {
-              entry.bgTasks.delete(k);
-              if (v.type === "agent") {
-                const rec = entry.acpAgents?.get(k);
-                if (rec && rec.status === "running") {
-                  rec.status = "done";
-                  publish({ type: "ag", runId: b.runId, sessionId: activeSessionId, k: "done", id: k, status: "done", why: firstLineOf(b.state.text), at: Date.now() });
-                }
+          const nonDaemon = [...entry.bgTasks].filter(([, v]) => v.type !== "daemon" && v.type !== "monitor");
+          const finishOne = (k, v) => {
+            entry.bgTasks.delete(k);
+            if (v.type === "agent") {
+              const rec = entry.acpAgents?.get(k);
+              if (rec && rec.status === "running") {
+                rec.status = "done";
+                publish({ type: "ag", runId: b.runId, sessionId: activeSessionId, k: "done", id: k, status: "done", why: firstLineOf(b.state.text), at: Date.now() });
               }
             }
+          };
+          if (nonDaemon.length === 1) {
+            finishOne(nonDaemon[0][0], nonDaemon[0][1]);
+            onBgChange?.([...entry.bgTasks.values()]);
+          } else if (nonDaemon.length > 1) {
+            let removed = false;
+            for (const [k, v] of nonDaemon) {
+              const rec = entry.acpAgents?.get(k);
+              const tokens = [k, rec?.convId, rec?.name, v.desc].filter((x) => x && String(x).length >= 4);
+              if (tokens.some((tok) => b.state.text.includes(String(tok)))) {
+                finishOne(k, v);
+                removed = true;
+              }
+            }
+            if (removed) onBgChange?.([...entry.bgTasks.values()]);
           }
-          onBgChange?.([...entry.bgTasks.values()]);
         }
         publish({
           type: "run_end",
@@ -1955,12 +2029,26 @@ export async function runAcpTurn({
         },
       });
       if (entry.idleTimer) clearTimeout(entry.idleTimer);
+      entry.lastCpuTicks = readProcCpuTicks(entry.client.child?.pid);
       const armIdleGc = () => {
         entry.idleTimer = setTimeout(() => {
           if (ACP_POOL.get(activeSessionId) === entry && !entry.busy) {
-            if (entry.bgTasks?.size > 0 && Date.now() - entry.lastUsed < ACP_IDLE_TTL_MS * 3) {
+            // 先查常驻 agy acp 进程的真实活跃度（CPU 滴答或 acp-server-*-<pid>.log 近期写入）：
+            // 子代理在 agy 内部跑时不会向父会话发 session/update，只要进程还在干活就顺延不杀，杜绝误发 SIGTERM 引发 Server restart
+            const act = acpChildActive(entry.client.child?.pid, entry.lastCpuTicks, Date.now());
+            if (act.cpuTicks >= 0) entry.lastCpuTicks = act.cpuTicks;
+            if (act.active) {
+              entry.lastUsed = Date.now();
               armIdleGc();
               return;
+            }
+            if (entry.bgTasks?.size > 0) {
+              const hasPersistent = [...entry.bgTasks.values()].some((t) => t.type === "daemon" || t.type === "monitor");
+              const bgCap = Math.max(ACP_IDLE_TTL_MS * 3, ACP_BG_IDLE_TTL_MS);
+              if (hasPersistent || Date.now() - entry.lastUsed < bgCap) {
+                armIdleGc();
+                return;
+              }
             }
             log(`[agy-acp] 会话 ${activeSessionId.slice(0, 8)} 空闲超时，回收常驻进程`);
             closeAcpSession(activeSessionId);
@@ -1979,9 +2067,12 @@ export async function runAcpTurn({
         if (prev && prev !== entry) closeAcpSession(activeSessionId);
         armIdleGc();
         ACP_POOL.set(activeSessionId, entry);
-        // 最多保留 6 个空闲常驻会话，超出先清最久未用的
+        // 最多保留 6 个空闲常驻会话，超出先清最久未用且无后台任务的，尽量不误杀后台子代理
         if (ACP_POOL.size > 6) {
-          const oldest = [...ACP_POOL.entries()].filter(([, v]) => !v.busy).sort((a, b) => a[1].lastUsed - b[1].lastUsed)[0];
+          const idleEntries = [...ACP_POOL.entries()].filter(([, v]) => !v.busy);
+          const quietEntries = idleEntries.filter(([, v]) => !(v.bgTasks?.size > 0));
+          const pool = quietEntries.length ? quietEntries : idleEntries;
+          const oldest = pool.sort((a, b) => a[1].lastUsed - b[1].lastUsed)[0];
           if (oldest) closeAcpSession(oldest[0]);
         }
       }

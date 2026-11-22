@@ -3,6 +3,20 @@
   // 一问一答和杂项一起默认收起，读记录接手的画细点线。
   const LIN = { g: null, map: null, band: localStorage.getItem("cc.linBand") || "", misc: localStorage.getItem("cc.linMisc") === "1", focus: null, poll: 0, runKey: "", reload: 0 };
 
+  async function ensureLinMap() {
+    const src = "/lineage/map.js";
+    if (typeof window.CCLineageMap?.create !== "function") await loadScript(src);
+    if (typeof window.CCLineageMap?.create !== "function") {
+      delete loadOnce[src];
+      throw new Error(t("读取失败"));
+    }
+  }
+  function linPause(leaving) {
+    clearTimeout(LIN.poll); clearTimeout(LIN.reload); clearTimeout(FILL.poll);
+    if (leaving) { LIN.focus = null; closeTour(); linProfClose(true); }
+    else if (!TOUR.map && !$("lin-tour").classList.contains("hidden")) closeTour();
+  }
+
   function linMap() {
     if (LIN.map || !window.CCLineageMap) return LIN.map;
     LIN.map = CCLineageMap.create($("lin-map"), {

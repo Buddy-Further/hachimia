@@ -746,7 +746,7 @@
   function pausePageReads(name, leaving) {
     pageVisit++;
     if (name === "usage") clearTimeout(us.poll);
-    if (name === "lineage") { clearTimeout(LIN.poll); clearTimeout(FILL.poll); if (leaving) linProfClose(true); }
+    if (name === "lineage") linPause(leaving);
     if (name === "ext") pauseExtReads();
     if (name === "sched") schedPollSet(false);
   }
