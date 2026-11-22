@@ -251,8 +251,9 @@ try {
     // --no-same-owner：包里记的 uid/gid（官方包常记 root）和安装者不一定一致，非 root 解压时
     // chown 会 EPERM；和仓库里 components.mjs / modules.mjs 解压组件包的做法一样，只取内容、
     // 不恢复属主。解出的文件归运行安装器的用户（设备上就是 App 自己），随后 chmod 0755。
-    // 这个 flag 是 GNU tar / BSD tar / toybox / busybox 都接受的标准选项；万一哪天某
-    // 个 tar 不认它，解压会当场失败（loud），不会装出一个坏的二进制。
+    // 这个 flag 是 GNU tar / BSD tar 接受的标准选项（本机 GNU tar 1.35 已验证）；
+    // toybox / busybox 是否接受待真机验证——万一哪天某个 tar 不认它，解压会当场
+    // 失败（loud），不会装出一个坏的二进制。
     const ext = spawnSync(TAR, ["-xzf", payload, "-C", stage, "--no-same-owner", "antigravity"], { encoding: "utf8", timeout: 60000 });
     if (ext.status !== 0) {
       const detail = String(ext.stderr || "").trim().slice(0, 200);
