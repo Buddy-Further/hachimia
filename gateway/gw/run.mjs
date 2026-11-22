@@ -513,6 +513,8 @@ export async function startRun(item) {
     // P0-1：ACP 也要带上用户 MCP（此前这里硬编码 mcpServers: []，MCP 全丢）。
     // 来源与优先级见 mcp-acp.mjs：agy mcp_config.json < 设备 MCP；
     // ~/.claude.json 不再读（P0-2b，agy-only），丢掉的旧服务器名字只进 skipped。
+    // 边界：文件里的服务器 agy 自己也会加载，但实测同名只起一个（2026-11-22 真机验证，
+    // agy 1.5.14，见 mcp-acp.mjs 头注释），所以照常发；只有设备 MCP 是非发不可的。
     // 设备 MCP 沿用 Claude 路径的门控（PREFIX、脚本在、dev_status.on、非端侧）。
     // 只记服务名：env/headers 的值是凭据，绝不进日志。
     const devMcpJson = deviceMcpConfig();

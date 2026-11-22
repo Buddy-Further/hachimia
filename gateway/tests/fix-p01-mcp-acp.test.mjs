@@ -71,6 +71,18 @@ test("P0-1 汇总（P0-2b，agy-only）：agy mcp_config.json + 设备合并，�
   assert.ok(skipped.some((s) => s.name === "agy-name-only"));           // 只有名字、无定义的不编造
 });
 
+// PR #1 复核（2026-11-22 真机验证，agy 1.5.14）：文件里的服务器 agy 自己会加载，
+// 但同名在两边都出现时 agy 只起一个进程、无冲突（见 MCP-DUP-PROBE-REPORT.md），
+// 所以网关不得把文件里的服务器过滤掉、只发设备 MCP——照常全发。
+test("PR1fix MCP 边界：mcp_config.json 里的服务器照常进 session/new，不因 agy 自加载而过滤", () => {
+  fs.mkdirSync(path.dirname(agyGlobalCfg), { recursive: true });
+  fs.writeFileSync(agyGlobalCfg, JSON.stringify({ mcpServers: {
+    "file-only": { command: "f", args: [] },
+  } }));
+  const { servers } = buildAcpMcpServers({ cwd: CFG.workspace, deviceJson: null });
+  assert.deepEqual(servers.map((s) => s.name), ["file-only"]);
+});
+
 test("P0-1 池 key：MCP 列表变了 key 就变，顺序不影响", () => {
   const base = { bin: "agy", args: ["acp"], cwd: "/w", authType: "", apiKey: "" };
   const a = [{ name: "x", command: "c1" }];
