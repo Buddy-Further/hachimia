@@ -63,6 +63,18 @@ export async function agyVerifiedInfo(lang = "zh") {
   return { verified, bad, verifiedError: lastError };
 }
 
+/** 同步读手上那份已验签的 feed：哪些版本有验证记录。只读内存里的 data
+ *  （启动时从已签名的磁盘缓存载入，后台按既有节奏刷新），绝不发请求——
+ *  建会路径上不能等网络。feed 缺失 / 为空 / 未签名时返回 []，调用方
+ *  行为与原来一致。同一版本既在 versions 又在 bad 里时不算已验证。 */
+export function agyVerifiedVersions() {
+  const out = [];
+  for (const [v, recs] of Object.entries(data?.versions || {})) {
+    if (Array.isArray(recs) && recs.length && !data?.bad?.[v]) out.push(v);
+  }
+  return out;
+}
+
 // 服务起来 15 秒后取一次（Java 的自动更新要用磁盘上那份），之后每 3 小时
 if (LIVE) {
   setTimeout(() => refreshAgyVerified().catch(() => {}), 15000).unref?.();

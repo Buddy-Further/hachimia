@@ -24,6 +24,7 @@ import { publish } from "./bus.mjs";
 import { noteAuthTier, invalidateAuthCache } from "./login.mjs";
 import { classifyAcpError, retryDelayMs, ACP_RETRY } from "./acp-errors.mjs";
 import { checkAgyVersion, AGY_ALLOW_UNVERIFIED } from "./agy-version.mjs";
+import { agyVerifiedVersions } from "./agyverified.mjs";
 import { acpAgentSpawn, acpAgentDone, acpAgentMsg, acpAgentMsgOk } from "./agents.mjs";
 import { parseGoalPrompt, applyGoalCommand } from "./goal.mjs";
 import { mcpServersHash } from "./mcp-acp.mjs";
@@ -1379,7 +1380,11 @@ export async function runAcpTurn({
       // 不可重试，建会重试循环立即停，失败的 client 进不了池（本轮还没
       // 会话号，canKeep 本来就是 false）。更新未验证 / 版本未知 /
       // 协议版本不符只警告、继续跑；警告按版本（+ 协议版本）去重。
-      const gate = checkAgyVersion(initRes?.agentInfo?.version);
+      // PR #1 复核：门也认验签 feed——维护者签过 1.5.14 的记录后，
+      // 旧应用不再对它警告。agyVerifiedVersions() 只读手上那份已验签
+      // 的 feed（磁盘缓存 + 后台刷新），建会路径上不发请求；feed
+      // 缺失 / 为空 / 未签名时返回 []，行为与原来一致。
+      const gate = checkAgyVersion(initRes?.agentInfo?.version, undefined, agyVerifiedVersions());
       setLastInit({ versionStatus: gate.status, versionChecked: gate.version });
       if (gate.status === "too-old") {
         const e = new Error(tz("Antigravity CLI 版本 {v} 低于 hachimia 要求的 {min}（已验证版本 {verified}），请升级 Antigravity CLI 后重试。", { v: gate.version, min: gate.min, verified: gate.verified }));

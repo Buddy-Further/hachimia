@@ -10,7 +10,8 @@
 //  - 版本 < AGY_MIN_VERSION → 太旧，建会直接拦（acp.mjs 抛 AGY_VERSION，
 //    分类器给 version-mismatch，不可重试；agy 会自动升级，别写死成
 //    “恰好等于某版本”，否则每次发版都把应用砖掉）。
-//  - 版本 > AGY_VERIFIED_VERSION → 更新未验证，警告后继续跑；
+//  - 版本 > 已验证版本（含验签 feed 里的版本，见 checkAgyVersion 的
+//    extraVerified）→ 更新未验证，警告后继续跑；
 //    版本缺失 / 解析不出 → 未知，警告后继续跑（将来 agy 改字段名时
 //    别把会话拦死）。protocolVersion !== 1 同样只警告。
 //
@@ -84,9 +85,17 @@ export function agyAtLeast(versionString, floor) {
 //  - "newer-unverified"：高于已验证版本；"unknown"：缺失 / 解析不出，
 //    或满足下限但低于已验证版本（只在下限被环境变量调低时出现：
 //    从未验证过，既不算通过也不算拦截）。
+ * extraVerified：验签 feed 里已验证的版本（agyverified.mjs 的
+ * agyVerifiedVersions()，调用方传；缺省 []，行为与原来一致）。
+ * 集合里的版本精确命中才算 ok，不取 max——feed 验了 1.5.14，
+ * 不代表没验过的 1.5.15 也通过。verified 字段永远是内置常量
+ * （只在 too-old 路径上用）；feed 验过的版本行为仍回落到
+ * AGY_BEHAVIOUR[AGY_VERIFIED_VERSION] 那一行——feed 记录只证明
+ * 真机上跑过（下载、调工具、续会话），不等同于行为逐项一致，
+ * 单开一行要等自己的行为证据。
  * version 是归一化后的三段式；解析不出时原样返回裁剪后的输入（缺失为 ""）。
  */
-export function checkAgyVersion(versionString, floor = AGY_MIN_VERSION) {
+export function checkAgyVersion(versionString, floor = AGY_MIN_VERSION, extraVerified = []) {
   const parsed = parseAgyVersion(versionString);
   const version = parsed
     ? `${parsed.major}.${parsed.minor}.${parsed.patch}`
@@ -94,8 +103,10 @@ export function checkAgyVersion(versionString, floor = AGY_MIN_VERSION) {
     : (typeof versionString === "string" ? versionString.trim().slice(0, 64) : "");
   if (!parsed) return { status: "unknown", version, min: floor, verified: AGY_VERIFIED_VERSION };
   if (compareAgyVersions(parsed, floor) < 0) return { status: "too-old", version, min: floor, verified: AGY_VERIFIED_VERSION };
-  if (compareAgyVersions(parsed, AGY_VERIFIED_VERSION) === 0) return { status: "ok", version, min: floor, verified: AGY_VERIFIED_VERSION };
-  if (compareAgyVersions(parsed, AGY_VERIFIED_VERSION) > 0) return { status: "newer-unverified", version, min: floor, verified: AGY_VERIFIED_VERSION };
+  const verifiedList = [AGY_VERIFIED_VERSION, ...(Array.isArray(extraVerified) ? extraVerified : [])];
+  if (verifiedList.some((v) => compareAgyVersions(parsed, v) === 0)) return { status: "ok", version, min: floor, verified: AGY_VERIFIED_VERSION };
+  const maxVerified = verifiedList.reduce((m, v) => (compareAgyVersions(v, m) > 0 ? v : m), AGY_VERIFIED_VERSION);
+  if (compareAgyVersions(parsed, maxVerified) > 0) return { status: "newer-unverified", version, min: floor, verified: AGY_VERIFIED_VERSION };
   return { status: "unknown", version, min: floor, verified: AGY_VERIFIED_VERSION };
 }
 

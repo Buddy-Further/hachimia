@@ -187,6 +187,21 @@ test("P0-4 check：ok / too-old / newer-unverified / unknown 四态", () => {
   assert.equal(long.version, "x".repeat(64));
 });
 
+// PR #1 复核：版本门也认验签 feed（extraVerified）——精确命中，不取 max
+test("PR1fix 版本门认 feed：集合里的版本 ok，更高版本仍 newer-unverified", () => {
+  assert.equal(checkAgyVersion("1.5.14", undefined, ["1.5.14"]).status, "ok");
+  assert.equal(checkAgyVersion("1.5.13", undefined, ["1.5.14"]).status, "ok");
+  assert.equal(checkAgyVersion("1.5.15", undefined, ["1.5.14"]).status, "newer-unverified");
+  assert.equal(checkAgyVersion("1.5.12", undefined, ["1.5.14"]).status, "too-old");
+  // 介于下限与 feed 最高版本之间、又不在集合里 → unknown（不按 max 放行）
+  assert.equal(checkAgyVersion("1.5.11", "1.5.10", ["1.5.14"]).status, "unknown");
+  // 不传 / 空集合时行为不变
+  assert.equal(checkAgyVersion("1.5.14").status, "newer-unverified");
+  assert.equal(checkAgyVersion("1.5.14", undefined, []).status, "newer-unverified");
+  // verified 字段仍是内置常量（只在 too-old 路径上用）
+  assert.equal(checkAgyVersion("1.5.14", undefined, ["1.5.14"]).verified, "1.5.13");
+});
+
 // ── AGY_BEHAVIOUR 表 ───────────────────────────────────────────────
 test("P0-4 AGY_BEHAVIOUR：只有已验证版本一行，字段与探针结论一致", () => {
   assert.deepEqual(Object.keys(AGY_BEHAVIOUR), ["1.5.13"]);

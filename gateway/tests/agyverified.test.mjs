@@ -21,7 +21,7 @@ await new Promise((ok) => server.listen(0, "127.0.0.1", ok));
 after(() => server.close());
 process.env.CCAPP_TEST_PUBKEY = publicKey.export({ type: "spki", format: "pem" });
 process.env.CCAPP_AGY_VERIFIED_URL = `http://127.0.0.1:${server.address().port}/verified.json`;
-const { refreshAgyVerified, agyVerifiedInfo, AGY_VERIFIED_CACHE } = await import("../gw/agyverified.mjs");
+const { refreshAgyVerified, agyVerifiedInfo, agyVerifiedVersions, AGY_VERIFIED_CACHE } = await import("../gw/agyverified.mjs");
 
 const rec = { at: "2026-11-21", device: "Pixel 9", android: "15", sdk: 35, targetSdk: 36, app: "0.1.3", devkit: "devkit-2026.11.21.1", sha256: "cd" };
 const doc = (updated, extra = {}) => ({ v: 1, updated, versions: { "1.5.13": [rec] }, bad: { "1.5.14": { zh: "启动就闪退", en: "Crashes on launch", fixed: "1.5.15" } }, ...extra });
@@ -82,4 +82,16 @@ test("磁盘上那份被人改过（同 uid 能写）：重启后不认，验过
   assert.equal(r.bad["1.5.13"], undefined);
   assert.deepEqual(r.verified, {});
   fs.writeFileSync(AGY_VERIFIED_CACHE, good);
+});
+
+// PR #1 复核：版本门要用的同步集合——有验证记录的版本进，bad 里的不进，空 feed 是 []
+test("PR1fix feed 版本集合：versions 里的进集合，bad 里的不进", async () => {
+  // 此时内存里是 2026-11-23 那份（versions 1.5.13，bad 空）
+  assert.deepEqual(agyVerifiedVersions(), ["1.5.13"]);
+  publish(doc("2026-11-24T00:00:00Z", { bad: { "1.5.13": { zh: "有问题", en: "bad" } } }));
+  await refreshAgyVerified(true);
+  assert.deepEqual(agyVerifiedVersions(), [], "同一版本既在 versions 又在 bad 里时不算已验证");
+  publish({ v: 1, updated: "2026-11-25T00:00:00Z", versions: {}, bad: {} });
+  await refreshAgyVerified(true);
+  assert.deepEqual(agyVerifiedVersions(), [], "空 feed 返回 []");
 });
