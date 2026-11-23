@@ -1041,26 +1041,49 @@ export function persistAcpAssistantOnly({ cwd, sessionId, assistantText, thinkin
 }
 
 /**
- * 将一次 ACP 对话回合持久化到本地 jsonl，兼容 sessions.mjs / transcript.mjs。
- * 有工具调用时按标准 transcript 结构把 tool_use 与 tool_result 分行落盘，
- * 使历史重载能完整还原每个工具的完成/失败状态与输出正文。
+ * 在 ACP 回合发出 session/prompt 之前先把用户提问写入本地 jsonl：
+ * 让新会话首轮进行中就能出现在侧栏/会话页，切走也能随时点回来（不依赖整轮结束才落盘）。
+ * 返回写入的 userUuid，回合结束时交回 persistAcpTurn 续写助手/工具行、避免重复写用户行。
  */
-export function persistAcpTurn({ cwd, sessionId, userText, assistantText, thinking, tools, model, usage }) {
-  if (!sessionId) return;
+export function persistAcpUserTurn({ cwd, sessionId, userText, timestamp = null }) {
+  if (!sessionId) return null;
   const file = acpSessionFile(cwd, sessionId);
-  const now = new Date().toISOString();
   const userUuid = crypto.randomUUID();
-  const list = Array.isArray(tools) ? tools : [];
-
   appendJsonl(file, {
     type: "user",
     uuid: userUuid,
     parentUuid: null,
     sessionId,
     cwd,
-    timestamp: now,
+    timestamp: timestamp || new Date().toISOString(),
     message: { role: "user", content: userText },
   });
+  return userUuid;
+}
+
+/**
+ * 将一次 ACP 对话回合持久化到本地 jsonl，兼容 sessions.mjs / transcript.mjs。
+ * 有工具调用时按标准 transcript 结构把 tool_use 与 tool_result 分行落盘，
+ * 使历史重载能完整还原每个工具的完成/失败状态与输出正文。
+ */
+export function persistAcpTurn({ cwd, sessionId, userText, assistantText, thinking, tools, model, usage, existingUserUuid = null }) {
+  if (!sessionId) return;
+  const file = acpSessionFile(cwd, sessionId);
+  const now = new Date().toISOString();
+  const userUuid = existingUserUuid || crypto.randomUUID();
+  const list = Array.isArray(tools) ? tools : [];
+
+  if (!existingUserUuid) {
+    appendJsonl(file, {
+      type: "user",
+      uuid: userUuid,
+      parentUuid: null,
+      sessionId,
+      cwd,
+      timestamp: now,
+      message: { role: "user", content: userText },
+    });
+  }
 
   if (!list.length) {
     const blocks = [];
@@ -1177,7 +1200,7 @@ function mapUiModeToAcp(permMode, availableModes) {
 export async function runAcpTurn({
   bin, args = ["acp"], cwd, env, prompt, displayPrompt = null, images = [], sessionId = null,
   model = "", effort = "", permMode = "default", authType = "", apiKey = "",
-  mcpServers = [], addDirs = [], run, emit, askPermission, onBgChange, timeoutMs = 0,
+  mcpServers = [], addDirs = [], run, emit, askPermission, onBgChange, onSessionFileReady = null, timeoutMs = 0,
   keepAlive = LIVE && process.env.CCAPP_ACP_KEEPALIVE !== "0",
 }) {
   const t0 = Date.now();
@@ -1611,6 +1634,18 @@ export async function runAcpTurn({
     state.promptSent = true;
     state.sawCompacted = false;
     state.text = ""; state.thinking = ""; state.tools.clear();
+    // 首轮 / 普通回合在发出 session/prompt 前就先把用户行落盘，让新会话立刻出现在侧栏与 /api/sessions；
+    // timestamp 确保 >= run.startedAt，使进行中重开该会话时 excludeFrom 过滤掉此行、与 live SSE 不重画。
+    if (activeSessionId && !isCompactCmd) {
+      const userTs = new Date(Math.max(Date.now(), (run?.startedAt || 0) + 1)).toISOString();
+      state.persistedUserUuid = persistAcpUserTurn({
+        cwd,
+        sessionId: activeSessionId,
+        userText: displayPrompt != null ? displayPrompt : prompt,
+        timestamp: userTs,
+      });
+      try { onSessionFileReady?.(activeSessionId); } catch {}
+    }
     const promptRes = await client.request("session/prompt", {
       sessionId: activeSessionId,
       prompt: contentBlocks,
@@ -1721,6 +1756,7 @@ export async function runAcpTurn({
         tools: [...state.tools.values()],
         model: activeModel,
         usage: state.usage,
+        existingUserUuid: state.persistedUserUuid || null,
       });
     } else if (compactConfirmed && state.usage?.context_tokens > 0) {
       // C7：只有确认压缩已生效时才记“已压缩”摘要；未确认时不写这条，免得会话历史里留假记录。
@@ -1792,6 +1828,7 @@ export async function runAcpTurn({
           tools: [...state.tools.values()],
           model: model || sessModels?.currentModelId || "antigravity",
           usage: state.usage,
+          existingUserUuid: state.persistedUserUuid || null,
         });
       }
     }

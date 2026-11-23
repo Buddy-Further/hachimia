@@ -254,6 +254,7 @@ export function noteAcpInit(run, sessionId) {
   for (const e of run.log || []) if (e.type === "run_start" && !e.sessionId) e.sessionId = sessionId;
   rememberSession(sessionId);
   saveRunMark();
+  publishState();
 }
 
 /** ACP 回合走到结果时清「未完成」标记（B7）：claude 路径在 onResult 里清，ACP 分支以前全程不清，
@@ -517,6 +518,12 @@ export async function startRun(item) {
       run,
       emit: acpEmit,
       onBgChange: () => publishState(),
+      onSessionFileReady: (sid) => {
+        if (!hadAcpSid && !run.sched && !run.fileSeen && sid) {
+          run.fileSeen = true;
+          emit({ type: "session_created", sessionId: sid, runId: run.id, cwd: run.cwd });
+        }
+      },
       timeoutMs: item.timeoutMs || 0,
       askPermission: async ({ tool, toolCallId, input, hasAlways }) => {
         if (run.unattended || run.auto) return { behavior: "deny" };
@@ -574,7 +581,10 @@ export async function startRun(item) {
       RUN_SESSIONS.set(run.id, acpRes.sessionId);
       rememberSession(acpRes.sessionId);
       saveRunMark();
-      if (!hadAcpSid) emit({ type: "session_created", sessionId: run.sessionId, runId: run.id, cwd: run.cwd });
+      if (!hadAcpSid && !run.sched && !run.fileSeen && findSessionFile(run.sessionId, run.cwd)) {
+        run.fileSeen = true;
+        emit({ type: "session_created", sessionId: run.sessionId, runId: run.id, cwd: run.cwd });
+      }
     }
     clearAcpTurnMarkers(run, acpRes);   // ACP 回合走到结果：清「未完成」标记与中断卡（B7）
     const ctxWin = Number(acpRes.usage?.context_window) || Number(currentModelInfo(model, P).context_window) || 0;

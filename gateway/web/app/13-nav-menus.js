@@ -356,7 +356,7 @@
     // 被 AI 归进杂项的会话，用户置顶了或正在跑，从侧栏消失只会让人找不着（群反馈：置顶的在跑会话点一下就不见了）
     // 定时任务跑出来的会话同理：在「定时任务」页和「对话」页的定时任务筛选里看，不占侧栏
     const sched = schedSids();
-    const list = (state.sessions || []).filter((x) => (!x.misc && !sched.has(x.id)) || x.pinned || x.id === view.sessionId || live.has(x.id) || ask.has(x.id) || intr.has(x.id));
+    const list = sessionsWithLive().filter((x) => (!x.misc && !sched.has(x.id)) || x.pinned || x.id === view.sessionId || live.has(x.id) || ask.has(x.id) || intr.has(x.id));
     const d0 = new Date(); d0.setHours(0, 0, 0, 0);
     // 昨天按本地日历往前一天；拿 86400000 减，夏令时切换那天会少 / 多一小时，边界算错（0.6.10 审计 197-5.12）
     const yd = new Date(d0); yd.setDate(yd.getDate() - 1);

@@ -11,7 +11,7 @@ import { agentFilesOf, findLineOffset, latestContextTokens, lineHas, readSession
 import { lineageCached, lineageForSession } from "./lineage.mjs";
 import { chapterView } from "./archive-core.mjs";
 import { incompleteItem } from "./incomplete.mjs";
-import { runOfSession } from "./runs.mjs";
+import { runList, runOfSession } from "./runs.mjs";
 import { archiveBrief, archiveDb, archivedTitle } from "./archive-store.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
 import { isInjected } from "./integrity.mjs";
@@ -152,11 +152,13 @@ export function listSessions(limit = 150) {
     dirs = fs.readdirSync(PATHS.projects, { withFileTypes: true }).filter((d) => d.isDirectory());
   } catch (e) {
     // 目录还不存在是正常的（刚装、还没跑过会话）；读不了（权限、IO 错误）不能当成空表（FIND-015）
-    if (e.code === "ENOENT") return [];
-    const out = [];
-    out.error = e.code || e.message || "read_failed";
-    out.total = 0;
-    return out;
+    if (e.code === "ENOENT") dirs = [];
+    else {
+      const out = [];
+      out.error = e.code || e.message || "read_failed";
+      out.total = 0;
+      return out;
+    }
   }
 
   for (const d of dirs) {
@@ -205,8 +207,33 @@ export function listSessions(limit = 150) {
       currentProject: meta.cwd === CFG.workspace || meta.cwd === realWorkspace(),
     };
   });
-  out.total = visible.length;
-  return out;
+  const seenIds = new Set(found.map((s) => s.id));
+  const liveExtra = [];
+  for (const r of runList()) {
+    if (!r || r.ended || r.sched || !r.sessionId || seenIds.has(r.sessionId)) continue;
+    seenIds.add(r.sessionId);
+    const cwd = r.cwd || CFG.workspace;
+    const ts = r.startedAt || Date.now();
+    const fallbackTitle = String(r.text || "").replace(/\s+/g, " ").trim().slice(0, 90) || "(无标题)";
+    liveExtra.push({
+      id: r.sessionId,
+      no: "",
+      misc: false,
+      created: ts,
+      pinned: PINS[r.sessionId] || 0,
+      title: NAMES[r.sessionId] || archivedTitle(r.sessionId) || fallbackTitle,
+      archived: !NAMES[r.sessionId] && !!archivedTitle(r.sessionId),
+      renamed: !!NAMES[r.sessionId],
+      cwd,
+      mtime: ts,
+      sizeKb: 0,
+      currentProject: cwd === CFG.workspace || cwd === realWorkspace(),
+    });
+  }
+  liveExtra.sort((a, b) => b.mtime - a.mtime);
+  const merged = liveExtra.length ? [...liveExtra, ...out] : out;
+  merged.total = visible.length + liveExtra.length;
+  return merged;
 }
 
 // ── 会话内容搜索 ──
@@ -523,9 +550,26 @@ export async function routeSessions(req, res, u, p) {
 
     if (req.method === "GET" && !action) {
       // trashed：在回收站里（可恢复）。界面据此给「恢复」，而不是一律当成没了（#173）
-      if (!found) return sendJson(res, 404, { error: "not found", trashed: inTrash(id) });
-      const meta = peekSession(found.file);
       const live = runOfSession(id);
+      if (!found) {
+        // 新建会话首轮还在跑、jsonl 尚未落盘时，返回空历史 + liveRunId 让前端无缝接上 SSE 实时流，不报 404
+        if (live && !live.ended) {
+          const fallbackTitle = String(live.text || "").replace(/\s+/g, " ").trim().slice(0, 90) || "(无标题)";
+          return sendJson(res, 200, {
+            id,
+            title: NAMES[id] || archivedTitle(id) || fallbackTitle,
+            cwd: live.cwd || CFG.workspace,
+            items: [],
+            cursor: 0,
+            size: 0,
+            contextTokens: 0,
+            liveRunId: live.id,
+            tasks: tasksOf(id),
+          });
+        }
+        return sendJson(res, 404, { error: "not found", trashed: inTrash(id) });
+      }
+      const meta = peekSession(found.file);
       const limit = Math.min(200, Math.max(10, Number(u.searchParams.get("limit")) || 40));
       // 正在生成的那一轮走事件总线，这里不重复给
       const excludeFrom = Number(u.searchParams.get("exclude")) || (live ? live.startedAt : 0);
@@ -587,7 +631,14 @@ export async function routeSessions(req, res, u, p) {
 
     // 子代理联络簿：有落盘的读落盘（网关跑的时候记的），没有就从 claude 的记录里现推（旧会话，不写文件）
     if (req.method === "GET" && action === "agents") {
-      if (!found) return sendJson(res, 404, { error: "not found" });
+      if (!found) {
+        const liveRun = runOfSession(id);
+        if (liveRun && !liveRun.ended) {
+          const live = liveRun.agents?.agents;
+          return sendJson(res, 200, { records: live ? [...live.values()] : [], src: "live" });
+        }
+        return sendJson(res, 404, { error: "not found" });
+      }
       const meta = peekSession(found.file);
       let recs = meta.cwd ? readAgentIndex(meta.cwd, id) : [], src = "book";
       if (!recs.length) { recs = backfillAgents(found.file); src = "transcript"; }

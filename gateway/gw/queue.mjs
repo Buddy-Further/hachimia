@@ -73,7 +73,7 @@ export function permView(p) {
 }
 
 const runInfo = (r) => r && {
-  id: r.id, cid: r.cid, text: r.text.slice(0, 2000), sessionId: r.sessionId, follow: r.follow, startedAt: r.startedAt,
+  id: r.id, cid: r.cid, text: r.text.slice(0, 2000), sessionId: r.sessionId, cwd: r.cwd || "", follow: r.follow, startedAt: r.startedAt,
   perms: r.perms ? [...r.perms.values()].map(permView) : [],
   // sealed：答完了、后台任务还在，但 stdin 已关——插话、停单个任务都送不进去，只能等它结束或整个停掉
   idle: !!r.idle, sealed: !!r.idle && !r.inputOpen && !r.ended, bg: r.bgTasks || 0, bgList: r.bgList || [], auto: r.auto || null, permMode: r.permMode || null,

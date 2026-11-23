@@ -84,6 +84,20 @@
     return { n: runs.length + queue.length + intr.length, ask: runs.some((r) => r.perms && r.perms.length), live: runs.length > 0, intr: intr.length > 0 };
   }
   function liveSessCount() { return new Set(srv.runs.map((r) => r.sessionId).filter(Boolean)).size; }
+  /** 合并已落盘的 state.sessions 与「已拿到 sessionId 但列表还没刷到」的在跑轮次，避免新对话首轮切走后找不到入口 */
+  function sessionsWithLive() {
+    const base = state.sessions || [];
+    const seen = new Set(base.map((s) => s.id));
+    const extra = [];
+    for (const r of srv.runs || []) {
+      if (!r || !r.sessionId || seen.has(r.sessionId)) continue;
+      seen.add(r.sessionId);
+      const title = String(r.text || "").replace(/\s+/g, " ").trim().slice(0, 90) || t("新对话");
+      const ts = r.startedAt || Date.now();
+      extra.push({ id: r.sessionId, title, cwd: r.cwd || "", mtime: ts, created: ts, sizeKb: 0, pinned: 0, misc: false, no: "" });
+    }
+    return extra.length ? [...extra, ...base] : base;
+  }
   function renderSessions() {
     renderSideRecent();
     renderSideNav();
@@ -96,7 +110,8 @@
     if (sess.mode === "trash") $("sess-flt-wrap").classList.add("hidden");
     if (sess.mode === "trash") return renderTrash(box);
     const q = sess.q.trim();
-    if (!q && !state.sessions.length) {
+    const allSessions = sessionsWithLive();
+    if (!q && !allSessions.length) {
       sess.visible = [];
       box.innerHTML = state.sessErr ? sessErrRow() : '<div class="tiny">' + t("还没有历史会话。") + '</div>';
       return;
@@ -114,15 +129,17 @@
     if (PJ.list.length) { FLT.none = [t("不在项目里"), (s) => !pjOfCwd(s.cwd)]; for (const p of PJ.list) FLT["p:" + p.id] = [p.name, (s) => { const q = pjOfCwd(s.cwd); return !!q && q.id === p.id; }]; }
     FLT.sched = [t("定时任务"), (s) => sids.has(s.id)];
     if (!FLT[sess.flt]) sess.flt = "all";
-    if (sess.flt !== "all" && !state.sessions.some(FLT[sess.flt][1])) sess.flt = "all";
-    $("sess-flt").innerHTML = Object.entries(FLT).filter(([k, f]) => k === "all" || state.sessions.some(f[1]))
+    if (sess.flt !== "all" && !allSessions.some(FLT[sess.flt][1])) sess.flt = "all";
+    $("sess-flt").innerHTML = Object.entries(FLT).filter(([k, f]) => k === "all" || allSessions.some(f[1]))
       .map(([k, f]) => `<button data-f="${esc(k)}" class="${sess.flt === k ? "on" : ""}">${esc(f[0])}</button>`).join("");
     $("sess-flt-wrap").classList.toggle("hidden", $("sess-flt").children.length < 2);
     const keep = FLT[sess.flt][1];
-    const nLive = state.sessions.filter(isLive).length;
+    const nLive = allSessions.filter(isLive).length;
     // 网关只给最近 150 个（加置顶）：数字和列表范围对得上，说清还有更早的（#178-3）
-    const more = Math.max(0, (state.sessTotal || 0) - state.sessions.length);
-    setPageSub("sessions", (more ? t("最近 {n} 个，共 {m} 个", { n: state.sessions.length, m: state.sessTotal }) : t("{n} 个", { n: state.sessions.length })) + (nLive ? " · " + t("{n} 个在跑", { n: nLive }) : ""));
+    const extraCount = allSessions.length - (state.sessions || []).length;
+    const totalCount = (state.sessTotal || (state.sessions || []).length) + extraCount;
+    const more = Math.max(0, totalCount - allSessions.length);
+    setPageSub("sessions", (more ? t("最近 {n} 个，共 {m} 个", { n: allSessions.length, m: totalCount }) : t("{n} 个", { n: allSessions.length })) + (nLive ? " · " + t("{n} 个在跑", { n: nLive }) : ""));
     // 一行一个：标题 + 等宽的时间/大小；点整行打开，「⋯」里是置顶、改名、导出、删除（和侧栏长按同一份菜单）
     const item = (s) => {
       const st = askSids.has(s.id) ? `<span class="badge warn">${t("等你确认")}</span>` : liveSids.has(s.id) ? `<span class="badge cur">${t("生成中")}</span>` : idleSids.has(s.id) ? `<span class="badge">${t("后台任务在跑")}</span>` : intrSids.has(s.id) ? `<span class="badge warn">${t("已中断")}</span>` : "";
@@ -159,7 +176,7 @@
     }
     // 分组：置顶在最前，其余按时间；每组标题可点击折叠，收起时仍露出当前会话
     const groups = [];
-    const shown = state.sessions.filter(keep);
+    const shown = allSessions.filter(keep);
     const pins = shown.filter((s) => s.pinned);
     if (pins.length) groups.push({ key: "pin", label: t("置顶"), list: pins });
     // 杂项（测试、试模型这类用完即弃的）收在最后一组，组名右边可一键全移进回收站
