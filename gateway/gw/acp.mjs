@@ -66,12 +66,15 @@ export function acpChildActive(pid, prevCpuTicks = -1, now = Date.now(), logDir 
   }
   return { active: false, cpuTicks, reason: "" };
 }
-/** session/prompt 的默认超时：不传 timeoutMs 时不再无限等待（B12）。
- *  其它 ACP 请求默认 120s，唯独最关键的 prompt 是无限等待，agent 假死会永久占住车道。
- *  默认 30 分钟（环境变量 CCAPP_ACP_PROMPT_TIMEOUT_MS 可覆盖，单位毫秒），显式传 timeoutMs 优先。 */
+/** session/prompt 的默认无活动假死超时：不传硬 timeoutMs 时不再无限等待（B12），也不一刀切误杀超 30 分钟的活跃长任务。
+ *  仅当流式收到 JSON-RPC 消息（session/update、反向权限请求）或处于用户权限审批等待期时自动滑窗续期
+ *  （不把后台 Go runtime GC/心跳 CPU 计入续期，避免真假死被架空），并设总墙钟兜底上限 ACP_MAX_PROMPT_TIMEOUT_MS。 */
 export const ACP_DEFAULT_PROMPT_TIMEOUT_MS = Number(process.env.CCAPP_ACP_PROMPT_TIMEOUT_MS) > 0
   ? Number(process.env.CCAPP_ACP_PROMPT_TIMEOUT_MS)
   : 30 * 60 * 1000;
+export const ACP_MAX_PROMPT_TIMEOUT_MS = Number(process.env.CCAPP_ACP_MAX_PROMPT_TIMEOUT_MS) > 0
+  ? Number(process.env.CCAPP_ACP_MAX_PROMPT_TIMEOUT_MS)
+  : 6 * 3600 * 1000;
 const TOOL_OUT_MAX = 20000;
 
 // 按 sessionId 保活的常驻 ACP 客户端池：同一会话同配置直接复用进程，避免每轮重启 agy
@@ -138,6 +141,7 @@ export function stopAcpBgTask(sessionId, taskId) {
   } else if (!taskId) {
     entry.bgTasks?.clear();
   }
+  entry.dropActiveBg?.(taskId);
   if (!entry.busy && (!entry.bgTasks || entry.bgTasks.size === 0)) {
     closeAcpSession(sessionId);
   }
@@ -434,6 +438,7 @@ export function createAcpClient({ bin, args = ["acp"], cwd, env, onNotification,
     }
     // 2. Agent 反向请求（如 session/request_permission）
     if (msg.id !== undefined && typeof msg.method === "string") {
+      for (const p of pending.values()) p.touch?.();
       Promise.resolve()
         .then(() => (handlers.onRequest ? handlers.onRequest(msg.method, msg.params || {}) : Promise.reject(new Error(`Unsupported client method: ${msg.method}`))))
         .then((result) => writeMsg({ jsonrpc: "2.0", id: msg.id, result }))
@@ -442,6 +447,7 @@ export function createAcpClient({ bin, args = ["acp"], cwd, env, onNotification,
     }
     // 3. Agent 通知（如 session/update）
     if (typeof msg.method === "string") {
+      for (const p of pending.values()) p.touch?.();
       try { handlers.onNotification?.(msg.method, msg.params || {}); } catch (e) { log(`[acp] 通知处理异常: ${e.message}`); }
     }
   });
@@ -466,18 +472,60 @@ export function createAcpClient({ bin, args = ["acp"], cwd, env, onNotification,
     } catch { return false; }
   }
 
-  function request(method, params = {}, timeoutMs = 120000) {
+  function request(method, params = {}, timeoutOrOpts = 120000) {
     if (closed) return Promise.reject(new Error("ACP process already closed"));
     const id = nextId++;
+    const isObj = timeoutOrOpts && typeof timeoutOrOpts === "object";
+    const hardMs = isObj ? Number(timeoutOrOpts.timeoutMs) || 0 : Number(timeoutOrOpts) || 0;
+    const idleMs = isObj ? Number(timeoutOrOpts.idleTimeoutMs) || 0 : 0;
+    const maxTotalMs = isObj ? Number(timeoutOrOpts.maxTotalMs) || 0 : 0;
+    const shouldExtend = isObj && typeof timeoutOrOpts.shouldExtend === "function" ? timeoutOrOpts.shouldExtend : null;
     return new Promise((resolve, reject) => {
-      const timer = timeoutMs > 0 ? setTimeout(() => {
-        pending.delete(id);
-        reject(new Error(`ACP request timeout: ${method}`));
-      }, timeoutMs) : null;
-      if (timer) timer.unref?.();
-      pending.set(id, { resolve, reject, timer });
+      const startedAt = Date.now();
+      const entry = { resolve, reject, timer: null, lastActivityAt: startedAt, touch: null };
+      if (idleMs > 0) {
+        entry.touch = () => { entry.lastActivityAt = Date.now(); };
+        const arm = (delayMs) => {
+          const t = setTimeout(() => {
+            if (!pending.has(id)) return;
+            const now = Date.now();
+            if (maxTotalMs > 0 && now - startedAt >= maxTotalMs) {
+              pending.delete(id);
+              reject(new Error(`ACP request timeout: ${method}`));
+              return;
+            }
+            const elapsed = now - entry.lastActivityAt;
+            if (elapsed < idleMs) {
+              const remCap = maxTotalMs > 0 ? Math.max(10, maxTotalMs - (now - startedAt)) : idleMs;
+              arm(Math.min(remCap, Math.max(10, idleMs - elapsed)));
+              return;
+            }
+            let extend = false;
+            try { extend = !!shouldExtend?.(); } catch {}
+            if (extend) {
+              entry.lastActivityAt = now;
+              const remCap = maxTotalMs > 0 ? Math.max(10, maxTotalMs - (now - startedAt)) : idleMs;
+              arm(Math.min(remCap, idleMs));
+              return;
+            }
+            pending.delete(id);
+            reject(new Error(`ACP request timeout: ${method}`));
+          }, delayMs);
+          t.unref?.();
+          entry.timer = t;
+        };
+        arm(maxTotalMs > 0 ? Math.min(idleMs, maxTotalMs) : idleMs);
+      } else if (hardMs > 0) {
+        const t = setTimeout(() => {
+          pending.delete(id);
+          reject(new Error(`ACP request timeout: ${method}`));
+        }, hardMs);
+        t.unref?.();
+        entry.timer = t;
+      }
+      pending.set(id, entry);
       if (!writeMsg({ jsonrpc: "2.0", id, method, params })) {
-        if (timer) clearTimeout(timer);
+        if (entry.timer) clearTimeout(entry.timer);
         pending.delete(id);
         reject(new Error(`ACP stdin write failed: ${method}`));
       }
@@ -520,7 +568,7 @@ function firstLineOf(s, max = 80) {
 
 /** 识别 agy 原生工具规范名：真实 agy acp 的 tool_call.title 常带 "Run " 前缀（如 "Run invoke_subagent"），
  *  且 run_command 的 title 直接是命令行原文；先剥 "run " 前缀，再按 rawInput 字段兜底识别。 */
-export function classifyAcpTool(rawName, input) {
+export function classifyAcpTool(rawName, input, output = "") {
   const norm = String(rawName || "").trim().toLowerCase().replace(/^run\s+/, "");
   if (norm === "invoke_subagent" || norm === "run_workflow" || norm === "send_message"
     || norm === "manage_subagents" || norm === "run_command" || norm === "manage_task" || norm === "schedule") {
@@ -530,10 +578,15 @@ export function classifyAcpTool(rawName, input) {
   if (typeof inp.TypeName === "string" && typeof inp.Prompt === "string") return "invoke_subagent";
   if (typeof inp.Script === "string" || typeof inp.ScriptPath === "string") return "run_workflow";
   if (typeof inp.Recipient === "string" && typeof inp.Message === "string") return "send_message";
-  if (typeof inp.Action === "string" && (Array.isArray(inp.ConversationIds) || /^(list|kill|kill_all)$/i.test(inp.Action))) return "manage_subagents";
-  if (typeof inp.CommandLine === "string") return "run_command";
+  if (typeof inp.Action === "string" && Array.isArray(inp.ConversationIds)) return "manage_subagents";
   if (typeof inp.TaskId === "string" && typeof inp.Action === "string") return "manage_task";
+  if (typeof inp.Action === "string" && /^(status|send_input)$/i.test(inp.Action)) return "manage_task";
+  const out = String(output || "");
+  if (/^No background tasks are currently running\./m.test(out)) return "manage_task";
+  if (typeof inp.Action === "string" && /^(list|kill|kill_all)$/i.test(inp.Action)) return "manage_subagents";
+  if (typeof inp.CommandLine === "string") return "run_command";
   if (typeof inp.CronExpression === "string" || typeof inp.DurationSeconds === "number") return "schedule";
+  if (/^Tool is running (?:as a background task|in the background)\b/m.test(out)) return "run_command";
   return "";
 }
 
@@ -542,7 +595,7 @@ function trackAcpToolSideEffects(phase, tool, state, emit) {
   if (!tool || !state) return;
   const rawName = String(tool.name || "");
   const inp = tool.input && typeof tool.input === "object" ? tool.input : {};
-  const kind = classifyAcpTool(rawName, inp);
+  const kind = classifyAcpTool(rawName, inp, tool.output);
   if (!kind) return;
   const agents = (state.acpAgents ||= new Map());        // toolId -> { id, convId, name }
   const byConv = (state.acpAgentsByConv ||= new Map());  // convId -> toolId
@@ -637,11 +690,25 @@ function trackAcpToolSideEffects(phase, tool, state, emit) {
 
   if (kind === "run_command" && phase === "done" && !tool.isError) {
     const out = String(tool.output || "");
-    const bgMatch = /running in (?:the )?background|background task|TaskId["':=\s]+(\S+)/i.test(out) || !!inp.IsDaemon;
+    // 只检视工具信封头（有 Command/Log output: 分隔符时取其前；无分隔符时仅取前 6 行信封头），
+    // 防止同步退出或前台超时的命令输出正文里含 "background task" / "TaskId" 被误挂为幽灵后台任务。
+    const sepRe = /\r?\n(?:Command|Log) output:\r?\n/;
+    const header = sepRe.test(out) ? out.split(sepRe)[0] : out.split(/\r?\n/, 6).join("\n");
+    const syncExited = /^Command (?:exited with code \d+|was terminated by signal)/m.test(header);
+    const bgMatch = !!inp.IsDaemon || (!syncExited && (
+      /^Tool is running (?:as a background task|in the background)\b/m.test(header)
+      || /\bCommand running in (?:the )?background\b/i.test(header)
+      || /\b(?:TaskId|task[_\s-]?id)["':=\s]+[A-Za-z0-9._/-]*[A-Za-z0-9_/-]/i.test(header)
+    ));
     if (bgMatch) {
-      const mId = /(?:TaskId|task[_\s-]?id)["':=\s]+([A-Za-z0-9._-]+)/i.exec(out);
+      const mId = /(?:TaskId|task[_\s-]?id)["':=\s]+([A-Za-z0-9._/-]*[A-Za-z0-9_/-])/i.exec(header);
       const tid = mId ? mId[1] : tool.id;
-      const desc = String(inp.toolSummary || inp.CommandLine || "后台命令").trim().slice(0, 80);
+      const titleCmd = rawName.replace(/^run\s+/i, "").trim();
+      const desc = String(
+        inp.toolSummary || inp.description || inp.CommandLine
+        || (titleCmd && titleCmd.toLowerCase() !== "run_command" ? titleCmd : "")
+        || "后台命令"
+      ).trim().slice(0, 80);
       state.onBgAdd?.({ id: tid, type: inp.IsDaemon ? "daemon" : "shell", desc });
     }
     return;
@@ -649,13 +716,15 @@ function trackAcpToolSideEffects(phase, tool, state, emit) {
 
   if (kind === "manage_task" && phase === "done" && !tool.isError) {
     const act = String(inp.Action || "").toLowerCase();
+    const out = String(tool.output || "");
     if (act === "kill" && inp.TaskId) state.onBgRemove?.(String(inp.TaskId));
+    else if (act === "list" && /No background tasks are currently running/i.test(out)) state.onBgClearTasks?.();
     return;
   }
 
   if (kind === "schedule" && phase === "done" && !tool.isError) {
     const out = String(tool.output || "");
-    const mId = /(?:TaskId|id)["':=\s]+([A-Za-z0-9._-]+)/i.exec(out);
+    const mId = /(?:TaskId|id)["':=\s]+([A-Za-z0-9._/-]*[A-Za-z0-9_/-])/i.exec(out);
     const tid = mId ? mId[1] : tool.id;
     const desc = String(inp.Prompt || inp.CronExpression || (inp.DurationSeconds ? `${inp.DurationSeconds}s 定时提醒` : "定时任务")).trim().slice(0, 80);
     state.onBgAdd?.({ id: tid, type: "monitor", desc });
@@ -1201,7 +1270,7 @@ function mapUiModeToAcp(permMode, availableModes) {
 export async function runAcpTurn({
   bin, args = ["acp"], cwd, env, prompt, displayPrompt = null, images = [], sessionId = null,
   model = "", effort = "", permMode = "default", authType = "", apiKey = "",
-  mcpServers = [], addDirs = [], run, emit, askPermission, onBgChange, onSessionFileReady = null, timeoutMs = 0,
+  mcpServers = [], addDirs = [], run, emit, askPermission, onBgChange, onSessionFileReady = null, timeoutMs = 0, idleTimeoutMs = 0,
   keepAlive = LIVE && process.env.CCAPP_ACP_KEEPALIVE !== "0",
 }) {
   const t0 = Date.now();
@@ -1234,6 +1303,16 @@ export async function runAcpTurn({
       if (!id) return;
       if (bgTasks.delete(String(id))) syncBg();
     },
+    onBgClearTasks: () => {
+      let changed = false;
+      for (const [k, v] of bgTasks) {
+        if (v.type !== "agent" && v.type !== "workflow") {
+          bgTasks.delete(k);
+          changed = true;
+        }
+      }
+      if (changed) syncBg();
+    },
     onCommands: (cmds) => {
       const names = [];
       const meta = {};
@@ -1254,6 +1333,7 @@ export async function runAcpTurn({
     },
   };
   let activeSessionId = sessionId || null;
+  let pendingPermCount = 0;
   const pKey = poolKey({ bin, args, cwd, authType, apiKey });
 
   const isBenignStderr = (line) => /logging before google\.Init:.*Initialized Android local timezone/i.test(line);
@@ -1282,13 +1362,19 @@ export async function runAcpTurn({
             ? { outcome: { outcome: "selected", optionId: rejectOpt.optionId } }
             : { outcome: { outcome: "cancelled" } };
         }
-        const decision = await askPermission({
-          tool: params.toolCall?.title || params.toolCall?.name || params.toolCall?.kind || "Antigravity Tool",
-          toolCallId: params.toolCall?.toolCallId || params.toolCall?.id || "",
-          input: params.toolCall?.rawInput || params.toolCall?.input || params.toolCall || {},
-          options,
-          hasAlways: !!allowAlwaysOpt,
-        });
+        pendingPermCount++;
+        let decision;
+        try {
+          decision = await askPermission({
+            tool: params.toolCall?.title || params.toolCall?.name || params.toolCall?.kind || "Antigravity Tool",
+            toolCallId: params.toolCall?.toolCallId || params.toolCall?.id || "",
+            input: params.toolCall?.rawInput || params.toolCall?.input || params.toolCall || {},
+            options,
+            hasAlways: !!allowAlwaysOpt,
+          });
+        } finally {
+          pendingPermCount = Math.max(0, pendingPermCount - 1);
+        }
         if (decision && decision.behavior === "allow") {
           const chosen = decision.always && allowAlwaysOpt ? allowAlwaysOpt : allowOpt;
           return chosen
@@ -1373,9 +1459,25 @@ export async function runAcpTurn({
     }
   };
 
+  const dropActiveBg = (tid) => {
+    let removed = false;
+    if (tid) {
+      if (bgTasks.delete(String(tid))) removed = true;
+      if (poolEntry?.bgTasks?.delete(String(tid))) removed = true;
+    } else {
+      if (bgTasks.size > 0 || poolEntry?.bgTasks?.size > 0) removed = true;
+      bgTasks.clear();
+      poolEntry?.bgTasks?.clear();
+    }
+    if (removed) syncBg();
+    return removed;
+  };
+  if (poolEntry) poolEntry.dropActiveBg = dropActiveBg;
+
   if (run) {
     run.child = client.child;
     run.preSpawn = false;
+    run.dropAcpBg = dropActiveBg;
     // 停止只停当前 prompt，不销毁保活进程：进程留在池里供下轮复用（B10）。
     // 进程回收只由空闲超时 / 显式 closeAcpSession / 网关关闭负责。
     run.cancelAcp = () => {
@@ -1647,10 +1749,17 @@ export async function runAcpTurn({
       });
       try { onSessionFileReady?.(activeSessionId); } catch {}
     }
+    const promptTimeoutCfg = timeoutMs > 0
+      ? { timeoutMs }
+      : {
+          idleTimeoutMs: idleTimeoutMs > 0 ? idleTimeoutMs : ACP_DEFAULT_PROMPT_TIMEOUT_MS,
+          maxTotalMs: ACP_MAX_PROMPT_TIMEOUT_MS,
+          shouldExtend: () => pendingPermCount > 0 || run?.perms?.size > 0,
+        };
     const promptRes = await client.request("session/prompt", {
       sessionId: activeSessionId,
       prompt: contentBlocks,
-    }, timeoutMs > 0 ? timeoutMs : ACP_DEFAULT_PROMPT_TIMEOUT_MS);
+    }, promptTimeoutCfg);
 
     // 补采 promptRes.usage（整轮累计统计：保留单步 usage_update 的真实 context_tokens，不拿多步累加值冲爆上下文条）
     if (promptRes?.usage) {
@@ -1834,6 +1943,7 @@ export async function runAcpTurn({
       }
     }
     if (!run?.aborted) {
+      log(`[agy-acp] 回合异常中断 (${(activeSessionId || "-").slice(0, 8)}, ${Math.round((Date.now() - t0) / 1000)}s): ${msg}`);
       emit({ type: "error", message: tz("Antigravity CLI 执行出错：{msg}", { msg }) + detail });
     }
     return {
@@ -1848,9 +1958,11 @@ export async function runAcpTurn({
       durationMs: Date.now() - t0,
     };
   } finally {
+    if (poolEntry && poolEntry.dropActiveBg === dropActiveBg) poolEntry.dropActiveBg = null;
     if (run) {
       run.child = null;
       run.cancelAcp = null;
+      run.dropAcpBg = null;
     }
     if (canKeep) {
       const entry = poolEntry || { client, sessionId: activeSessionId, key: pKey, knownToolIds: new Set() };
@@ -2039,6 +2151,16 @@ export async function runAcpTurn({
               },
               onBgRemove: (id) => {
                 if (id && entry.bgTasks.delete(String(id))) onBgChange?.([...entry.bgTasks.values()]);
+              },
+              onBgClearTasks: () => {
+                let changed = false;
+                for (const [k, v] of entry.bgTasks) {
+                  if (v.type !== "agent" && v.type !== "workflow") {
+                    entry.bgTasks.delete(k);
+                    changed = true;
+                  }
+                }
+                if (changed) onBgChange?.([...entry.bgTasks.values()]);
               },
               onCommands: state.onCommands,
             };

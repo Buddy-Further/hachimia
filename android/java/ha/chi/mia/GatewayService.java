@@ -811,27 +811,31 @@ public class GatewayService extends Service {
      *  只认回环地址上的监听：127.0.0.1 / 127.0.0.2 / 0.0.0.0（IPv4 全绑也占住回环），::1 / ::（IPv6 同理，
      *  含 ::ffff:127.0.0.1 映射形）。/proc 里地址是 16 进制、每 32 位一组小端序：
      *  127.0.0.1 → tcp 里是 0100007F，tcp6 映射形是 0000000000000000FFFF00000100007F。 */
+    static void parseListenSocketInodes(Iterable<String> lines, boolean v6, int port, java.util.Set<String> out) {
+        String hexPort = String.format("%04X", port);
+        for (String ln : lines) {
+            String[] p = ln.trim().split("\\s+");
+            if (p.length < 10) continue;
+            String[] la = p[1].split(":");
+            if (la.length != 2 || !la[1].equalsIgnoreCase(hexPort) || !"0A".equalsIgnoreCase(p[3])) continue;
+            String ip = la[0];
+            boolean loopback = v6
+                ? ip.equals("00000000000000000000000000000000")          // ::
+                || ip.equals("00000000000000000000000001000000")          // ::1
+                || ip.equals("0000000000000000FFFF00000100007F")          // ::ffff:127.0.0.1（每 32 位组小端序，FFFF 在前）
+                || ip.equals("0000000000000000FFFF00000200007F")          // ::ffff:127.0.0.2
+                : ip.equals("0100007F") || ip.equals("0200007F") || ip.equals("00000000");
+            if (loopback) out.add("socket:[" + p[9] + "]");
+        }
+    }
+
     static java.util.Set<String> listenSocketInodes(int port) {
         java.util.Set<String> out = new java.util.HashSet<>();
-        String hexPort = String.format("%04X", port);
         for (String f : new String[]{"/proc/net/tcp", "/proc/net/tcp6"}) {
             boolean v6 = f.endsWith("6");
             java.util.List<String> lines;
             try { lines = java.nio.file.Files.readAllLines(new File(f).toPath()); } catch (Exception e) { continue; }
-            for (String ln : lines) {
-                String[] p = ln.trim().split("\\s+");
-                if (p.length < 10) continue;
-                String[] la = p[1].split(":");
-                if (la.length != 2 || !la[1].equalsIgnoreCase(hexPort) || !"0A".equalsIgnoreCase(p[3])) continue;
-                String ip = la[0];
-                boolean loopback = v6
-                    ? ip.equals("00000000000000000000000000000000")          // ::
-                    || ip.equals("00000000000000000000000001000000")          // ::1
-                    || ip.equals("0000000000000000FFFF00000100007F")          // ::ffff:127.0.0.1（每 32 位组小端序，FFFF 在前）
-                    || ip.equals("0000000000000000FFFF00000200007F")          // ::ffff:127.0.0.2
-                    : ip.equals("0100007F") || ip.equals("0200007F") || ip.equals("00000000");
-                if (loopback) out.add("socket:[" + p[9] + "]");
-            }
+            parseListenSocketInodes(lines, v6, port, out);
         }
         return out;
     }

@@ -92,7 +92,7 @@ static int inspect_file(const char *path, char *line, size_t cap) {
         if (n > 0) {
             line[n] = 0;
             for (ssize_t i = 0; i < n; i++) {
-                if (line[i] == '\n') { line[i] = 0; break; }
+                if (line[i] == '\n' || line[i] == '\r') { line[i] = 0; break; }
             }
             k = K_SCRIPT;
         }
@@ -181,11 +181,10 @@ int main(int argc, char **argv) {
         base = "bash";
     }
 
+    /* clean_path 仅用于本进程内部跳过 loader-bin 查找真实目标；不修改子进程 PATH 环境变量，
+     * 确保 bash 拉起的二级 Go 程序（如 gh → git / xdg-open）在裸 SYS_execve 时仍能命中 loader-bin 跳板 */
     const char *loader_bin = getenv("CCAPP_LOADER_BIN");
     char *clean_path = strip_loader_bin_from_path(getenv("PATH"), loader_bin);
-    if (clean_path) {
-        setenv("PATH", clean_path, 1);
-    }
 
     const char *real_shell = getenv("CCAPP_SHELL");
     if (real_shell && *real_shell) {

@@ -121,14 +121,13 @@ test("loader-run.c：编译后通过软链运行真实 bash、脚本与环境清
     PATH: `${lbin}:${realBin}:${path.dirname(realBash)}:/system/bin:/usr/bin:/bin`,
   };
 
-  // 1) 通过 loader-bin/bash 软链执行命令：子进程应看到剥离 loader-bin 后的 PATH 与还原后的 SHELL
+  // 1) 通过 loader-bin/bash 软链执行命令：子进程保留 PATH 首位的 loader-bin（供二级 Go 子命令如 gh→git 续跳）并还原 SHELL
   const r1 = spawnSync(path.join(lbin, "bash"), ["-c", 'printf "OK|%s|%s" "$SHELL" "$PATH"'], {
     env: runEnv,
     encoding: "utf8",
   });
   assert.equal(r1.status, 0, `bash 执行失败: stderr=${r1.stderr}`);
-  assert.ok(r1.stdout.startsWith(`OK|${realBash}|`), `SHELL 未还原: ${r1.stdout}`);
-  assert.ok(!r1.stdout.includes(lbin), `PATH 未剥离 loader-bin: ${r1.stdout}`);
+  assert.ok(r1.stdout.startsWith(`OK|${realBash}|${lbin}:`), `SHELL 还原或 PATH 保留跳板不符: ${r1.stdout}`);
 
   // 2) 通过 loader-bin/demo-script 软链执行 #! 脚本
   const r2 = spawnSync(path.join(lbin, "demo-script"), ["hello"], {
@@ -136,8 +135,7 @@ test("loader-run.c：编译后通过软链运行真实 bash、脚本与环境清
     encoding: "utf8",
   });
   assert.equal(r2.status, 0, `demo-script 执行失败: stderr=${r2.stderr}`);
-  assert.ok(r2.stdout.startsWith("SCRIPT:hello:"), `输出不符: ${r2.stdout}`);
-  assert.ok(!r2.stdout.includes(lbin), `脚本 PATH 未剥离 loader-bin: ${r2.stdout}`);
+  assert.ok(r2.stdout.startsWith(`SCRIPT:hello:${lbin}:`), `输出不符: ${r2.stdout}`);
 
   // 3) 直接以 libccrun.so 名字调用（模拟 caller 对 SHELL 做了 realpath/EvalSymlinks）仍回落到 bash
   const r3 = spawnSync(binPath, ["-c", "echo FALLBACK_OK"], {

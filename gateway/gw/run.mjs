@@ -242,17 +242,31 @@ SWALLOW_HOOKS.push((sid, msg, kind) => {
     runEmit(run, { type: "note", key: "sfx-swallow", text: tz("上游在回答结尾报了错（{msg}），已按说完处理；如果回答不完整，发一句「继续」", { msg }) });
 });
 
-/** ACP 新会话拿到会话号时记账（B6）：claude 路径的 onInit 做三件记账，
- *  ACP 分支以前只做了 rememberSession。跟发消息靠 RUN_SESSIONS 找会话号，
- *  没有它，首轮进行中跟发的消息会另起一个新会话、把对话拆散。 */
-export function noteAcpInit(run, sessionId) {
+/** ACP 新会话拿到会话号时记账（B6）：与 claude 路径的 onInit 对齐——
+ *  记 RUN_SESSIONS、受管会话（防归入杂项）、首轮模型钉选 pin（防次轮掉回全局默认）、
+ *  汇合来源 mergeFrom 与 SESSIONS 内存集（防首轮落盘前排队消息被 pump 误判已删）。 */
+export function noteAcpInit(run, sessionId, item = null) {
   if (!run || !sessionId) return;
   run.sessionId = sessionId;
+  noteManaged(sessionId);
   RUN_SESSIONS.set(run.id, sessionId);
   if (RUN_SESSIONS.size > 500) RUN_SESSIONS.delete(RUN_SESSIONS.keys().next().value);
+  if (run.privTok && !PRIV_TOK.has(sessionId)) PRIV_TOK.set(sessionId, run.privTok);
   markIncomplete(sessionId, run.id);
   for (const e of run.log || []) if (e.type === "run_start" && !e.sessionId) e.sessionId = sessionId;
   rememberSession(sessionId);
+  if (item?.pin && !run.pinSaved) {
+    run.pinSaved = true;
+    setSessModel(sessionId, item.pin, item.projectId);
+  }
+  if (item?.mergeFrom && !item.sessionId) {
+    recordExtra(sessionId, item.mergeFrom);
+    item.mergeFrom = null;
+  }
+  if (!SESSIONS.has(sessionId)) {
+    SESSIONS.set(sessionId, { id: sessionId, title: String(run.text || "").slice(0, 60), createdAt: Date.now() });
+    if (SESSIONS.size > 5000) SESSIONS.delete(SESSIONS.keys().next().value);
+  }
   saveRunMark();
   publishState();
 }
@@ -477,7 +491,8 @@ export async function startRun(item) {
     run.bgList = [];
     run.bgTasks = 0;
     run.stopTask = (taskId) => {
-      const ok = stopAcpBgTask(run.sessionId, taskId);
+      const dropped = run.dropAcpBg ? run.dropAcpBg(taskId) : false;
+      const ok = stopAcpBgTask(run.sessionId, taskId) || dropped;
       run.bgList = (run.bgList || []).filter((x) => x.id !== taskId);
       run.bgTasks = run.bgList.length;
       publishState();
@@ -497,7 +512,7 @@ export async function startRun(item) {
     // ACP init 事件一到就记账（B6）：别等整轮跑完才有会话号，首轮进行中跟发的消息要靠它续进同一会话
     const hadAcpSid = !!run.sessionId;
     const acpEmit = (ev) => {
-      if (ev?.type === "init" && ev.sessionId) noteAcpInit(run, ev.sessionId);
+      if (ev?.type === "init" && ev.sessionId) noteAcpInit(run, ev.sessionId, item);
       emit(ev);
     };
     const acpRes = await runAcpTurn({
@@ -577,10 +592,7 @@ export async function startRun(item) {
       },
     });
     if (acpRes.sessionId) {
-      run.sessionId = acpRes.sessionId;
-      RUN_SESSIONS.set(run.id, acpRes.sessionId);
-      rememberSession(acpRes.sessionId);
-      saveRunMark();
+      noteAcpInit(run, acpRes.sessionId, item);
       if (!hadAcpSid && !run.sched && !run.fileSeen && findSessionFile(run.sessionId, run.cwd)) {
         run.fileSeen = true;
         emit({ type: "session_created", sessionId: run.sessionId, runId: run.id, cwd: run.cwd });

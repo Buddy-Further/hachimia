@@ -43,14 +43,31 @@ public class GatewaySquattedTest {
         eq("G1 既无标记又不占端口：不可清扫",
             GatewayService.squattableLeftover(false, false, "node /tmp/other.mjs"), false);
 
-        // ── 端口证据（真 socket）：本进程在 127.0.0.1 上监听，/proc 证据认得出；没监听的端口认不出 ──
-        long pid = ProcessHandle.current().pid();
-        try (ServerSocket ss = new ServerSocket(0, 50, java.net.InetAddress.getByName("127.0.0.1"))) {
-            int port = ss.getLocalPort();
-            eq("G1 本进程监听 127.0.0.1 端口：端口证据为真",
-                GatewayService.holdsGatewayPort((int) pid, port), true);
-            eq("G1 本进程没监听的端口：端口证据为假",
-                GatewayService.holdsGatewayPort((int) pid, port == 1 ? 2 : 1), false);
+        // ── 端口解析纯逻辑（Android 10+ 真机 SELinux 禁止 untrusted_app 读 /proc/net/tcp{,6}，样本解析两端必跑）──
+        java.util.Set<String> parsed = new java.util.HashSet<>();
+        GatewayService.parseListenSocketInodes(java.util.Arrays.asList(
+            "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode",
+            "   0: 0100007F:2641 00000000:0000 0A 00000000:00000000 00:00000000 00000000 10305        0 11111 1 00000000",
+            "   1: 0100007F:2641 0100007F:9999 01 00000000:00000000 00:00000000 00000000 10305        0 22222 1 00000000"
+        ), false, 9793, parsed);
+        GatewayService.parseListenSocketInodes(java.util.Arrays.asList(
+            "   0: 0000000000000000FFFF00000200007F:2641 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000 10305        0 33333 1 00000000"
+        ), true, 9793, parsed);
+        eq("G1 /proc/net/tcp{,6} 解析：命中 127.0.0.1 LISTEN 与 ::ffff:127.0.0.2 LISTEN，排除 ESTABLISHED",
+            parsed.contains("socket:[11111]") && parsed.contains("socket:[33333]") && !parsed.contains("socket:[22222]"), true);
+
+        // ── 端口证据（真 socket）：宿主机允许读 /proc/net/tcp{,6} 时（桌面 CI）跑端到端断言 ──
+        boolean procNetReadable = java.nio.file.Files.isReadable(java.nio.file.Paths.get("/proc/net/tcp"))
+            || java.nio.file.Files.isReadable(java.nio.file.Paths.get("/proc/net/tcp6"));
+        if (procNetReadable) {
+            long pid = ProcessHandle.current().pid();
+            try (ServerSocket ss = new ServerSocket(0, 50, java.net.InetAddress.getByName("127.0.0.1"))) {
+                int port = ss.getLocalPort();
+                eq("G1 本进程监听 127.0.0.1 端口：端口证据为真",
+                    GatewayService.holdsGatewayPort((int) pid, port), true);
+                eq("G1 本进程没监听的端口：端口证据为假",
+                    GatewayService.holdsGatewayPort((int) pid, port == 1 ? 2 : 1), false);
+            }
         }
 
         if (fail > 0) { System.out.println(fail + " 条失败"); System.exit(1); }
