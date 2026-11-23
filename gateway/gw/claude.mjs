@@ -804,6 +804,80 @@ export function syncAgySettings(p = PROVIDER, key = keyOf(p)) {
   return { file, isApiKey };
 }
 
+// ── targetSdk ≥ 29「经加载器」模式下给 Go 二进制（agy）准备的可执行跳板目录 ──────────
+// agy（Go）的 os/exec 直发裸 SYS_execve，完全绕过 LD_PRELOAD（libccexecshimb.so / termux-exec）；
+// 在 targetSdk 36（W^X）下直接 exec 数据目录里的 bash/python3/git/npx 等会报 EACCES。
+// 把 loader-bin/<命令> 软链到 APK 原生库目录的 libccrun.so（SELinux 允许 exec），并挂在 agy 的 SHELL 和 PATH 最前。
+const LOADER_BIN_CORE = ["bash", "sh", "xdg-open", "termux-open-url"];
+const loaderBinCache = new Map(); // loaderBin -> { target, mtimes: Map<dir, mtimeMs> }
+
+export function ensureLoaderBin(envLike = process.env, { extraDirs = [] } = {}) {
+  const execMode = envLike.CCAPP_EXEC || "";
+  const loaderRun = envLike.CCAPP_LOADER_RUN || "";
+  const loaderBin = envLike.CCAPP_LOADER_BIN || (CFG.runtime ? path.join(CFG.runtime, "loader-bin") : "");
+  if (execMode !== "loader" || !loaderRun || !loaderBin || !fs.existsSync(loaderRun)) return "";
+
+  const scanDirs = [
+    envLike.CCAPP_BIN && path.join(envLike.CCAPP_BIN, "..", "pre"),
+    PREFIX && path.join(PREFIX, "bin"),
+    path.join(CFG.home, ".hachimia", "bin"),
+    path.join(CFG.home, ".cccodroid", "bin"),
+    path.join(CFG.home, ".gemini", "antigravity-cli", "bin"),
+    envLike.CCAPP_BIN,
+    ...extraDirs,
+  ].filter(Boolean);
+
+  const curMtimes = new Map();
+  for (const d of scanDirs) {
+    try { curMtimes.set(d, fs.statSync(d).mtimeMs); } catch { curMtimes.set(d, -1); }
+  }
+  const hit = loaderBinCache.get(loaderBin);
+  if (hit && hit.target === loaderRun && fs.existsSync(path.join(loaderBin, "bash")) && hit.mtimes.size === curMtimes.size) {
+    let same = true;
+    for (const [d, mt] of curMtimes) {
+      if (hit.mtimes.get(d) !== mt) { same = false; break; }
+    }
+    if (same) return loaderBin;
+  }
+
+  try {
+    fs.mkdirSync(loaderBin, { recursive: true, mode: 0o700 });
+    const want = new Set(LOADER_BIN_CORE);
+    for (const d of scanDirs) {
+      let ents;
+      try { ents = fs.readdirSync(d); } catch { continue; }
+      for (const name of ents) {
+        if (!name || name === "." || name === ".." || name.includes("/") || name.startsWith(".")) continue;
+        want.add(name);
+      }
+    }
+    const existing = new Set();
+    try {
+      for (const name of fs.readdirSync(loaderBin)) existing.add(name);
+    } catch {}
+    for (const name of want) {
+      const link = path.join(loaderBin, name);
+      let ok = false;
+      if (existing.has(name)) {
+        try { ok = fs.readlinkSync(link) === loaderRun; } catch {}
+      }
+      if (!ok) {
+        try { fs.unlinkSync(link); } catch {}
+        try { fs.symlinkSync(loaderRun, link); } catch {}
+      }
+    }
+    for (const name of existing) {
+      if (want.has(name) || name.startsWith(".")) continue;
+      try { fs.unlinkSync(path.join(loaderBin, name)); } catch {}
+    }
+    loaderBinCache.set(loaderBin, { target: loaderRun, mtimes: curMtimes });
+    return loaderBin;
+  } catch (e) {
+    log(`[loader-bin] 准备跳板目录失败: ${e.message}`);
+    return "";
+  }
+}
+
 export function agyEnv(o = {}) {
   const p = o.provider || PROVIDER;
   const key = keyOf(p);
@@ -811,6 +885,10 @@ export function agyEnv(o = {}) {
   // 登录探针（login.mjs 的 authEnv）必须用它：只读操作不得删掉 API Key 模式的配置（A4）。
   // 真跑（run.mjs / caps.mjs）默认同步，切换厂商时 settings.json 跟着走。
   if (o.sync !== false) syncAgySettings(p, key);
+  const basePath = PREFIX
+    ? [process.env.CCAPP_BIN && path.join(process.env.CCAPP_BIN, "..", "pre"), path.join(PREFIX, "bin"), path.join(CFG.home, ".hachimia", "bin"), path.join(CFG.home, ".cccodroid", "bin"), process.env.CCAPP_BIN, "/system/bin", "/system/xbin"].filter(Boolean).join(":")
+    : process.env.PATH;
+  const loaderBin = ensureLoaderBin(process.env);
   const env = {
     ...process.env,
     HOME: CFG.home,
@@ -818,13 +896,16 @@ export function agyEnv(o = {}) {
     TERMINFO_DIRS: PREFIX ? path.join(PREFIX, "share", "terminfo") : (process.env.TERMINFO_DIRS || ""),
     // 自定义组件入口写在 ~/.cccodroid/bin（custom.mjs），ACP 轮次也要认：只留 ~/.hachimia/bin 的话
     // 那个目录是空的，模型按裸命令名调自定义组件会解析不到（R-10 方案 a：先加回 PATH，不做数据迁移）
-    PATH: PREFIX
-      ? [process.env.CCAPP_BIN && path.join(process.env.CCAPP_BIN, "..", "pre"), path.join(PREFIX, "bin"), path.join(CFG.home, ".hachimia", "bin"), path.join(CFG.home, ".cccodroid", "bin"), process.env.CCAPP_BIN, "/system/bin", "/system/xbin"].filter(Boolean).join(":")
-      : process.env.PATH,
+    PATH: loaderBin ? (basePath ? `${loaderBin}:${basePath}` : loaderBin) : basePath,
     CCAPP_PROVIDER: p.id || "antigravity",
     CCAPP_RUN: "1",
     NO_COLOR: "1",
   };
+  if (loaderBin) {
+    env.CCAPP_LOADER_BIN = loaderBin;
+    env.CCAPP_SHELL = env.CCAPP_SHELL || (PREFIX ? path.join(PREFIX, "bin", "bash") : SYS_SH);
+    env.SHELL = path.join(loaderBin, "bash");
+  }
   if (PREFIX && fs.existsSync(path.join(PREFIX, "etc", "tls", "cert.pem"))) {
     env.SSL_CERT_FILE = env.SSL_CERT_FILE || path.join(PREFIX, "etc", "tls", "cert.pem");
   }

@@ -59,7 +59,8 @@ export function loginBrowserEnv(base, loginDir, browserScript) {
   const skip = new Set();
   if (env.CCAPP_BIN) skip.add(path.resolve(env.CCAPP_BIN, "..", "pre"));
   if (env.CCAPP_RUNTIME) skip.add(path.resolve(env.CCAPP_RUNTIME, "app", "pre"));
-  const parts = String(env.PATH || "").split(":").filter((d) => d && !skip.has(path.resolve(d)));
+  const loaderBin = env.CCAPP_EXEC === "loader" && env.CCAPP_LOADER_BIN ? path.resolve(env.CCAPP_LOADER_BIN) : "";
+  const parts = String(env.PATH || "").split(":").filter((d) => d && !skip.has(path.resolve(d)) && (!loaderBin || path.resolve(d) !== loaderBin));
   if (loginDir && browserScript) {
     const shimDir = path.join(loginDir, "bin");
     try {
@@ -71,6 +72,9 @@ export function loginBrowserEnv(base, loginDir, browserScript) {
       parts.unshift(shimDir);
     } catch {}
   }
+  // targetSdk ≥ 29 经加载器模式下保持 loader-bin 位于 PATH 首位：Go (agy) 只能直接 exec
+  // 指向 APK 原生库 libccrun.so 的软链，再由跳板剥掉 loader-bin 后找到 shimDir 里的 xdg-open 脚本执行。
+  if (loaderBin) parts.unshift(env.CCAPP_LOADER_BIN);
   env.PATH = parts.join(":");
   return env;
 }
