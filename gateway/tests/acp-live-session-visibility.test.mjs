@@ -8,7 +8,7 @@ import vm from "node:vm";
 import { CFG, PATHS } from "../gw/config.mjs";
 import { RUNS } from "../gw/runs.mjs";
 import { listSessions, routeSessions } from "../gw/sessions.mjs";
-import { acpSessionFile, persistAcpUserTurn, persistAcpTurn } from "../gw/acp.mjs";
+import { acpSessionFile, persistAcpUserTurn, persistAcpTurn, translateAcpUpdate } from "../gw/acp.mjs";
 
 test("persistAcpUserTurn + persistAcpTurn(existingUserUuid)：首轮提前落盘用户行，回合结束不重复写用户行", () => {
   const sid = "acp-live-turn-" + Date.now();
@@ -112,4 +112,44 @@ test("前端 sessionsWithLive：srv.runs 已带 sessionId 但 state.sessions 未
   assert.equal(merged[0].id, "new-live-1");
   assert.equal(merged[0].title, "接管全部工作文件");
   assert.equal(merged[0].cwd, "/w");
+});
+
+test("上下文条防串台：前端 usage 事件必须经 belongs(ev) 校验，ACP 丢弃异会话 session/update", () => {
+  const src04 = fs.readFileSync(new URL("../web/app/04-session-flow.js", import.meta.url), "utf8");
+  assert.match(src04, /case "usage":\s+if \(belongs\(ev\) && \(ev\.contextTokens \|\| ev\.contextWindow\)\)/);
+
+  const belongsStart = src04.indexOf("function belongs(ev)");
+  const belongsEnd = src04.indexOf("function onBus(ev)", belongsStart);
+  assert.ok(belongsStart > 0 && belongsEnd > belongsStart);
+
+  const calls = [];
+  const ctx = {
+    view: { sessionId: "sess-B", runIds: new Set(["run-B"]), cids: new Set() },
+    state: { ctxUsed: 63000, ctxTotal: 1048576 },
+    liveCtx: (u, t) => { calls.push([u, t]); ctx.state.ctxUsed = u; ctx.state.ctxTotal = t; },
+  };
+  const runCase = vm.runInNewContext(
+    src04.slice(belongsStart, belongsEnd) + `
+    (ev) => {
+      if (belongs(ev) && (ev.contextTokens || ev.contextWindow)) liveCtx(ev.contextTokens ?? state.ctxUsed, ev.contextWindow || state.ctxTotal);
+    }`,
+    ctx,
+  );
+
+  // 别的会话（A：380k/400k 接近爆满）的活跃/空闲 usage 不得污染当前会话 B
+  runCase({ type: "usage", runId: "run-A", sessionId: "sess-A", contextTokens: 390000, contextWindow: 1048576 });
+  runCase({ type: "usage", sessionId: "sess-A", contextTokens: 420000, contextWindow: 1048576 });
+  assert.equal(calls.length, 0, "其他会话的 usage 不得改写当前视图上下文条");
+
+  // 当前会话的空闲 usage（无 runId，匹配 sessionId）与轮内 usage（匹配 runId）正常更新
+  runCase({ type: "usage", sessionId: "sess-B", contextTokens: 64000, contextWindow: 1048576 });
+  runCase({ type: "usage", runId: "run-B", contextTokens: 68000 });
+  assert.deepEqual(calls, [[64000, 1048576], [68000, 1048576]]);
+
+  // ACP 层：不同 sessionId 的 session/update（如子代理或串线通知）直接丢弃
+  const emitted = [];
+  const st = { sessionId: "sess-B", promptSent: true, usage: { context_tokens: 68000, context_window: 1048576 } };
+  translateAcpUpdate({ sessionId: "sess-subagent", update: { sessionUpdate: "usage_update", used: 999999, size: 1048576 } }, st, (e) => emitted.push(e));
+  assert.equal(emitted.length, 0);
+  assert.equal(st.usage.context_tokens, 68000);
 });

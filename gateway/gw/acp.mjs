@@ -303,9 +303,9 @@ function extractAcpUsage(u, prev = null, { isTurnTotal = false } = {}) {
   let ctx = prev?.context_tokens || 0;
   if (used > 0) {
     ctx = used;
-  } else if (!isTurnTotal && inp + cached > 0) {
+  } else if (!hasUsed && !isTurnTotal && inp + cached > 0) {
     ctx = inp + cached;
-  } else if (!isTurnTotal && total > out) {
+  } else if (!hasUsed && !isTurnTotal && total > out) {
     ctx = total - out;
   }
   // C16：全程无 usage_update 时，整轮累计值（inputTokens/totalTokens）只是“这一轮一共用了多少”，
@@ -685,6 +685,7 @@ function emitToolResult(tool, emit, state = null) {
  * 将 ACP `session/update` 通知翻译为 hachimia 前端 SSE 事件并累积本轮状态。
  */
 export function translateAcpUpdate(params, state, emit) {
+  if (params?.sessionId && state?.sessionId && String(params.sessionId) !== String(state.sessionId)) return;
   const upd = params?.update || params || {};
   const kind = upd.sessionUpdate || upd.type || "";
 
@@ -1980,6 +1981,7 @@ export async function runAcpTurn({
         onClose: () => { try { flushIdle(); } catch {} },
         onNotification: (method, params) => {
           if (method !== "session/update") return;
+          if (params?.sessionId && activeSessionId && String(params.sessionId) !== String(activeSessionId)) return;
           const upd = params?.update || params || {};
           const kind = upd.sessionUpdate || upd.type || "";
           if (kind === "available_commands_update") {

@@ -325,6 +325,7 @@ function restoreQueue(queued) {
 export function runEmit(run, ev) {
   if (run.ended) return;
   ev.runId = run.id;
+  if (run.sessionId && !ev.sessionId) ev.sessionId = run.sessionId;
   if (ev.type === "delta" || ev.type === "text_delta" || ev.type === "thinking_delta") {
     if (run.pend && run.pend.type === ev.type) run.pend.text += ev.text;
     else { flushPend(run); run.pend = ev; }

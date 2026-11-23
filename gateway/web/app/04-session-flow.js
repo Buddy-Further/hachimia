@@ -950,9 +950,9 @@
       case "caps_updated": cacheCapsFromInit(ev); return;
       case "run_end": refreshQuota(); return onRunEnd(ev);
       case "quota": case "billing": return refreshQuota();
-      // MIG-16：用量事件不依赖轮次视图——空闲期后台推来的 usage（没有 runId）也要刷新上下文条；
-      // 轮内的 usage 本来就只调 liveCtx，挪到这里行为不变。
-      case "usage":          if (ev.contextTokens || ev.contextWindow) liveCtx(ev.contextTokens ?? state.ctxUsed, ev.contextWindow || state.ctxTotal); return;
+      // MIG-16：用量事件不依赖轮次视图——空闲期后台推来的 usage（没有 runId、带 sessionId）也要刷新上下文条；
+      // 必须经 belongs(ev) 校验归属当前视图，否则并行多会话 / 后台唤醒的 usage 会互相串台把上下文条拉满又弹回。
+      case "usage":          if (belongs(ev) && (ev.contextTokens || ev.contextWindow)) liveCtx(ev.contextTokens ?? state.ctxUsed, ev.contextWindow || state.ctxTotal); return;
       case "perm_mode":
         state.settings.permissionMode = ev.mode;
         setPermChip(ev.mode);
