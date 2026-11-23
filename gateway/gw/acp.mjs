@@ -80,6 +80,106 @@ const TOOL_OUT_MAX = 20000;
 // 按 sessionId 保活的常驻 ACP 客户端池：同一会话同配置直接复用进程，避免每轮重启 agy
 const ACP_POOL = new Map();
 
+// 一次性 schedule(DurationSeconds) 的墙钟到期清理定时器（独立存于模块级 Map，避免挂进 bgTasks 引发 JSON 序列化循环引用）
+const BG_EXPIRY_TIMERS = new Map(); // `${scopeKey}\0${taskId}` -> Timeout
+
+function clearBgExpiryTimer(scopeKey, taskId) {
+  const k = `${scopeKey}\0${taskId}`;
+  const t = BG_EXPIRY_TIMERS.get(k);
+  if (t) { clearTimeout(t); BG_EXPIRY_TIMERS.delete(k); }
+}
+
+function clearAllBgExpiryTimers(scopeKey) {
+  const prefix = `${scopeKey}\0`;
+  for (const [k, t] of BG_EXPIRY_TIMERS) {
+    if (k.startsWith(prefix)) { clearTimeout(t); BG_EXPIRY_TIMERS.delete(k); }
+  }
+}
+
+function armBgExpiryTimer(scopeKey, map, item, onChange) {
+  if (!item?.oneShot || !(item.expiresAt > 0)) return;
+  clearBgExpiryTimer(scopeKey, item.id);
+  const MAX_TIMEOUT_MS = 0x7fffffff;
+  const rem = item.expiresAt - Date.now();
+  const delay = Math.min(Math.max(10, rem), MAX_TIMEOUT_MS);
+  const k = `${scopeKey}\0${item.id}`;
+  const timer = setTimeout(() => {
+    BG_EXPIRY_TIMERS.delete(k);
+    if (map.get(item.id) !== item) return;
+    if (item.expiresAt > Date.now()) {
+      armBgExpiryTimer(scopeKey, map, item, onChange);
+      return;
+    }
+    map.delete(item.id);
+    onChange?.();
+  }, delay);
+  timer.unref?.();
+  BG_EXPIRY_TIMERS.set(k, timer);
+}
+
+function pruneExpiredBgTasks(scopeKey, map, now = Date.now()) {
+  if (!map || !map.size) return false;
+  let changed = false;
+  for (const [k, v] of map) {
+    if (v?.oneShot && v.expiresAt > 0 && v.expiresAt <= now) {
+      clearBgExpiryTimer(scopeKey, k);
+      map.delete(k);
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+/** 移除某个后台任务时，同步移除以它为 TimerCondition 的一次性 schedule 定时器（防不同会话同号短 ID 误删） */
+function removeBgTaskAndDependents(scopeKey, map, id) {
+  if (!map || !id) return false;
+  const sid = String(id);
+  const shortId = sid.includes("/") ? sid.split("/").pop() : sid;
+  let changed = false;
+  if (map.delete(sid)) {
+    clearBgExpiryTimer(scopeKey, sid);
+    changed = true;
+  }
+  for (const [k, v] of map) {
+    const cond = v?.oneShot && typeof v.timerCondition === "string" ? v.timerCondition : "";
+    if (!cond || cond === "never") continue;
+    const matchCond = cond === sid
+      || (!cond.includes("/") && cond === shortId)
+      || (!sid.includes("/") && cond.endsWith("/" + sid));
+    if (matchCond) {
+      clearBgExpiryTimer(scopeKey, k);
+      map.delete(k);
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+function reconcileBgTasksFromList(scopeKey, map, outText) {
+  if (!map || !map.size) return false;
+  if (/\btruncated\b|已截断|(?:\r?\n|^)\.{3}\s*$/i.test(outText)) return false;
+  const liveIds = new Set();
+  const re = /\b(?:TaskId|task[_\s-]?id)["':=\s]+([A-Za-z0-9._/-]*[A-Za-z0-9_/-])|\b([0-9a-f-]{8,}\/task-\d+|task-\d+)\b/gi;
+  let m;
+  while ((m = re.exec(outText)) !== null) {
+    const tok = m[1] || m[2];
+    if (tok) {
+      liveIds.add(tok);
+      if (tok.includes("/")) liveIds.add(tok.split("/").pop());
+    }
+  }
+  if (!liveIds.size) return false;
+  let changed = false;
+  for (const [k, v] of map) {
+    if (v.type !== "shell") continue;
+    const shortK = k.includes("/") ? k.split("/").pop() : k;
+    if (!liveIds.has(k) && !liveIds.has(shortK)) {
+      if (removeBgTaskAndDependents(scopeKey, map, k)) changed = true;
+    }
+  }
+  return changed;
+}
+
 /** 常驻 ACP 进程的收尾（MIG-19）：先 SIGTERM 整组（agy 派生的孙进程一起带走），
  *  宽限期后仍活着再 SIGKILL 整组；组杀失败回落单进程。子进程以 detached:true 起，
  *  是进程组长，负 pid 即整组。定时器 unref，不拖住网关退出。 */
@@ -101,6 +201,7 @@ export function killAcpChild(child, graceMs = ACP_KILL_GRACE_MS) {
 export function closeAcpSession(sessionId) {
   const entry = sessionId && ACP_POOL.get(sessionId);
   if (!entry) return;
+  clearAllBgExpiryTimers(`pool:${sessionId}`);
   try { entry.flushIdle?.(); } catch {}
   ACP_POOL.delete(sessionId);
   if (entry.idleTimer) clearTimeout(entry.idleTimer);
@@ -112,11 +213,15 @@ export function closeAcpSession(sessionId) {
 export function getAcpPoolBg(sessionId) {
   if (sessionId) {
     const e = ACP_POOL.get(sessionId);
+    if (e?.bgTasks?.size) pruneExpiredBgTasks(`pool:${sessionId}`, e.bgTasks);
     return e && e.bgTasks?.size ? [...e.bgTasks.values()] : [];
   }
   const out = {};
   for (const [sid, e] of ACP_POOL) {
-    if (e.bgTasks?.size) out[sid] = [...e.bgTasks.values()];
+    if (e.bgTasks?.size) {
+      pruneExpiredBgTasks(`pool:${sid}`, e.bgTasks);
+      if (e.bgTasks.size) out[sid] = [...e.bgTasks.values()];
+    }
   }
   return out;
 }
@@ -136,9 +241,11 @@ export function getAcpIdleRuns() {
 export function stopAcpBgTask(sessionId, taskId) {
   const entry = sessionId && ACP_POOL.get(sessionId);
   if (!entry) return false;
-  if (taskId && entry.bgTasks?.has(taskId)) {
-    entry.bgTasks.delete(taskId);
-  } else if (!taskId) {
+  const poolScope = `pool:${sessionId}`;
+  if (taskId) {
+    removeBgTaskAndDependents(poolScope, entry.bgTasks, taskId);
+  } else {
+    clearAllBgExpiryTimers(poolScope);
     entry.bgTasks?.clear();
   }
   entry.dropActiveBg?.(taskId);
@@ -717,17 +824,43 @@ function trackAcpToolSideEffects(phase, tool, state, emit) {
   if (kind === "manage_task" && phase === "done" && !tool.isError) {
     const act = String(inp.Action || "").toLowerCase();
     const out = String(tool.output || "");
-    if (act === "kill" && inp.TaskId) state.onBgRemove?.(String(inp.TaskId));
-    else if (act === "list" && /No background tasks are currently running/i.test(out)) state.onBgClearTasks?.();
+    if (act === "kill" && inp.TaskId) {
+      state.onBgRemove?.(String(inp.TaskId));
+    } else if (act === "status" && inp.TaskId) {
+      const sepRe = /\r?\n(?:Command|Log) output:\r?\n/;
+      const header = sepRe.test(out) ? out.split(sepRe)[0] : out.split(/\r?\n/, 8).join("\n");
+      if (/\bStatus:\s*(?:DONE|COMPLETED|FAILED|ERROR|CANCELL?ED|KILLED|STOPPED)\b|\bTask\b[^\r\n]*\b(?:is not running|not found)\b/i.test(header)) {
+        state.onBgRemove?.(String(inp.TaskId));
+      }
+    } else if (act === "list") {
+      if (/No background tasks are currently running/i.test(out)) state.onBgClearTasks?.();
+      else if (/\bTaskId\b|\btask-\d+\b/i.test(out)) state.onBgReconcileTasks?.(out);
+    }
     return;
   }
 
   if (kind === "schedule" && phase === "done" && !tool.isError) {
     const out = String(tool.output || "");
+    if (/\bWait cancell?ed\b|\balready finished\b/i.test(out)) return;
     const mId = /(?:TaskId|id)["':=\s]+([A-Za-z0-9._/-]*[A-Za-z0-9_/-])/i.exec(out);
     const tid = mId ? mId[1] : tool.id;
     const desc = String(inp.Prompt || inp.CronExpression || (inp.DurationSeconds ? `${inp.DurationSeconds}s 定时提醒` : "定时任务")).trim().slice(0, 80);
-    state.onBgAdd?.({ id: tid, type: "monitor", desc });
+    const isCron = typeof inp.CronExpression === "string" && inp.CronExpression.trim().length > 0;
+    if (isCron) {
+      state.onBgAdd?.({ id: tid, type: "monitor", desc });
+    } else {
+      const durSec = Number(inp.DurationSeconds);
+      const durMs = Number.isFinite(durSec) && durSec >= 0 ? durSec * 1000 : 60000;
+      const timerCondition = typeof inp.TimerCondition === "string" && inp.TimerCondition.trim() ? inp.TimerCondition.trim() : "never";
+      state.onBgAdd?.({
+        id: tid,
+        type: "monitor",
+        desc,
+        oneShot: true,
+        expiresAt: Date.now() + durMs + 1500,
+        timerCondition,
+      });
+    }
   }
 }
 
@@ -1274,8 +1407,10 @@ export async function runAcpTurn({
   keepAlive = LIVE && process.env.CCAPP_ACP_KEEPALIVE !== "0",
 }) {
   const t0 = Date.now();
+  const turnScope = `turn:${run?.id || crypto.randomBytes(4).toString("hex")}`;
   const bgTasks = new Map();
   const syncBg = () => {
+    pruneExpiredBgTasks(turnScope, bgTasks);
     const list = [...bgTasks.values()];
     if (run) {
       run.bgList = list;
@@ -1296,22 +1431,33 @@ export async function runAcpTurn({
     sessionId: sessionId || null,
     onBgAdd: (t) => {
       if (!t || !t.id) return;
-      bgTasks.set(String(t.id), { id: String(t.id), type: t.type || "shell", desc: String(t.desc || t.id) });
+      const item = {
+        id: String(t.id),
+        type: t.type || "shell",
+        desc: String(t.desc || t.id),
+        ...(t.oneShot ? { oneShot: true, expiresAt: Number(t.expiresAt) || 0, timerCondition: String(t.timerCondition || "never") } : {}),
+      };
+      bgTasks.set(item.id, item);
+      armBgExpiryTimer(turnScope, bgTasks, item, syncBg);
       syncBg();
     },
     onBgRemove: (id) => {
       if (!id) return;
-      if (bgTasks.delete(String(id))) syncBg();
+      if (removeBgTaskAndDependents(turnScope, bgTasks, id)) syncBg();
     },
     onBgClearTasks: () => {
       let changed = false;
       for (const [k, v] of bgTasks) {
         if (v.type !== "agent" && v.type !== "workflow") {
+          clearBgExpiryTimer(turnScope, k);
           bgTasks.delete(k);
           changed = true;
         }
       }
       if (changed) syncBg();
+    },
+    onBgReconcileTasks: (outText) => {
+      if (reconcileBgTasksFromList(turnScope, bgTasks, outText)) syncBg();
     },
     onCommands: (cmds) => {
       const names = [];
@@ -1402,7 +1548,14 @@ export async function runAcpTurn({
       if (poolEntry.idleTimer) { clearTimeout(poolEntry.idleTimer); poolEntry.idleTimer = null; }
       poolEntry.busy = true;
       if (poolEntry.knownToolIds) for (const tid of poolEntry.knownToolIds) state.knownToolIds.add(tid);
-      if (poolEntry.bgTasks) for (const [k, v] of poolEntry.bgTasks) bgTasks.set(k, v);
+      if (poolEntry.bgTasks) {
+        pruneExpiredBgTasks(`pool:${activeSessionId}`, poolEntry.bgTasks);
+        clearAllBgExpiryTimers(`pool:${activeSessionId}`);
+        for (const [k, v] of poolEntry.bgTasks) {
+          bgTasks.set(k, v);
+          armBgExpiryTimer(turnScope, bgTasks, v, syncBg);
+        }
+      }
       if (poolEntry.acpAgents) state.acpAgents = poolEntry.acpAgents;
       if (poolEntry.acpAgentsByConv) state.acpAgentsByConv = poolEntry.acpAgentsByConv;
       if (poolEntry.acpAgentDirs) state.acpAgentDirs = poolEntry.acpAgentDirs;
@@ -1426,6 +1579,7 @@ export async function runAcpTurn({
       closeAcpSession(activeSessionId);
     } else {
       try { client.close(); } catch {}
+      killAcpChild(client.child);
     }
   };
 
@@ -1461,11 +1615,14 @@ export async function runAcpTurn({
 
   const dropActiveBg = (tid) => {
     let removed = false;
+    const poolScope = activeSessionId ? `pool:${activeSessionId}` : "";
     if (tid) {
-      if (bgTasks.delete(String(tid))) removed = true;
-      if (poolEntry?.bgTasks?.delete(String(tid))) removed = true;
+      if (removeBgTaskAndDependents(turnScope, bgTasks, tid)) removed = true;
+      if (poolEntry?.bgTasks && removeBgTaskAndDependents(poolScope, poolEntry.bgTasks, tid)) removed = true;
     } else {
       if (bgTasks.size > 0 || poolEntry?.bgTasks?.size > 0) removed = true;
+      clearAllBgExpiryTimers(turnScope);
+      if (poolScope) clearAllBgExpiryTimers(poolScope);
       bgTasks.clear();
       poolEntry?.bgTasks?.clear();
     }
@@ -1911,6 +2068,9 @@ export async function runAcpTurn({
   } catch (err) {
     const msg = String(err?.message || err);
     const detail = client.stderr ? `\n${client.stderr.slice(-800)}` : "";
+    if (activeSessionId && state.promptSent && !client.closed && !run?.aborted) {
+      try { client.notify("session/cancel", { sessionId: activeSessionId }); } catch {}
+    }
     // 回合中途失败/被取消：提问、已完成工具、思考与已流出的正文都要落盘，别让整轮凭空消失（B5）。
     // 只有 prompt 已发出去才落盘：prompt 没发出去说明问题没递到 agent，用户重发时不应多出一份。
     if (activeSessionId && state.promptSent) {
@@ -1958,6 +2118,7 @@ export async function runAcpTurn({
       durationMs: Date.now() - t0,
     };
   } finally {
+    clearAllBgExpiryTimers(turnScope);
     if (poolEntry && poolEntry.dropActiveBg === dropActiveBg) poolEntry.dropActiveBg = null;
     if (run) {
       run.child = null;
@@ -1966,6 +2127,8 @@ export async function runAcpTurn({
     }
     if (canKeep) {
       const entry = poolEntry || { client, sessionId: activeSessionId, key: pKey, knownToolIds: new Set() };
+      const poolScope = `pool:${activeSessionId}`;
+      pruneExpiredBgTasks(poolScope, bgTasks);
       entry.cwd = cwd;
       entry.models = sessModels;
       entry.modes = sessModes;
@@ -1979,6 +2142,14 @@ export async function runAcpTurn({
       entry.lastUsage = state.usage || entry.lastUsage || null;
       entry.lastContextTokens = Number(state.usage?.context_tokens) || entry.lastContextTokens || 0;
       entry.bgTasks = bgTasks;
+      const emitPoolBg = () => {
+        pruneExpiredBgTasks(poolScope, entry.bgTasks);
+        onBgChange?.([...entry.bgTasks.values()]);
+      };
+      clearAllBgExpiryTimers(poolScope);
+      for (const item of entry.bgTasks.values()) {
+        armBgExpiryTimer(poolScope, entry.bgTasks, item, emitPoolBg);
+      }
       entry.acpAgents = state.acpAgents || entry.acpAgents || new Map();
       entry.acpAgentsByConv = state.acpAgentsByConv || entry.acpAgentsByConv || new Map();
       entry.acpAgentDirs = state.acpAgentDirs || entry.acpAgentDirs || new Map();
@@ -2019,36 +2190,57 @@ export async function runAcpTurn({
           entry.lastUsage = b.state.usage;
           if (Number(b.state.usage.context_tokens) > 0) entry.lastContextTokens = Number(b.state.usage.context_tokens);
         }
-        // 如果空闲期间收到了正文回报，结算对应的非 daemon 后台任务/子代理：
-        // 仅 1 个非 daemon 任务时直接结算；多个并行子代理时只结算回报里点名到的那一个，
-        // 避免第一个子代理回报就把其余仍在跑的子代理一并清掉，进而触发空闲超时误杀进程。
-        if (b.state.text && entry.bgTasks?.size) {
-          const nonDaemon = [...entry.bgTasks].filter(([, v]) => v.type !== "daemon" && v.type !== "monitor");
-          const finishOne = (k, v) => {
-            entry.bgTasks.delete(k);
-            if (v.type === "agent") {
-              const rec = entry.acpAgents?.get(k);
-              if (rec && rec.status === "running") {
-                rec.status = "done";
-                publish({ type: "ag", runId: b.runId, sessionId: activeSessionId, k: "done", id: k, status: "done", why: firstLineOf(b.state.text), at: Date.now() });
+        // 如果空闲期间收到了正文回报，结算对应的非常驻后台任务 / 一次性定时器 / 子代理：
+        // 1) 一次性 schedule 只在临近到期、TimerCondition="any"、或回报正文点名了自身/目标条件时摘除（防无关唤醒提前摘掉未触发的长定时器）；
+        // 2) nonDaemon 仅含后台 shell / 子代理 / workflow（排除 monitor），仅 1 个时直接结算，多个时按 token 匹配结算（并通过 removeBgTaskAndDependents 联动摘除绑定它的定时器）。
+        if (entry.bgTasks?.size) {
+          const now = Date.now();
+          let bgChanged = pruneExpiredBgTasks(poolScope, entry.bgTasks, now);
+          if (b.state.text) {
+            for (const [k, v] of [...entry.bgTasks]) {
+              if (!v?.oneShot) continue;
+              const cond = typeof v.timerCondition === "string" ? v.timerCondition : "never";
+              const shortK = String(k).includes("/") ? String(k).split("/").pop() : null;
+              const shortCond = cond && cond !== "never" && cond !== "any" && cond.includes("/") ? cond.split("/").pop() : null;
+              const tokens = [
+                k, shortK, v.desc,
+                cond !== "never" && cond !== "any" ? cond : null,
+                shortCond,
+              ].filter((x) => x && String(x).length >= 4);
+              const dueSoon = v.expiresAt > 0 && v.expiresAt <= now + 2000;
+              if (dueSoon || cond === "any" || tokens.some((tok) => b.state.text.includes(String(tok)))) {
+                clearBgExpiryTimer(poolScope, k);
+                entry.bgTasks.delete(k);
+                bgChanged = true;
               }
             }
-          };
-          if (nonDaemon.length === 1) {
-            finishOne(nonDaemon[0][0], nonDaemon[0][1]);
-            onBgChange?.([...entry.bgTasks.values()]);
-          } else if (nonDaemon.length > 1) {
-            let removed = false;
-            for (const [k, v] of nonDaemon) {
-              const rec = entry.acpAgents?.get(k);
-              const tokens = [k, rec?.convId, rec?.name, v.desc].filter((x) => x && String(x).length >= 4);
-              if (tokens.some((tok) => b.state.text.includes(String(tok)))) {
-                finishOne(k, v);
-                removed = true;
+            const nonDaemon = [...entry.bgTasks].filter(([, v]) => v.type !== "daemon" && v.type !== "monitor");
+            const finishOne = (k, v) => {
+              removeBgTaskAndDependents(poolScope, entry.bgTasks, k);
+              if (v.type === "agent") {
+                const rec = entry.acpAgents?.get(k);
+                if (rec && rec.status === "running") {
+                  rec.status = "done";
+                  publish({ type: "ag", runId: b.runId, sessionId: activeSessionId, k: "done", id: k, status: "done", why: firstLineOf(b.state.text), at: Date.now() });
+                }
+              }
+            };
+            if (nonDaemon.length === 1) {
+              finishOne(nonDaemon[0][0], nonDaemon[0][1]);
+              bgChanged = true;
+            } else if (nonDaemon.length > 1) {
+              for (const [k, v] of nonDaemon) {
+                const rec = entry.acpAgents?.get(k);
+                const shortK = String(k).includes("/") ? String(k).split("/").pop() : null;
+                const tokens = [k, shortK, rec?.convId, rec?.name, v.desc].filter((x) => x && String(x).length >= 4);
+                if (tokens.some((tok) => b.state.text.includes(String(tok)))) {
+                  finishOne(k, v);
+                  bgChanged = true;
+                }
               }
             }
-            if (removed) onBgChange?.([...entry.bgTasks.values()]);
           }
+          if (bgChanged) onBgChange?.([...entry.bgTasks.values()]);
         }
         publish({
           type: "run_end",
@@ -2146,21 +2338,32 @@ export async function runAcpTurn({
               acpAgentDirs: entry.acpAgentDirs,
               onBgAdd: (t) => {
                 if (!t || !t.id) return;
-                entry.bgTasks.set(String(t.id), { id: String(t.id), type: t.type || "shell", desc: String(t.desc || t.id) });
-                onBgChange?.([...entry.bgTasks.values()]);
+                const item = {
+                  id: String(t.id),
+                  type: t.type || "shell",
+                  desc: String(t.desc || t.id),
+                  ...(t.oneShot ? { oneShot: true, expiresAt: Number(t.expiresAt) || 0, timerCondition: String(t.timerCondition || "never") } : {}),
+                };
+                entry.bgTasks.set(item.id, item);
+                armBgExpiryTimer(poolScope, entry.bgTasks, item, emitPoolBg);
+                emitPoolBg();
               },
               onBgRemove: (id) => {
-                if (id && entry.bgTasks.delete(String(id))) onBgChange?.([...entry.bgTasks.values()]);
+                if (id && removeBgTaskAndDependents(poolScope, entry.bgTasks, id)) emitPoolBg();
               },
               onBgClearTasks: () => {
                 let changed = false;
                 for (const [k, v] of entry.bgTasks) {
                   if (v.type !== "agent" && v.type !== "workflow") {
+                    clearBgExpiryTimer(poolScope, k);
                     entry.bgTasks.delete(k);
                     changed = true;
                   }
                 }
-                if (changed) onBgChange?.([...entry.bgTasks.values()]);
+                if (changed) emitPoolBg();
+              },
+              onBgReconcileTasks: (outText) => {
+                if (reconcileBgTasksFromList(poolScope, entry.bgTasks, outText)) emitPoolBg();
               },
               onCommands: state.onCommands,
             };
@@ -2204,11 +2407,19 @@ export async function runAcpTurn({
               return;
             }
             if (entry.bgTasks?.size > 0) {
-              const hasPersistent = [...entry.bgTasks.values()].some((t) => t.type === "daemon" || t.type === "monitor");
-              const bgCap = Math.max(ACP_IDLE_TTL_MS * 3, ACP_BG_IDLE_TTL_MS);
-              if (hasPersistent || Date.now() - entry.lastUsed < bgCap) {
-                armIdleGc();
-                return;
+              if (pruneExpiredBgTasks(poolScope, entry.bgTasks)) {
+                onBgChange?.([...entry.bgTasks.values()]);
+              }
+              if (entry.bgTasks.size > 0) {
+                const now = Date.now();
+                const hasPersistent = [...entry.bgTasks.values()].some(
+                  (t) => t.type === "daemon" || (t.type === "monitor" && (!t.oneShot || (t.expiresAt > now)))
+                );
+                const bgCap = Math.max(ACP_IDLE_TTL_MS * 3, ACP_BG_IDLE_TTL_MS);
+                if (hasPersistent || Date.now() - entry.lastUsed < bgCap) {
+                  armIdleGc();
+                  return;
+                }
               }
             }
             log(`[agy-acp] 会话 ${activeSessionId.slice(0, 8)} 空闲超时，回收常驻进程`);

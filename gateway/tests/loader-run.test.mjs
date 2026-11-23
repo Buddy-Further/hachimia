@@ -6,8 +6,9 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { agyEnv, ensureLoaderBin } from "../gw/claude.mjs";
+import { agyEnv, claudeEnv, ensureLoaderBin } from "../gw/claude.mjs";
 import { loginBrowserEnv } from "../gw/login.mjs";
+import { termEnv } from "../gw/terminal.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "loader-run-test-"));
@@ -22,12 +23,14 @@ test("ensureLoaderBin：仅在 CCAPP_EXEC=loader 且 libccrun.so 存在时生成
   fs.writeFileSync(fakeRun2, "#!/bin/sh\n", { mode: 0o755 });
   fs.mkdirSync(extraBin, { recursive: true });
   fs.writeFileSync(path.join(extraBin, "mytool"), "#!/bin/sh\n", { mode: 0o755 });
+  fs.writeFileSync(path.join(extraBin, "notes.md"), "doc\n", { mode: 0o644 });
+  fs.mkdirSync(path.join(extraBin, "nested"), { recursive: true });
 
   // direct 模式下不创建跳板目录
   assert.equal(ensureLoaderBin({ CCAPP_EXEC: "direct", CCAPP_LOADER_RUN: fakeRun1, CCAPP_LOADER_BIN: loaderBin }), "");
   assert.ok(!fs.existsSync(loaderBin));
 
-  // loader 模式下为核心命令及 extraDirs 建软链
+  // loader 模式下为核心命令及 extraDirs 建软链（过滤非可执行文件与目录）
   const got1 = ensureLoaderBin(
     { CCAPP_EXEC: "loader", CCAPP_LOADER_RUN: fakeRun1, CCAPP_LOADER_BIN: loaderBin },
     { extraDirs: [extraBin] }
@@ -36,6 +39,8 @@ test("ensureLoaderBin：仅在 CCAPP_EXEC=loader 且 libccrun.so 存在时生成
   assert.equal(fs.readlinkSync(path.join(loaderBin, "bash")), fakeRun1);
   assert.equal(fs.readlinkSync(path.join(loaderBin, "xdg-open")), fakeRun1);
   assert.equal(fs.readlinkSync(path.join(loaderBin, "mytool")), fakeRun1);
+  assert.equal(fs.existsSync(path.join(loaderBin, "notes.md")), false);
+  assert.equal(fs.existsSync(path.join(loaderBin, "nested")), false);
 
   // APK 升级导致 nativeLibraryDir 路径变化时，软链目标自动刷新到新路径
   const got2 = ensureLoaderBin(
@@ -66,6 +71,13 @@ test("agyEnv 与 loginBrowserEnv：loader 模式下把 loader-bin 挂在 PATH �
     assert.equal(env.SHELL, path.join(loaderBin, "bash"));
     assert.equal(env.CCAPP_SHELL, "/fake/usr/bin/bash");
     assert.equal(env.PATH.split(":")[0], loaderBin);
+
+    const cenv = claudeEnv();
+    assert.equal(cenv.PATH.split(":")[0], loaderBin, "claudeEnv 在 loader 模式下也须把 loader-bin 置于 PATH 首位");
+    assert.equal(cenv.SHELL, path.join(loaderBin, "bash"));
+    const tenv = termEnv();
+    assert.equal(tenv.PATH.split(":")[0], loaderBin, "内置终端 termEnv 在 loader 模式下也须具备 loader-bin 跳板");
+    assert.equal(tenv.SHELL, path.join(loaderBin, "bash"));
 
     const loginDir = path.join(tmpDir, "login");
     const browser = path.join(loginDir, "browser.sh");
@@ -121,13 +133,14 @@ test("loader-run.c：编译后通过软链运行真实 bash、脚本与环境清
     PATH: `${lbin}:${realBin}:${path.dirname(realBash)}:/system/bin:/usr/bin:/bin`,
   };
 
-  // 1) 通过 loader-bin/bash 软链执行命令：子进程保留 PATH 首位的 loader-bin（供二级 Go 子命令如 gh→git 续跳）并还原 SHELL
+  // 1) 通过 loader-bin/bash 软链执行命令：子进程保留 PATH 首位的 loader-bin 与 SHELL 跳板（供二级 Go 子命令如 gh→git 续跳）
+  const expectShell = runEnv.CCAPP_EXEC === "loader" ? path.join(lbin, "bash") : realBash;
   const r1 = spawnSync(path.join(lbin, "bash"), ["-c", 'printf "OK|%s|%s" "$SHELL" "$PATH"'], {
     env: runEnv,
     encoding: "utf8",
   });
   assert.equal(r1.status, 0, `bash 执行失败: stderr=${r1.stderr}`);
-  assert.ok(r1.stdout.startsWith(`OK|${realBash}|${lbin}:`), `SHELL 还原或 PATH 保留跳板不符: ${r1.stdout}`);
+  assert.ok(r1.stdout.startsWith(`OK|${expectShell}|${lbin}:`), `SHELL 或 PATH 保留跳板不符: ${r1.stdout}`);
 
   // 2) 通过 loader-bin/demo-script 软链执行 #! 脚本
   const r2 = spawnSync(path.join(lbin, "demo-script"), ["hello"], {

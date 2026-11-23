@@ -468,7 +468,7 @@ export async function startRun(item) {
   // 端侧小模型：先确保 llama-server 跑着、载的是这个模型（第一次要加载十几秒）
   if (P.local) {
     try {
-      const m = await ensureLlama(model, (key, text) => emit({ type: "note", key, text }));
+      const m = await ensureLlama(model, (key, text) => emit({ type: "note", key, text }), run);
       model = m.id;
       localRunAttach(run);
     } catch (e) {

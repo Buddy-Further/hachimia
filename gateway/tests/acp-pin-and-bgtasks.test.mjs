@@ -246,7 +246,11 @@ rl.on("line", (line) => {
       return;
     }
     if (text === "dead-hang") {
-      return; // 完全死寂
+      const { spawn } = require("node:child_process");
+      const fs = require("node:fs");
+      const sub = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });
+      if (process.env.HANG_SUB_PID_FILE) fs.writeFileSync(process.env.HANG_SUB_PID_FILE, String(sub.pid));
+      return; // 完全死寂且挂着未退出的孙进程（复现首轮后台脚本未退导致的孤儿残留）
     }
   }
   if (msg.id === "perm-req-1" && lastPromptId != null) {
@@ -294,12 +298,13 @@ rl.on("line", (line) => {
   assert.equal(rPerm.ok, true, `等待权限确认期间不应误触发假死超时: ${rPerm.error || ""}`);
   assert.equal(rPerm.resultText, "approved");
 
-  // 3. 完全死寂无消息、无权限等待、无 CPU 活动时，仍在 idleTimeoutMs 到期后准时报错
+  // 3. 完全死寂无消息、无权限等待、无 CPU 活动时，仍在 idleTimeoutMs 到期后准时报错，且未入池销毁时必须连同进程组孙进程一并回收
+  const hangSubPidFile = path.join(tmpDir, "hang-sub.pid");
   const rHang = await runAcpTurn({
     bin: process.execPath,
     args: [mockBin],
     cwd: tmpDir,
-    env: { ...process.env },
+    env: { ...process.env, HANG_SUB_PID_FILE: hangSubPidFile },
     prompt: "dead-hang",
     run: { id: "r-slide-hang", bgList: [], bgTasks: 0 },
     emit: () => {},
@@ -308,4 +313,164 @@ rl.on("line", (line) => {
   });
   assert.equal(rHang.ok, false);
   assert.match(String(rHang.error || ""), /ACP request timeout: session\/prompt/);
+  const hangSubPid = Number(fs.readFileSync(hangSubPidFile, "utf8").trim());
+  assert.ok(hangSubPid > 0, "应记录假死轮次派生的孙进程 PID");
+  let subAlive = true;
+  for (let i = 0; i < 20; i++) {
+    try { process.kill(hangSubPid, 0); await new Promise((r) => setTimeout(r, 30)); }
+    catch { subAlive = false; break; }
+  }
+  assert.equal(subAlive, false, "非入池轮次超时销毁时 destroyClient 必须整组回收派生的孤儿孙进程");
+});
+
+test("一次性 schedule(DurationSeconds) 与 manage_task(status)：Wait cancelled 不入表、TimerCondition 随目标任务联动消退、墙钟到期自动清扫、Cron 持久保留", async () => {
+  const mockBin = path.join(tmpDir, "mock-acp-sched-oneshot.mjs");
+  fs.writeFileSync(mockBin, `
+import readline from "node:readline";
+const rl = readline.createInterface({ input: process.stdin });
+const send = (o) => process.stdout.write(JSON.stringify(o) + "\\n");
+rl.on("line", (line) => {
+  const msg = JSON.parse(line);
+  if (msg.method === "initialize") return send({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: 1, agentCapabilities: {} } });
+  if (msg.method === "session/new") return send({ jsonrpc: "2.0", id: msg.id, result: { sessionId: "sess-sched-oneshot" } });
+  if (msg.method === "session/prompt") {
+    const sid = msg.params.sessionId;
+    const text = msg.params.prompt?.[0]?.text || "";
+    if (text === "turn-arm") {
+      // 1) 已取消的 schedule 不入表
+      send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: sid, update: {
+        sessionUpdate: "tool_call", toolCallId: "sc-cancelled", title: "Run schedule",
+        rawInput: { DurationSeconds: 60, Prompt: "Cancelled timer" },
+        status: "completed", rawOutput: "Wait cancelled (task already finished).",
+      } } });
+      // 2) 后台命令 task-966 + 绑定它的 TimerCondition 一次性定时器（真实 agy rawOutput 为空串）
+      send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: sid, update: {
+        sessionUpdate: "tool_call", toolCallId: "cmd-966", title: "Run test suite",
+        rawInput: { CommandLine: "node test.mjs", toolSummary: "Run test suite" },
+        status: "completed", rawOutput: "Tool is running as a background task with task id: sess-sched-oneshot/task-966",
+      } } });
+      send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: sid, update: {
+        sessionUpdate: "tool_call", toolCallId: "sc-cond-966", title: "Run schedule",
+        rawInput: { DurationSeconds: 90, Prompt: "Check task-966", TimerCondition: "sess-sched-oneshot/task-966" },
+        status: "completed", rawOutput: "",
+      } } });
+      // 3) 短时长 0.08s 一次性定时器（测试墙钟自动过期，不挂死前端条）
+      send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: sid, update: {
+        sessionUpdate: "tool_call", toolCallId: "sc-short", title: "Run schedule",
+        rawInput: { DurationSeconds: 0, Prompt: "Quick 0s timer" },
+        status: "completed", rawOutput: "",
+      } } });
+      // 4) 周期性 CronExpression 定时任务（应持久保留）
+      send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: sid, update: {
+        sessionUpdate: "tool_call", toolCallId: "sc-cron", title: "Run schedule",
+        rawInput: { CronExpression: "*/5 * * * *", Prompt: "Periodic check" },
+        status: "completed", rawOutput: "",
+      } } });
+      // 5) 另一会话同尾号的 TimerCondition（验证 P2-2 不被本会话 task-966 误联动删除）与一个未到期的长时 oneShot（验证 P1-2 不被无关唤醒误摘）
+      send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: sid, update: {
+        sessionUpdate: "tool_call", toolCallId: "sc-other-sess-966", title: "Run schedule",
+        rawInput: { DurationSeconds: 180, Prompt: "Other session timer", TimerCondition: "other-sess/task-966" },
+        status: "completed", rawOutput: "",
+      } } });
+      send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: sid, update: {
+        sessionUpdate: "tool_call", toolCallId: "sc-long-never", title: "Run schedule",
+        rawInput: { DurationSeconds: 180, Prompt: "Long 3m reminder" },
+        status: "completed", rawOutput: "",
+      } } });
+      send({ jsonrpc: "2.0", id: msg.id, result: { stopReason: "end_turn" } });
+    } else if (text === "turn-status-running-notfound-in-log") {
+      // P1-4：任务仍在 RUNNING，但日志正文里含 "command not found" / "404 Not Found" —— 绝不能误删在跑任务
+      send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: sid, update: {
+        sessionUpdate: "tool_call", toolCallId: "mt-st-running", title: "Run manage_task",
+        rawInput: { Action: "status", TaskId: "sess-sched-oneshot/task-966" },
+        status: "completed",
+        rawOutput: "Task: sess-sched-oneshot/task-966\\nStatus: RUNNING\\n\\nLog output:\\nsh: foo: command not found\\nHTTP 404 Not Found\\nis not running yet\\n",
+      } } });
+      send({ jsonrpc: "2.0", id: msg.id, result: { stopReason: "end_turn" } });
+    } else if (text === "turn-status-done") {
+      // manage_task(status) 报告 task-966 已 DONE：应把 task-966 及其 TimerCondition 绑定的 sc-cond-966 一并摘除，但不碰 sc-other-sess-966
+      send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: sid, update: {
+        sessionUpdate: "tool_call", toolCallId: "mt-st-966", title: "Run manage_task",
+        rawInput: { Action: "status", TaskId: "sess-sched-oneshot/task-966" },
+        status: "completed", rawOutput: "Task: sess-sched-oneshot/task-966\\nStatus: DONE\\n",
+      } } });
+      send({ jsonrpc: "2.0", id: msg.id, result: { stopReason: "end_turn" } });
+      // 空闲期模拟收到一条与长定时器无关的唤醒消息（如跨会话问候），长定时器 sc-long-never 不得被提前误摘（P1-2）
+      setTimeout(() => {
+        send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: sid, update: {
+          sessionUpdate: "agent_message_chunk", messageId: "idle-msg-1",
+          content: { type: "text", text: "Unrelated peer greeting while timer is still pending." },
+        } } });
+      }, 60);
+    }
+  }
+});
+`, { mode: 0o755 });
+
+  let lastBgSnapshots = [];
+  const r1 = await runAcpTurn({
+    bin: process.execPath,
+    args: [mockBin],
+    cwd: tmpDir,
+    env: { ...process.env },
+    prompt: "turn-arm",
+    run: { id: "r-sc-1", bgList: [], bgTasks: 0 },
+    emit: () => {},
+    onBgChange: (list) => { lastBgSnapshots = list; },
+    keepAlive: true,
+  });
+  assert.equal(r1.ok, true);
+  const bgAfterArm = getAcpPoolBg("sess-sched-oneshot").map((x) => x.id);
+  assert.ok(!bgAfterArm.includes("sc-cancelled"), "Wait cancelled 的一次性定时器不应挂入后台任务条");
+  assert.ok(bgAfterArm.includes("sess-sched-oneshot/task-966"));
+  assert.ok(bgAfterArm.includes("sc-cond-966"));
+  assert.ok(bgAfterArm.includes("sc-short"));
+  assert.ok(bgAfterArm.includes("sc-cron"));
+  assert.ok(bgAfterArm.includes("sc-other-sess-966"));
+  assert.ok(bgAfterArm.includes("sc-long-never"));
+  assert.doesNotThrow(() => JSON.stringify(getAcpPoolBg()), "getAcpPoolBg 返回结构必须可安全 JSON 序列化");
+
+  // 第 1.5 轮：RUNNING 任务的日志正文含 "not found" 时不得误摘
+  const rRunLog = await runAcpTurn({
+    bin: process.execPath,
+    args: [mockBin],
+    cwd: tmpDir,
+    env: { ...process.env },
+    sessionId: "sess-sched-oneshot",
+    prompt: "turn-status-running-notfound-in-log",
+    run: { id: "r-sc-runlog", sessionId: "sess-sched-oneshot", bgList: [], bgTasks: 0 },
+    emit: () => {},
+    onBgChange: (list) => { lastBgSnapshots = list; },
+    keepAlive: true,
+  });
+  assert.equal(rRunLog.ok, true);
+  assert.ok(getAcpPoolBg("sess-sched-oneshot").some((x) => x.id === "sess-sched-oneshot/task-966"), "日志正文含 not found 不得误删 RUNNING 任务");
+
+  // 第 2 轮：manage_task(status) 发现 task-966 已 DONE，联动清掉 sc-cond-966，但保留异会话同号 sc-other-sess-966
+  const r2 = await runAcpTurn({
+    bin: process.execPath,
+    args: [mockBin],
+    cwd: tmpDir,
+    env: { ...process.env },
+    sessionId: "sess-sched-oneshot",
+    prompt: "turn-status-done",
+    run: { id: "r-sc-2", sessionId: "sess-sched-oneshot", bgList: [], bgTasks: 0 },
+    emit: () => {},
+    onBgChange: (list) => { lastBgSnapshots = list; },
+    keepAlive: true,
+  });
+  assert.equal(r2.ok, true);
+  const bgAfterStatus = getAcpPoolBg("sess-sched-oneshot").map((x) => x.id);
+  assert.ok(!bgAfterStatus.includes("sess-sched-oneshot/task-966"), "status=DONE 的后台命令应被清掉");
+  assert.ok(!bgAfterStatus.includes("sc-cond-966"), "绑定已结束任务的 TimerCondition 一次性定时器应联动清掉");
+  assert.ok(bgAfterStatus.includes("sc-other-sess-966"), "不同会话前缀的 task-966 定时器不得被误删");
+  assert.ok(bgAfterStatus.includes("sc-cron"), "周期性 CronExpression 定时任务应保留");
+
+  // 等待 sc-short (DurationSeconds=0, +1.5s 宽限) 墙钟自动到期清理，同时经历了上面 60ms 的无关 idleBurst (1.5s 防抖 flushIdle)
+  await new Promise((r) => setTimeout(r, 1750));
+  const bgAfterExpire = getAcpPoolBg("sess-sched-oneshot").map((x) => x.id);
+  assert.ok(!bgAfterExpire.includes("sc-short"), "一次性 DurationSeconds 定时器到期后应自动从池中清扫");
+  assert.ok(!lastBgSnapshots.some((x) => x.id === "sc-short"), "到期清理应主动回调 onBgChange 刷新前端状态");
+  assert.ok(bgAfterExpire.includes("sc-long-never"), "无关空闲唤醒不得把尚未到期的长时一次性定时器提前误摘");
+  assert.ok(bgAfterExpire.includes("sc-cron"), "周期性 CronExpression 持久保留");
 });

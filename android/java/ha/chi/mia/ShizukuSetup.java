@@ -239,9 +239,12 @@ final class ShizukuSetup {
             if (busy) { activateQueued = true; log("上一步还在进行，激活排队中"); return; }
             busy = true;
         }
-        wifiOrig = wirelessOn();
+        wifiOrig = -1;
         new Thread(() -> {
-            try { doActivate(); }
+            try {
+                wifiOrig = wirelessOn();
+                doActivate();
+            }
             catch (Exception e) { set("error", e.getMessage()); }
             finally {
                 if (handedOff) handedOff = false;
@@ -439,8 +442,9 @@ final class ShizukuSetup {
                 // 整段在设备侧执行：切到桌面（荣耀上 shell 解析不了 HOME intent 就注入 Home 键），
                 // 3 秒后经 shell 的 am start 把应用叫回前台。用 shell 叫回不受安卓后台起 Activity
                 // 的限制，也不依赖应用进程在后台没被厂商冻住——整段跑在 adbd 那侧。
+                String cmp = ctx.getPackageName() + "/" + MainActivity.class.getName();
                 String r = adb(20, "-s", serial, "shell",
-                    "am start -c android.intent.category.HOME 2>/dev/null || input keyevent 3; sleep 3; am start --activity-reorder-to-front -n ha.chi.mia/.MainActivity");
+                    "am start -c android.intent.category.HOME 2>/dev/null || input keyevent 3; sleep 3; am start --activity-reorder-to-front -n " + cmp);
                 adb(10, "disconnect", serial);
                 log("自动切出切回：" + tail(r));
             } catch (Exception e) {
@@ -544,12 +548,18 @@ final class ShizukuSetup {
             try {
                 if (boot) Thread.sleep(10_000);
                 for (int i = 0; i < 18 && !onWifi(); i++) Thread.sleep(10_000);
-                synchronized (ShizukuSetup.this) {
-                    if (Priv.running() || busy) return;
-                    busy = true;
+                // 避免与 verifyPairAsync 的短时探测撞锁后直接放弃开机/起服务自动激活（最多等 30 秒）
+                for (int w = 0; w < 60; w++) {
+                    synchronized (ShizukuSetup.this) {
+                        if (Priv.running()) return;
+                        if (!busy) { busy = true; break; }
+                    }
+                    if (w == 59) return;
+                    Thread.sleep(500);
                 }
-                wifiOrig = wirelessOn();
+                wifiOrig = -1;
                 try {
+                    wifiOrig = wirelessOn();
                     if (!onWifi()) { failNote(Tr.t("没连 Wi‑Fi，Shizuku 没能自动激活。连上 Wi‑Fi 后点此重试")); return; }
                     if (!connectAndStart(false)) failNote(Tr.t("Shizuku 自动激活没成功，点此重试"));
                 } finally { if (!Priv.running()) restoreWifi(); idle(); }
@@ -600,9 +610,10 @@ final class ShizukuSetup {
     /** 用户点"重新配对"：Shizuku 在跑也照样走配对 */
     void repair() {
         synchronized (this) { if (busy) { activateQueued = false; return; } busy = true; }
-        wifiOrig = wirelessOn();
+        wifiOrig = -1;
         new Thread(() -> {
             try {
+                wifiOrig = wirelessOn();
                 if (Build.VERSION.SDK_INT < 30) { set("error", Tr.t("安卓 11 以下没有无线调试")); return; }
                 if (!onWifi()) { set("need_wifi", Tr.t("无线调试要连着 Wi‑Fi 才能用。连上 Wi‑Fi 后再点「重新配对」")); return; }
                 startPairing();

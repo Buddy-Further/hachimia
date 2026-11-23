@@ -167,6 +167,7 @@ final class Consent {
         switch (name) {
             case NOASK: return Tr.t("特权命令不再逐条确认");
             case KEEPALIVE: return Tr.t("后台保活增强");
+            case SHZ_AUTO: return Tr.t("开机后自动激活 Shizuku");
             case DEV_ON: return Tr.t("设备工具");
             case WEBDEBUG: return Tr.t("网页调试");
             case DEV_A11Y: return "on".equals(value) ? Tr.t("读屏和点按：常开") : Tr.t("读屏和点按：用时自动开");

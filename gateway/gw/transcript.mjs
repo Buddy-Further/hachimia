@@ -111,30 +111,57 @@ function contextOf(ev) {
 }
 
 /** 会话最新的上下文用量：从尾部倒着找第一行定得下的（正向读一页时页里没有，书签 / 上次读到打开要用，#89）。
- *  最多扫 MAX_SCAN，找不到返回 null */
-export async function latestContextTokens(file) {
-  const CH = 256 * 1024, MAX_SCAN = 12 * 1024 * 1024;
+ *  最多扫 MAX_SCAN，找不到返回 null；与 readSessionPage 同口径用 carry[] 攒块、超 maxLine 直接丢弃该半行，避免 O(N^2) 拷贝 */
+export async function latestContextTokens(file, { maxLine = 16 << 20 } = {}) {
+  const CH = 256 * 1024, MAX_SCAN = 12 * 1024 * 1024, MAX_LINE = maxLine;
   const fh = await fs.promises.open(file, "r");
   try {
-    let pos = (await fh.stat()).size, tail = Buffer.alloc(0), scanned = 0;
+    let pos = (await fh.stat()).size, scanned = 0;
+    let carry = [], carryLen = 0, carryOver = false;
     while (pos > 0 && scanned < MAX_SCAN) {
       const start = Math.max(0, pos - CH);
       const chunk = Buffer.alloc(pos - start);
       await fh.read(chunk, 0, chunk.length, start);
-      const data = tail.length ? Buffer.concat([chunk, tail]) : chunk;
       pos = start; scanned += chunk.length;
-      let end = data.length;
+      let end = chunk.length;
       for (;;) {
-        const nl = end - 2 >= 0 ? data.lastIndexOf(10, end - 2) : -1;
-        if (nl < 0 && start > 0) { tail = data.subarray(0, end); break; }
-        const line = data.toString("utf8", nl < 0 ? 0 : nl + 1, end).trim();
-        end = nl < 0 ? 0 : nl + 1;
+        const searchFrom = (carry.length || carryOver) ? end - 1 : end - 2;
+        const nl = searchFrom >= 0 ? chunk.lastIndexOf(10, searchFrom) : -1;
+        if (nl < 0) {
+          if (start > 0) {
+            if (!carryOver) {
+              carry.push(Buffer.from(chunk.subarray(0, end)));
+              carryLen += end;
+              if (carryLen > MAX_LINE) { carry = []; carryLen = 0; carryOver = true; }
+            }
+            break;
+          }
+          let line = "";
+          if (!carryOver && end + carryLen <= MAX_LINE) {
+            const parts = carry.length ? [chunk.subarray(0, end), ...carry.slice().reverse()] : [chunk.subarray(0, end)];
+            line = Buffer.concat(parts).toString("utf8").trim();
+          }
+          carry = []; carryLen = 0; carryOver = false;
+          if (line) {
+            let ev = null; try { ev = JSON.parse(line); } catch {}
+            const c = ev && contextOf(ev);
+            if (c) return c.n;
+          }
+          break;
+        }
+        const seg = chunk.subarray(nl + 1, end);
+        let line = "";
+        if (!carryOver && seg.length + carryLen <= MAX_LINE) {
+          line = carry.length ? Buffer.concat([seg, ...carry.slice().reverse()]).toString("utf8").trim() : seg.toString("utf8").trim();
+        }
+        carry = []; carryLen = 0; carryOver = false;
         if (line) {
           let ev = null; try { ev = JSON.parse(line); } catch {}
           const c = ev && contextOf(ev);
           if (c) return c.n;
         }
-        if (nl < 0) break;
+        end = nl;
+        if (end === 0) break;
       }
     }
     return null;
@@ -201,7 +228,8 @@ export async function readSessionPage(file, { before = null, limit = 40, exclude
       let end = chunk.length;   // 这一行在本块里的结尾（不含）
 
       for (;;) {
-        const nl = end >= 2 ? chunk.lastIndexOf(10, end - 2) : -1;
+        const searchFrom = (carry.length || carryOver) ? end - 1 : end - 2;
+        const nl = searchFrom >= 0 ? chunk.lastIndexOf(10, searchFrom) : -1;
         if (nl < 0) {
           if (start > 0) {
             // 整段都是某条跨块行的开头部分：先攒着（它是目前最旧的一段，放在 carry 末尾）
@@ -229,6 +257,7 @@ export async function readSessionPage(file, { before = null, limit = 40, exclude
         if (ret) return ret;
         if (cursor === 0) break outer;
         end = nl;
+        if (end === 0) break;
       }
       if (scanned >= MAX_SCAN && items.length) break;   // 极端大行：先交这一页，别无限往前扫
     }

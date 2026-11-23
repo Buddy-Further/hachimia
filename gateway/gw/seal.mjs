@@ -444,8 +444,67 @@ function userSettings() {
 }
 
 // ── 自动记忆 ──
+const COLLISION_LOGGED = new Set();
 const sanitize = (p) => { const s = p.replace(/[^a-zA-Z0-9]/g, "-"); return s.length <= 200 ? s : s.slice(0, 200) + "-" + sha(p).slice(0, 8); };
-export function memoryDir(cwd) { return path.join(userClaude(), "projects", sanitize(realOr(cwd)), "memory"); }
+const sameRealDir = (a, b) => {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  try { return sameFile(a, b); } catch { return realOr(a) === realOr(b); }
+};
+function writeOwnersAtomicNoFollow(dir, mapFile, owners) {
+  let tmp = "";
+  try {
+    let dst;
+    try { dst = fs.lstatSync(dir); } catch (e) {
+      if (e && e.code === "ENOENT") {
+        fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+        dst = fs.lstatSync(dir);
+      } else throw e;
+    }
+    if (!dst.isDirectory() || dst.isSymbolicLink()) return;
+    tmp = `${mapFile}.tmp-${process.pid}-${crypto.randomBytes(6).toString("hex")}`;
+    const fd = fs.openSync(tmp, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY | fs.constants.O_NOFOLLOW, 0o600);
+    try { fs.writeFileSync(fd, JSON.stringify(owners)); } finally { fs.closeSync(fd); }
+    fs.renameSync(tmp, mapFile); // rename 在 mapFile 为预埋软链时原子替换软链本身，绝不跟随覆写目标文件
+  } catch {
+    if (tmp) try { fs.unlinkSync(tmp); } catch {}
+  }
+}
+function checkMemoryCollision(cwd, memDir) {
+  const realCwd = realOr(cwd);
+  const key = path.basename(path.dirname(memDir));
+  const rootDir = ROOT();
+  const mapFile = path.join(rootDir, "mem-owners.json");
+  let owners = {};
+  try { const j = JSON.parse(readSmallFile(mapFile, 256 << 10) || "{}"); if (j && typeof j === "object" && !Array.isArray(j)) owners = j; } catch {}
+  const prev = typeof owners[key] === "string" ? owners[key] : "";
+  let collision = null;
+  if (prev && !sameRealDir(prev, realCwd)) {
+    let prevExists = false;
+    try { prevExists = fs.statSync(prev).isDirectory(); } catch {}
+    if (prevExists) {
+      collision = { prevCwd: prev, cwd: realCwd, memDir };
+      const logKey = `${key}|${prev}|${realCwd}`;
+      if (!COLLISION_LOGGED.has(logKey)) {
+        if (COLLISION_LOGGED.size >= 512) COLLISION_LOGGED.clear();
+        COLLISION_LOGGED.add(logKey);
+        log(`⚠️ [封口] 记忆目录编码碰撞：${prev} 与 ${realCwd} 共用 ${memDir}（已对该目录做全量封口扫描）`);
+      }
+    }
+  }
+  if (!prev || (!collision && prev !== realCwd)) {
+    owners[key] = realCwd;
+    const ks = Object.keys(owners);
+    if (ks.length > 256) for (const k of ks.slice(0, ks.length - 256)) delete owners[k];
+    writeOwnersAtomicNoFollow(rootDir, mapFile, owners);
+  }
+  return collision;
+}
+export function memoryDir(cwd) {
+  const memDir = path.join(userClaude(), "projects", sanitize(realOr(cwd)), "memory");
+  try { ensureRoot(); checkMemoryCollision(cwd, memDir); } catch {}
+  return memDir;
+}
 /** 记忆目录查一遍：命中返回 found；同时给出指纹（起进程紧前再比） */
 export function scanMemory(dir) {
   const found = [], skipped = [], parts = [];

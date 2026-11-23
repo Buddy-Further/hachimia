@@ -39,19 +39,47 @@ export function guardSource(app = APP) {
   if (br === BAD) return BAD;
   return (br || "").replace(/^export /gm, "") + "\n" + src.replace(/^#!.*\n/, "") + "\nrunHook();\n";
 }
-export function guardHooks(app = APP) {
+/** 构造 guardHooks() 所用的 Node 命令前缀：
+ *  优先锁定受 GwRuntime 核验的 files/gw/node 与 LD_LIBRARY_PATH=files/gw（兼容 targetSdk 28 直跑与
+ *  targetSdk 36 经 /system/bin/linker64 加载器执行），避免被可写 $PREFIX/bin/node 顶替；
+ *  在没有 files/gw/node 的开发端与单测环境下平滑回退 process.execPath。 */
+export function guardNodeCmd(env = process.env) {
+  const q = (x) => "'" + String(x).replace(/'/g, "'\\''") + "'";
+  const gwNode = env.CCAPP_GW_NODE || (CFG.runtime ? path.join(CFG.runtime, "gw", "node") : "");
+  const gwLib = env.CCAPP_GW_LIB || (gwNode ? path.dirname(gwNode) : "");
+  let hasGwNode = false;
+  try { hasGwNode = !!gwNode && fs.statSync(gwNode).isFile(); } catch {}
+  if (!hasGwNode) return q(process.execPath);
+  const envAssign = [`LD_LIBRARY_PATH=${q(gwLib)}`];
+  if (env.CCAPP_EXEC === "loader") {
+    const gwTx = path.join(gwLib, "libtermux-exec-linker-ld-preload.so");
+    if (fs.existsSync(gwTx)) {
+      const basePre = String(env.CCAPP_BIONIC_PRELOAD || "");
+      const pre = basePre
+        ? basePre.replace(/[^:]*libtermux-exec-linker-ld-preload\.so/, gwTx)
+        : gwTx;
+      envAssign.push(`LD_PRELOAD=${q(pre)}`);
+    }
+    envAssign.push(`TERMUX_EXEC__PROC_SELF_EXE=${q(gwNode)}`);
+    return `${envAssign.join(" ")} /system/bin/linker64 ${q(gwNode)} --openssl-config=/dev/null`;
+  }
+  return `${envAssign.join(" ")} ${q(gwNode)} --openssl-config=/dev/null`;
+}
+
+export function guardHooks(app = APP, env = process.env) {
   const src = guardSource(app);
   if (!src) return null;
   const q = (x) => "'" + String(x).replace(/'/g, "'\\''") + "'";
+  const nodeCmd = guardNodeCmd(env);
   const matcher = "Bash|Read|Edit|Write|MultiEdit|NotebookEdit|Grep|Glob|mcp__device__.*";
   if (src === BAD) {
     // 核不过：这一层不能换成别的，也不能整层不挂。挂一个一律拦下的（PreToolUse 退出码 2 = 不许用），等空闲重启按安装包还原
     log("⚠️ [应用文件] guard / breach.mjs 和安装包对不上，敏感工具这一轮一律拦下");
     app?.restart("guard/cc-guard.mjs 或 gw/breach.mjs（和安装包对不上）");
     const deny = "process.stderr.write('hachimia: the safety check could not be verified against the installed package; this tool is blocked until the app restores it.');process.exit(2)";
-    return [{ matcher, hooks: [{ type: "command", command: q(process.execPath) + " -e " + q(deny), timeout: 10 }] }];
+    return [{ matcher, hooks: [{ type: "command", command: nodeCmd + " -e " + q(deny), timeout: 10 }] }];
   }
-  return [{ matcher, hooks: [{ type: "command", command: q(process.execPath) + " --input-type=module -e " + q(src), timeout: 10 }] }];
+  return [{ matcher, hooks: [{ type: "command", command: nodeCmd + " --input-type=module -e " + q(src), timeout: 10 }] }];
 }
 import { NEXT, readBody, sendJson } from "./http.mjs";
 
@@ -226,6 +254,15 @@ export function claudeEnv(o = {}) {
   const other = p.id !== PROVIDER.id;
   const key = keyOf(p);
   const info = currentModelInfo(want, p);
+  const basePath = PREFIX ? [process.env.CCAPP_BIN && path.join(process.env.CCAPP_BIN, "..", "pre"), path.join(PREFIX, "bin"), path.join(CFG.home, ".hachimia", "bin"), path.join(CFG.home, ".cccodroid", "bin"), process.env.CCAPP_BIN, "/system/bin", "/system/xbin"].filter(Boolean).join(":") : [
+    path.join(PATHS.toolchain, "payload", "bin"),
+    // 开发端自己加的工具（python3/pip、java/javac/d8/apksigner、strace、adb…）：放在 tc.tar 之外，启动重新部署时不会被冲掉
+    path.join(CFG.runtime, "..", "devbin"),
+    path.join(CFG.runtime, "node"),
+    "/system/bin", "/system/xbin",
+  ].join(":");
+  const loaderBin = ensureLoaderBin(process.env);
+  const realShell = ensureShell();
   const env = {
     ...process.env,
     HOME: CFG.home,
@@ -244,13 +281,8 @@ export function claudeEnv(o = {}) {
     TERMINFO_DIRS: PREFIX ? path.join(PREFIX, "share", "terminfo") : path.join(PATHS.toolchain, "dshtc", "prefix", "share", "terminfo"),
     // 工具链在前：这样 claude 调 git/gcc/rg/magick… 命中的是我们搬过来的包装脚本。
     // 最前面的 app/pre 放 pkg / apt 和 adb（服务改开私有套接字）：工具包里有同名的旧说明替身，改它会被完整性校验判成"改动"，只能靠 PATH 顺序压过去
-    PATH: PREFIX ? [process.env.CCAPP_BIN && path.join(process.env.CCAPP_BIN, "..", "pre"), path.join(PREFIX, "bin"), path.join(CFG.home, ".cccodroid", "bin"), process.env.CCAPP_BIN, "/system/bin", "/system/xbin"].filter(Boolean).join(":") : [
-      path.join(PATHS.toolchain, "payload", "bin"),
-      // 开发端自己加的工具（python3/pip、java/javac/d8/apksigner、strace、adb…）：放在 tc.tar 之外，启动重新部署时不会被冲掉
-      path.join(CFG.runtime, "..", "devbin"),
-      path.join(CFG.runtime, "node"),
-      "/system/bin", "/system/xbin",
-    ].join(":"),
+    PATH: loaderBin ? (basePath ? `${loaderBin}:${basePath}` : loaderBin) : basePath,
+    ...(loaderBin ? { CCAPP_LOADER_BIN: loaderBin, CCAPP_SHELL: process.env.CCAPP_SHELL || (PREFIX ? path.join(PREFIX, "bin", "bash") : realShell) } : {}),
     CCAPP_TOOLCHAIN: PATHS.toolchain,
     CCAPP_PROVIDER: p.id,
     // 标记：这棵进程树是网关拉起的 claude 运行（子孙都继承）。网关重启时据此认出上一任留下的孤儿，见 reapOrphans
@@ -263,8 +295,8 @@ export function claudeEnv(o = {}) {
     // 自带的 ripgrep 按 /proc/self/exe 找，经加载器起的 claude 那是加载器本身：Grep / Glob 不报错、一律「没找到」（2.1.311 实测）。
     // 改用 PATH 里的 rg：工具包装了「命令行增强」用它的，没装落到 app/bin/rg（经加载器以 argv0=rg 调 claude 自带的那份）
     USE_BUILTIN_RIPGREP: "0",
-    CLAUDE_CODE_SHELL: ensureShell(),
-    SHELL: ensureShell(),
+    CLAUDE_CODE_SHELL: realShell,
+    SHELL: loaderBin ? path.join(loaderBin, "bash") : realShell,
     CI: "1",
     TERM: "dumb",
     NO_COLOR: "1",
@@ -848,6 +880,10 @@ export function ensureLoaderBin(envLike = process.env, { extraDirs = [] } = {}) 
       try { ents = fs.readdirSync(d); } catch { continue; }
       for (const name of ents) {
         if (!name || name === "." || name === ".." || name.includes("/") || name.startsWith(".")) continue;
+        try {
+          const st = fs.statSync(path.join(d, name));
+          if (!st.isFile() || (st.mode & 0o111) === 0) continue;
+        } catch { continue; }
         want.add(name);
       }
     }
