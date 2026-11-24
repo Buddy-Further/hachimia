@@ -3008,7 +3008,7 @@
 3008	Pengiriman belum terkonfirmasi: {msg}
 3009	Penyimpanan penuh, draf tidak tersimpan. Salin atau kirim sekarang.
 3010	Disimpan di /sdcard/cccodroid/models (Q4_K_M). Aktifkan di Pengaturan → Layanan model. RAM perangkat {ram} GB, disarankan 1–4B.
-3011	Hapus komponen {name}?
+3011	Copot komponen {name}? (File milik Anda tidak terpengaruh.)
 3012	Hapus juga cache runtime {size} milik {name} ({path})?
 3013	Ekspor dan bagikan paket diagnostik?\n\nBerisi: versi & perangkat, status toolkit & pemeriksaan mandiri, log terbaru yang telah disensor, catatan perbaikan, hasil koneksi jaringan.\nTidak berisi: kunci, kredensial, email, isi pesan, maupun riwayat sesi.
 3014	Mode lokal secara bawaan hanya mengaktifkan chat. Untuk menyesuaikan alat & parameter, edit {file} atau kirim perintah ini ke model cloud:
@@ -3045,12 +3045,12 @@
 3045	Memuat ulang antarmuka…
 3046	Versi aplikasi ini belum mendukung pemulihan otomatis; perbarui aplikasi atau mulai ulang gateway
 3047	Guliran macet? Tekan lama judul bilah atas ~0,6 dtk untuk memulihkan
-3048	Pemulihan otomatis dijeda. Jalankan diagnostik & perbaikan di bawah terlebih dahulu.
-3049	Verifikasi bridge gagal. Jalankan diagnostik atau instal ulang komponen.
-3050	Bridge dinonaktifkan. Aktifkan komponen di halaman Ekstensi terlebih dahulu.
-3051	Komponen bridge belum tersedia. Periksa status instalasi.
+3048	Pemulihan otomatis berhenti; mengubah konfigurasi tidak membukanya. Jalankan diagnostik di bawah lalu atur ulang jumlah pemulihan.
+3049	Verifikasi bridge gagal dan pemulihan otomatis berhenti (menyimpan konfigurasi tidak menghapusnya); jalankan diagnostik terlebih dulu.
+3050	Bridge dinonaktifkan (menyimpan konfigurasi tidak mengaktifkannya). Aktifkan komponen di halaman Ekstensi terlebih dulu.
+3051	Komponen bridge tidak tersedia; periksa status instalasi (jumlah pemulihan tidak diatur ulang otomatis).
 3052	Perbarui komponen bridge terlebih dahulu sebelum digunakan.
-3053	Bridge belum siap. Lihat diagnostik di bawah.
+3053	Bridge belum siap; lihat diagnostik di bawah (sesi saat ini tetap sama dan menyimpan konfigurasi tidak mengatur ulang pemulihan).
 3054	Bridge sedang sibuk. Coba lagi sebentar lagi.
 3055	Pemeriksaan konsistensi konfigurasi gagal. Ikuti petunjuk di bawah dan jangan langsung menghapus direktori.
 3056	Gagal membaca konfigurasi bridge. Kembali ke Ekstensi lalu coba lagi.
@@ -3059,7 +3059,7 @@
 3059	Path tidak dapat dilengkapi otomatis; masukkan URL /chat/completions lengkap.
 3060	Mendukung beberapa endpoint kompatibel OpenAI; berlaku setelah disimpan.
 3061	Hanya membaca status lokal — tidak mengubah konfigurasi maupun menghubungi server.
-3062	Cadangkan konfigurasi bridge sebelum migrasi atau instal ulang (hanya berisi alamat, kunci, dan daftar model).
+3062	Cadangkan konfigurasi bridge sebelum migrasi atau instal ulang (hanya endpoint, kunci, dan daftar model; tanpa riwayat chat).
 3063	Jangan bagikan file konfigurasi yang berisi kunci secara publik.
 3064	Masukkan URL API penyedia (bukan halaman login web).
 3065	Ambil daftar model otomatis (mengirim API Key ke layanan tersebut)
@@ -3072,10 +3072,10 @@
 3072	Disinkronkan ke Pengaturan → Penyedia & model.
 3073	Sesi lain dapat memilihnya lewat chip model di bawah kolom input.
 3074	Periksa perbedaan konfigurasi lokal dan buat rencana sinkronisasi (pemeriksaan tidak mengubah apa pun).
-3075	Hanya menyinkronkan daftar model, model bawaan, dan metode autentikasi; URL & kunci tetap (berlaku 60 dtk).
+3075	Hanya menyinkronkan daftar model, model default, dan mode autentikasi; tidak menjalankan/menghentikan layanan atau mengubah kunci, file runtime, kunci pemulihan, atau sesi aktif (berlaku 60 dtk).
 3076	Konfirmasi sinkronisasi
 3077	Pastikan aplikasi dan komponen sudah versi terbaru; tunggu sesi aktif selesai sebelum memeriksa ulang.
-3078	Jika pemulihan otomatis dijeda atau verifikasi gagal, instal ulang atau perbarui komponen di Ekstensi — jangan ubah direktori runtime.
+3078	Saat pemulihan otomatis berhenti atau verifikasi gagal, sinkronisasi catatan tidak membuka kunci pemulihan; periksa diagnostik dulu lalu perbarui atau instal ulang di Ekstensi tanpa menghapus folder runtime.
 3079	Saat melaporkan masalah, sertakan versi & kode diagnostik — jangan pernah lampirkan kunci atau konfigurasi lengkap.
 3080	Memeriksa ulang akan menghapus input yang belum disimpan di halaman ini. Lanjutkan?
 3081	Perbarui komponen bridge untuk menambah beberapa endpoint; konfigurasi tunggal saat ini tetap dapat dipakai.
@@ -3110,7 +3110,7 @@
 3110	Alamat layanan berubah — isi ulang API Key (kunci lama tidak dikirim ke alamat baru).
 3111	Kunci tersimpan disembunyikan; kosongkan jika tidak diubah atau isi nilai baru untuk mengganti.
 3112	Menyimpan konfigurasi…
-3113	Daftar model dimuat (inferensi belum diuji)
+3113	Menyimpan tidak memanggil model jarak jauh atau mengalihkan sesi saat ini (daftar model dimuat; inferensi chat belum diuji).
 3114	Masukkan bilangan bulat 1024–16777216 (mendukung 256k, 1m), atau kosongkan untuk nilai bawaan.
 3115	Masukkan nama model yang valid (tanpa koma atau baris baru).
 3116	Masukkan API Key yang valid untuk mengambil daftar otomatis.
@@ -3122,7 +3122,7 @@
 3122	Menyimpan…
 3123	Daftar dimuat, inferensi belum diuji
 3124	Bridge lokal siap
-3125	Pemulihan otomatis dijeda
+3125	Pemulihan otomatis berhenti
 3126	Verifikasi bridge gagal
 3127	Bridge nonaktif
 3128	Konfigurasi disimpan; bridge belum siap
@@ -3158,9 +3158,9 @@
 3158	Tangkap syscall baru yang diblokir Android agar biner statis seperti Go tidak crash (berlaku pada pesan berikutnya).
 3159	Otomatis sesuai paket: eksekusi langsung pada targetSdk 28, lewat pemuat sistem pada targetSdk 36 (perlu mulai ulang gateway).
 3160	Izinkan menghentikan aplikasi latar di luar daftar putih (perlu Shizuku)
-3161	Menghentikan aplikasi latar non-daftar putih sebelum perintah berat (<code>cc-mem run -- cmd</code>); mempertahankan latar depan, layar belah, keyboard, aksesibilitas, VPN, dan Shizuku.
+3161	Menghentikan aplikasi latar sebelum perintah berat (<code>cc-mem run -- cmd</code>); mempertahankan layar depan, layar belah, aplikasi ber-notifikasi tetap (proksi/musik), peluncur, IME, aksesibilitas, VPN, Shizuku, dan daftar putih.
 3162	Menyimpan sesi lokal selamanya kecuali dihapus manual ke Sampah.
-3163	Jangan tanya tiap perintah khusus (risiko ditanggung sendiri): jalankan perintah Shizuku tanpa dialog selama batas waktu (perintah ke aplikasi ini/Shizuku tetap dicegat sebisa mungkin). Untuk satu sesi, centang di dialog konfirmasi
+3163	Lewati konfirmasi per perintah istimewa (risiko ditanggung sendiri): jalankan perintah Shizuku tanpa dialog selama batas waktu; perintah yang menyentuh aplikasi ini atau Shizuku tetap dicegat sebisa mungkin, namun tidak semua bentukbypass dapat tertangkap. Untuk satu sesi, centang pada kotak konfirmasi
 3164	targetSdk 28 paling kompatibel secara bawaan; otomatis beralih ke targetSdk 36 jika ditolak perangkat baru tanpa menghapus data.
 3165	Memperbarui Antigravity CLI otomatis; memberi tahu usai unduhan versi aplikasi baru (atau instal saat menganggur lewat Shizuku); toolkit diunduh lewat Wi‑Fi untuk dipasang saat buka berikutnya.
 3166	Mengambil pemberitahuan pemeliharaan bertanda tangan tiap 3 jam (permintaan statis tanpa data perangkat); berhenti saat dimatikan.
@@ -3171,3 +3171,4 @@
 3171	Mereset konfigurasi pengguna, pengaturan aplikasi, dan file startup shell (dicadangkan ke ~/.ccapp-reset); sesi, ruang kerja, toolkit, dan kunci tetap disimpan.
 3172	Memeriksa kompiler, Python, Node, git, dll. lalu menyinkronkan statusnya ke Antigravity (otomatis diuji ulang usai pembaruan).
 3173	Gagal memuat antarmuka — ketuk untuk mencoba lagi
+3174	Menyimpan tidak memanggil model jarak jauh atau mengalihkan sesi saat ini.

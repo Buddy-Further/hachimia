@@ -9,7 +9,7 @@ import path from "node:path";
 import { CFG } from "./config.mjs";
 
 /**
- * 检测本机 Antigravity CLI 是否有已缓存的 Google 登录态（不读取、不解析、不触碰 OAuth token 内容）。
+ * 检测本机 Antigravity CLI 是否有已缓存的 Google 登录态（本地仅检查 JSON 文件是否为非空对象，不提取、不记录、不外传任何 OAuth token 字段）。
  * 只认非空文件：空文件、目录、损坏或空对象的 .json 都不算凭据（A3）。
  * MIG-14：三个目录递归找凭据特征文件（与 logout 同口径，见 listAgyCredentialFiles）。
  */

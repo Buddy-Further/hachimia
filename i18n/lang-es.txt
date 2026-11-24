@@ -3008,7 +3008,7 @@
 3008	Envío sin confirmar: {msg}
 3009	Espacio insuficiente; borrador no guardado. Copia o envía el texto.
 3010	Se guarda en /sdcard/cccodroid/models (Q4_K_M). Actívalo en Ajustes → Servicios de modelo. RAM: {ram} GB (se recomienda 1–4B).
-3011	¿Desinstalar el componente {name}?
+3011	¿Desinstalar el componente {name}? (Tus propios archivos no se verán afectados.)
 3012	¿Eliminar también {size} de caché de ejecución de {name} ({path})?
 3013	¿Exportar y compartir paquete de diagnóstico?\n\nIncluye: versión y modelo, estado del kit y autodiagnóstico, registros recientes depurados, historial de reparaciones y conectividad.\nNo incluye: claves, credenciales, correos, mensajes ni sesiones.
 3014	El modo local solo incluye chat por defecto. Para personalizar herramientas y parámetros, edita {file} o envía esto a un modelo en la nube:
@@ -3045,12 +3045,12 @@
 3045	Recargando interfaz…
 3046	Esta versión no admite recuperación automática; actualiza la app o reinicia la pasarela
 3047	Si el desplazamiento se bloquea, mantén pulsado el título superior ~0,6 s para recuperarlo
-3048	Recuperación automática en pausa. Ejecuta el diagnóstico y reparación abajo.
-3049	Falló la verificación del puente. Diagnostica abajo o reinstala el componente.
-3050	El puente está desactivado. Activa primero el componente en Extensiones.
-3051	Componente del puente no disponible. Comprueba su instalación.
+3048	Recuperación automática detenida; cambiar la configuración no la desbloquea. Ejecuta el diagnóstico abajo y restablece los intentos.
+3049	Falló la verificación del puente y se detuvo la recuperación automática (guardar la configuración no lo corrige); diagnostica primero.
+3050	El puente está desactivado (guardar la configuración no lo reactiva). Activa primero el componente en Extensiones.
+3051	Componente del puente no disponible; revisa el estado de instalación (los intentos de recuperación no se restablecen solos).
 3052	Actualiza el componente del puente antes de usarlo.
-3053	El puente no está listo. Revisa el diagnóstico abajo.
+3053	El puente no está listo; revisa el diagnóstico abajo (la sesión actual no cambia y guardar no restablece los intentos).
 3054	El puente está ocupado. Inténtalo en unos segundos.
 3055	Falló la comprobación de consistencia. Sigue las instrucciones de abajo sin borrar directorios manualmente.
 3056	Error al leer la configuración del puente. Vuelve a Extensiones e inténtalo de nuevo.
@@ -3059,7 +3059,7 @@
 3059	No se puede autocompletar la ruta; escribe la URL /chat/completions completa.
 3060	Permite configurar varios endpoints compatibles con OpenAI; se aplican al guardar.
 3061	Solo lee el estado local; no modifica ajustes ni contacta al proveedor.
-3062	Respalda la configuración del puente antes de migrar o reinstalar (solo incluye URLs, claves y modelos).
+3062	Haz copia de la configuración del puente antes de migrar o reinstalar (solo endpoints, claves y modelos; sin historial de chat).
 3063	No compartas públicamente archivos de configuración con claves.
 3064	Escribe la URL de la API del proveedor (no la web de inicio de sesión).
 3065	Obtener lista de modelos automáticamente (envía la API Key al servicio indicado)
@@ -3072,10 +3072,10 @@
 3072	Sincronizado con Ajustes → Proveedores y modelos.
 3073	Otras sesiones pueden elegirlo desde la etiqueta de modelo bajo el cuadro de texto.
 3074	Comprueba diferencias locales y genera un plan de sincronización (solo lectura).
-3075	Solo sincroniza modelos, modelo predeterminado y autenticación; URL y clave no cambian (válido 60 s).
+3075	Solo sincroniza lista de modelos, modelo predeterminado y autenticación; no inicia/detiene servicios ni toca claves, archivos, bloqueos de recuperación o sesión actual (válido 60 s).
 3076	Confirmar sincronización
 3077	Asegúrate de tener la app y el componente actualizados; si hay sesiones activas, espera a que terminen.
-3078	Si la recuperación se pausó o falló la verificación, reinstala o actualiza el componente en Extensiones sin tocar los directorios de ejecución.
+3078	Si la recuperación automática se detiene o falla la verificación, sincronizar no quita el bloqueo; revisa el diagnóstico y actualiza o reinstala en Extensiones sin borrar carpetas.
 3079	Al informar un problema, incluye la versión y el código de diagnóstico; nunca adjuntes claves ni la configuración completa.
 3080	Volver a comprobar borrará los datos no guardados en esta página. ¿Continuar?
 3081	Actualiza el componente del puente para añadir varias interfaces; la configuración actual sigue funcionando.
@@ -3110,7 +3110,7 @@
 3110	Cambió el servidor; vuelve a escribir la API Key (la clave anterior no se envía al nuevo destino).
 3111	La clave guardada no se muestra; déjalo vacío para conservarla o escribe una nueva.
 3112	Guardando configuración…
-3113	Lista de modelos leída (inferencia sin probar)
+3113	Guardar no invoca modelos remotos ni cambia la sesión actual (lista de modelos leída; inferencia no probada).
 3114	Escribe un entero entre 1024 y 16777216 (admite 256k, 1m) o déjalo vacío para el valor predeterminado.
 3115	Escribe un nombre de modelo válido (sin comas ni saltos de línea).
 3116	Introduce una API Key válida para obtener la lista automáticamente.
@@ -3122,7 +3122,7 @@
 3122	Guardando…
 3123	Lista leída; inferencia sin probar
 3124	Puente local listo
-3125	Recuperación en pausa
+3125	Recuperación automática detenida
 3126	Verificación fallida
 3127	Puente desactivado
 3128	Configuración guardada; puente no listo
@@ -3158,9 +3158,9 @@
 3158	Intercepta llamadas al sistema bloqueadas por Android para evitar cierres en binarios estáticos como Go (aplica en el siguiente mensaje).
 3159	Automático según el paquete: ejecución directa en targetSdk 28 y mediante cargador del sistema en targetSdk 36 (requiere reiniciar pasarela).
 3160	Permitir detener apps en segundo plano fuera de la lista blanca (requiere Shizuku)
-3161	Detiene apps en segundo plano no autorizadas antes de tareas pesadas (<code>cc-mem run -- cmd</code>); conserva primer plano, pantalla dividida, teclado, accesibilidad, VPN y Shizuku.
+3161	Detiene apps en segundo plano antes de comandos pesados (<code>cc-mem run -- cmd</code>); conserva primer plano, pantalla dividida, apps con notificación activa (proxy/música), inicio, teclado, accesibilidad, VPN, Shizuku y lista blanca.
 3162	Conserva las sesiones locales indefinidamente salvo borrado manual.
-3163	No confirmar comandos privilegiados uno a uno (bajo tu responsabilidad): ejecuta comandos Shizuku sin aviso durante el plazo elegido (los que afecten a esta app o a Shizuku seguirán pidiendo permiso si se detectan).
+3163	Omitir confirmación por comando privilegiado (bajo tu propio riesgo): ejecuta comandos de Shizuku sin aviso durante el plazo; los que afecten a esta app o a Shizuku se intentan interceptar, pero no se pueden bloquear todas las variantes. Para una sola sesión, márcalo en el aviso
 3164	targetSdk 28 ofrece mejor compatibilidad; si el sistema lo rechaza cambia automáticamente a targetSdk 36 conservando tus datos.
 3165	Actualiza Antigravity CLI en segundo plano; avisa al descargar nuevas versiones de la app (o instala en reposo con Shizuku); el kit se predescarga por Wi‑Fi para el próximo inicio.
 3166	Consulta avisos firmados cada 3 horas (petición estática sin datos del dispositivo); al apagarlo no realiza peticiones.
@@ -3171,3 +3171,4 @@
 3171	Restablece configuración de usuario, ajustes de la app y shell (respaldo en ~/.ccapp-reset); conserva sesiones, espacio de trabajo, kit y claves por defecto.
 3172	Comprueba compiladores, Python, Node, git, etc. e informa a Antigravity (se repite tras actualizar).
 3173	Error al cargar la interfaz; toca para reintentar
+3174	Guardar no invoca modelos remotos ni cambia la sesión actual.
