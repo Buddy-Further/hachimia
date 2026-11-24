@@ -783,22 +783,70 @@ final class Updater {
         }
         File script = new File(env.app, "scripts/install-agy.mjs");
         if (!script.isFile() || !env.devkitReady()) {
+            if (pinned()) {
+                String pin = pinVer();
+                claudeOlder = !claude.current.isEmpty() && cmpVer(pin, claude.current) < 0;
+                claude.latest = pin; latestCh = "pinned";
+                if (!"installing".equals(claude.state)) {
+                    if (pin.equals(claude.current)) claude.set("uptodate", Tr.f("已固定 {0}", pin));
+                    else claude.set("available", Tr.f("固定到 {0}", pin));
+                }
+                return;
+            }
             if (!"installing".equals(claude.state)) claude.set(env.claudeReady() ? "uptodate" : "available", "");
             return;
         }
-        ProcessBuilder pb = new ProcessBuilder(env.cmd(env.bin("node").getPath(), script.getPath(), "--check"));
-        env.apply(pb.environment());
-        pb.redirectErrorStream(true);
-        Process p = pb.start();
-        byte[] outBytes = readAll(p.getInputStream());
-        int rc = p.waitFor();
-        String out = new String(outBytes, StandardCharsets.UTF_8).trim();
-        JSONObject j = null;
-        try { j = new JSONObject(out.substring(out.lastIndexOf('{'))); } catch (Exception ignored) {}
-        if (j == null || !j.optBoolean("ok", false)) {
-            throw new IOException(j != null ? j.optString("error", "check failed") : ("exit " + rc));
+        String v = "";
+        Exception checkErr = null;
+        try {
+            ProcessBuilder pb = new ProcessBuilder(env.cmd(env.bin("node").getPath(), script.getPath(), "--check"));
+            env.apply(pb.environment());
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            final byte[][] box = new byte[1][];
+            Thread reader = new Thread(() -> {
+                try { box[0] = readAll(p.getInputStream()); } catch (Exception ignored) { box[0] = new byte[0]; }
+            }, "upd-agy-check-io");
+            reader.setDaemon(true);
+            reader.start();
+            if (!p.waitFor(30, java.util.concurrent.TimeUnit.SECONDS)) {
+                p.destroyForcibly();
+                try { reader.join(1000); } catch (InterruptedException ignored) {}
+                throw new IOException("check timed out (30s)");
+            }
+            int rc = p.exitValue();
+            try { reader.join(2000); } catch (InterruptedException ignored) {}
+            String out = new String(box[0] != null ? box[0] : new byte[0], StandardCharsets.UTF_8).trim();
+            JSONObject j = null;
+            try { j = new JSONObject(out.substring(out.lastIndexOf('{'))); } catch (Exception ignored) {}
+            if (j == null || !j.optBoolean("ok", false)) {
+                throw new IOException(j != null ? j.optString("error", "check failed") : ("exit " + rc));
+            }
+            v = j.optString("latest", "").trim();
+        } catch (Exception ex) {
+            checkErr = ex;
         }
-        String v = j.optString("latest", "").trim();
+        // C-07：尊重 pinned 固定版本（对齐 cccodroid）；查不到在线新版也不报错，且 autoApply 绝不升级到 latest
+        if (pinned()) {
+            String pin = pinVer();
+            refreshCurrent();
+            claudeOlder = !claude.current.isEmpty() && cmpVer(pin, claude.current) < 0;
+            claude.latest = pin;
+            latestCh = "pinned";
+            if (env.claudeOff() && !env.claudeReady()) {
+                if (!"installing".equals(claude.state)) claude.set("missing", "");
+                return;
+            }
+            if (!"installing".equals(claude.state)) {
+                String info = !v.isEmpty() && cmpVer(v, pin) != 0 ? Tr.f("已固定 {0} · stable 已到 {1}", pin, v) : Tr.f("已固定 {0}", pin);
+                if (pin.equals(claude.current)) claude.set("uptodate", info);
+                else claude.set("available", Tr.f("固定到 {0}", pin));
+                if (new File(env.home, ".local/share/hachimia/agy/current/.mismatch").isFile())
+                    claude.set("available", Tr.t("这一版与清单的 sha256 对不上，点更新重新下载"));
+            }
+            return;
+        }
+        if (checkErr != null) throw checkErr;
         if (!v.isEmpty()) claude.latest = v;
         latestCh = channel();
         // 渠道新版被标成有问题时（E-07）：自动更新不装它（claudeHeld），界面上也写明原因；用户自己点更新仍可装。
@@ -912,7 +960,7 @@ final class Updater {
     // synchronized + 起线程前先把状态占上（审查 #105 05-007）：每个 Priv 连接一条线程，两次请求挨得近时，
     // 以前都只看到旧状态、各起一份下载/安装，共用 .part 与临时目录互相踩
     synchronized JSONObject apply(String id, boolean user, String version) {
-        Item it = id.equals("app") ? app : id.equals("devkit") ? devkit : id.equals("claude") ? claude : null;
+        Item it = id.equals("app") ? app : id.equals("devkit") ? devkit : (id.equals("claude") || id.equals("agy")) ? claude : null;
         JSONObject r = new JSONObject();
         try {
             if (it == null) return r.put("ok", false).put("message", Tr.t("未知项 ") + id);

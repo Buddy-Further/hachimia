@@ -52,7 +52,7 @@ export const BUILTIN_PROVIDER = {
 // 配置文件只存用户自己的东西（密钥、选的线路、改过的默认模型）；目录本身随版本更新。
 const PRESETS = {
   antigravity: {
-    label: "Google Antigravity 订阅登录", labelEn: "Google Antigravity sign-in", group: "antigravity", login: true, nativeModels: true,
+    label: "Google Antigravity 订阅登录", labelEn: "Google Antigravity sign-in", group: "antigravity", login: true, nativeModels: true, inlineImages: true,
     authType: "oauth-personal", baseUrl: "https://antigravity.google", authStyle: "oauth", defaultModel: null,
     hint: "使用个人 Google 账户（Free / Pro / Ultra）登录 Antigravity CLI，通过官方 ACP 协议本地运行，网关不碰凭据。",
     hintEn: "Sign in with a personal Google account (Free / Pro / Ultra) via official Antigravity CLI ACP; the gateway never touches credentials.",
@@ -70,7 +70,7 @@ const PRESETS = {
     ],
   },
   "antigravity-enterprise": {
-    label: "Google Cloud / Gemini Enterprise", labelEn: "Google Cloud / Gemini Enterprise", group: "antigravity", login: true, nativeModels: true,
+    label: "Google Cloud / Gemini Enterprise", labelEn: "Google Cloud / Gemini Enterprise", group: "antigravity", login: true, nativeModels: true, inlineImages: true,
     authType: "oauth-business", baseUrl: "https://aiplatform.googleapis.com", authStyle: "oauth", defaultModel: null,
     hint: "适用于企业 SSO / Google Cloud 项目（Gemini Enterprise 或 Pay As You Go），同样由官方 agy CLI 完成登录。",
     hintEn: "For Gemini Enterprise / Google Cloud SSO authentication through the official agy CLI.",
@@ -82,7 +82,7 @@ const PRESETS = {
     ],
   },
   "antigravity-adc": {
-    label: "Google Cloud ADC (Vertex / Agent Platform)", labelEn: "Google Cloud ADC (Agent Platform)", group: "antigravity", login: true, nativeModels: true,
+    label: "Google Cloud ADC (Vertex / Agent Platform)", labelEn: "Google Cloud ADC (Agent Platform)", group: "antigravity", login: true, nativeModels: true, inlineImages: true,
     authType: "agent-platform", baseUrl: "https://aiplatform.googleapis.com", authStyle: "adc", defaultModel: null,
     hint: "使用本机 Application Default Credentials（自动注入 AGY_ADC_AUTH=true），适合无浏览器环境或 gcloud ADC 凭据。",
     hintEn: "Uses local Google Cloud Application Default Credentials (exports AGY_ADC_AUTH=true) for Agent Platform / Vertex AI.",
@@ -92,7 +92,7 @@ const PRESETS = {
     ],
   },
   "gemini-key": {
-    label: "Gemini API Key (AI Studio)", labelEn: "Gemini API Key (AI Studio)", group: "antigravity", nativeModels: true,
+    label: "Gemini API Key (AI Studio)", labelEn: "Gemini API Key (AI Studio)", group: "antigravity", nativeModels: true, inlineImages: true,
     authType: "gemini-api-key", authStyle: "gemini-api-key", modelsAuth: "x-goog-api-key",
     baseUrl: "https://generativelanguage.googleapis.com",
     modelsUrl: "https://generativelanguage.googleapis.com/v1beta/models",
@@ -109,7 +109,7 @@ const PRESETS = {
     ],
   },
   "gemini-custom": {
-    label: "自定义 Gemini 兼容端点", labelEn: "Custom Gemini-compatible endpoint", group: "antigravity", nativeModels: false,
+    label: "自定义 Gemini 兼容端点", labelEn: "Custom Gemini-compatible endpoint", group: "antigravity", nativeModels: false, inlineImages: true,
     authType: "gemini-api-key", authStyle: "gemini-api-key", modelsAuth: "x-goog-api-key",
     baseUrl: "https://generativelanguage.googleapis.com",
     modelsUrl: "",
@@ -801,8 +801,12 @@ export function upsertProvider(id, b, prepare) {
   if (PRESETS[id] && PRESETS[id].login && "apiKey" in b && str(b.apiKey)) keyIgnored = true;
   if ("apiKey" in b && str(b.apiKey) && !keyIgnored) cur.apiKey = str(b.apiKey);   // 空串 = 不改（界面上不回显旧密钥）
   if (b.clearKey) delete cur.apiKey;
-  // 图片随消息发（兼容兜底，见 inlineimg.mjs）：预置和自定义都能开
-  if ("inlineImages" in b) { if (b.inlineImages === true) cur.inlineImages = true; else delete cur.inlineImages; }
+  // 图片随消息发（兼容兜底，见 inlineimg.mjs）：预置和自定义都能开；预设默认开启的厂商允许用户显式关闭为 false
+  if ("inlineImages" in b) {
+    if (b.inlineImages === true) cur.inlineImages = true;
+    else if (PRESETS[id]?.inlineImages) cur.inlineImages = false;
+    else delete cur.inlineImages;
+  }
   // 换线路时旧 Key 不能跟着走：Key 是按线路发的（cn / intl、按量 / 套餐往往不通用），没有依据默认两家通用。
   // 旧线路被目录删除时一直会清（196-凭据.1）；两条预置线路之间正常切换漏了，旧 Key 会随新线路域名发出去（FIND-050）。
   // 没记过线路 = 第一条线路，把第一条明确存回去不算换线路。

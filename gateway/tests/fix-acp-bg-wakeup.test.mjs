@@ -680,6 +680,6 @@ test("C15 & C16：普通用户消息入队时撤掉同会话排队中的 auto=bg
   }
 
   const runSrc = fs.readFileSync(path.resolve(new URL("../gw/run.mjs", import.meta.url).pathname), "utf8");
-  assert.match(runSrc, /if \(run\.unattended \|\| run\.auto\)\s*\{\s*return run\.auto === "bg" && permMode === "bypassPermissions" \? \{ behavior: "allow" \} : \{ behavior: "deny" \};\s*\}/);
+  assert.match(runSrc, /if \(run\.unattended \|\| run\.auto\)\s*\{[\s\S]*?run\.auto === "bg" && permMode === "bypassPermissions"[\s\S]*?return \{ behavior: "deny" \};\s*\}/);
   assert.doesNotMatch(runSrc, /run\.auto && run\.auto !== "bg"/);
 });

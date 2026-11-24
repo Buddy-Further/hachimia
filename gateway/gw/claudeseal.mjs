@@ -35,15 +35,21 @@ function fpOf(...files) {
 }
 async function sha256Async(f) {
   const h = crypto.createHash("sha256");
-  const fh = await fs.promises.open(f, "r");
+  const fh = await fs.promises.open(f, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
   const b = Buffer.alloc(2 << 20);
   try {
+    const st1 = await fh.stat({ bigint: true });
+    if (!st1.isFile()) throw new Error("not a regular file");
     let pos = 0;
     while (true) {
       const { bytesRead } = await fh.read(b, 0, b.length, pos);
       if (!bytesRead) break;
       h.update(b.subarray(0, bytesRead));
       pos += bytesRead;
+    }
+    const st2 = await fh.stat({ bigint: true });
+    if (st2.dev !== st1.dev || st2.ino !== st1.ino || st2.size !== st1.size || st2.ctimeNs !== st1.ctimeNs) {
+      throw new Error("binary changed during verification");
     }
   } finally { await fh.close().catch(() => {}); }
   return h.digest("hex");
@@ -72,18 +78,28 @@ export async function claudeSeal(bin0 = PATHS.agy || PATHS.claude, { force = fal
     } else if (!fs.existsSync(mf)) {
       res = { ok: null, why: "no local manifest" };
     } else {
+      let j;
       try {
-        const j = JSON.parse(await fs.promises.readFile(mf, "utf8"));
+        j = JSON.parse(await fs.promises.readFile(mf, "utf8"));
+      } catch (e) {
+        res = { ok: null, why: "manifest read error: " + e.message };
+      }
+      if (!res) {
         const want = j && typeof j.sha256 === "string" ? j.sha256 : "";
         if (!/^[a-f0-9]{64}$/.test(want)) {
           res = { ok: null, why: "manifest has no sha256" };
-        } else if ((await sha256Async(bin)) !== want) {
-          res = { ok: false, why: "agy binary sha256 mismatch" };
         } else {
-          res = { ok: true, version: j.version || (isVer(path.basename(dir)) ? path.basename(dir) : "unknown") };
+          try {
+            const got = await sha256Async(bin);
+            if (got !== want) {
+              res = { ok: false, why: "agy binary sha256 mismatch" };
+            } else {
+              res = { ok: true, version: j.version || (isVer(path.basename(dir)) ? path.basename(dir) : "unknown") };
+            }
+          } catch (e) {
+            res = { ok: false, why: "agy binary verify error: " + e.message };
+          }
         }
-      } catch (e) {
-        res = { ok: null, why: "manifest read error: " + e.message };
       }
     }
 

@@ -960,5 +960,13 @@ export function agyEnv(o = {}) {
       env.GOOGLE_GEMINI_BASE_URL = p.baseUrl;
     }
   }
+  // C-05：合入厂商配置的 extraEnv（与 claudeEnv 同口径过滤敏感内部变量，不许覆盖密钥/端点/加载器变量）
+  for (const [k, v] of Object.entries(p.extraEnv || {})) {
+    if (/^[A-Z_][A-Z0-9_]*$/.test(k) && !EXTRA_ENV_DENY.test(k) && !/^(GEMINI_API_KEY|GOOGLE_GEMINI_BASE_URL|AGY_ADC_AUTH)$/.test(k)) {
+      env[k] = String(v);
+    }
+  }
+  sealEnv(env);
+  delete env.CCAPP_TOKEN_FILE;
   return env;
 }

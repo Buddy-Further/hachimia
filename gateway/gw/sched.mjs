@@ -165,7 +165,9 @@ function skipBeforeStart(t, ctx) {
   if (ctx.epoch !== cancelEpoch(t)) return tz("按设置跳过这一次");
   return null;
 }
-const scheduleRetry = (id, attempt, delayMs) => {
+const scheduleRetry = (id, attempt, delayMs, { allowAutoOff = false } = {}) => {
+  const cur = byId(id);
+  if (!cur || (!cur.on && !allowAutoOff)) return;
   clearTimeout(RETRY.get(id));
   const at = Date.now() + delayMs;
   persistRetry(id, at, attempt);
@@ -591,8 +593,8 @@ RECOVER_HOOKS.push((runs, evidence) => {
     log(`⏰ 定时任务「${t.name}」上一轮被系统结束，记一次失败`);
     // 时间记这一轮开始的时候；时长不知道（停机那段不能算进去），不写
     addRun({ taskId: t.id, at: r.startedAt || Date.now(), st: "err", msg: tz("网关被系统结束，这一轮没跑完"), runId: r.id, sid: r.sessionId || null, attempt: 0 });
-    // MIG-24：与 END_HOOKS 同口径排重试（attempt 恒为 0，retry>=1 才排；scheduleRetry 负责落盘）
-    if ((+t.retry || 0) > 0) scheduleRetry(t.id, 1, 2 * 60000);
+    // MIG-24 / C-06：已停用任务不排重试；仅启用中或本次刚触发自动收尾的 once 任务才按 retry>=1 排重试
+    if ((t.on || once) && (+t.retry || 0) > 0) scheduleRetry(t.id, 1, 2 * 60000, { allowAutoOff: once });
     if (r.sessionId && t.session === "same") { t.lastSid = r.sessionId; delete t.lostSid; save(); }
   }
   return keep;
@@ -649,8 +651,10 @@ END_HOOKS.push((run, f) => {
   // 主动停止也取消已经离开 timer、还在等待槽位的旧自动投递；不影响下一个正常计划时刻。
   if (userStopped) { cancelPending(t); dropPending(t); }
   else if (st === "ok") cancelRetry(t.id);
-  // 在 once / count 的自动关停前区分「本就关着的一次手动执行」和「允许自动重试的最后一轮」。
-  const mayRetry = !userStopped && ctx.epoch === cancelEpoch(t) && !paused(t) && (t.on || ctx.reason === "retry");
+  // 在 once / count 的自动关停前区分「本就关着的任务」和「因 once/count 自动关停、仍允许收尾重试的最后一轮」（C-06）。
+  const autoOffRetry = ctx.reason === "retry" && ((t.freq?.kind === "once") || (t.until?.kind === "count" && (t.runsDone || 0) >= (+t.until.count || 1)));
+  const wasOn = !!t.on;
+  const mayRetry = !userStopped && ctx.epoch === cancelEpoch(t) && !paused(t) && (wasOn || autoOffRetry);
   // 不存成对话：这次的会话随后进回收站。运行记录和通知就别再指向它了（点了只会 404，#173-1）；完整结果看 full（#173-2）。
   // 接着同一个对话的不回收：下一次还要接着它，回收了就 --resume 失败（#173-3）。
   // 失败轮次也算：saveSession=false 说好的「只留运行记录」，以前失败时仍把会话留在主列表（197-2.5）
@@ -659,15 +663,16 @@ END_HOOKS.push((run, f) => {
   t.runsDone = (t.runsDone || 0) + 1;
   if (t.until?.kind === "count" && t.runsDone >= (+t.until.count || 1)) t.on = false;
   if (t.freq?.kind === "once") t.on = false;
+  const turnedOffNow = wasOn && !t.on;
   refreshNext(t); save();
   if (drop) { try { trashSession(sid); } catch {} }
   // 通知：每次 / 只在失败时 / 只在有发现时（回复不是那句固定的话）/ 不通知
   const found = !t.quiet || text.replace(/[\s。.!！]/g, "") !== String(t.quiet).replace(/[\s。.!！]/g, "");
   const want = t.notify === "none" ? false : t.notify === "fail" ? st !== "ok" : t.notify === "found" ? (st !== "ok" || found) : true;
   if (want) note(t, st === "ok" ? tz("定时任务完成：{n}", { n: t.name }) : tz("定时任务没成：{n}", { n: t.name }), msg, drop ? null : sid, st === "ok");
-  // 超了花费上限不重试：重试就是再花一遍（#98 03-010）
-  if (st === "err" && mayRetry && !over && ctx.attempt < (+t.retry || 0)) {
-    scheduleRetry(t.id, ctx.attempt + 1, 2 * 60000);
+  // 超了花费上限不重试：重试就是再花一遍（#98 03-010）；已停用任务（非本轮 once/count 自动关停）绝不排重试（C-06）
+  if (st === "err" && mayRetry && !over && ctx.attempt < (+t.retry || 0) && (t.on || turnedOffNow || autoOffRetry)) {
+    scheduleRetry(t.id, ctx.attempt + 1, 2 * 60000, { allowAutoOff: turnedOffNow || autoOffRetry });
   }
 });
 

@@ -613,7 +613,7 @@ final class Priv {
                         break;
                     }
                     // 装的就是判过的这一版：别让 apply 再去读一次可能已被换掉的 claude.latest
-                    resp = Updater.get(ctx).apply(item, true, "claude".equals(item) && ver.trim().isEmpty() ? chk : ver);
+                    resp = Updater.get(ctx).apply(item, true, ("claude".equals(item) || "agy".equals(item)) && ver.trim().isEmpty() ? chk : ver);
                     break;
                 }
                 case "upd_set": {
@@ -1027,7 +1027,7 @@ final class Priv {
         boolean risky = PrivRules.risky(argv, envp != null, req.optString("cwd", "/")) && !(envp == null && shotArmed(argv, req.optString("shot", null)))
             || PrivRules.namesSelf(text, ctx.getPackageName());   // 免问的 am force-stop 等点了本应用 / Shizuku 的名：也要问（审查 0601c）
         // 免确认：设置里打开了总开关，或这个会话已经点过「本会话都允许」。动到本应用自己、Shizuku / Sui 的命令照样问
-        String sess = risky && "claude".equals(who) ? sessToken(peerPid) : null;
+        String sess = risky && ("agy".equals(who) || "claude".equals(who)) ? sessToken(peerPid) : null;
         boolean self = risky && touchesSelf(text);
         String pass = !risky || self ? null : noAsk() ? "免确认" : sess != null && SESS_OK.contains(sess) ? "本会话已允许" : null;
         if (pass != null) who = who + "·" + pass;

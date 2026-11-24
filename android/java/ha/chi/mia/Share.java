@@ -89,6 +89,12 @@ public final class Share extends ContentProvider {
             || nm.equals(".yarnrc.yml") || nm.equals("pip.conf") || nm.equals(".pgpass") || nm.equals(".my.cnf") || nm.equals(".s3cfg") || nm.equals(".boto")
             || nm.equals(".terraformrc") || nm.equals("credentials.tfrc.json") || p.matches(".*/\\.m2/settings(-security)?\\.xml") || p.matches(".*/\\.gradle/gradle\\.properties")
             || p.matches(".*/\\.cargo/credentials(\\.toml)?")
+            // Antigravity / hachimia 登录凭据与配置（C-07，对齐 agy-creds.mjs 目录口径，限定路径防误拦工作区普通文件）
+            || nm.equals("hachimia-auth.json")
+            || p.matches(".*/\\.gemini/settings\\.json")
+            || p.matches(".*/\\.gemini/antigravity-cli/settings\\.json")
+            || ((p.contains("/.gemini/antigravity-cli/") || p.contains("/.config/antigravity/") || p.contains("/.antigravity/"))
+                && nm.matches(".*(oauth|token|cred|auth|session|profile).*"))
             || p.matches(".*/\\.(ssh|gnupg|aws|docker|kube|azure)/.*") || p.matches(".*/\\.config/gcloud/.*");
     }
 

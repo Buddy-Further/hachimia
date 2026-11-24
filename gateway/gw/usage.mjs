@@ -584,6 +584,34 @@ export function deviceMcpConfig() {
   return JSON.stringify({ mcpServers: { device: { type: "stdio", command: process.execPath, args: [f] } } });
 }
 
+/** ACP `session/new` / `session/resume` 使用的内置设备工具 stdio MCP Server 描述（C-01）。
+ *  在 targetSdk 36（CCAPP_EXEC === "loader"）下通过 `/system/bin/linker64` + `files/gw/node`（附 LD_LIBRARY_PATH / LD_PRELOAD / TERMUX_EXEC__PROC_SELF_EXE）
+ *  启动 `bin/device-mcp.mjs`，避免 `agy` 直接 execve 数据目录里的 node 报 EACCES。 */
+export function deviceMcpAcpServer(env = process.env) {
+  const f = path.join(HERE, "bin", "device-mcp.mjs");
+  if (!PREFIX || !fs.existsSync(f)) return null;
+  const gwNode = env.CCAPP_GW_NODE || (CFG.runtime ? path.join(CFG.runtime, "gw", "node") : "");
+  const gwLib = env.CCAPP_GW_LIB || (gwNode ? path.dirname(gwNode) : "");
+  let hasGwNode = false;
+  try { hasGwNode = !!gwNode && fs.statSync(gwNode).isFile(); } catch {}
+  const nodeBin = hasGwNode ? gwNode : process.execPath;
+  const mcpEnv = [];
+  if (hasGwNode && gwLib) mcpEnv.push({ name: "LD_LIBRARY_PATH", value: gwLib });
+  if (env.CCAPP_EXEC === "loader") {
+    const gwTx = gwLib ? path.join(gwLib, "libtermux-exec-linker-ld-preload.so") : "";
+    if (gwTx && fs.existsSync(gwTx)) {
+      const basePre = String(env.CCAPP_BIONIC_PRELOAD || "");
+      const pre = basePre ? basePre.replace(/[^:]*libtermux-exec-linker-ld-preload\.so/, gwTx) : gwTx;
+      mcpEnv.push({ name: "LD_PRELOAD", value: pre });
+    }
+    mcpEnv.push({ name: "TERMUX_EXEC__PROC_SELF_EXE", value: nodeBin });
+    const args = hasGwNode ? [nodeBin, "--openssl-config=/dev/null", f] : [nodeBin, f];
+    return { name: "device", command: "/system/bin/linker64", args, env: mcpEnv };
+  }
+  const args = hasGwNode ? ["--openssl-config=/dev/null", f] : [f];
+  return { name: "device", command: nodeBin, args, env: mcpEnv };
+}
+
 export function privCall(req, timeoutMs = 20000) {
   return new Promise((resolve) => {
     if (!PREFIX) {

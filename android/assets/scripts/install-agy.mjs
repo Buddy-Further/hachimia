@@ -154,15 +154,22 @@ fs.writeFileSync(stageScript, fetched.data, { mode: 0o700 });
 // 所以 try 块里一律 throw，由外面的 catch 在 finally 清理完之后再退出。
 let failed = null;
 try {
-  // 官方 install.sh 只认 -d/--dir（装到 <dir>/agy）；装进暂存 HOME 的 .local/bin，下面从那里搬到版本目录
+  // 官方 install.sh 默认认 -d/--dir（装到 <dir>/agy）；若调用方传入具体版本号 isVer(ARG)，
+  // 透传 ANTIGRAVITY_VERSION / AGY_VERSION（若脚本支持 --version 一并传入），装完后严格校验版本匹配，
+  // 杜绝静默装成别的版本谎报成功（C-07）。
   const binDir = path.join(stageHome, ".local", "bin");
-  say(`正在运行官方安装脚本（--dir ${binDir}）…`);
+  const wantVer = isVer(ARG) ? ARG : "";
+  const scriptText = fetched.data.toString("utf8");
+  const scriptArgs = [stageScript, "--dir", binDir];
+  if (wantVer && /--version\b/.test(scriptText)) scriptArgs.push("--version", wantVer);
+  say(`正在运行官方安装脚本（--dir ${binDir}${wantVer ? `，目标版本 ${wantVer}` : ""}）…`);
   const env = {
     ...process.env,
     HOME: stageHome,
     TMPDIR: process.env.TMPDIR || stage,
+    ...(wantVer ? { ANTIGRAVITY_VERSION: wantVer, AGY_VERSION: wantVer } : {}),
   };
-  const run = spawnSync(SH, [stageScript, "--dir", binDir], {
+  const run = spawnSync(SH, scriptArgs, {
     cwd: stage,
     env,
     stdio: "inherit",
@@ -205,6 +212,9 @@ try {
   const ver = parseVersion(vr.stdout || vr.stderr);
   if (!ver) {
     throw new Error(`刚装好的 agy --version 没有报出版本号（输出：${String(vr.stdout || vr.stderr || "").trim().slice(0, 200) || "（空）"}），未安装`);
+  }
+  if (wantVer && ver !== wantVer) {
+    throw new Error(`目标版本 ${wantVer} 与上游安装脚本实际安装的版本 ${ver} 不一致（上游脚本暂不支持指定历史版本），未覆盖当前版本`);
   }
   const verDir = path.join(DEST, ver);
   const verDirExisted = fs.existsSync(verDir);

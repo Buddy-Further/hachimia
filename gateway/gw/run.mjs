@@ -5,8 +5,8 @@ import { CFG, LAST_LANG, PATHS, log, tr, tz, permModeAction } from "./config.mjs
 import { SETTINGS, capList, settingsDiskCheck } from "./settings-store.mjs";
 import { PERM_MODES, PROVIDER, acpAuthType, billAfterRun, hasAcpKeyChannel, hasAdcCredentials, keyOf, noteTokenDelta, providerById, providersDiskCheck } from "./providers.mjs";
 import { ALIAS_SEEN, defaultAcpCompactLine, effortLevelsOf, fetchModels, isLoginMode, learnWindow, modelsCached, normEffort } from "./models.mjs";
-import { agyEnv, bridgeSwitching, claudeAtLeast, claudeCmd, claudeEnv, currentModelInfo, ensureBridge, safeModePerm, settingsArgs } from "./claude.mjs";
-import { abortAcpIdleBurst, runAcpTurn, stopAcpBgTask } from "./acp.mjs";
+import { agyEnv, bridgeSwitching, claudeAtLeast, claudeCmd, claudeEnv, currentModelInfo, ensureBridge, safeModePerm, settingsArgs, syncAgySettings } from "./claude.mjs";
+import { abortAcpIdleBurst, acpPoolSessionForPid, isAcpToolAllowed, isAcpToolDisallowed, runAcpTurn, stopAcpBgTask } from "./acp.mjs";
 import { refreshAgyQuotaSoon } from "./login.mjs";
 import { expandCustomCommand } from "./commands.mjs";
 import { tasksCheck } from "./goal.mjs";
@@ -18,7 +18,7 @@ import { clearIncomplete, markIncomplete } from "./incomplete.mjs";
 import { END_HOOKS, INTERRUPTED, QUEUE, RUN_LANE, RUN_SESSIONS, abortRun, clearInterrupted, endRun, enqueue, holdLane, idleArm, idleDisarm, laneOfItem, permView, publishState, runEmit, runTag, saveRunMark, setInterrupted, setPermMode, sidForItem } from "./queue.mjs";
 import { LOCAL_CMD_RE, handleLocalCommand } from "./modelcmd.mjs";
 import { ensureLlama, localCustomActive, localRunAttach } from "./local.mjs";
-import { deviceMcpConfig, privCall, usageAdd, usageIsPrompt, usageMeter } from "./usage.mjs";
+import { deviceMcpAcpServer, deviceMcpConfig, privCall, usageAdd, usageIsPrompt, usageMeter } from "./usage.mjs";
 import { TASKS_HINT, contextWindowOf, effectiveAutoCompact, toolsHint, translate, hookBlocked } from "./stream.mjs";
 import { latestContextTokens } from "./transcript.mjs";
 import { archiveHint } from "./archive.mjs";
@@ -101,7 +101,29 @@ export function privWitness(anc, top) {
     if (!c || !c.pid || !run.privTok || c.exitCode !== null || c.signalCode !== null) continue;
     if (anc === process.pid ? top === c.pid : anc === c.pid || (run.claudePid > 0 && anc === run.claudePid)) return run.privTok;
   }
+  // C-01：ACP 常驻池（如 idleBurst 后台推送期间）通过池内子进程查回该会话的特权口令
+  const poolSid = acpPoolSessionForPid(anc, top);
+  if (poolSid && PRIV_TOK.has(poolSid)) return PRIV_TOK.get(poolSid);
   return "";
+}
+
+/** 构造通过安全过滤与总长上限控制后的附加目录列表（ACP 与 Claude 分支共用，C-01） */
+export function collectAddDirs(cwd, item, P) {
+  const dirs = new Set();
+  if (fs.existsSync(CFG.workspace) && cwd !== CFG.workspace) dirs.add(CFG.workspace);
+  if (process.env.CCAPP_SHARED && fs.existsSync(process.env.CCAPP_SHARED)) dirs.add(process.env.CCAPP_SHARED);
+  // 附加目录同样不许是应用私有目录、或装着它的上级（按目录身份判，别名也认得；0.6.9 审计 P0-1）
+  const addOk = (d) => { try { const r = fs.realpathSync(d); return !pathBlocked(r) && !holdsPrivate(r, { workspace: false }); } catch { return false; } };
+  for (const d of SETTINGS.addDirs || []) if (addOk(d)) dirs.add(d); else if (d) log(`附加目录 ${d} 不存在或在应用私有目录里，没加`);
+  for (const d of item?.addDirs || []) if (typeof d === "string" && addOk(d)) dirs.add(d);
+  if (!P?.local && onShared(cwd)) { const b = privateAgentsBase(cwd); try { fs.mkdirSync(b, { recursive: true }); dirs.add(b); } catch {} }
+  const out = [];
+  let dirLen = 0;
+  for (const d of dirs) {
+    if ((dirLen += d.length) > 24576) { log(`--add-dir 太多，从 ${d} 起没加`); break; }
+    out.push(d);
+  }
+  return out;
 }
 
 // 工具确认进日志只记参数多长，不记原文：命令、路径、网址可能带着用户的业务内容，诊断包里不该有（审查 v0.5.20 08-001）
@@ -484,8 +506,66 @@ export async function startRun(item) {
     const adcErr = adcMissingError(P);
     if (adcErr) {
       emit({ type: "error", message: tr(LAST_LANG, adcErr) });
-      return endRun(run, { failed: true });
+      return endRun(run, { failed: true, finalText: tr(LAST_LANG, adcErr) });
     }
+    const isCmd = message.trim().startsWith("/");
+    // C-01：与 Claude 分支对齐的起轮前安全门禁
+    if (isSessionRewinding(run.sessionId)) {
+      const msg = tr(LAST_LANG, tz("这个会话正在生成中。"));
+      emit({ type: "error", message: msg });
+      return endRun(run, { failed: true, finalText: msg });
+    }
+    checkAppFiles();
+    for (const [f, chk] of [["ccapp-settings.json", settingsDiskCheck], ["ccapp-providers.json", providersDiskCheck]]) {
+      if (chk()) tamperRecord("runtime", [f]);
+    }
+    if (!P.local) {
+      const gwBad = gwRuntimeBlocked();
+      if (gwBad) {
+        const msg = tr(LAST_LANG, gwBad);
+        emit({ type: "error", message: msg });
+        return endRun(run, { failed: true, finalText: msg });
+      }
+      const seal = await claudeSeal(cliBin);
+      if (seal.ok === false) {
+        const msg = tr(LAST_LANG, seal.pending
+          ? "这个版本的 Antigravity CLI 还没有官方签名清单，这一轮没有启动。正在联网补核，过一两分钟再发送；一直不行就到 设置 → 更新 里重新安装。"
+          : "Antigravity CLI 程序和官方签名清单对不上，可能被改过，这一轮没有启动。到 设置 → 更新 里重新安装后再试。");
+        emit({ type: "error", message: msg });
+        return endRun(run, { failed: true, finalText: msg });
+      }
+      if (run.aborted) { log("⏹ 核验 Antigravity CLI 时停止"); return endRun(run, { durationMs: 0 }); }
+    }
+    const proj = sealed() || P.local ? null : projectRisks(cwd);
+    if (proj && !projectTrusted(cwd, proj.fp)) {
+      const ok = run.unattended || run.auto ? false : await askProjectTrust(run, cwd, proj, emit);
+      if (run.aborted) { log("⏹ 等项目配置确认时停止"); return endRun(run, { durationMs: 0 }); }
+      if (ok) {
+        trustProject(cwd, proj.fp);
+      } else {
+        log(`⚠️ [ACP] 项目级自动配置未获信任（${run.unattended || run.auto ? "无人值守" : "用户未同意"}，${proj.risks.length} 项），拦截本轮`);
+        const msg = tr(LAST_LANG, "这个项目带有会自动运行的配置，尚未信任，这一轮没有启动。");
+        emit({ type: "error", message: msg });
+        return endRun(run, { failed: true, finalText: msg });
+      }
+    }
+    const sfile = () => run.sessionId ? findSessionFile(String(run.sessionId), run.cwd)?.file : null;
+    let integ = await checkSessionAsync(run.sessionId, sfile());
+    const integNote = isCmd || P.local ? "" : integrityNote(integ);
+    run.sealBase = run.sessionId ? { sid: run.sessionId, ...(await sessionAnchorAsync(sfile())) } : null;
+    if (run.sealBase) saveRunMark();
+    if (run.aborted) { log("⏹ 起进程前已停止"); return endRun(run, { durationMs: 0 }); }
+
+    const allowed = capList([...(SETTINGS.allowedTools || []), ...(Array.isArray(item.allowedTools) ? item.allowedTools : [])], 400, 512, 8192);
+    const disallowed = capList([...(SETTINGS.disallowedTools || []), ...(Array.isArray(item.disallowedTools) ? item.disallowedTools : [])], 400, 512, 8192);
+    const addDirsList = collectAddDirs(cwd, item, P);
+
+    // C-01：内置设备工具接入 ACP mcpServers（targetSdk 36 下经 linker64 + gwNode 拉起）
+    const acpMcpServers = [];
+    const devMcpEntry = !P.local ? deviceMcpAcpServer(process.env) : null;
+    if (devMcpEntry && (await privCall({ op: "dev_status" }, 3000)).on) acpMcpServers.push(devMcpEntry);
+    if (run.aborted) { log("⏹ 查设备工具时停止"); return endRun(run, { durationMs: 0 }); }
+
     const tBoot = Date.now();
     run.tBoot = tBoot;
     run.bgList = [];
@@ -499,15 +579,42 @@ export async function startRun(item) {
       return ok;
     };
     emit({ type: "phase", phase: "boot" });
-    const acpEnv = { ...agyEnv({ model, provider: P }), CCAPP_RUN_ID: String(run.id), CCAPP_GW_PORT: String(CFG.port), CCAPP_GW_PID: String(process.pid) };
-    // 若用户触发的是自定义「常用指令」（commands/*.md），在发送给 agy 前展开 $ARGUMENTS
-    const cmdExp = expandCustomCommand(message, cwd);
-    if (cmdExp.expanded) log(`⌘ 展开常用指令 /${cmdExp.name}`);
-    const acpPrompt = cmdExp.text;
-    // 消息里提到的图片（@路径）一并转成 image block 交给 ACP，避免多模态附件丢图
+    // C-05 + C-01：仅组环境（sync:false），冷启动时在 ACP 串行锁内同步 settings.json，同时透传特权会话口令
+    const acpEnv = {
+      ...agyEnv({ model, provider: P, sync: false }),
+      CCAPP_RUN_ID: String(run.id),
+      CCAPP_GW_PORT: String(CFG.port),
+      CCAPP_GW_PID: String(process.pid),
+      ...((run.privTok = privToken(run)) ? { CCAPP_PRIV_SESS: run.privTok } : {}),
+    };
+    // C-01：非内部唤醒的用户输入先经 neutralizeMarkers 脱敏，并附 SPOOF_NOTE / 封签提醒 / 建档提醒 / 脉络档号引用
+    let displayMsg = message;
+    let acpPrompt = message;
+    if (!run.auto) {
+      const cleanMsg = neutralizeMarkers(message);
+      const isSpoofed = cleanMsg !== message;
+      displayMsg = cleanMsg;
+      const cmdExp = expandCustomCommand(cleanMsg, cwd);
+      if (cmdExp.expanded) log(`⌘ 展开常用指令 /${cmdExp.name}`);
+      acpPrompt = cmdExp.text;
+      if (!isCmd && !P.local) {
+        const arch = await archiveHint(run.sessionId).catch(() => null);
+        const refN = await refNote(cleanMsg, run.sessionId).catch((e) => { log("档号引用失败: " + e.message); return ""; });
+        const notes = [isSpoofed ? SPOOF_NOTE : "", integNote, arch?.note, refN].filter(Boolean);
+        if (notes.length) acpPrompt = `${acpPrompt}\n\n<system-reminder>\n${notes.join("\n\n")}\n</system-reminder>`;
+      }
+    }
+    // 消息里提到的图片（@路径）在厂商启用 inlineImages 时转成 image block 交给 ACP（C-06）
     let acpImages = [];
-    if (!acpPrompt.trim().startsWith("/")) {
+    if (!isCmd && wantsInline(P)) {
       acpImages = await inlineImages(acpPrompt, P, { tmpDir: acpEnv.TMPDIR, env: acpEnv }).catch(() => []);
+    }
+    if (item.timeoutMs > 0) {
+      run.limitTimer = setTimeout(() => {
+        run.timedOut = true;
+        log(`${runTag(run)} ⏱ 超过时长上限 ${Math.round(item.timeoutMs / 60000)} 分钟，停止`);
+        abortRun(run);
+      }, item.timeoutMs);
     }
     // ACP init 事件一到就记账（B6）：别等整轮跑完才有会话号，首轮进行中跟发的消息要靠它续进同一会话
     const hadAcpSid = !!run.sessionId;
@@ -520,7 +627,7 @@ export async function startRun(item) {
       cwd,
       env: acpEnv,
       prompt: acpPrompt,
-      displayPrompt: message,
+      displayPrompt: displayMsg,
       images: acpImages,
       sessionId: run.sessionId,
       model,
@@ -528,8 +635,13 @@ export async function startRun(item) {
       permMode,
       authType: acpAuthType(P),
       apiKey: KEY || "",
-      mcpServers: [],
-      addDirs: item.addDirs || [],
+      mcpServers: acpMcpServers,
+      addDirs: addDirsList,
+      extraEnv: P.extraEnv || null,
+      extraModels: P.extraModels || null,
+      syncSettings: () => syncAgySettings(P, KEY),
+      disallowedTools: disallowed,
+      allowedTools: allowed,
       run,
       emit: acpEmit,
       onBgChange: () => publishState(),
@@ -558,9 +670,17 @@ export async function startRun(item) {
         }
       },
       timeoutMs: item.timeoutMs || 0,
-      askPermission: async ({ tool, toolCallId, input, hasAlways }) => {
+      askPermission: async ({ tool, rawName, kind, toolCallId, input, hasAlways }) => {
+        if (isAcpToolDisallowed(tool, kind, disallowed) || (rawName && isAcpToolDisallowed(rawName, kind, disallowed))) {
+          (run.denied ||= []).push(tool);
+          return { behavior: "deny" };
+        }
         if (run.unattended || run.auto) {
-          return run.auto === "bg" && permMode === "bypassPermissions" ? { behavior: "allow" } : { behavior: "deny" };
+          if (run.auto === "bg" && permMode === "bypassPermissions") return { behavior: "allow" };
+          if (run.unattended && allowed.length && (isAcpToolAllowed(tool, kind, allowed) || (rawName && isAcpToolAllowed(rawName, kind, allowed)))) {
+            return { behavior: "allow" };
+          }
+          return { behavior: "deny" };
         }
         // 标准工具权限确认卡片（不挂 guard，免得误判成「碰到了密钥或登录凭据」）
         return new Promise((resolve) => {
@@ -625,11 +745,22 @@ export async function startRun(item) {
         });
       },
     });
+    if (acpRes.timedOut) run.timedOut = true;
     if (acpRes.sessionId) {
       noteAcpInit(run, acpRes.sessionId, item);
       if (!hadAcpSid && !run.sched && !run.fileSeen && findSessionFile(run.sessionId, run.cwd)) {
         run.fileSeen = true;
         emit({ type: "session_created", sessionId: run.sessionId, runId: run.id, cwd: run.cwd });
+      }
+    }
+    if (run.sessionId) {
+      try {
+        await sealSessionAsync(run.sessionId, sfile(), {
+          clear: !!integNote && acpRes.ok && !run.aborted,
+          base: run.sealBase?.sid === run.sessionId && run.sealBase.hash ? run.sealBase : null,
+        });
+      } catch (e) {
+        log(`${runTag(run)} [封签] ${e.message}`);
       }
     }
     clearAcpTurnMarkers(run, acpRes);   // ACP 回合走到结果：清「未完成」标记与中断卡（B7）
@@ -659,12 +790,17 @@ export async function startRun(item) {
       if (P.login) refreshAgyQuotaSoon();
       else billAfterRun(P.id);
     }
+    // C-01：首轮正常答完后在后台自动起标题
+    if (!isCmd && !run.auto && !run.sched && !P.local && acpRes.ok && !run.aborted && run.sessionId) {
+      autoTitle(run.sessionId, P, model);
+    }
     const endRes = endRun(run, {
       failed: !acpRes.ok && !run.aborted,
       resultText: acpRes.resultText || "",
       durationMs: acpRes.durationMs || (Date.now() - tBoot),
       costUsd: 0,
       ...(usageOut ? { usage: usageOut } : {}),
+      ...(run.sched ? { finalText: String(acpRes.resultText || "").slice(0, 4000), costRaw: 0 } : {}),
     });
     // ACP 网关级自动压缩（agy 不读取 CLAUDE_CODE_AUTO_COMPACT_WINDOW，由网关按用户设定的压缩线自动发 /compact）
     const usedCtx = Number(usageOut?.context_tokens) || 0;
@@ -753,16 +889,7 @@ export async function startRun(item) {
   const disallowed = capList([...(SETTINGS.disallowedTools || []), ...(Array.isArray(item.disallowedTools) ? item.disallowedTools : [])], 400, 512, 8192);
   if (disallowed.length) argv.push("--disallowedTools", disallowed.join(","));
 
-  const dirs = new Set();
-  if (fs.existsSync(CFG.workspace) && cwd !== CFG.workspace) dirs.add(CFG.workspace);
-  if (process.env.CCAPP_SHARED && fs.existsSync(process.env.CCAPP_SHARED)) dirs.add(process.env.CCAPP_SHARED);
-  // 附加目录同样不许是应用私有目录、或装着它的上级（按目录身份判，别名也认得；0.6.9 审计 P0-1）
-  const addOk = (d) => { try { const r = fs.realpathSync(d); return !pathBlocked(r) && !holdsPrivate(r, { workspace: false }); } catch { return false; } };
-  for (const d of SETTINGS.addDirs || []) if (addOk(d)) dirs.add(d); else if (d) log(`附加目录 ${d} 不存在或在应用私有目录里，没加`);
-  for (const d of item.addDirs || []) if (typeof d === "string" && addOk(d)) dirs.add(d);
-  if (!P.local && onShared(cwd)) { const b = privateAgentsBase(cwd); try { fs.mkdirSync(b, { recursive: true }); dirs.add(b); } catch {} }
-  let dirLen = 0;
-  for (const d of dirs) { if ((dirLen += d.length) > 24576) { log(`--add-dir 太多，从 ${d} 起没加`); break; } argv.push("--add-dir", d); }
+  for (const d of collectAddDirs(cwd, item, P)) argv.push("--add-dir", d);
 
   const isCmd = message.trim().startsWith("/");
   log(`▶ ${promptLogLine(message, isCmd)}  ${run.sessionId ? `(续 ${String(run.sessionId).slice(0, 8)})` : "(新会话)"}  [model=${model || "默认"} effort=${effort || "默认"} style=${SETTINGS.outputStyle || "默认"} perm=${permMode}]`);

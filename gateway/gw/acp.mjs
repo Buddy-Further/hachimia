@@ -669,13 +669,14 @@ export function isSubagentTranscriptIdle(logPath, parentSessionId = "", reported
   const wantParent = String(parentSessionId || "").trim();
   const ASYNC_TOOLS = new Set(["invoke_subagent", "run_workflow", "schedule"]);
   let hasAsyncPending = false;
+  let sentToParent = false;
   for (const step of turnSteps) {
     if (step?.type === "PLANNER_RESPONSE" && Array.isArray(step.tool_calls)) {
       for (const tc of step.tool_calls) {
         const name = String(tc?.name || "").trim().toLowerCase();
         if (name === "send_message") {
           const recip = String(tc?.args?.Recipient ?? tc?.arguments?.Recipient ?? "").replace(/^"|"$/g, "").trim();
-          if (wantParent ? recip === wantParent : recip.length > 0) return true;
+          if (wantParent ? recip === wantParent : recip.length > 0) sentToParent = true;
         }
         if (ASYNC_TOOLS.has(name)) hasAsyncPending = true;
       }
@@ -689,6 +690,7 @@ export function isSubagentTranscriptIdle(logPath, parentSessionId = "", reported
   }
 
   if (hasAsyncPending) return false;
+  if (sentToParent) return true;
   if (typeof last.content !== "string" || last.content.trim().length === 0) return false;
   const tsRaw = last.timestamp || last.created_at || last.updated_at || "";
   const parsedTs = tsRaw ? Date.parse(tsRaw) : NaN;
@@ -1518,9 +1520,9 @@ export function translateAcpUpdate(params, state, emit) {
       }
       return;
     }
-    const rec = { id, name, input, status: upd.status || "pending", output: "", isError: false, cancelled: false, done: false };
+    const rec = { id, name, rawName: upd.name ? String(upd.name) : "", kind: upd.kind ? String(upd.kind) : "", input, status: upd.status || "pending", output: "", isError: false, cancelled: false, done: false };
     state.tools.set(id, rec);
-    emit({ type: "tool_use", id, name, input });
+    emit({ type: "tool_use", id, name, ...(rec.rawName ? { rawName: rec.rawName } : {}), ...(rec.kind ? { kind: rec.kind } : {}), input });
     trackAcpToolSideEffects("start", rec, state, emit);
     // 部分实现会在 tool_call 上直接带终态
     const st0 = String(upd.status || "").toLowerCase();
@@ -1545,9 +1547,9 @@ export function translateAcpUpdate(params, state, emit) {
       const input = upd.rawInput && typeof upd.rawInput === "object"
         ? upd.rawInput
         : (upd.input && typeof upd.input === "object" ? upd.input : {});
-      prev = { id, name, input, status: upd.status || "in_progress", output: "", isError: false, cancelled: false, done: false };
+      prev = { id, name, rawName: upd.name ? String(upd.name) : "", kind: upd.kind ? String(upd.kind) : "", input, status: upd.status || "in_progress", output: "", isError: false, cancelled: false, done: false };
       state.tools.set(id, prev);
-      emit({ type: "tool_use", id, name, input });
+      emit({ type: "tool_use", id, name, ...(prev.rawName ? { rawName: prev.rawName } : {}), ...(prev.kind ? { kind: prev.kind } : {}), input });
       trackAcpToolSideEffects("start", prev, state, emit);
     } else {
       if (upd.title || upd.name) {
@@ -1887,9 +1889,92 @@ export function persistAcpTurn({ cwd, sessionId, userText, assistantText, thinki
   }
 }
 
-function poolKey({ bin, args, cwd, authType, apiKey }) {
+const ACP_ENV_KEY_VARS = [
+  "GOOGLE_GEMINI_BASE_URL", "AGY_ADC_AUTH",
+  "HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy", "NO_PROXY", "no_proxy",
+  "CCAPP_PRIV_SESS",
+];
+
+// 全局 ~/.gemini/antigravity-cli/settings.json 串行握手锁（C-05）：
+// 仅包裹冷启动时的 syncSettings → spawn → initialize → authenticate → session/new|resume|load，
+// 避免多会话异构厂商并发冷启互相覆盖 modelProvider / customModelsConfig。
+let AGY_SETTINGS_LOCK = Promise.resolve();
+export function withAgySettingsLock(fn) {
+  const prev = AGY_SETTINGS_LOCK;
+  let release;
+  AGY_SETTINGS_LOCK = new Promise((r) => { release = r; });
+  return prev.then(fn, fn).finally(() => release());
+}
+
+/** 查询常驻 ACP_POOL 存活子进程对应的 sessionId（供 run.mjs privWitness 池化兜底，C-01） */
+export function acpPoolSessionForPid(anc, top) {
+  for (const entry of ACP_POOL.values()) {
+    const c = entry?.client?.child;
+    if (!c || !c.pid || c.exitCode !== null || c.signalCode !== null) continue;
+    if (anc === process.pid ? top === c.pid : anc === c.pid) return entry.sessionId || "";
+  }
+  return "";
+}
+
+const ACP_TOOL_WRITE_EDIT = new Set(["edit", "write", "multiedit", "notebookedit", "write_file", "edit_file", "replace_file_content", "multi_replace_file_content", "write file", "edit file", "replace file"]);
+const ACP_TOOL_EXEC = new Set(["bash", "powershell", "run_command", "run_shell", "run command", "run shell"]);
+
+function acpToolGroups(name, kind) {
+  const g = new Set();
+  const n = String(name || "").trim().toLowerCase();
+  const k = String(kind || "").trim().toLowerCase();
+  const base = n.replace(/\(.*\)$/, "").trim();
+  if (base) g.add(base);
+  if (n) g.add(n);
+  if (k) g.add(k);
+  if (ACP_TOOL_WRITE_EDIT.has(base) || /^(?:write|edit|replace)\s+file/i.test(base) || k === "edit" || k === "write") g.add("__write_edit__");
+  if (ACP_TOOL_EXEC.has(base) || /^run\s+(?:command|shell)/i.test(base) || k === "execute") g.add("__exec__");
+  return g;
+}
+
+export function isAcpToolDisallowed(toolName, toolKind, disallowedTools) {
+  if (!Array.isArray(disallowedTools) || !disallowedTools.length) return false;
+  const target = acpToolGroups(toolName, toolKind);
+  for (const raw of disallowedTools) {
+    const rule = acpToolGroups(raw, "");
+    for (const tok of rule) {
+      if (target.has(tok)) return true;
+    }
+  }
+  return false;
+}
+
+export function isAcpToolAllowed(toolName, toolKind, allowedTools) {
+  if (!Array.isArray(allowedTools) || !allowedTools.length) return false;
+  const target = acpToolGroups(toolName, toolKind);
+  for (const raw of allowedTools) {
+    const rule = acpToolGroups(raw, "");
+    for (const tok of rule) {
+      if (target.has(tok)) return true;
+    }
+  }
+  return false;
+}
+
+export function poolKey({ bin, args, cwd, authType, apiKey, env = null, extraEnv = null, extraModels = null, addDirs = [], mcpServers = [] }) {
   const keyHash = apiKey ? crypto.createHash("sha256").update(String(apiKey)).digest("hex").slice(0, 12) : "";
-  return JSON.stringify([bin, args, cwd, authType || "", keyHash]);
+  const envSlice = {};
+  if (env && typeof env === "object") {
+    for (const k of ACP_ENV_KEY_VARS) if (env[k] != null && env[k] !== "") envSlice[k] = String(env[k]);
+  }
+  const extraEnvPairs = extraEnv && typeof extraEnv === "object"
+    ? Object.keys(extraEnv).sort().map((k) => [k, String(extraEnv[k])])
+    : [];
+  const modelIds = Array.isArray(extraModels)
+    ? extraModels.map((m) => (typeof m === "string" ? m : m?.id || "")).filter(Boolean).sort()
+    : [];
+  const normDirs = Array.isArray(addDirs) ? addDirs.filter((d) => typeof d === "string" && d.trim()) : [];
+  const normMcp = Array.isArray(mcpServers) ? mcpServers : [];
+  const cfgHash = crypto.createHash("sha256")
+    .update(JSON.stringify({ envSlice, extraEnvPairs, modelIds, normDirs, normMcp }))
+    .digest("hex")
+    .slice(0, 16);
+  return JSON.stringify([bin, args, cwd, authType || "", keyHash, cfgHash]);
 }
 
 function mapUiModeToAcp(permMode, availableModes) {
@@ -1922,7 +2007,9 @@ function mapUiModeToAcp(permMode, availableModes) {
 export async function runAcpTurn({
   bin, args = ["acp"], cwd, env, prompt, displayPrompt = null, images = [], sessionId = null,
   model = "", effort = "", permMode = "default", authType = "", apiKey = "",
-  mcpServers = [], addDirs = [], run, emit, askPermission, onBgChange, onBgWake = null,
+  mcpServers = [], addDirs = [], extraEnv = null, extraModels = null, syncSettings = null,
+  disallowedTools = [], allowedTools = [],
+  run, emit, askPermission, onBgChange, onBgWake = null,
   bgPollMs = ACP_BG_POLL_MS, bgGraceMs = ACP_BG_GRACE_MS, probeBgShell = acpBgShellActive,
   isPidAlive = isPidAliveFallback,
   brainDir = path.join(CFG.home, ".gemini", "antigravity-cli", "brain"),
@@ -2029,7 +2116,17 @@ export async function runAcpTurn({
   };
   let activeSessionId = sessionId || null;
   let pendingPermCount = 0;
-  const pKey = poolKey({ bin, args, cwd, authType, apiKey });
+  // 若 disallowedTools 禁止了写文件或命令执行（如只读定时任务），不得把服务端模式升级为 bypassPermissions / acceptEdits（C-06）
+  const restrictMode = Array.isArray(disallowedTools) && disallowedTools.some((t) => {
+    const g = acpToolGroups(t, "");
+    return g.has("__write_edit__") || g.has("__exec__");
+  });
+  if (restrictMode && (permMode === "bypassPermissions" || permMode === "acceptEdits")) {
+    permMode = "default";
+    state.permMode = "default";
+    if (run) run.permMode = "default";
+  }
+  const pKey = poolKey({ bin, args, cwd, authType, apiKey, env, extraEnv, extraModels, addDirs, mcpServers });
 
   const isBenignStderr = (line) => /logging before google\.Init:.*Initialized Android local timezone/i.test(line);
   const makeHandlers = () => ({
@@ -2048,6 +2145,17 @@ export async function runAcpTurn({
         const allowOpt = pickAcpAllowOption(options);
         const allowAlwaysOpt = options.find(isAcpAllowAlwaysOpt) || null;
         const rejectOpt = options.find(isAcpRejectOpt);
+        const toolTitle = params.toolCall?.title || params.toolCall?.name || params.toolCall?.kind || "Antigravity Tool";
+        const toolRaw = params.toolCall?.name || "";
+        const toolKind = params.toolCall?.kind || "";
+
+        // C-06：命中 disallowedTools 一律拒绝（即使 permMode 为 bypassPermissions 也不得自动放行）
+        if (isAcpToolDisallowed(toolTitle, toolKind, disallowedTools) || (toolRaw && isAcpToolDisallowed(toolRaw, toolKind, disallowedTools))) {
+          if (run) (run.denied ||= []).push(toolTitle);
+          return rejectOpt
+            ? { outcome: { outcome: "selected", optionId: rejectOpt.optionId } }
+            : { outcome: { outcome: "cancelled" } };
+        }
 
         if (permMode === "bypassPermissions" && allowOpt) {
           return { outcome: { outcome: "selected", optionId: allowOpt.optionId } };
@@ -2061,7 +2169,9 @@ export async function runAcpTurn({
         let decision;
         try {
           decision = await askPermission({
-            tool: params.toolCall?.title || params.toolCall?.name || params.toolCall?.kind || "Antigravity Tool",
+            tool: toolTitle,
+            rawName: toolRaw,
+            kind: toolKind,
             toolCallId: params.toolCall?.toolCallId || params.toolCall?.id || "",
             input: params.toolCall?.rawInput || params.toolCall?.input || params.toolCall || {},
             options,
@@ -2076,6 +2186,7 @@ export async function runAcpTurn({
             ? { outcome: { outcome: "selected", optionId: chosen.optionId } }
             : { outcome: { outcome: "cancelled" } };
         }
+        if (run && run.unattended) (run.denied ||= []).push(toolTitle);
         return rejectOpt
           ? { outcome: { outcome: "selected", optionId: rejectOpt.optionId } }
           : { outcome: { outcome: "cancelled" } };
@@ -2119,16 +2230,11 @@ export async function runAcpTurn({
     }
   }
 
-  const client = reused ? poolEntry.client : createAcpClient({
-    bin,
-    args,
-    cwd,
-    env,
-    ...makeHandlers(),
-  });
+  let client = reused ? poolEntry.client : null;
   clientRef = client;
 
   const destroyClient = () => {
+    if (!client) return;
     if (activeSessionId && ACP_POOL.get(activeSessionId)?.client === client) {
       closeAcpSession(activeSessionId);
     } else {
@@ -2183,13 +2289,13 @@ export async function runAcpTurn({
   if (poolEntry) poolEntry.dropActiveBg = dropActiveBg;
 
   if (run) {
-    run.child = client.child;
-    run.preSpawn = false;
+    run.child = client ? client.child : null;
+    run.preSpawn = !client;
     run.dropAcpBg = dropActiveBg;
     // 停止只停当前 prompt，不销毁保活进程：进程留在池里供下轮复用（B10）。
     // 但若 agent 10s 内不响应 session/cancel，queue.forceEnd 会调用 forceFinish 彻底销毁卡死客户端，防双进程脑裂（C-02）。
     run.cancelAcp = () => {
-      if (activeSessionId) client.notify("session/cancel", { sessionId: activeSessionId });
+      if (activeSessionId && client) client.notify("session/cancel", { sessionId: activeSessionId });
     };
     run.forceFinish = () => {
       canKeep = false;
@@ -2202,7 +2308,7 @@ export async function runAcpTurn({
       permMode = mode;
       state.permMode = mode;
       run.permMode = mode;
-      if (activeSessionId && !client.closed) return applyMode(mode);
+      if (activeSessionId && client && !client.closed) return applyMode(mode);
       return Promise.resolve(true);
     };
   }
@@ -2216,120 +2322,120 @@ export async function runAcpTurn({
 
   try {
     if (!reused) {
-      // 1. initialize
-      const initRes = await client.request("initialize", {
-        protocolVersion: ACP_PROTOCOL_VERSION,
-        clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
-        clientInfo: { name: "hachimia", version: "0.1.0" },
-      }, 30000);
-      if (initRes?.agentInfo?.version) {
-        setLastInit({ version: String(initRes.agentInfo.version) });
-      }
-
-      // 2. authenticate（若 agent 声明了 authMethods 且我们指定了认证方式）
-      const authMethods = Array.isArray(initRes?.authMethods) ? initRes.authMethods : [];
-      // 厂商自己的 api-key 类型（deepseek-api-key 等，见 providers.mjs 的 acpAuthType）不是
-      // ACP 官方认证方法，agy 永远不会声明它：不得按 A16 抛错，也不得把别家 key 塞进
-      // authenticate 的 _meta（C2）。注意：这种 key 没有带外通道——agy 只认 Gemini 协议
-      // 的 API Key 模式，Anthropic 协议的第三方厂商在 agy-only ACP 下无 key 可跑（rem-C2；
-      // 旧注释称“key 由 agyEnv/settings 等带外通道交给 agy”是错的）。只有厂商明确声明
-      // protocol:"gemini" 时，key 才经 agyEnv（GEMINI_API_KEY + GOOGLE_GEMINI_BASE_URL）
-      // 与 settings.json（modelProvider=gemini）交给 agy，且 acpAuthType 会把它映射成
-      // gemini-api-key，不走这条豁免。这里跳过 authenticate，只是别让没通道的厂商
-      // 在认证这一步先报一个误导性的错；模型调用时 agy 仍会因无 key 而失败。
-      const isVendorApiKey = typeof authType === "string" && authType !== "gemini-api-key" && /-api-key$/.test(authType);
-      if (isVendorApiKey) log(`[agy-acp] ${authType}：非 ACP 官方认证方法，跳过 authenticate（agy 无通用第三方 bearer 通道，见 rem-C2；仅 protocol:"gemini" 的厂商经 agyEnv/settings 交 key）`);
-      // agent 声明了认证方式、却不含网关要用的那一种时，不得静默跳过、用默认/错误的
-      // 认证跑下去——当场失败并报出双方的 id（A16）。agent 什么都没声明时保持旧行为
-      // （跳过），那种 agent 不靠 ACP authenticate 认证。
-      if (authType && !isVendorApiKey && authMethods.length && !authMethods.some((m) => m.id === authType)) {
-        const declared = authMethods.map((m) => m.id).filter(Boolean).join(", ") || "(无)";
-        throw new Error(`[agy-acp] agent 未声明认证方式 ${authType}（已声明：${declared}），无法按该方式认证`);
-      }
-      if (authType && !isVendorApiKey && authMethods.some((m) => m.id === authType)) {
-        const authParams = { methodId: authType };
-        if (authType === "gemini-api-key" && apiKey) {
-          authParams._meta = { "api-key": apiKey };
+      const coldInit = async () => {
+        if (typeof syncSettings === "function") await syncSettings();
+        if (run?.aborted) throw new Error("aborted before spawn");
+        client = createAcpClient({
+          bin,
+          args,
+          cwd,
+          env,
+          ...makeHandlers(),
+        });
+        clientRef = client;
+        if (run) {
+          run.child = client.child;
+          run.preSpawn = false;
         }
-        try {
-          await client.request("authenticate", authParams, 20000);
-        } catch (e) {
-          // 已通过 keyring 或环境变量认证时，部分版本会报“已认证过”——这种情况才继续；
-          // 其他报错（key 错、过期、被拒）必须当场失败，不能只记一行日志继续跑（A16）。
-          if (/already (authenticated|authorized|logged in|signed in)|authentication (not required|not needed)/i.test(e.message || "")) {
-            log(`[agy-acp] authenticate(${authType})：已认证过，继续`);
-          } else {
-            throw new Error(`[agy-acp] authenticate(${authType}) 失败：${e.message}`);
+        // 1. initialize
+        const initRes = await client.request("initialize", {
+          protocolVersion: ACP_PROTOCOL_VERSION,
+          clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
+          clientInfo: { name: "hachimia", version: "0.1.0" },
+        }, 30000);
+        if (initRes?.agentInfo?.version) {
+          setLastInit({ version: String(initRes.agentInfo.version) });
+        }
+
+        // 2. authenticate（若 agent 声明了 authMethods 且我们指定了认证方式）
+        const authMethods = Array.isArray(initRes?.authMethods) ? initRes.authMethods : [];
+        const isVendorApiKey = typeof authType === "string" && authType !== "gemini-api-key" && /-api-key$/.test(authType);
+        if (isVendorApiKey) log(`[agy-acp] ${authType}：非 ACP 官方认证方法，跳过 authenticate（agy 无通用第三方 bearer 通道，见 rem-C2；仅 protocol:"gemini" 的厂商经 agyEnv/settings 交 key）`);
+        if (authType && !isVendorApiKey && authMethods.length && !authMethods.some((m) => m.id === authType)) {
+          const declared = authMethods.map((m) => m.id).filter(Boolean).join(", ") || "(无)";
+          throw new Error(`[agy-acp] agent 未声明认证方式 ${authType}（已声明：${declared}），无法按该方式认证`);
+        }
+        if (authType && !isVendorApiKey && authMethods.some((m) => m.id === authType)) {
+          const authParams = { methodId: authType };
+          if (authType === "gemini-api-key" && apiKey) {
+            authParams._meta = { "api-key": apiKey };
+          }
+          try {
+            await client.request("authenticate", authParams, 20000);
+          } catch (e) {
+            if (/already (authenticated|authorized|logged in|signed in)|authentication (not required|not needed)/i.test(e.message || "")) {
+              log(`[agy-acp] authenticate(${authType})：已认证过，继续`);
+            } else {
+              throw new Error(`[agy-acp] authenticate(${authType}) 失败：${e.message}`);
+            }
           }
         }
-      }
 
-      // 3. 优先 session/resume（无历史重放），其次回落 session/load，最后 session/new
-      //    hachimia 自己从本地 jsonl 渲染历史，调 session/load 会在长会话上引发异步重放与提前返回（无限月读）
-      const caps = initRes?.agentCapabilities || {};
-      const canResume = !!(caps.sessionCapabilities?.resume || caps.session_capabilities?.resume);
-      const canLoad = !!(caps.loadSession || caps.load_session || caps.sessionCapabilities?.load || caps.session_capabilities?.load);
-      const requestedSessionId = activeSessionId;
-      let sessRes = null;
-      let resumeErr = null;
-      let loadErr = null;
-      if (requestedSessionId && canResume) {
-        try {
-          sessRes = await client.request("session/resume", {
-            sessionId: requestedSessionId,
-            cwd,
-            mcpServers,
-          }, 45000);
-        } catch (e) {
-          resumeErr = e;
-          log(`[agy-acp] session/resume 失败，尝试 session/load: ${e.message}`);
-        }
-      }
-      if (!sessRes && requestedSessionId && canLoad) {
-        try {
-          sessRes = await client.request("session/load", {
-            sessionId: requestedSessionId,
-            cwd,
-            mcpServers,
-          }, 90000);
-          usedLoad = true;
-        } catch (e) {
-          loadErr = e;
-          log(`[agy-acp] session/load 失败（保留原会话号不静默新建）: ${e.message}`);
-        }
-      }
-      // 续聊已有会话且 Agent 支持 resume/load 时，若两者均失败/超时，绝不静默清空 activeSessionId 建新会话；
-      // 仅当 Agent 明确不支持 resume/load（!canResume && !canLoad）时，才按 B8 建新会话并发切换提示。
-      if (!sessRes && requestedSessionId && (canResume || canLoad)) {
-        const why = loadErr?.message || resumeErr?.message || "恢复会话失败";
-        throw new Error(tz("无法恢复原会话（{why}），已保留当前会话未新建，请重试或手动开启新对话", { why }));
-      }
-      if (!sessRes) {
+        // 3. 优先 session/resume（无历史重放），其次回落 session/load，最后 session/new
+        const caps = initRes?.agentCapabilities || {};
+        const canResume = !!(caps.sessionCapabilities?.resume || caps.session_capabilities?.resume);
+        const canLoad = !!(caps.loadSession || caps.load_session || caps.sessionCapabilities?.load || caps.session_capabilities?.load);
         const extraDirs = Array.isArray(addDirs) ? addDirs.filter((d) => typeof d === "string" && d.trim()) : [];
         const canAddDirs = !!(caps.sessionCapabilities?.additionalDirectories || caps.session_capabilities?.additionalDirectories);
-        sessRes = await client.request("session/new", {
-          cwd,
-          mcpServers,
-          ...(canAddDirs && extraDirs.length ? { additionalDirectories: extraDirs } : {}),
-        }, 30000);
-        // MIG-22：agent 不回会话号时当场报错——自造一个 agent 不认识的 UUID 只会让
-        // 下一轮 resume/load 必然失败、循环产生孤儿会话，不如停在这里明示。
-        if (!sessRes?.sessionId) throw new Error(tz("新建会话失败：Agent 没有返回会话号，请重试"));
-        activeSessionId = sessRes.sessionId;
-      }
-      // 旧会话没续上、悄悄换了新会话号：明示给用户，别静默抛弃旧会话（B8）
-      if (requestedSessionId && activeSessionId && activeSessionId !== requestedSessionId) {
-        sessionSwitched = true;
-        emit({ type: "note", key: "acp-session-switched", text: tz("旧会话无法恢复（Agent 不支持恢复或恢复失败），已新建会话继续。本轮写进了新会话，旧会话的历史仍保留在本地记录中。") });
-      }
-      sessModels = sessRes?.models || null;
-      sessModes = sessRes?.modes || null;
-      sessConfig = Array.isArray(sessRes?.configOptions) ? sessRes.configOptions : null;
-      const tier = sessRes?._meta?.antigravity?.tier;
-      if (tier?.name) {
-        setLastInit({ tier: String(tier.name) });
-        noteAuthTier(tier);
-      }
+        const extraDirParam = canAddDirs && extraDirs.length ? { additionalDirectories: extraDirs } : {};
+        let sessRes = null;
+        let resumeErr = null;
+        let loadErr = null;
+        if (requestedSessionId && canResume) {
+          try {
+            sessRes = await client.request("session/resume", {
+              sessionId: requestedSessionId,
+              cwd,
+              mcpServers,
+              ...extraDirParam,
+            }, 45000);
+          } catch (e) {
+            resumeErr = e;
+            log(`[agy-acp] session/resume 失败，尝试 session/load: ${e.message}`);
+          }
+        }
+        if (!sessRes && requestedSessionId && canLoad) {
+          try {
+            sessRes = await client.request("session/load", {
+              sessionId: requestedSessionId,
+              cwd,
+              mcpServers,
+              ...extraDirParam,
+            }, 90000);
+            usedLoad = true;
+          } catch (e) {
+            loadErr = e;
+            log(`[agy-acp] session/load 失败（保留原会话号不静默新建）: ${e.message}`);
+          }
+        }
+        if (!sessRes && requestedSessionId && (canResume || canLoad)) {
+          const why = loadErr?.message || resumeErr?.message || "恢复会话失败";
+          throw new Error(tz("无法恢复原会话（{why}），已保留当前会话未新建，请重试或手动开启新对话", { why }));
+        }
+        if (!sessRes) {
+          sessRes = await client.request("session/new", {
+            cwd,
+            mcpServers,
+            ...extraDirParam,
+          }, 30000);
+          if (!sessRes?.sessionId) throw new Error(tz("新建会话失败：Agent 没有返回会话号，请重试"));
+          activeSessionId = sessRes.sessionId;
+        }
+        if (requestedSessionId && activeSessionId && activeSessionId !== requestedSessionId) {
+          sessionSwitched = true;
+          emit({ type: "note", key: "acp-session-switched", text: tz("旧会话无法恢复（Agent 不支持恢复或恢复失败），已新建会话继续。本轮写进了新会话，旧会话的历史仍保留在本地记录中。") });
+        }
+        sessModels = sessRes?.models || null;
+        sessModes = sessRes?.modes || null;
+        sessConfig = Array.isArray(sessRes?.configOptions) ? sessRes.configOptions : null;
+        const tier = sessRes?._meta?.antigravity?.tier;
+        if (tier?.name) {
+          setLastInit({ tier: String(tier.name) });
+          noteAuthTier(tier);
+        }
+      };
+      if (typeof syncSettings === "function") await withAgySettingsLock(coldInit);
+      else await coldInit();
     }
 
     state.sessionId = activeSessionId;
@@ -2563,12 +2669,15 @@ export async function runAcpTurn({
       }
     }
 
-    // 若有工具在回合结束时还没收到终态 update，补发一次完成结果，避免前端卡片永远卡在「运行中」
+    // 若有工具在回合结束时还没收到终态 update，补发一次完成结果，避免前端卡片永远卡在「运行中」；
+    // 回合因取消结束（stopReason === "cancelled" 或 run.aborted）时标 cancelled 而非红框失败（C-06）。
+    const turnCancelled = stopReason === "cancelled" || stopReason === "canceled" || !!run?.aborted;
     for (const tool of state.tools.values()) {
       if (!tool.done) {
         const st = String(tool.status || "").toLowerCase();
-        tool.cancelled = st === "cancelled" || st === "canceled";
-        tool.isError = st === "failed" || st === "error";
+        tool.cancelled = turnCancelled || st === "cancelled" || st === "canceled";
+        tool.isError = !tool.cancelled && (st === "failed" || st === "error");
+        if (tool.cancelled && !tool.output) tool.output = "（已中断）";
         emitToolResult(tool, emit, state);
       }
     }
@@ -2645,8 +2754,10 @@ export async function runAcpTurn({
     };
   } catch (err) {
     const msg = String(err?.message || err);
-    const detail = client.stderr ? `\n${client.stderr.slice(-800)}` : "";
-    if (activeSessionId && state.promptSent && !client.closed && !run?.aborted) {
+    const detail = client?.stderr ? `\n${client.stderr.slice(-800)}` : "";
+    const timedOut = !!(run?.timedOut || err?.code === "ETIMEDOUT" || (timeoutMs > 0 && /timeout|timed out/i.test(msg)));
+    if (timedOut && run) run.timedOut = true;
+    if (activeSessionId && state.promptSent && client && !client.closed && !run?.aborted) {
       try { client.notify("session/cancel", { sessionId: activeSessionId }); } catch {}
     }
     // 回合中途失败/被取消：提问、已完成工具、思考与已流出的正文都要落盘，别让整轮凭空消失（B5）。
@@ -2697,6 +2808,7 @@ export async function runAcpTurn({
     return {
       ok: false,
       failed: !run?.aborted,
+      timedOut,
       sessionId: activeSessionId,
       sessionSwitched,
       toolCount: state.tools.size,

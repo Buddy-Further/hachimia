@@ -366,20 +366,26 @@ function logCopy(ev) {
 // 有副作用的工具（改文件、跑命令；只读的 Read/Grep/WebFetch 不算）：中断时结果没回来，
 // 它到底执行了没有谁也不知道，得在「继续」卡上说清楚（FIND-039/049）。
 // MCP 工具副作用不可知，不列；漏报一个只是回到清单之外的旧行为，误报会吓人，所以只收确定的这几类
-const SIDE_TOOLS = new Set(["Bash", "PowerShell", "Write", "Edit", "MultiEdit", "NotebookEdit", "run_command", "run_shell", "write_file", "edit_file"]);
+const SIDE_TOOLS = new Set(["Bash", "PowerShell", "Write", "Edit", "MultiEdit", "NotebookEdit", "run_command", "run_shell", "write_file", "edit_file", "replace_file_content", "multi_replace_file_content"]);
+const SIDE_KINDS = new Set(["execute", "edit", "write"]);
+const SIDE_DISPLAY_RE = /^(?:run command|run shell|write file|edit file|delete file|replace file)/i;
+const isSideToolEvent = (ev) => SIDE_TOOLS.has(ev.name)
+  || (ev.rawName && SIDE_TOOLS.has(ev.rawName))
+  || SIDE_KINDS.has(String(ev.kind || "").toLowerCase())
+  || SIDE_DISPLAY_RE.test(String(ev.name || "").trim());
 /** 卡片上那一行：工具名 + 最能认出来的一句话（命令 / 文件路径） */
 function sideLabel(name, input) {
   const i = input && typeof input === "object" ? input : {};
   const v = (typeof i.toolSummary === "string" && i.toolSummary.trim())
     || (typeof i.description === "string" && i.description.trim())
-    || i.CommandLine || i.command || i.Path || i.file_path || i.notebook_path || "";
+    || i.CommandLine || i.command || i.Path || i.TargetFile || i.file_path || i.notebook_path || "";
   const s = typeof v === "string" ? v.replace(/\s+/g, " ").trim() : "";
   return name + (s ? " " + (s.length > 80 ? s.slice(0, 80) + "…" : s) : "");
 }
 /** 台账变化返回 true（发起 / 销账），调用方据此决定要不要马上重写运行标记 */
 function noteSide(run, ev) {
   if (!ev || typeof ev !== "object") return false;
-  if (ev.type === "tool_use" && ev.id && SIDE_TOOLS.has(ev.name)) {
+  if (ev.type === "tool_use" && ev.id && isSideToolEvent(ev)) {
     const m = (run.sideTools ||= new Map());
     m.delete(ev.id); m.set(ev.id, sideLabel(ev.name, ev.input));
     if (m.size > 50) m.delete(m.keys().next().value);   // 一轮里挂起几百个没结果的也算极端情况，留最近的

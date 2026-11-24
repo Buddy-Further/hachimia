@@ -114,11 +114,14 @@ export async function reconcileNow() {
   const add = (key, level, k, v, fix, samples, act) => F.push({ key, level, k, v: v || null, fix: fix || "", ...(samples && samples.length ? { samples: samples.slice(0, 8) } : {}), act: act && actOk(act) ? act : null });
   const dk = devkitIdentity();
   if (!dk) add("devkit", "error", tz("找不到工具包的安装标记（.devkit-ok），工具包可能没装完"), null, tz("设置 → 更新：修复工具包"), null, DEVKIT);
-  // 用户主动卸载 Claude Code 会留 files/.claude-uninstalled：这是正常状态，别再报红教人重装（0.6.9 审计 195-M.7）
+  // 用户主动卸载会留 files/.claude-uninstalled：这是正常状态，别再报红教人重装（0.6.9 审计 195-M.7）
   const claudeUninstalled = PREFIX && exists(path.join(path.dirname(PREFIX), ".claude-uninstalled"));
-  // 纯 agy 模式下没有 Claude Code 程序也不需要它：PATHS.claude 指的文件不存在是正常状态，
-  // 不是缺文件（A7 的连带；以前这里无条件报 error，纯 agy 设备上会误报红）。
-  if (!isAgyOnlyMode() && PATHS.claude && !fs.existsSync(PATHS.claude) && !claudeUninstalled) add("claude", "error", tz("找不到 Antigravity CLI (agy) 程序"), null, tz("设置 → 更新：重装 Antigravity CLI (agy)"), [PATHS.claude], CLAUDE);
+  // C-06：hachimia 主模式检查 PATHS.agy（此前 !isAgyOnlyMode() 导致纯 agy 设备丢失 agy 二进制时永远报绿）
+  if (PATHS.agy && !fs.existsSync(PATHS.agy) && !claudeUninstalled) {
+    add("agy", "error", tz("找不到 Antigravity CLI (agy) 程序"), null, tz("设置 → 更新：重装 Antigravity CLI (agy)"), [PATHS.agy], CLAUDE);
+  } else if (!isAgyOnlyMode() && PATHS.claude && !fs.existsSync(PATHS.claude) && !claudeUninstalled) {
+    add("claude", "error", tz("找不到 Antigravity CLI (agy) 程序"), null, tz("设置 → 更新：重装 Antigravity CLI (agy)"), [PATHS.claude], CLAUDE);
+  }
 
   // ── 组件 ──
   let recs = [];

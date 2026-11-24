@@ -26,13 +26,17 @@ final class FactoryReset {
 
     /** home 下整个挪走的（文件或目录）。shell 启动文件同 guard/cc-guard.mjs 认的那一组 */
     private static final String[] MOVE = {
-        "ccapp-settings.json", "ccapp-userconf.json", ".ccapp-userconf", ".cccodroid",
+        "ccapp-settings.json", "ccapp-userconf.json", ".ccapp-userconf", ".cccodroid", ".hachimia",
+        ".gemini/antigravity-cli/settings.json",
         ".claude/CLAUDE.md", ".claude/CLAUDE.local.md", ".claude/rules", ".claude/skills", ".claude/plugins", ".claude/commands",
         ".claude/agents", ".claude/output-styles", ".claude/settings.json", ".claude/settings.local.json", ".claude/keybindings.json",
         ".bashrc", ".bash_profile", ".bash_login", ".profile", ".zshrc", ".zprofile", ".zshenv", ".inputrc",
     };
-    /** 勾了「厂商配置和密钥」才挪的 */
-    private static final String[] KEYS = { "ccapp-providers.json", ".claude/.credentials.json", ".gemini/antigravity-cli/settings.json" };
+    /** 勾了「厂商配置和密钥」才挪的（保留 .gemini/antigravity-cli/brain 会话产物，按凭据目录/特征挪走登录态，C-07） */
+    private static final String[] KEYS = {
+        "ccapp-providers.json", ".claude/.credentials.json",
+        ".config/antigravity", ".antigravity", ".cache/hachimia-auth.json",
+    };
     /** 删掉就好、不用留底的开关文件 */
     private static final String[] DROP = { ".ccapp-safe-mode" };
     /** .claude.json 里这些键是配置（MCP、项目级的工具许可）：留底整份，原地只去掉它们，登录状态等别的键不动 */
@@ -52,7 +56,11 @@ final class FactoryReset {
             if (!bak.mkdirs() && !bak.isDirectory()) throw new java.io.IOException(Tr.t("建不了留底目录：") + bak);
             try { Os.chmod(bak.getParent(), 0700); Os.chmod(bak.getPath(), 0700); } catch (Exception ignored) {}
             java.util.List<String> list = new java.util.ArrayList<>(java.util.Arrays.asList(MOVE));
-            if (keys) list.addAll(java.util.Arrays.asList(KEYS));
+            if (keys) {
+                list.addAll(java.util.Arrays.asList(KEYS));
+                // 扫描 .gemini/antigravity-cli 下凭据文件（跳过 brain 会话产物与 settings.json）
+                collectAgyCreds(new File(env.home, ".gemini/antigravity-cli"), ".gemini/antigravity-cli", list, 0);
+            }
             // 自动记忆：~/.claude/projects/<项目>/memory（会话记录 .jsonl 在同一层，不动）
             File[] projs = new File(env.home, ".claude/projects").listFiles();
             for (File p : projs == null ? new File[0] : projs) if (new File(p, "memory").exists() || isLink(new File(p, "memory"))) list.add(".claude/projects/" + p.getName() + "/memory");
@@ -97,6 +105,24 @@ final class FactoryReset {
 
     private static boolean isLink(File f) {
         try { return android.system.OsConstants.S_ISLNK(Os.lstat(f.getPath()).st_mode); } catch (Exception e) { return false; }
+    }
+
+    /** 递归收集 .gemini/antigravity-cli 下的 OAuth/登录凭据文件（跳过 brain 会话目录与软链，对齐 agy-creds.mjs，C-07） */
+    private static void collectAgyCreds(File dir, String relBase, java.util.List<String> out, int depth) {
+        if (depth > 6 || dir == null || !dir.isDirectory() || isLink(dir)) return;
+        File[] ents = dir.listFiles();
+        if (ents == null) return;
+        for (File f : ents) {
+            String name = f.getName();
+            if ("brain".equals(name) || "settings.json".equals(name)) continue;
+            String rel = relBase + "/" + name;
+            if (isLink(f)) continue;
+            if (f.isDirectory()) {
+                collectAgyCreds(f, rel, out, depth + 1);
+            } else if (f.isFile() && name.toLowerCase(java.util.Locale.ROOT).matches(".*(cred|token|auth|oauth|session|profile).*")) {
+                out.add(rel);
+            }
+        }
     }
 
     /** .claude.json 整份留底，原地去掉 MCP 和项目级许可。没有这些键就不动、返回 false。软链不碰（挪走链接本身留底） */
