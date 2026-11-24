@@ -614,6 +614,19 @@ export function enqueue(body, commitHandoff) {
     const dup = QUEUE.find((q) => !q.held && sidForItem(q) === item.sessionId && q.auto === "bg");
     if (dup) return dup;
   }
+  // 用户新发普通消息时，撤掉同会话队列里尚未开跑的后台补唤醒项（C16）：
+  // 新一轮会复用同一常驻 agy 进程，agy 会自动消费后台任务完成通知，省掉多余排队与消耗额度
+  if (!body.auto && !item.sched && item.sessionId) {
+    let dropped = false;
+    for (let i = QUEUE.length - 1; i >= 0; i--) {
+      const q = QUEUE[i];
+      if (!q.held && sidForItem(q) === item.sessionId && q.auto === "bg") {
+        QUEUE.splice(i, 1);
+        dropped = true;
+      }
+    }
+    if (dropped) publishState();
+  }
   // 插话（"inject"，旧前端叫 "interrupt"）：不打断。消息直接写进正在跑的 claude 的 stdin，
   // claude 会在当前这一步（比如一次工具调用）结束后把它并进对话，同一轮里接着干 —— 和终端里边干边打字一样。
   // 塞不进去（这一轮已在收尾、或者不是同一个会话）就排到队首，这一轮一结束马上发。

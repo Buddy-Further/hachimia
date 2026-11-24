@@ -31,44 +31,87 @@ const ACP_IDLE_TTL_MS = Number(process.env.CCAPP_ACP_IDLE_MS) > 0 ? Number(proce
 const ACP_BG_IDLE_TTL_MS = Number(process.env.CCAPP_ACP_BG_IDLE_MS) > 0 ? Number(process.env.CCAPP_ACP_BG_IDLE_MS) : 2 * 3600e3;
 /** 判定常驻 agy acp 进程仍在干活的日志活跃窗口（2 分钟内有 acp-server-*-<pid>.log 写入即视为活跃） */
 const ACP_ACTIVE_LOG_WINDOW_MS = 2 * 60e3;
-/** 空闲池探测非常驻后台 shell 任务结束的轮询周期与宽限窗（默认每 1s 探测，确认结束后静默 4.5s 补唤醒一次） */
+/** 空闲池探测非常驻后台 shell 任务结束的轮询周期与宽限窗（默认每 1s 探测，确认结束后静默 15s 补唤醒一次） */
 export const ACP_BG_POLL_MS = Number(process.env.CCAPP_ACP_BG_POLL_MS) > 0 ? Number(process.env.CCAPP_ACP_BG_POLL_MS) : 1000;
-export const ACP_BG_GRACE_MS = Number(process.env.CCAPP_ACP_BG_GRACE_MS) > 0 ? Number(process.env.CCAPP_ACP_BG_GRACE_MS) : 4500;
+export const ACP_BG_GRACE_MS = Number(process.env.CCAPP_ACP_BG_GRACE_MS) > 0 ? Number(process.env.CCAPP_ACP_BG_GRACE_MS) : 15000;
 const ACP_BG_TASKLOG_SETTLE_MS = 1500;
-const MY_UID = typeof process.getuid === "function" ? process.getuid() : -1;
 
-/** 列出常驻 agy acp 进程当前存活（非僵尸）的直接子进程：{ pid, startTicks, key }；
- *  仅读 /proc/<pid>/stat（不受 PR_SET_DUMPABLE=0 影响），/proc 不可读时返回 null（保守不误判结束）。 */
+/** 从 /proc/<parentPid>/task/<tid>/children 收集所有线程的直接子 PID；目录或 children 文件不存在时返回 null */
+function readTaskChildrenPids(procDir, parentPid) {
+  const taskDir = path.join(procDir, String(parentPid), "task");
+  let tids;
+  try { tids = fs.readdirSync(taskDir); } catch { return null; }
+  const pids = new Set();
+  let foundAny = false;
+  for (const tid of tids) {
+    if (!/^\d+$/.test(tid)) continue;
+    try {
+      const txt = fs.readFileSync(path.join(taskDir, tid, "children"), "utf8");
+      foundAny = true;
+      for (const tok of txt.trim().split(/\s+/)) {
+        if (/^\d+$/.test(tok)) {
+          const n = Number(tok);
+          if (Number.isInteger(n) && n > 0) pids.add(n);
+        }
+      }
+    } catch {}
+  }
+  return foundAny ? pids : null;
+}
+
+/** 列出常驻 agy acp 进程当前存活（非僵尸）的直接子进程：{ pid, startTicks, key, hidden? }；
+ *  1) 优先读 /proc/<parentPid>/task/<tid>/children：Android hidepid=2 下不可 dump 子进程仍会出现在父进程的 children 列表中，
+ *     若 /proc/<pid>/stat 不可读但重查 children 仍在，按 hidden 存活子进程保守保留，避免误判已退出；
+ *  2) 不存在 task/<tid>/children 时回退扫描 /proc/<pid>/stat（不按 uid 过滤，防止 0711 / PR_SET_DUMPABLE=0 的 root 属主子进程被漏扫）；
+ *  3) /proc 不可读时返回 null（保守不误判结束）。 */
 export function listAcpChildren(parentPid, procDir = "/proc") {
   if (!Number.isInteger(parentPid) || parentPid <= 0) return null;
+  const parseStat = (pid) => {
+    const s = fs.readFileSync(path.join(procDir, String(pid), "stat"), "utf8");
+    const r = s.lastIndexOf(")");
+    if (r < 0) return null;
+    const f = s.slice(r + 2).split(" ");
+    const st = f[0];
+    const ppid = Number(f[1]);
+    if (ppid !== parentPid || st === "Z" || st === "X") return null;
+    const startTicks = String(f[19] || "0");
+    return { pid, startTicks, key: `${pid}:${startTicks}` };
+  };
+  const childPids = readTaskChildrenPids(procDir, parentPid);
+  if (childPids !== null) {
+    const kids = [];
+    let recheckedPids = null;
+    for (const pid of childPids) {
+      try {
+        const info = parseStat(pid);
+        if (info) kids.push(info);
+      } catch {
+        // 可能是刚退出竞态，也可能是 Android hidepid=2 下不可 dump 的存活子进程：重读一次 task/*/children 确认
+        if (recheckedPids === null) recheckedPids = readTaskChildrenPids(procDir, parentPid) || new Set();
+        if (recheckedPids.has(pid)) {
+          kids.push({ pid, startTicks: "hidden", key: `${pid}:hidden`, hidden: true });
+        }
+      }
+    }
+    return kids;
+  }
   let entries;
   try { entries = fs.readdirSync(procDir); } catch { return null; }
-  const checkUid = procDir === "/proc" && MY_UID >= 0;
   const kids = [];
   for (const d of entries) {
     if (!/^\d+$/.test(d)) continue;
     try {
-      const pdir = path.join(procDir, d);
-      if (checkUid && fs.statSync(pdir).uid !== MY_UID) continue;
-      const s = fs.readFileSync(path.join(pdir, "stat"), "utf8");
-      const r = s.lastIndexOf(")");
-      if (r < 0) continue;
-      const f = s.slice(r + 2).split(" ");
-      const st = f[0];
-      const ppid = Number(f[1]);
-      if (ppid !== parentPid || st === "Z" || st === "X") continue;
-      const pid = Number(d);
-      const startTicks = String(f[19] || "0");
-      kids.push({ pid, startTicks, key: `${pid}:${startTicks}` });
+      const info = parseStat(Number(d));
+      if (info) kids.push(info);
     } catch {}
   }
   return kids;
 }
 
 /** 探测 agy acp 非常驻后台 shell 任务是否仍在运行：
- *  1) 实测 agy 1.5.13 将每条 run_command 以直接子进程（ppid === agyPid，挂 PTY /dev/ptmx）运行；
- *     只要存在非 daemon 的存活子进程即视为仍在执行，绝不误触发；
- *  2) 全部非 daemon 子进程退出后，再核对对应 task-<N>.log 是否仍在 1.5s 内刷盘，确认落稳后才进入宽限窗。 */
+ *  1) 存在无归属 shell（childKey === null）时严格 fail-closed 返回 active；
+ *  2) 只要有任一任务归属的子进程仍在存活集合，或存在非 daemon 的存活子进程，即视为仍在执行，绝不误触发；
+ *  3) 全部非 daemon 子进程退出后，再核对对应 task-<N>.log 是否仍在 1.5s 内刷盘，确认落稳后才进入宽限窗。 */
 export function acpBgShellActive(parentPid, {
   daemonChildKeys = null,
   sessionId = "",
@@ -79,8 +122,15 @@ export function acpBgShellActive(parentPid, {
   logSettleMs = ACP_BG_TASKLOG_SETTLE_MS,
 } = {}) {
   if (!Number.isInteger(parentPid) || parentPid <= 0) return { active: true, reason: "no-pid" };
+  if (Array.isArray(tasks) && tasks.some((t) => t && t.childKey === null)) {
+    return { active: true, reason: "unattributed" };
+  }
   const kids = listAcpChildren(parentPid, procDir);
   if (kids === null) return { active: true, reason: "no-proc" };
+  const liveKeys = new Set(kids.map((c) => c.key));
+  if (Array.isArray(tasks) && tasks.some((t) => typeof t?.childKey === "string" && t.childKey.length > 0 && liveKeys.has(t.childKey))) {
+    return { active: true, reason: "task-child", children: kids.filter((c) => tasks.some((t) => t?.childKey === c.key)) };
+  }
   const nonDaemon = daemonChildKeys?.size ? kids.filter((c) => !daemonChildKeys.has(c.key)) : kids;
   if (nonDaemon.length > 0) return { active: true, reason: "child", children: nonDaemon };
   if (sessionId && brainDir && logSettleMs > 0 && Array.isArray(tasks) && tasks.length) {
@@ -268,7 +318,7 @@ export function closeAcpSession(sessionId) {
   if (!entry) return;
   clearAllBgExpiryTimers(`pool:${sessionId}`);
   try { entry.clearBgWatch?.(); } catch {}
-  try { entry.flushIdle?.(); } catch {}
+  try { entry.flushIdle?.(true); } catch {}
   ACP_POOL.delete(sessionId);
   if (entry.idleTimer) clearTimeout(entry.idleTimer);
   try { entry.client.close(); } catch {}
@@ -318,7 +368,9 @@ export function stopAcpBgTask(sessionId, taskId) {
     entry.bgTasks?.clear();
   }
   entry.dropActiveBg?.(taskId);
-  const hasWatchableShell = [...(entry.bgTasks?.values() || [])].some((t) => t.type === "shell" && !entry.nudgedBgTasks.has(t.id));
+  const hasWatchableShell = [...(entry.bgTasks?.values() || [])].some(
+    (t) => t && t.type === "shell" && typeof t.childKey === "string" && t.childKey.length > 0 && !entry.nudgedBgTasks.has(t.id)
+  );
   if (!hasWatchableShell) {
     try { entry.clearBgWatch?.(); } catch {}
   }
@@ -1485,15 +1537,24 @@ export async function runAcpTurn({
   const turnScope = `turn:${run?.id || crypto.randomBytes(4).toString("hex")}`;
   const bgTasks = new Map();
   let clientRef = null;
+  let knownChildKeys = new Set();
   let daemonChildKeys = new Set();
-  const noteDaemonChild = () => {
+  // 按增量快照归属后台任务对应的直接子进程（P1-2 / P1-3）：
+  // 仅当自上次快照以来恰好新增 1 个子进程时建立唯一归属；新增 0 个（二次 fork 秒退 / 不可见）或 >1 个（并行歧义）一律 fail-closed（childKey = null），
+  // 绝不猜测并污染 daemonChildKeys，避免误豁免正在跑的 shell 或误摘后台任务。
+  const attributeBgTaskChild = (item) => {
+    if (!item || (item.type !== "shell" && item.type !== "daemon")) return;
     const pid = clientRef?.child?.pid;
     const kids = listAcpChildren(pid);
-    if (!kids?.length) return;
-    const fresh = kids.filter((c) => !daemonChildKeys.has(c.key));
-    if (!fresh.length) return;
-    fresh.sort((a, b) => (Number(b.startTicks) - Number(a.startTicks)) || (b.pid - a.pid));
-    daemonChildKeys.add(fresh[0].key);
+    if (!kids) { item.childKey = null; return; }
+    const fresh = kids.filter((c) => !knownChildKeys.has(c.key));
+    for (const c of kids) knownChildKeys.add(c.key);
+    if (fresh.length === 1) {
+      item.childKey = fresh[0].key;
+      if (item.type === "daemon") daemonChildKeys.add(fresh[0].key);
+    } else {
+      item.childKey = null;
+    }
   };
   const syncBg = () => {
     pruneExpiredBgTasks(turnScope, bgTasks);
@@ -1523,8 +1584,13 @@ export async function runAcpTurn({
         desc: String(t.desc || t.id),
         ...(t.oneShot ? { oneShot: true, expiresAt: Number(t.expiresAt) || 0, timerCondition: String(t.timerCondition || "never") } : {}),
       };
+      const prev = bgTasks.get(item.id);
+      if (prev && prev.type === item.type && prev.childKey !== undefined) {
+        item.childKey = prev.childKey;
+      } else if (item.type === "shell" || item.type === "daemon") {
+        attributeBgTaskChild(item);
+      }
       bgTasks.set(item.id, item);
-      if (item.type === "daemon") noteDaemonChild();
       armBgExpiryTimer(turnScope, bgTasks, item, syncBg);
       syncBg();
     },
@@ -1628,13 +1694,14 @@ export async function runAcpTurn({
   if (keepAlive && activeSessionId) {
     const hit = ACP_POOL.get(activeSessionId);
     if (hit && !hit.busy && !hit.client.closed && hit.key === pKey) {
-      // 复用前先停掉空闲期后台命令补唤醒监听器并冲刷已收到的后台唤醒回报，确保顺序不交叉
+      // 复用前先停掉空闲期后台命令补唤醒监听器并冲刷已收到的后台唤醒回报（不重挂监听器），确保顺序不交叉
       try { hit.clearBgWatch?.(); } catch {}
-      try { hit.flushIdle?.(); } catch {}
+      try { hit.flushIdle?.(true); } catch {}
       poolEntry = hit;
       reused = true;
       if (poolEntry.idleTimer) { clearTimeout(poolEntry.idleTimer); poolEntry.idleTimer = null; }
       poolEntry.busy = true;
+      if (poolEntry.knownChildKeys?.size) knownChildKeys = new Set(poolEntry.knownChildKeys);
       if (poolEntry.daemonChildKeys?.size) daemonChildKeys = new Set(poolEntry.daemonChildKeys);
       if (poolEntry.knownToolIds) for (const tid of poolEntry.knownToolIds) state.knownToolIds.add(tid);
       if (poolEntry.bgTasks) {
@@ -2004,6 +2071,17 @@ export async function runAcpTurn({
           maxTotalMs: ACP_MAX_PROMPT_TIMEOUT_MS,
           shouldExtend: () => pendingPermCount > 0 || run?.perms?.size > 0,
         };
+    // 新建常驻 agy 进程在发首轮 session/prompt 前拍一次基线快照：
+    // 将此时已存在的内部/stdio MCP 直接子进程全部记入 knownChildKeys 与 daemonChildKeys，避免后续误归属给后台 shell 任务
+    if (!reused) {
+      const baseKids = listAcpChildren(client.child?.pid);
+      if (baseKids) {
+        for (const c of baseKids) {
+          knownChildKeys.add(c.key);
+          daemonChildKeys.add(c.key);
+        }
+      }
+    }
     const promptRes = await client.request("session/prompt", {
       sessionId: activeSessionId,
       prompt: contentBlocks,
@@ -2270,9 +2348,11 @@ export async function runAcpTurn({
         const liveKids = listAcpChildren(entry.client.child?.pid);
         if (liveKids) {
           const liveKeys = new Set(liveKids.map((c) => c.key));
+          for (const k of [...knownChildKeys]) if (!liveKeys.has(k)) knownChildKeys.delete(k);
           for (const k of [...daemonChildKeys]) if (!liveKeys.has(k)) daemonChildKeys.delete(k);
         }
       }
+      entry.knownChildKeys = knownChildKeys;
       entry.daemonChildKeys = daemonChildKeys;
       entry.idleRun = null;
       entry.busy = false;
@@ -2280,8 +2360,8 @@ export async function runAcpTurn({
 
       // 空闲期间非常驻后台 shell 任务（type==="shell"）的补唤醒监听：
       // 仅针对 agy acp 1.5.13 偶尔丢失 run_command 后台任务完成唤醒的缺陷；
-      // 严格排除 daemon / monitor / agent / workflow，内核确认子进程退出后再经宽限窗静默校验，
-      // 同一 taskId 至多补唤醒一次，且在 idleBurst / 复用 / 关闭 / 手动停止时立即让路清理。
+      // 严格排除 daemon / monitor / agent / workflow 及无归属 shell（childKey === null，fail-closed），
+      // 内核确认子进程退出后再经宽限窗静默校验，同一 taskId 至多补唤醒一次，且在 idleBurst / 复用 / 关闭 / 手动停止时立即让路清理。
       let bgWatchTimer = null;
       let shellGoneSince = 0;
       const clearBgWatch = () => {
@@ -2290,7 +2370,7 @@ export async function runAcpTurn({
       };
       entry.clearBgWatch = clearBgWatch;
       const pendingWatchShells = () => [...(entry.bgTasks?.values() || [])].filter(
-        (t) => t && t.type === "shell" && !entry.nudgedBgTasks.has(t.id)
+        (t) => t && t.type === "shell" && typeof t.childKey === "string" && t.childKey.length > 0 && !entry.nudgedBgTasks.has(t.id)
       );
       const armBgShellWatch = () => {
         if (run?.aborted || run?.userStopped || typeof onBgWake !== "function") return;
@@ -2340,7 +2420,7 @@ export async function runAcpTurn({
       const IDLE_TOOL_MAX_WAIT_MS = 60000;
       let idleBurst = null;
       let idleFlushTimer = null;
-      const flushIdle = () => {
+      const flushIdle = (noRearm = false) => {
         if (idleFlushTimer) { clearTimeout(idleFlushTimer); idleFlushTimer = null; }
         const b = idleBurst;
         if (!b) return;
@@ -2431,7 +2511,7 @@ export async function runAcpTurn({
           ...(b.state.usage ? { usage: b.state.usage } : {}),
         });
         log(`[agy-acp idle] 后台唤醒回报已推送并落盘（${activeSessionId.slice(0, 8)}，${b.state.text.length} 字）`);
-        if (ACP_POOL.get(activeSessionId) === entry && !entry.busy && !entry.client.closed) {
+        if (!noRearm && ACP_POOL.get(activeSessionId) === entry && !entry.busy && !entry.client.closed) {
           armBgShellWatch();
         }
       };
@@ -2463,7 +2543,7 @@ export async function runAcpTurn({
 
       client.setHandlers({
         onStderr: (s) => { const line = s.trim(); if (line && !isBenignStderr(line)) log(`[agy-acp! idle] ${line.slice(0, 200)}`); },
-        onClose: () => { try { clearBgWatch(); } catch {} try { flushIdle(); } catch {} },
+        onClose: () => { try { clearBgWatch(); } catch {} try { flushIdle(true); } catch {} },
         onNotification: (method, params) => {
           if (method !== "session/update") return;
           if (params?.sessionId && activeSessionId && String(params.sessionId) !== String(activeSessionId)) return;
@@ -2502,6 +2582,34 @@ export async function runAcpTurn({
           shellGoneSince = 0;
           entry.lastUsed = Date.now();
           if (!idleBurst) {
+            // C13b：agy 自主推来 idleBurst 时，若待监视的后台 shell 子进程已退出，
+            // 立即记入 nudgedBgTasks，防止多任务场景下回报正文未点名 task-N 导致 flushIdle 后再重复补唤醒
+            const watchShells = pendingWatchShells();
+            if (watchShells.length) {
+              let probe = null;
+              try {
+                probe = probeBgShell(entry.client.child?.pid, {
+                  daemonChildKeys: entry.daemonChildKeys,
+                  sessionId: activeSessionId,
+                  tasks: watchShells,
+                  logSettleMs: 0,
+                });
+              } catch {
+                probe = { active: true, reason: "probe-err" };
+              }
+              if (probe && !probe.active) {
+                for (const t of watchShells) entry.nudgedBgTasks.add(t.id);
+              } else {
+                const liveNow = listAcpChildren(entry.client.child?.pid);
+                if (liveNow) {
+                  const liveKeys = new Set(liveNow.map((c) => c.key));
+                  for (const t of watchShells) {
+                    if (t.childKey && !liveKeys.has(t.childKey)) entry.nudgedBgTasks.add(t.id);
+                  }
+                }
+              }
+              while (entry.nudgedBgTasks.size > 500) entry.nudgedBgTasks.delete(entry.nudgedBgTasks.values().next().value);
+            }
             const runId = "acp-bg-" + crypto.randomBytes(4).toString("hex");
             const startedAt = Date.now();
             const bgEmit = (ev) => publish({ ...ev, runId, sessionId: activeSessionId });
@@ -2526,6 +2634,12 @@ export async function runAcpTurn({
                   desc: String(t.desc || t.id),
                   ...(t.oneShot ? { oneShot: true, expiresAt: Number(t.expiresAt) || 0, timerCondition: String(t.timerCondition || "never") } : {}),
                 };
+                const prev = entry.bgTasks.get(item.id);
+                if (prev && prev.type === item.type && prev.childKey !== undefined) {
+                  item.childKey = prev.childKey;
+                } else if (item.type === "shell" || item.type === "daemon") {
+                  attributeBgTaskChild(item);
+                }
                 entry.bgTasks.set(item.id, item);
                 armBgExpiryTimer(poolScope, entry.bgTasks, item, emitPoolBg);
                 emitPoolBg();

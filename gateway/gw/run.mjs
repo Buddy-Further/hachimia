@@ -559,7 +559,9 @@ export async function startRun(item) {
       },
       timeoutMs: item.timeoutMs || 0,
       askPermission: async ({ tool, toolCallId, input, hasAlways }) => {
-        if (run.unattended || (run.auto && run.auto !== "bg")) return { behavior: "deny" };
+        if (run.unattended || run.auto) {
+          return run.auto === "bg" && permMode === "bypassPermissions" ? { behavior: "allow" } : { behavior: "deny" };
+        }
         // 标准工具权限确认卡片（不挂 guard，免得误判成「碰到了密钥或登录凭据」）
         return new Promise((resolve) => {
           const id = "acp-perm-" + crypto.randomBytes(6).toString("hex");
