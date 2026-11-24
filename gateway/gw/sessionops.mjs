@@ -20,9 +20,10 @@ import { forEachLine, lineWriter, writeAll, zipEntries, zipExtract, zipToFile } 
 import { archiveDb, archiveForget, archiveImport, saveArchive } from "./archive-store.mjs";
 import { isObj, loadState, saveState, stateUnread } from "./statefile.mjs";
 import { noteManaged } from "./sessmanaged.mjs";
-import { closeAcpSession } from "./acp.mjs";
+import { closeAcpSession, hasAcpIdleBurst } from "./acp.mjs";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const sessionBusy = (id) => Boolean(runOfSession(id) || hasAcpIdleBurst(id));
 
 // ── 会话管理：回收站 / 导出 / 导入 ─────────────────────────────────────
 // 回收站放在 claude 的 projects 目录之外（它看不见，--resume 也就找不回来），同一文件系统，挪进挪出都是 rename。
@@ -105,7 +106,7 @@ export function forkSession(id, userText, after, { before = false, uuid = "", la
   const { found, count, users } = loc;
   const best = before ? loc.best - 1 : loc.best;      // 回退：只留这条之前的
   const cut = best + 1 < users.length ? users[best + 1].i : count;
-  if (cut === count && runOfSession(id)) return { ok: false, status: 409, message: tz("这一轮还在生成，等它答完再分叉。") };
+  if (cut === count && sessionBusy(id)) return { ok: false, status: 409, message: tz("这一轮还在生成，等它答完再分叉。") };
   const nid = crypto.randomUUID();
   const dir = path.dirname(found.file);
   const dirty = checkSession(id, found.file);          // 原会话不干净（导入的、在别处改过的），分出来的也带着标记
@@ -198,7 +199,7 @@ function pruneEdits(sid) {
 }
 const CHAIN_TYPES = new Set(["user", "assistant", "system", "progress", "attachment"]);
 export function deleteMessage(id, userText, after, which, uuid = "", replyUuid = "", offs = []) {
-  if (runOfSession(id)) return { ok: false, status: 409, message: tz("这个会话正在生成中，等它答完再删。") };
+  if (sessionBusy(id)) return { ok: false, status: 409, message: tz("这个会话正在生成中，等它答完再删。") };
   const loc = locateUserTurn(id, userText, after, uuid);
   if (!loc.ok) return loc;
   const { found, count, users, best } = loc;
@@ -281,7 +282,7 @@ export function deleteMessage(id, userText, after, which, uuid = "", replyUuid =
 export function undoDelete(id, backup) {
   const u = UNDO.get(id);
   if (!u || u.backup !== backup) return { ok: false, status: 409, message: tz("只能撤销最近一次删除。") };
-  if (runOfSession(id)) return { ok: false, status: 409, message: tz("这个会话正在生成中。") };
+  if (sessionBusy(id)) return { ok: false, status: 409, message: tz("这个会话正在生成中。") };
   const found = findSessionFile(id), src = path.join(EDITS_DIR, backup);
   if (!found || !fs.existsSync(src)) return { ok: false, status: 404, message: tz("备份已经不在了。") };
   const st = fs.statSync(found.file);
@@ -631,6 +632,7 @@ function settleTrashMove(slot, meta) {
 export function trashSession(id) {
   if (!validTrashId(id)) return { ok: false, error: "bad id" };
   if (SID_BUSY.has(id)) return { ok: false, error: "busy" };
+  if (hasAcpIdleBurst(id)) return { ok: false, error: "busy", message: tz("这个会话正在生成中。") };
   const slot = slotOf(id);
   if (absent(slot)) {
     const pending = reconcileSlot(id, false);
@@ -830,7 +832,7 @@ function restoreUnlocked(id) {
   const target = validProject(meta.project) ? meta.project : projectSlug(realWorkspace());
   const { dir, file, side } = projectParts(target, id);
   const mf = mainIn(slot, id), sd = sideIn(slot), main = absent(mf), attached = absent(sd);
-  if (runOfSession(id)) return { ok: false, error: "busy" };
+  if (sessionBusy(id)) return { ok: false, error: "busy" };
   if (hasLiveCopy(id)) {
     // 老版先放回主记录留下的附件尾巴：只在原项目、记录身份吻合、附件目标空着时补回。
     if (main || !attached?.isDirectory() || absent(side) || hasLiveCopy(id, target)) return { ok: false, error: "exists" };
@@ -931,7 +933,7 @@ async function purgeUnlocked(id) {
   let meta = reconcileSlot(id, false);
   if (!meta) return false;
   if (!meta.tx) throw new Error(`Cannot purge an incomplete legacy trash slot: ${id}`);
-  if (runOfSession(id)) throw trashError("busy", tz("这个会话正在生成中。"));
+  if (sessionBusy(id)) throw trashError("busy", tz("这个会话正在生成中。"));
   closeAcpSession(id);
   const detached = hasLiveCopy(id);
   if (meta.tx.phase === "notify" && !detached) meta = completeTrash(slot, meta);

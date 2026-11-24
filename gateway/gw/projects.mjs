@@ -22,7 +22,7 @@ import { holdsPrivate, isPrivate } from "./pathguard.mjs";
 import { loadState, saveState } from "./statefile.mjs";
 import { syncGitSafe } from "./gitsafe.mjs";
 import { isAgyOnlyMode, providerById } from "./providers.mjs";
-import { closeAcpSession } from "./acp.mjs";
+import { closeAcpSession, hasAcpIdleBurst } from "./acp.mjs";
 
 const FILE = path.join(CFG.home, "ccapp-projects.json");
 // 项目颜色：和界面强调色同一套饱和度，按顺序分配（用户可改）
@@ -169,8 +169,8 @@ function gitClone(url, dest) {
 export function moveSession(sid, projectId) {
   const found = findSessionFile(sid);
   if (!found) throw new Error(tz("找不到这个会话"));
-  // 正在生成或回退中的会话不能搬：claude 还开着原文件往里追加，搬完删掉原文件，这一轮的记录就没了（审查 H5；删除那边早有这道检查）
-  if (runOfSession(sid) || isSessionRewinding(sid)) throw new Error(tz("这个会话正在生成中。"));
+  // 正在生成、空闲推送（idleBurst）或回退中的会话不能搬：还开着原文件往里追加，搬完删掉原文件，这一轮的记录就没了
+  if (runOfSession(sid) || hasAcpIdleBurst(sid) || isSessionRewinding(sid)) throw new Error(tz("这个会话正在生成中。"));
   const p = projectId ? projectById(projectId) : null;
   if (projectId && !p) throw new Error(tz("项目不存在"));
   const cwd = p ? real(p.path) : real(CFG.workspace);
@@ -326,7 +326,7 @@ export async function routeProjects(req, res, u, p) {
           return sendJson(res, 400, { error: tz("这个目录不能删") });
         const inDir = (s) => s.cwd && (real(s.cwd) === r || real(s.cwd).startsWith(r + "/"));
         // 有会话正在这个目录里跑或回退：先别删（目录删了它还在往里写，对话也收不进回收站）
-        if (listSessions(5000).some((s) => inDir(s) && (runOfSession(s.id) || isSessionRewinding(s.id)))) return sendJson(res, 409, { error: "busy", message: tz("这个项目里有会话正在生成，等它结束再删。") });
+        if (listSessions(5000).some((s) => inDir(s) && (runOfSession(s.id) || hasAcpIdleBurst(s.id) || isSessionRewinding(s.id)))) return sendJson(res, 409, { error: "busy", message: tz("这个项目里有会话正在生成，等它结束再删。") });
         // 删目录前先把对话收进回收站（可恢复）。有一条没收进去就不删目录：以前吞掉错误照删（0.6.9 审计 195 第二批 R2/R5）。
         // 会话不只看最近 5000 条（更早的也在这个目录里）
         const failed = [];

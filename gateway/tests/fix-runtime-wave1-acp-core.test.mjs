@@ -188,16 +188,45 @@ test("C-09：isSubagentTranscriptIdle 尾帧 32KB 确定性对账（DONE+send_me
   }) + "\n");
   assert.equal(isSubagentTranscriptIdle(f2, parentSid, new Set([subConv]), { convId: subConv }), false, "末帧存在未决 tool_calls 不得判闲置");
 
-  // 3) 末帧无 send_message、未进 reportedConvs，刚写入 (<3s) → false，超过 3s → true
+  // 3) 末帧无 send_message、未进 reportedConvs，只读子代理带非空 content：刚写入 (<3s) → false，超过 3s → true
   const f3 = path.join(dir, "quiet-check.jsonl");
   const now = Date.now();
   fs.writeFileSync(f3, JSON.stringify({
     source: "MODEL", type: "PLANNER_RESPONSE", status: "DONE",
+    content: "只读排查结论完成",
     timestamp: new Date(now - 500).toISOString(),
   }) + "\n");
   assert.equal(isSubagentTranscriptIdle(f3, parentSid, null, { now, quietMs: 3000 }), false, "静默不足 3s 且无报告证据时不误判");
-  assert.equal(isSubagentTranscriptIdle(f3, parentSid, null, { now: now + 4000, quietMs: 3000 }), true, "静默超 3s 且无未决 tool_calls 应判闲置");
+  assert.equal(isSubagentTranscriptIdle(f3, parentSid, null, { now: now + 4000, quietMs: 3000 }), true, "只读子代理非空末帧静默超 3s 且无异步挂起应判闲置");
   assert.equal(isSubagentTranscriptIdle(f3, parentSid, new Set([subConv]), { convId: subConv, now, quietMs: 3000 }), true, "命中 reportedConvs 应立即判闲置");
+
+  // 4) W1-F1 漏洞 a：子代理自己发起后台 run_command 或 invoke_subagent/schedule 后结束当轮等待唤醒，即使静默 >3s 也不得误结
+  const fBgCmd = path.join(dir, "bg-cmd-wait.jsonl");
+  fs.writeFileSync(fBgCmd, [
+    JSON.stringify({ source: "USER_EXPLICIT", type: "USER_INPUT", content: "跑后台构建" }),
+    JSON.stringify({ source: "MODEL", type: "PLANNER_RESPONSE", status: "DONE", tool_calls: [{ name: "run_command", args: { CommandLine: "sleep 60" } }] }),
+    JSON.stringify({ source: "TOOL", type: "TOOL_RESPONSE", content: "Tool is running as a background task with task id: sub/task-1" }),
+    JSON.stringify({ source: "MODEL", type: "PLANNER_RESPONSE", status: "DONE", content: "已启动后台构建，等待结果。", timestamp: new Date(now - 10000).toISOString(), tool_calls: [] }),
+  ].join("\n") + "\n");
+  assert.equal(isSubagentTranscriptIdle(fBgCmd, parentSid, null, { now, quietMs: 3000 }), false, "W1-F1：发起后台 run_command 等待唤醒的子代理绝不可因 3s 静默误结");
+
+  const fSubWait = path.join(dir, "sub-spawn-wait.jsonl");
+  fs.writeFileSync(fSubWait, [
+    JSON.stringify({ source: "USER_EXPLICIT", type: "USER_INPUT", content: "派孙代理" }),
+    JSON.stringify({ source: "MODEL", type: "PLANNER_RESPONSE", status: "DONE", tool_calls: [{ name: "invoke_subagent", args: { Role: "Helper" } }] }),
+    JSON.stringify({ source: "MODEL", type: "PLANNER_RESPONSE", status: "DONE", content: "等待孙代理回报", timestamp: new Date(now - 10000).toISOString(), tool_calls: [] }),
+  ].join("\n") + "\n");
+  assert.equal(isSubagentTranscriptIdle(fSubWait, parentSid, null, { now, quietMs: 3000 }), false, "W1-F1：本轮调用了 invoke_subagent 等待唤醒的子代理绝不可误结");
+
+  // 5) W1-F1 漏洞 b：<32KB 转录本首行含初始派工 sender=<parentSessionId>，本轮只向其他 peer 发了 send_message 且无 content，不得被首行 parentSessionId 误导
+  const otherPeer = "cccccccc-1111-2222-3333-444444444444";
+  const fPeerMsg = path.join(dir, "peer-msg-only.jsonl");
+  fs.writeFileSync(fPeerMsg, [
+    JSON.stringify({ source: "SYSTEM", type: "SYSTEM_MESSAGE", content: `[Message] timestamp=1 sender=${parentSid} prompt=go` }),
+    JSON.stringify({ source: "MODEL", type: "PLANNER_RESPONSE", status: "DONE", tool_calls: [{ name: "send_message", args: { Recipient: otherPeer, Message: "hi peer" } }] }),
+    JSON.stringify({ source: "MODEL", type: "PLANNER_RESPONSE", status: "DONE", content: "", timestamp: new Date(now - 10000).toISOString(), tool_calls: [] }),
+  ].join("\n") + "\n");
+  assert.equal(isSubagentTranscriptIdle(fPeerMsg, parentSid, null, { now, quietMs: 3000 }), false, "W1-F1：给其他 peer 发 send_message 不得因首行含 parentSessionId 被误判为已向父会话交卷");
 });
 
 test("C-09：manage_subagents(list) 权威对账 + send_message 对称唤醒 + user_message sender 提取", () => {
@@ -751,4 +780,84 @@ test("C-04：Step 1 文本 → 工具调用 → Step 2 新 messageId 整段 agen
   translateAcpUpdate({ sessionUpdate: "agent_thought", content: { type: "text", text: "无ID思考" } }, state, emit);
   assert.equal(state.text, "先查一下文件。最终结论：全部正常。");
   assert.equal(state.thinking, "第一步思考：第二步总结思考。");
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// 6. W1-F2：活跃 idleBurst 期间会话写/删/撤/迁/回退返回 409/busy，不丢后台回复
+// ─────────────────────────────────────────────────────────────────────
+test("W1-F2：活跃 idleBurst 期间 deleteMessage / undoDelete / moveSession / trashSession 均拒写且后台回复完整落盘", async () => {
+  const sid = crypto.randomUUID();
+  const mockBin = makeMockAgy("mock-w1f2-burst-busy.mjs", `
+import readline from "node:readline";
+const rl = readline.createInterface({ input: process.stdin });
+const send = (o) => process.stdout.write(JSON.stringify(o) + "\\n");
+rl.on("close", () => process.exit(0));
+rl.on("line", (line) => {
+  const msg = JSON.parse(line);
+  if (msg.method === "initialize") return send({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: 1, agentCapabilities: { sessionCapabilities: { resume: {} } } } });
+  if (msg.method === "session/new" || msg.method === "session/resume") return send({ jsonrpc: "2.0", id: msg.id, result: { sessionId: ${JSON.stringify(sid)} } });
+  if (msg.method === "session/prompt") {
+    const txt = msg.params.prompt?.[0]?.text || "";
+    if (txt === "/compact") {
+      send({ jsonrpc: "2.0", id: msg.id, result: { stopReason: "end_turn" } });
+      // 80ms 后进入活跃 idleBurst，推送后台回复（1500ms 后才 flushIdle 落盘）
+      setTimeout(() => {
+        send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: ${JSON.stringify(sid)}, update: {
+          sessionUpdate: "agent_message_chunk", content: { type: "text", text: "重要后台汇报绝不能被 undoDelete 抹掉" },
+        } } });
+      }, 80);
+      return;
+    }
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: ${JSON.stringify(sid)}, update: {
+      sessionUpdate: "agent_message_chunk", content: { type: "text", text: "首轮回复" },
+    } } });
+    return send({ jsonrpc: "2.0", id: msg.id, result: { stopReason: "end_turn" } });
+  }
+});
+`);
+
+  const projDir = path.join(tmpDir, "w1f2-proj");
+  fs.mkdirSync(projDir, { recursive: true });
+  const fakeProj = { id: "proj-w1f2", name: "W1F2", path: projDir, color: "#2f6aa8", model: "", effort: "", perm: "", created: Date.now() };
+  PROJECTS.push(fakeProj);
+  try {
+    // 第 1 轮落盘并删一次消息准备出合法的 UNDO 备份
+    await runAcpTurn({
+      bin: process.execPath, args: [mockBin], cwd: tmpDir, env: { ...process.env },
+      prompt: "测试问题", run: { id: "r-w1f2-1", bgList: [], bgTasks: 0 }, emit: () => {}, keepAlive: true,
+    });
+    const d1 = deleteMessage(sid, "测试问题", 0, "bot");
+    assert.equal(d1.ok, true);
+
+    // 重新入池（/compact 不写 jsonl，保持 UNDO 备份有效），随后触发活跃 idleBurst
+    await runAcpTurn({
+      bin: process.execPath, args: [mockBin], cwd: tmpDir, env: { ...process.env },
+      sessionId: sid, prompt: "/compact", run: { id: "r-w1f2-2", bgList: [], bgTasks: 0 }, emit: () => {}, keepAlive: true,
+    });
+    assert.ok(await waitFor(() => hasAcpIdleBurst(sid), 1500), "应进入活跃 idleBurst");
+
+    // 活跃 idleBurst 期间：全部会话写删迁操作必须返回 409 / busy
+    const delDuring = deleteMessage(sid, "测试问题", 0, "user");
+    assert.equal(delDuring.ok, false);
+    assert.equal(delDuring.status, 409);
+
+    const undoDuring = undoDelete(sid, d1.undo);
+    assert.equal(undoDuring.ok, false);
+    assert.equal(undoDuring.status, 409);
+
+    assert.throws(() => moveSession(sid, fakeProj.id), /正在生成中/);
+
+    const trashDuring = trashSession(sid);
+    assert.equal(trashDuring.ok, false);
+    assert.equal(trashDuring.error, "busy");
+
+    // 等待 idleBurst 正常 flushIdle，确认后台回复完整落盘未被任何写操作抹掉
+    assert.ok(await waitFor(() => !hasAcpIdleBurst(sid), 2800), "idleBurst 应正常落盘收尾");
+    const raw = fs.readFileSync(acpSessionFile(tmpDir, sid), "utf8");
+    assert.ok(raw.includes("重要后台汇报绝不能被 undoDelete 抹掉"), "活跃 idleBurst 后台回复必须完整保留在 jsonl 中");
+  } finally {
+    const idx = PROJECTS.indexOf(fakeProj);
+    if (idx >= 0) PROJECTS.splice(idx, 1);
+    closeAcpSession(sid);
+  }
 });

@@ -17,7 +17,7 @@ import { NEXT, readBody, sendJson } from "./http.mjs";
 import { isInjected } from "./integrity.mjs";
 import { isObj, loadState, saveState } from "./statefile.mjs";
 import { looksBackground } from "./sessmanaged.mjs";
-import { closeAcpSession } from "./acp.mjs";
+import { closeAcpSession, hasAcpIdleBurst } from "./acp.mjs";
 
 // ── 会话重命名表 ──────────────────────────────────────────────────────
 // 文件坏了（解析不了、或是 null / 数组之类）：留底成 .bad-* 再当没有，别让整个会话列表跟着抛错（#98 03-012）
@@ -479,6 +479,7 @@ export function sessionPresence(id) {
  *  真正在生成的返回 false（调用方回 409）。复用 queue.abortRun（和「排队消息要槽位时结束空闲轮」同一口径）；
  *  动态 import 避免 sessions ↔ queue 顶层成环。进程被杀后 close 才来（abortRun 有 5+2 秒兜底），等它从 RUNS 消失再动文件 */
 async function idleRetired(id) {
+  if (hasAcpIdleBurst(id)) return false;
   const live = runOfSession(id);
   if (!live) return true;
   if (!live.idle) return false;
@@ -488,7 +489,7 @@ async function idleRetired(id) {
   } catch (e) { log("结束空闲轮失败：" + e.message); return false; }
   const until = Date.now() + 8000;
   while (runOfSession(id) && Date.now() < until) await new Promise((r) => setTimeout(r, 100));
-  return !runOfSession(id);
+  return !runOfSession(id) && !hasAcpIdleBurst(id);
 }
 
 export async function routeSessions(req, res, u, p) {
@@ -510,7 +511,7 @@ export async function routeSessions(req, res, u, p) {
     // busy：正在生成没删；failed：已经不在了（别处删了、已在回收站）或删的时候出错——界面分开说（#176-2）
     const done = [], failed = [], busy = [];
     for (const id of [].concat(b.ids || [])) {
-      if (runOfSession(id) || isSessionRewinding(id)) { busy.push(id); failed.push(id); continue; }
+      if (runOfSession(id) || hasAcpIdleBurst(id) || isSessionRewinding(id)) { busy.push(id); failed.push(id); continue; }
       try { (trashSession(String(id)).ok ? done : failed).push(id); } catch { failed.push(id); }
     }
     if (done.length) log(`${done.length} 个会话进回收站`);

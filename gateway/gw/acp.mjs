@@ -595,9 +595,12 @@ function fileUriToLocalPath(uri) {
   return path.isAbsolute(s) ? s : null;
 }
 
-/** 轻量读取子代理 transcript.jsonl 尾部最多 32KB，确定性判断该子代理是否已交卷闲置（C-09）：
+/** 轻量读取子代理 transcript.jsonl 尾部最多 32KB，确定性判断该子代理是否已交卷闲置（C-09 + W1-F1）：
  *  绝不全量读大文件；仅当最后一条有效 JSON 帧满足 source=MODEL, type=PLANNER_RESPONSE, status=DONE 且无未决 tool_calls，
- *  且满足 reportedConvs 命中、或尾部窗口含发往 parentSessionId 的 send_message、或尾帧已静默超过 quietMs（默认 3000ms）时返回 true。 */
+ *  且满足以下条件之一时返回 true：
+ *  1) reportedConvs 命中当前子代理 convId；
+ *  2) 最后一条入站消息（当前轮次）内的 PLANNER_RESPONSE.tool_calls 中存在发往 parentSessionId 的 send_message；
+ *  3) 兼容只读子代理纯文本末帧交卷：当前轮次无 invoke_subagent/run_workflow/schedule 及后台 run_command、末帧 content 非空、且静默超 quietMs。 */
 export function isSubagentTranscriptIdle(logPath, parentSessionId = "", reportedConvs = null, {
   convId = "",
   now = Date.now(),
@@ -624,15 +627,16 @@ export function isSubagentTranscriptIdle(logPath, parentSessionId = "", reported
   }
   const rawLines = tail.split(/\r?\n/);
   const lines = offset > 0 && rawLines.length > 1 ? rawLines.slice(1) : rawLines;
-  let last = null;
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const s = lines[i].trim();
+  const parsed = [];
+  for (const raw of lines) {
+    const s = raw.trim();
     if (!s) continue;
     try {
       const obj = JSON.parse(s);
-      if (obj && typeof obj === "object") { last = obj; break; }
+      if (obj && typeof obj === "object") parsed.push(obj);
     } catch {}
   }
+  const last = parsed.length ? parsed[parsed.length - 1] : null;
   if (!last || last.source !== "MODEL" || last.type !== "PLANNER_RESPONSE" || last.status !== "DONE") return false;
   if (Array.isArray(last.tool_calls) && last.tool_calls.length > 0) return false;
 
@@ -643,9 +647,49 @@ export function isSubagentTranscriptIdle(logPath, parentSessionId = "", reported
       if (String(c).toLowerCase() === effConv) return true;
     }
   }
-  if (/"name"\s*:\s*"send_message"/.test(tail) && (!parentSessionId || tail.includes(String(parentSessionId)))) {
-    return true;
+
+  const isInboundMsg = (ev) => {
+    if (!ev || typeof ev !== "object") return false;
+    if (ev.source === "USER_EXPLICIT" || ev.type === "USER_INPUT") return true;
+    const isSys = ev.source === "SYSTEM" || ev.type === "SYSTEM_MESSAGE" || ev.source === "SYSTEM_MESSAGE";
+    if (isSys) {
+      const txt = typeof ev.content === "string" ? ev.content : JSON.stringify(ev);
+      if (txt.includes("[Message]")) return true;
+    }
+    return false;
+  };
+  let turnStart = 0;
+  for (let i = parsed.length - 1; i >= 0; i--) {
+    if (isInboundMsg(parsed[i])) {
+      turnStart = i + 1;
+      break;
+    }
   }
+  const turnSteps = parsed.slice(turnStart);
+  const wantParent = String(parentSessionId || "").trim();
+  const ASYNC_TOOLS = new Set(["invoke_subagent", "run_workflow", "schedule"]);
+  let hasAsyncPending = false;
+  for (const step of turnSteps) {
+    if (step?.type === "PLANNER_RESPONSE" && Array.isArray(step.tool_calls)) {
+      for (const tc of step.tool_calls) {
+        const name = String(tc?.name || "").trim().toLowerCase();
+        if (name === "send_message") {
+          const recip = String(tc?.args?.Recipient ?? tc?.arguments?.Recipient ?? "").replace(/^"|"$/g, "").trim();
+          if (wantParent ? recip === wantParent : recip.length > 0) return true;
+        }
+        if (ASYNC_TOOLS.has(name)) hasAsyncPending = true;
+      }
+    }
+    const stepStr = typeof step?.content === "string"
+      ? step.content
+      : (typeof step?.output === "string" ? step.output : JSON.stringify(step));
+    if (/Tool is running (?:as a background task|in the background)|Command running in (?:the )?background/i.test(stepStr)) {
+      hasAsyncPending = true;
+    }
+  }
+
+  if (hasAsyncPending) return false;
+  if (typeof last.content !== "string" || last.content.trim().length === 0) return false;
   const tsRaw = last.timestamp || last.created_at || last.updated_at || "";
   const parsedTs = tsRaw ? Date.parse(tsRaw) : NaN;
   const refTs = Number.isFinite(parsedTs) ? parsedTs : st.mtimeMs;
