@@ -155,6 +155,33 @@ hachimia.apk（Java 外壳：安装器 + 前台服务 + WebView）
 - **先验再信。** 工具包、模块、组件索引、通知和发布清单都按 ed25519 或 sha256 签名核对，并绑定到具体发布，防重放。
 - **每次改动都要验证。** 网关测试只走测试运行器，每次发布和工具包发布都核对哈希，组件要注明是否真机验过。
 
+## 隐私与数据保护
+
+完整说明见 **[隐私与数据保护说明（PRIVACY.zh-CN.md）](PRIVACY.zh-CN.md)**。hachimia **没有用户账号体系、没有后端业务服务器、没有对话云同步，也没有任何第一方遥测或闭源统计 SDK**；以下每一项控制与边界均可直接在仓库源码中逐行核查：
+
+- **零第一方遥测、零外部 CDN 与上游 CLI 边界披露**：
+  - hachimia 本身不生成持久化安装 ID（`iid`）、不上传崩溃或使用统计，未集成 Google Play Services、ML Kit、Firebase、Sentry 或任何广告 SDK；界面全部脚本与字体均随包离线内置于 [`gateway/web/vendor/`](gateway/web/vendor/)。
+  - **关于上游 Antigravity CLI（`agy`）的如实说明**：hachimia 启动的是你首次运行时从 Google 官方渠道下载的原版闭源二进制 `agy`（按官方清单校验 SHA-256，绝不反编译或打补丁，见 [`android/assets/scripts/install-agy.mjs`](android/assets/scripts/install-agy.mjs)）。`agy` 直连 Google 服务完成认证与模型推理，其进程内部可能包含受 [Google 隐私政策](https://policies.google.com/privacy)约束的官方诊断/遥测逻辑，该流量不经过 hachimia 任何服务器。对于可选的 Claude Code 路径，网关在 [`gateway/gw/claude.mjs`](gateway/gw/claude.mjs)（`claudeEnv`）中注入 `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1"` 抑制非必要流量。
+- **凭据隔离、本地统计与诊断脱敏**：
+  - 清单声明 `android:allowBackup="false"`（[`android/AndroidManifest.xml`](android/AndroidManifest.xml)），会话、设置与凭据仅存于应用私有目录 `/data/data/ha.chi.mia/files/home/`，不进系统云备份。
+  - Google 登录走 `agy` 自有 OAuth 流程；hachimia 仅检测凭据目录是否存在非空会话文件，**从不读取、解析或上传 OAuth 令牌内容**（[`gateway/gw/agy-creds.mjs`](gateway/gw/agy-creds.mjs) `hasAgySessionFiles`、[`gateway/gw/login.mjs`](gateway/gw/login.mjs)）。
+  - 本机网关仅监听回环 `127.0.0.2`（界面专用）与 `127.0.0.1`，要求 256 位安装令牌、Host/Origin 核验与启动期派生的单次防重放 HMAC 签名（[`gateway/gw/access.mjs`](gateway/gw/access.mjs)、[`android/java/ha/chi/mia/Events.java`](android/java/ha/chi/mia/Events.java)）。
+  - 「用量」页仅统计本地会话文件，零网络请求（[`gateway/gw/usage.mjs`](gateway/gw/usage.mjs)）；「打包诊断」在调用系统分享面板前本地抹除密钥、令牌、邮箱与你发出的消息正文且不含会话记录（[`android/java/ha/chi/mia/Share.java`](android/java/ha/chi/mia/Share.java) `bundleLogs`）；「到 GitHub 反馈」仅在你主动点击时拼出浏览器预填链接供你审阅（[`gateway/gw/feedback.mjs`](gateway/gw/feedback.mjs) `issueDraft`）。
+- **出站网络请求全量清单与一键关闭开关**（除你在对话/终端主动让模型执行的命令外，应用自身仅存在以下联网路径）：
+
+| 用途 | 默认状态与关闭方式 | 目标地址 | 校验锚点与对应源码 |
+|---|---|---|---|
+| 模型推理与账户登录 | 你发消息或登录时触发 | Google 官方接口（经 `agy` ACP）或你自行填写的第三方调用地址 | [`gateway/gw/acp.mjs`](gateway/gw/acp.mjs)、[`gateway/gw/providers.mjs`](gateway/gw/providers.mjs)、[`gateway/gw/login.mjs`](gateway/gw/login.mjs) |
+| 自动检查更新（每 6 小时） | 默认开；**设置 → 更新 → 自动更新** 可关 | `api.github.com`（`Buddy-Further/hachimia`）、`antigravity.google` 及官方 `agy` manifest 服务 | APK 验签名证书 + SHA-256；工具包验钉死 SHA-256 / `ed25519`；`agy` 验官方 manifest SHA-256（[`android/java/ha/chi/mia/Updater.java`](android/java/ha/chi/mia/Updater.java) `AUTO_EVERY`、[`android/assets/scripts/install-agy.mjs`](android/assets/scripts/install-agy.mjs)） |
+| 维护者签名公告与兼容记录（每 3 小时） | 默认开；**设置 → 更新 → 接收维护公告** 可彻底关闭 | `raw.githubusercontent.com/Buddy-Further/hachimia`（纯静态 `GET`，无设备参数） | 强制核验内置 `ed25519` 公钥分离签名 `.sig`（[`gateway/gw/notices.mjs`](gateway/gw/notices.mjs) `refreshNotices`、[`gateway/gw/ccverified.mjs`](gateway/gw/ccverified.mjs) `refreshVerified`） |
+| GitHub 第三方代理兜底 | **默认关闭**；仅主动开启 **设置 → 更新 → GitHub 第三方代理兜底** 且官方源失败时启用 | `gh-proxy.com`（外部公共代理，开启后对方可见你的公网 IP 与目标 URL） | 下载字节仍强制核对钉死 SHA-256 与签名（[`android/java/ha/chi/mia/Installer.java`](android/java/ha/chi/mia/Installer.java) `ghProxyEnabled`、[`gateway/gw/pget.mjs`](gateway/gw/pget.mjs) `ghProxy`） |
+| 工具包 / 组件 / 端侧模型下载 | 首装或你在「扩展」页点击安装时触发 | GitHub Releases、Termux 官方及高校镜像、魔搭 / HuggingFace | 钉死 SHA-256、Termux PGP 签名或 `ed25519` 索引签名（[`gateway/gw/components.mjs`](gateway/gw/components.mjs)、[`gateway/gw/modules.mjs`](gateway/gw/modules.mjs)、[`android/assets/bin/pkg.mjs`](android/assets/bin/pkg.mjs)） |
+
+- **权限最小化与金融/口令界面硬隔离**：
+  - 绝不申请相机（`CAMERA`）、麦克风（`RECORD_AUDIO`）、定位（`ACCESS_*_LOCATION`）、通讯录、短信、通话记录、日历（`READ_CALENDAR`）、应用使用统计（`PACKAGE_USAGE_STATS`）、通知监听（`NotificationListenerService`）或录屏投影（`MediaProjection`），详见 [docs/permissions.zh-CN.md](docs/permissions.zh-CN.md)。
+  - 设备工具与无障碍默认全关；开启需经系统锁屏验证（[`android/java/ha/chi/mia/Consent.java`](android/java/ha/chi/mia/Consent.java)）与前台原生弹窗确认（[`android/java/ha/chi/mia/DeviceTools.java`](android/java/ha/chi/mia/DeviceTools.java)），闲置 10 分钟自动调用 `disableSelf()` 自关（[`android/java/ha/chi/mia/A11y.java`](android/java/ha/chi/mia/A11y.java) `scheduleIdle`）；自动抹除密码框文本（`isPassword()`），并对支付宝、云闪付、手机银行、2FA 动态口令应用、密码管理器及系统权限控制器实施**硬性拦截**（[`android/java/ha/chi/mia/A11y.java`](android/java/ha/chi/mia/A11y.java) `isProtectedPackage`），禁止读屏、截屏与模拟点击；内存态安全守卫（[`gateway/guard/cc-guard.mjs`](gateway/guard/cc-guard.mjs)）与 ACP 权限卡片（[`gateway/gw/acp.mjs`](gateway/gw/acp.mjs)）对敏感操作强制逐次确认。
+  - **第三方调用提示**：发往模型接口的提示词、代码与工具输出受对应服务商隐私政策约束；来路不明的第三方调用运营者可见经过的密钥与内容，切勿在不可信的第三方调用上处理敏感私密数据。
+
 ## 条款与合规
 
 hachimia 希望遵守 Google 对运行 Antigravity CLI 的产品的要求。下面是应用实际的做法，你可以自己判断：
@@ -220,3 +247,10 @@ node devkit/devkit.mjs build --target ha.chi.mia   # 构建工具链（CI 也能
 - **[Termux](https://termux.dev)**：工具链取自它的官方包。
 - **[Shizuku](https://shizuku.rikka.app)**（RikkaApps）：不用 Root 的系统权限。
 - **[OpenCC](https://github.com/BYVoid/OpenCC)** / [opencc-js](https://github.com/nk2028/opencc-js)：繁体中文界面字符串由它转换，再人工校对。
+
+## 许可
+
+hachimia 本身以 [Apache License 2.0](LICENSE) 发布（另见 [NOTICE](NOTICE)）。
+
+- **Antigravity CLI（`agy`）**：Google LLC 的专有软件，**不随本项目分发**，使用时须遵守 Google 相关服务条款与隐私政策。
+- **开发工具包与随包 LGPL 组件**：工具包取自 Termux 官方仓库，各包许可证（`license`）载于每个 Release 附带的 `devkit.lock.json` / `SBOM.tsv`；随 APK 分发的 glibc 动态加载器（[third_party/glibc/README.md](third_party/glibc/README.md)）、7-Zip 26.06（[third_party/7zip/README.md](third_party/7zip/README.md)）及著佐权工具包组件的对应源码由 [`devkit/archive-sources.mjs`](devkit/archive-sources.mjs) 归档备存并自每次二进制分发之日起至少保留三年，需要源码副本的请在 Issues 中提出。

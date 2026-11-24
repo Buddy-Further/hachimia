@@ -25,4 +25,6 @@ if [ -f "$AJAR" ]; then
   # MIG-31（fix-G 跟进 #2）：GatewaySquattedTest 之前只手动跑过，未接入 CI 入口
   javac -nowarn -d "$OUT" -cp "$OUT:$AJAR" "$ROOT/android/tests/ha/chi/mia/GatewaySquattedTest.java"
   java -cp "$OUT:$AJAR" ha.chi.mia.GatewaySquattedTest
+  javac -nowarn -d "$OUT" -cp "$OUT:$AJAR" "$ROOT/android/tests/ha/chi/mia/A11yProtectedPackageTest.java"
+  java -cp "$OUT:$AJAR" ha.chi.mia.A11yProtectedPackageTest
 else echo "跳过 WhatsNewPickTest（没有 android.jar）"; fi

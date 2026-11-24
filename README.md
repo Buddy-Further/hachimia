@@ -155,6 +155,33 @@ Rules the project holds to:
 - **Verify before trusting.** Toolkits, modules, component indexes, notices and release lists are checked against ed25519 or sha256 signatures bound to a specific release.
 - **Every change gets verified.** Gateway tests run only through the runner, every release and toolkit publish step checks hashes, and components state whether they have been verified on a real device.
 
+## Privacy & data protection
+
+See **[PRIVACY.md](PRIVACY.md)** for the full breakdown. hachimia has **no user accounts, no backend server, no cloud chat sync, and zero first-party telemetry or proprietary analytics SDKs** — every control and boundary below can be verified directly in the source tree:
+
+- **Zero first-party telemetry, zero external CDNs & honest upstream CLI boundary**:
+  - hachimia itself generates no persistent install ID (`iid`), uploads no usage or crash telemetry, and bundles no Google Play Services, ML Kit, Firebase, Sentry, or ad SDKs; all UI scripts and fonts ship offline in [`gateway/web/vendor/`](gateway/web/vendor/).
+  - **Upstream Antigravity CLI (`agy`) boundary**: hachimia launches Google's official, unmodified proprietary `agy` binary downloaded on first run (verified by SHA-256, never patched; see [`android/assets/scripts/install-agy.mjs`](android/assets/scripts/install-agy.mjs)). `agy` connects directly to Google's services for authentication and inference, and may carry Google's own internal diagnostics/telemetry governed by [Google's Privacy Policy](https://policies.google.com/privacy); none of that traffic goes through any hachimia server. For the optional Claude Code path, [`gateway/gw/claude.mjs`](gateway/gw/claude.mjs) (`claudeEnv`) sets `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1"`.
+- **Credential isolation, local usage & scrubbed diagnostics**:
+  - `android:allowBackup="false"` in [`android/AndroidManifest.xml`](android/AndroidManifest.xml) keeps chats, settings, and credentials inside `/data/data/ha.chi.mia/files/home/` and out of Android cloud backups.
+  - Google sign-in uses `agy`'s own OAuth flow; hachimia checks only whether non-empty session files exist and **never reads, parses, or uploads OAuth token contents** ([`gateway/gw/agy-creds.mjs`](gateway/gw/agy-creds.mjs) `hasAgySessionFiles`, [`gateway/gw/login.mjs`](gateway/gw/login.mjs)).
+  - The gateway binds loopback `127.0.0.2` (UI) and `127.0.0.1` only, requiring a 256-bit token, Host/Origin checks, and boot-scoped single-use HMAC request signatures ([`gateway/gw/access.mjs`](gateway/gw/access.mjs), [`android/java/ha/chi/mia/Events.java`](android/java/ha/chi/mia/Events.java)).
+  - Usage stats read local session files only with zero network requests ([`gateway/gw/usage.mjs`](gateway/gw/usage.mjs)); diagnostic zips scrub keys, tokens, emails, and user prompts locally before invoking the system share sheet and exclude transcripts ([`android/java/ha/chi/mia/Share.java`](android/java/ha/chi/mia/Share.java) `bundleLogs`); GitHub feedback pre-fills a browser URL only when you tap the button ([`gateway/gw/feedback.mjs`](gateway/gw/feedback.mjs) `issueDraft`).
+- **Complete outbound network inventory & switches** (aside from commands you explicitly run in chats/terminals):
+
+| Purpose | Default & Switch | Destinations | Trust Anchor & Source |
+|---|---|---|---|
+| Model inference & sign-in | When you chat or sign in | Google's official endpoints (via `agy` ACP) or your custom third-party endpoint | [`gateway/gw/acp.mjs`](gateway/gw/acp.mjs), [`gateway/gw/providers.mjs`](gateway/gw/providers.mjs), [`gateway/gw/login.mjs`](gateway/gw/login.mjs) |
+| Automatic update checks (every 6h) | On; turn off in **Settings → Updates → Automatic updates** | `api.github.com` (`Buddy-Further/hachimia`), `antigravity.google`, official `agy` manifest service | APK signing cert + SHA-256; pinned SHA-256 / `ed25519` for devkit; official manifest SHA-256 for `agy` ([`android/java/ha/chi/mia/Updater.java`](android/java/ha/chi/mia/Updater.java) `AUTO_EVERY`, [`android/assets/scripts/install-agy.mjs`](android/assets/scripts/install-agy.mjs)) |
+| Signed maintainer notices & verified list (every 3h) | On; turn off in **Settings → Updates → Maintainer notices** | `raw.githubusercontent.com/Buddy-Further/hachimia` (static `GET`, no device parameters) | Pinned `ed25519` public key detached `.sig` ([`gateway/gw/notices.mjs`](gateway/gw/notices.mjs) `refreshNotices`, [`gateway/gw/ccverified.mjs`](gateway/gw/ccverified.mjs) `refreshVerified`) |
+| Third-party GitHub proxy (`gh-proxy.com`) | **Off by default**; opt in via **Settings → Updates → GitHub third-party proxy fallback** | `gh-proxy.com` (external public proxy; sees your IP and target URL if enabled) | Pinned SHA-256 and signatures still enforced ([`android/java/ha/chi/mia/Installer.java`](android/java/ha/chi/mia/Installer.java) `ghProxyEnabled`, [`gateway/gw/pget.mjs`](gateway/gw/pget.mjs) `ghProxy`) |
+| Toolkit / component / local model downloads | First-run setup or tapping Install in Extensions | GitHub Releases, Termux & university mirrors, ModelScope / HuggingFace | Pinned SHA-256, Termux PGP signature, or `ed25519` index signature ([`gateway/gw/components.mjs`](gateway/gw/components.mjs), [`gateway/gw/modules.mjs`](gateway/gw/modules.mjs), [`android/assets/bin/pkg.mjs`](android/assets/bin/pkg.mjs)) |
+
+- **Permission minimization & protected-app screen blocking**:
+  - Never requests `CAMERA`, `RECORD_AUDIO`, `ACCESS_*_LOCATION`, contacts, SMS, call logs, `READ_CALENDAR`, `PACKAGE_USAGE_STATS`, `NotificationListenerService`, or `MediaProjection`; see [docs/permissions.md](docs/permissions.md).
+  - Device tools and accessibility are off by default, gated by lock-screen biometric check ([`android/java/ha/chi/mia/Consent.java`](android/java/ha/chi/mia/Consent.java)) and a foreground native dialog ([`android/java/ha/chi/mia/DeviceTools.java`](android/java/ha/chi/mia/DeviceTools.java)), auto-disable after 10 minutes of inactivity ([`android/java/ha/chi/mia/A11y.java`](android/java/ha/chi/mia/A11y.java) `scheduleIdle`), strip `isPassword()` text, **hard-block banking, Alipay/UnionPay/wallets, 2FA authenticators, password managers, and system permission controllers** ([`android/java/ha/chi/mia/A11y.java`](android/java/ha/chi/mia/A11y.java) `isProtectedPackage`), and enforce an in-memory safety guard ([`gateway/guard/cc-guard.mjs`](gateway/guard/cc-guard.mjs)) plus ACP permission cards ([`gateway/gw/acp.mjs`](gateway/gw/acp.mjs)).
+  - **Custom third-party endpoints**: Prompts, code, and tool outputs sent to any model endpoint are governed by that operator's privacy policy — never use untrusted third-party endpoints for sensitive secrets or personal data.
+
 ## Terms and compliance
 
 hachimia aims to follow Google's terms for products that run Antigravity CLI. Below is exactly what the app does, so you can judge for yourself:
@@ -220,3 +247,10 @@ Layout:
 - **[Termux](https://termux.dev)**: the toolchain is assembled from its official packages.
 - **[Shizuku](https://shizuku.rikka.app)** (RikkaApps): system privileges without root.
 - **[OpenCC](https://github.com/BYVoid/OpenCC)** / [opencc-js](https://github.com/nk2028/opencc-js): the Traditional Chinese UI strings were converted with it, then reviewed by hand.
+
+## License
+
+hachimia itself is released under the [Apache License 2.0](LICENSE) (see also [NOTICE](NOTICE)).
+
+- **Antigravity CLI (`agy`)**: proprietary software by Google LLC, **not distributed with this project**; its use is subject to Google's applicable terms and privacy policy.
+- **Toolchain & bundled LGPL libraries**: toolchain packages come from the official Termux repositories with per-package licenses (`license`) recorded in each release's `devkit.lock.json` / `SBOM.tsv`. Corresponding Source for the bundled glibc loader ([third_party/glibc/README.md](third_party/glibc/README.md)), 7-Zip 26.06 ([third_party/7zip/README.md](third_party/7zip/README.md)), and copyleft toolchain packages is archived via [`devkit/archive-sources.mjs`](devkit/archive-sources.mjs) and retained for at least three years from each binary release; request a copy in Issues if needed.
