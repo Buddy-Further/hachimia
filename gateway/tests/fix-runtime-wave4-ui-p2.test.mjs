@@ -157,7 +157,7 @@ test("A-07: 新会话独立车道互不串入且 sched fireNow 计入未挂起 Q
     "新会话（!sessionId && !follow）不得在 tryInject 中误注入已有轮次");
 
   const scSrc = readRepo("gateway/gw/sched.mjs");
-  assert.ok(scSrc.includes("const busySlots = () => RUNS.size + QUEUE.filter((q) => !q.held).length;"));
+  assert.ok(scSrc.includes("const busySlots = () => RUNS.size + runnableQueueCount();"));
   assert.ok(scSrc.includes("while (busySlots() >= maxParallel())"));
 });
 

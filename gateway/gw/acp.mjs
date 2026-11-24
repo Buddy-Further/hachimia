@@ -120,9 +120,34 @@ export function isPidAliveFallback(pid) {
   }
 }
 
+/** S-1（P2-1）：kill(pid, 0) 兜底前先核对 /proc/<pid>/stat 的状态与第 22 字段 starttime，防止原进程已退出、PID 被新进程复用时误判仍存活。
+ *  仅当 /proc/<pid>/stat 不可读（如 hidepid=2 抛 ENOENT/EACCES/EPERM）时才回退调用 isPidAlive(pid)。 */
+export function isChildKeyAliveFallback(childKey, procDir = "/proc", isPidAlive = isPidAliveFallback) {
+  if (typeof childKey !== "string" || !childKey.length) return false;
+  const colon = childKey.indexOf(":");
+  const pid = Number(colon >= 0 ? childKey.slice(0, colon) : childKey);
+  const wantTicks = colon >= 0 ? childKey.slice(colon + 1) : "";
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    const statStr = fs.readFileSync(path.join(procDir, String(pid), "stat"), "utf8");
+    const rp = statStr.lastIndexOf(")");
+    if (rp >= 0) {
+      const f = statStr.slice(rp + 2).trim().split(/\s+/);
+      const st = f[0];
+      const gotTicks = String(f[19] || "0");
+      if (st === "Z" || st === "X") return false;
+      if (wantTicks && wantTicks !== "hidden" && gotTicks !== wantTicks) return false;
+      return true;
+    }
+  } catch {
+    return typeof isPidAlive === "function" ? !!isPidAlive(pid) : false;
+  }
+  return false;
+}
+
 /** 探测 agy acp 非常驻后台 shell 任务是否仍在运行：
  *  1) 存在无归属 shell（childKey === null）时严格 fail-closed 返回 active；
- *  2) 只要有任一任务归属的子进程仍在存活集合（或经 kill(pid, 0) 复核仍存活），或存在非 daemon 的存活子进程，即视为仍在执行，绝不误触发；
+ *  2) 只要有任一任务归属的子进程仍在存活集合（或经 isChildKeyAliveFallback 核验仍存活），或存在非 daemon 的存活子进程，即视为仍在执行，绝不误触发；
  *  3) 全部非 daemon 子进程退出后，再核对对应 task-<N>.log 是否仍在 1.5s 内刷盘，确认落稳后才进入宽限窗。 */
 export function acpBgShellActive(parentPid, {
   daemonChildKeys = null,
@@ -147,8 +172,8 @@ export function acpBgShellActive(parentPid, {
   if (Array.isArray(tasks) && typeof isPidAlive === "function") {
     for (const t of tasks) {
       if (typeof t?.childKey !== "string" || !t.childKey.length) continue;
-      const pid = Number(t.childKey.split(":")[0]);
-      if (Number.isInteger(pid) && pid > 0 && isPidAlive(pid)) {
+      if (isChildKeyAliveFallback(t.childKey, procDir, isPidAlive)) {
+        const pid = Number(t.childKey.split(":")[0]);
         return { active: true, reason: "hidden-kill0-alive", pid };
       }
     }
@@ -575,7 +600,7 @@ const isAcpAllowAlwaysOpt = (o) => /^(allow_always|allow_session)$/.test(acpOptK
 const isAcpRejectOpt = (o) => /^(reject_once|reject_always|reject|deny|deny_once|deny_always|disallow|disallow_once|disallow_always)$/.test(acpOptKind(o));
 const isAcpDenyishOpt = (o) => isAcpRejectOpt(o) || /\b(?:reject|deny|disallow)\b/.test(acpOptKind(o));
 const isAcpAllowishOpt = (o) => !isAcpDenyishOpt(o) && /(?:^|[_-])allow(?:$|[_-])/.test(acpOptKind(o));
-export function pickAcpAllowOption(options, always = false) {
+export function pickAcpAllowOption(options, always = false, { allowAlwaysFallback = true } = {}) {
   const list = Array.isArray(options) ? options : [];
   if (always) {
     const hitAlways = list.find(isAcpAllowAlwaysOpt);
@@ -583,12 +608,16 @@ export function pickAcpAllowOption(options, always = false) {
   }
   const allow = list.find(isAcpAllowOpt);
   if (allow) return allow;
-  const fallbackAlways = list.find(isAcpAllowAlwaysOpt);
-  if (fallbackAlways) return fallbackAlways;
-  const allowish = list.find(isAcpAllowishOpt);
+  if (always || allowAlwaysFallback) {
+    const fallbackAlways = list.find(isAcpAllowAlwaysOpt);
+    if (fallbackAlways) return fallbackAlways;
+  }
+  const allowish = list.find((o) => isAcpAllowishOpt(o) && (always || allowAlwaysFallback || !isAcpAllowAlwaysOpt(o)));
   if (allowish) return allowish;
   const first = list[0];
-  return first && !isAcpDenyishOpt(first) ? first : undefined;
+  if (!first || isAcpDenyishOpt(first)) return undefined;
+  if (!always && !allowAlwaysFallback && isAcpAllowAlwaysOpt(first)) return undefined;
+  return first;
 }
 
 const UUID_EXACT_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -1188,15 +1217,19 @@ function trackAcpToolSideEffects(phase, tool, state, emit) {
       if (state.cwd && state.sessionId) {
         try { acpAgentMsgOk(state.cwd, state.sessionId, { mid: tool.id, ok: !tool.isError, err: tool.isError ? firstLineOf(tool.output) : "" }); } catch {}
       }
-      // 对称唤醒（C-09）：主代理给已 idle/done 的已知子代理继续派活成功时，重新标回 running 并挂回后台任务条
+      // 对称唤醒（C-09 + S-3/P2-5）：主代理给子代理继续派活成功时，清掉该子代理上一轮残留的 reportedAgentConvs 与 _userMsgTail，
+      // 防止刚被重新派活的子代理被上一轮残留回报提前误结算，并重新标回 running 挂回后台任务条
       if (!tool.isError) {
         const rec = agents.get(to) || [...agents.values()].find((r) => r?.convId && r.convId.toLowerCase() === rawTo.toLowerCase());
+        const dropTargets = new Set([rawTo.toLowerCase(), rec?.convId ? String(rec.convId).toLowerCase() : ""].filter(Boolean));
+        if (dropTargets.size) {
+          if (state.reportedAgentConvs) {
+            for (const c of [...state.reportedAgentConvs]) if (dropTargets.has(String(c).toLowerCase())) state.reportedAgentConvs.delete(c);
+          }
+          state._userMsgTail = "";
+        }
         if (rec && rec.status !== "running") {
           rec.status = "running";
-          if (rec.convId && state.reportedAgentConvs) {
-            const cl = rec.convId.toLowerCase();
-            for (const c of [...state.reportedAgentConvs]) if (String(c).toLowerCase() === cl) state.reportedAgentConvs.delete(c);
-          }
           emit({ type: "ag", k: "resume", id: rec.id, at: Date.now() });
           state.onBgAdd?.({ id: rec.id, type: rec.kind === "workflow" ? "workflow" : "agent", desc: rec.name });
         }
@@ -1436,13 +1469,14 @@ export function translateAcpUpdate(params, state, emit) {
       if (updMsgId && fullTextIds.has(updMsgId)) return; // 整条已采用，这条 chunk 是重复投递
       if (updMsgId) chunkTextById.set(updMsgId, (chunkTextById.get(updMsgId) || "") + text);
       state.text += text;
+      state.segText = (state.segText || "") + text;
       emit({ type: "text_delta", text });
     }
     return;
   }
   // 整条消息（v2 风格 upsert，不走 chunk；旧草稿的字段名叫 summary）：
-  // 有独立 messageId 且该 id 此前无流式分片（chunkAcc === ""）时，代表新一轮/工具调用后的新一段回复，必须直接追加（C-04）；
-  // 仅当无 messageId 时才保留 if (!state.text) 防重复。
+  // 有独立 messageId 且该 id 此前无流式分片（chunkAcc === ""）时，先核对本段 segText 防「无 id chunk + 有 id 整条」重复（S-3/P2-4），
+  // 确认未发过则代表新一轮/工具调用后的新一段回复，直接追加（C-04）；仅当无 messageId 时才保留 if (!state.text) 防重复。
   if (kind === "agent_message") {
     const text = acpTextOf(upd.content ?? upd.summary ?? upd.text);
     log(`[agy-acp] agent_message messageId=${upd.messageId || "-"} text=${(text || "").slice(0, 60).replace(/\n/g, " ")}`);
@@ -1453,20 +1487,24 @@ export function translateAcpUpdate(params, state, emit) {
       if (chunkAcc === text) { fullTextIds.add(updMsgId); return; } // chunk 已把整条送完了
       if (chunkAcc && text.startsWith(chunkAcc)) { // 整条比已收 chunk 多：只补没收到的差额
         const rest = text.slice(chunkAcc.length);
-        if (rest) { state.text += rest; emit({ type: "text_delta", text: rest }); }
+        if (rest) { state.text += rest; state.segText = (state.segText || "") + rest; emit({ type: "text_delta", text: rest }); }
         fullTextIds.add(updMsgId);
         return;
       }
       if (chunkAcc && chunkAcc.startsWith(text)) { fullTextIds.add(updMsgId); return; } // 整条是已收 chunk 的前缀
       fullTextIds.add(updMsgId);
       if (!chunkAcc) {
+        const seg = state.segText || "";
+        if (seg && (seg === text || seg.endsWith(text))) return;
         state.text += text;
+        state.segText = seg + text;
         emit({ type: "text_delta", text });
         return;
       }
     }
     if (!state.text) {
       state.text = text;
+      state.segText = text;
       emit({ type: "text_delta", text });
     }
     return;
@@ -1478,6 +1516,7 @@ export function translateAcpUpdate(params, state, emit) {
       if (updMsgId && fullThinkingIds.has(updMsgId)) return;
       if (updMsgId) chunkThinkingById.set(updMsgId, (chunkThinkingById.get(updMsgId) || "") + text);
       state.thinking += text;
+      state.segThinking = (state.segThinking || "") + text;
       emit({ type: "thinking_delta", text });
     }
     return;
@@ -1491,20 +1530,24 @@ export function translateAcpUpdate(params, state, emit) {
       if (chunkAcc === text) { fullThinkingIds.add(updMsgId); return; }
       if (chunkAcc && text.startsWith(chunkAcc)) {
         const rest = text.slice(chunkAcc.length);
-        if (rest) { state.thinking += rest; emit({ type: "thinking_delta", text: rest }); }
+        if (rest) { state.thinking += rest; state.segThinking = (state.segThinking || "") + rest; emit({ type: "thinking_delta", text: rest }); }
         fullThinkingIds.add(updMsgId);
         return;
       }
       if (chunkAcc && chunkAcc.startsWith(text)) { fullThinkingIds.add(updMsgId); return; }
       fullThinkingIds.add(updMsgId);
       if (!chunkAcc) {
+        const seg = state.segThinking || "";
+        if (seg && (seg === text || seg.endsWith(text))) return;
         state.thinking += text;
+        state.segThinking = seg + text;
         emit({ type: "thinking_delta", text });
         return;
       }
     }
     if (!state.thinking) {
       state.thinking = text;
+      state.segThinking = text;
       emit({ type: "thinking_delta", text });
     }
     return;
@@ -1529,6 +1572,8 @@ export function translateAcpUpdate(params, state, emit) {
       }
       return;
     }
+    state.segText = "";
+    state.segThinking = "";
     const rec = { id, name, rawName: upd.name ? String(upd.name) : "", kind: upd.kind ? String(upd.kind) : "", input, status: upd.status || "pending", output: "", isError: false, cancelled: false, done: false };
     state.tools.set(id, rec);
     emit({ type: "tool_use", id, name, ...(rec.rawName ? { rawName: rec.rawName } : {}), ...(rec.kind ? { kind: rec.kind } : {}), input });
@@ -1552,6 +1597,8 @@ export function translateAcpUpdate(params, state, emit) {
     let prev = state.tools.get(id);
     let changed = false;
     if (!prev) {
+      state.segText = "";
+      state.segThinking = "";
       const name = String(upd.title || upd.name || upd.kind || "Tool");
       const input = upd.rawInput && typeof upd.rawInput === "object"
         ? upd.rawInput
@@ -1666,7 +1713,10 @@ export function translateAcpUpdate(params, state, emit) {
   }
 
   if (kind === "user_message" || kind === "user_message_chunk") {
-    captureSubagentSenders(acpTextOf(upd.content ?? upd.summary ?? upd.text), state);
+    captureSubagentSenders(acpTextOf(upd.content ?? upd.summary ?? upd.text), state, {
+      resetAfter: kind === "user_message",
+      msgId: updMsgId,
+    });
     return;
   }
 
@@ -1676,12 +1726,19 @@ export function translateAcpUpdate(params, state, emit) {
   if (!IGNORED.has(kind)) log(`[agy-acp] 未识别的 update 种类：${kind}`);
 }
 
-/** 从 user_message / user_message_chunk 文本中提取子代理唤醒信封的 sender=<uuid>（兼容分片切跨，C-09） */
-function captureSubagentSenders(uText, holder) {
-  if (!uText || !holder) return;
+/** 从 user_message / user_message_chunk 文本中提取子代理唤醒信封 [Message] ... sender=<uuid>（S-3 / P2-5 防误匹配与旧尾串味） */
+function captureSubagentSenders(uText, holder, { resetAfter = false, msgId = "" } = {}) {
+  if (!holder) return;
+  if (msgId && holder._userMsgId && holder._userMsgId !== msgId) holder._userMsgTail = "";
+  if (msgId) holder._userMsgId = msgId;
+  if (!uText) {
+    if (resetAfter) { holder._userMsgTail = ""; holder._userMsgId = ""; }
+    return;
+  }
   const scan = ((holder._userMsgTail || "") + String(uText)).slice(-512);
-  holder._userMsgTail = scan;
-  const reSender = /\bsender=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/gi;
+  holder._userMsgTail = resetAfter ? "" : scan;
+  if (resetAfter) holder._userMsgId = "";
+  const reSender = /\[Message\][^\r\n]*?\bsender=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/gi;
   let ms;
   while ((ms = reSender.exec(scan)) !== null) {
     (holder.reportedAgentConvs ||= new Set()).add(ms[1].toLowerCase());
@@ -1927,6 +1984,8 @@ export function acpPoolSessionForPid(anc, top) {
 
 const ACP_TOOL_WRITE_EDIT = new Set(["edit", "write", "multiedit", "notebookedit", "write_file", "edit_file", "replace_file_content", "multi_replace_file_content", "write file", "edit file", "replace file"]);
 const ACP_TOOL_EXEC = new Set(["bash", "powershell", "run_command", "run_shell", "run command", "run shell"]);
+const ACP_TOOL_WEB_FETCH = new Set(["webfetch", "web_fetch", "read_url_content", "fetch_url", "web fetch", "read url content"]);
+const ACP_TOOL_WEB_SEARCH = new Set(["websearch", "web_search", "search_web", "web search", "search web"]);
 
 function acpToolGroups(name, kind) {
   const g = new Set();
@@ -1938,6 +1997,9 @@ function acpToolGroups(name, kind) {
   if (k) g.add(k);
   if (ACP_TOOL_WRITE_EDIT.has(base) || /^(?:write|edit|replace)\s+file/i.test(base) || k === "edit" || k === "write") g.add("__write_edit__");
   if (ACP_TOOL_EXEC.has(base) || /^run\s+(?:command|shell)/i.test(base) || k === "execute") g.add("__exec__");
+  if (ACP_TOOL_WEB_FETCH.has(base) || k === "fetch") g.add("__web_fetch__");
+  // 注意：不把 kind==="search" 归入 __web_search__，避免禁用 WebSearch 时误伤本地 grep_search/find_by_name（S-2）
+  if (ACP_TOOL_WEB_SEARCH.has(base)) g.add("__web_search__");
   return g;
 }
 
@@ -1957,7 +2019,10 @@ export function isAcpToolAllowed(toolName, toolKind, allowedTools) {
   if (!Array.isArray(allowedTools) || !allowedTools.length) return false;
   const target = acpToolGroups(toolName, toolKind);
   for (const raw of allowedTools) {
-    const rule = acpToolGroups(raw, "");
+    const s = String(raw || "").trim();
+    // P1-A：带括号作用域规则（如 Bash(git status:*)、Edit(docs/**)）在 ACP 下无法按参数安全匹配，一律跳过不放宽为整类放行
+    if (!s || s.includes("(")) continue;
+    const rule = acpToolGroups(s, "");
     for (const tok of rule) {
       if (target.has(tok)) return true;
     }
@@ -2187,7 +2252,7 @@ export async function runAcpTurn({
           pendingPermCount = Math.max(0, pendingPermCount - 1);
         }
         if (decision && decision.behavior === "allow") {
-          const chosen = pickAcpAllowOption(options, !!decision.always);
+          const chosen = pickAcpAllowOption(options, !!decision.always, { allowAlwaysFallback: !run?.unattended });
           return chosen
             ? { outcome: { outcome: "selected", optionId: chosen.optionId } }
             : { outcome: { outcome: "cancelled" } };
@@ -2294,13 +2359,56 @@ export async function runAcpTurn({
   };
   if (poolEntry) poolEntry.dropActiveBg = dropActiveBg;
 
+  let turnPersisted = false;
+  const persistInterruptedTurn = (reasonMsg) => {
+    if (turnPersisted || !activeSessionId || !state.promptSent) return;
+    turnPersisted = true;
+    for (const tool of state.tools.values()) {
+      if (!tool.done) {
+        if (run?.aborted) {
+          tool.cancelled = true;
+          tool.isError = false;
+        } else {
+          tool.isError = true;
+        }
+        if (!tool.output) tool.output = run?.aborted ? "（已中断）" : `（回合异常中断：${reasonMsg}）`;
+        emitToolResult(tool, emit, state);
+      }
+      state.knownToolIds.add(tool.id);
+    }
+    const isCompactCmd = /^\/compact(?:\s|$)/i.test(String(prompt || "").trim());
+    if (run?.auto === "bg") {
+      persistAcpAssistantOnly({
+        cwd,
+        sessionId: activeSessionId,
+        assistantText: state.text,
+        thinking: state.thinking,
+        tools: [...state.tools.values()],
+        model: model || sessModels?.currentModelId || "antigravity",
+        usage: state.usage,
+      });
+    } else if (!isCompactCmd || state.text || state.tools.size) {
+      persistAcpTurn({
+        cwd,
+        sessionId: activeSessionId,
+        userText: displayPrompt != null ? displayPrompt : prompt,
+        assistantText: state.text,
+        thinking: state.thinking,
+        tools: [...state.tools.values()],
+        model: model || sessModels?.currentModelId || "antigravity",
+        usage: state.usage,
+        existingUserUuid: state.persistedUserUuid || null,
+      });
+    }
+  };
+
   if (run) {
     run.child = client ? client.child : null;
     run.preSpawn = !client;
     run.dropAcpBg = dropActiveBg;
     // 停止只停当前 prompt，不销毁保活进程：进程留在池里供下轮复用（B10）。
     // W3-F2：冷启动握手期间（!state.promptSent && !reused）尚无可用 prompt 可 cancel，立刻 destroyClient 让在途握手 RPC 立即失败收尾。
-    // 若 prompt 已发但 agent 10s 内不响应 session/cancel，queue.forceEnd 会调用 forceFinish 彻底销毁卡死客户端，防双进程脑裂（C-02）。
+    // 若 prompt 已发但 agent 10s 内不响应 session/cancel，queue.forceEnd 会调用 forceFinish 同步落盘并彻底销毁卡死客户端，防双进程脑裂与落盘交错（C-02 + S-3/P2-6）。
     run.cancelAcp = () => {
       if (!state.promptSent && !reused) {
         canKeep = false;
@@ -2310,6 +2418,7 @@ export async function runAcpTurn({
       if (activeSessionId && client) client.notify("session/cancel", { sessionId: activeSessionId });
     };
     run.forceFinish = () => {
+      try { persistInterruptedTurn("forced stop"); } catch {}
       canKeep = false;
       destroyClient();
     };
@@ -2534,8 +2643,13 @@ export async function runAcpTurn({
     }
     const wantServerMode = serverModeOf(permMode);
     if (wantServerMode && (!reused || effectivePermMode !== wantServerMode)) {
-      // MIG-7 + C-02 + W3-F1：服务端模式经 serverModeOf 钳制，被拒时发 error 事件并纠回
-      await applyMode(wantServerMode);
+      // MIG-7 + C-02 + W3-F1 + S-2：服务端模式经 serverModeOf 钳制；restrictMode 下收紧失败必须 fail-closed 中止本轮
+      const modeOk = await applyMode(wantServerMode);
+      if (restrictMode && !modeOk) {
+        canKeep = false;
+        destroyClient();
+        throw new Error("failed to restrict server permission mode for disallowedTools");
+      }
     }
 
     // 若走的是 session/load 回落路径，排空异步重放再开闸（B3）：
@@ -2706,42 +2820,45 @@ export async function runAcpTurn({
     // 持久化到本地 jsonl，供会话列表 / 历史查看 / 搜索 / 导出复用
     // /compact 无正文和工具时不写入空白对话行，仅保留最新上下文用量供重开会话读取；
     // 后台命令补唤醒（auto="bg"）与空闲推送对齐，只落盘助手回复与工具记录、不写合成用户气泡
-    if (isBgWake) {
-      persistAcpAssistantOnly({
-        cwd,
-        sessionId: activeSessionId,
-        assistantText: state.text,
-        thinking: state.thinking,
-        tools: [...state.tools.values()],
-        model: activeModel,
-        usage: state.usage,
-      });
-    } else if (!isCompactCmd || state.text || state.tools.size) {
-      persistAcpTurn({
-        cwd,
-        sessionId: activeSessionId,
-        userText: displayPrompt != null ? displayPrompt : prompt,
-        assistantText: state.text,
-        thinking: state.thinking,
-        tools: [...state.tools.values()],
-        model: activeModel,
-        usage: state.usage,
-        existingUserUuid: state.persistedUserUuid || null,
-      });
-    } else if (compactConfirmed && state.usage?.context_tokens > 0) {
-      // C7：只有确认压缩已生效时才记“已压缩”摘要；未确认时不写这条，免得会话历史里留假记录。
-      const postStr = (compactEstimated ? "~" : "") + state.usage.context_tokens.toLocaleString();
-      persistAcpAssistantOnly({
-        cwd,
-        sessionId: activeSessionId,
-        assistantText: preCompactCtx > 0
-          ? `上下文已压缩：${preCompactCtx.toLocaleString()} → ${postStr} tokens`
-          : `上下文已压缩（摘要约 ${state.usage.context_tokens.toLocaleString()} tokens）`,
-        thinking: "",
-        tools: [],
-        model: activeModel,
-        usage: state.usage,
-      });
+    if (!turnPersisted) {
+      turnPersisted = true;
+      if (isBgWake) {
+        persistAcpAssistantOnly({
+          cwd,
+          sessionId: activeSessionId,
+          assistantText: state.text,
+          thinking: state.thinking,
+          tools: [...state.tools.values()],
+          model: activeModel,
+          usage: state.usage,
+        });
+      } else if (!isCompactCmd || state.text || state.tools.size) {
+        persistAcpTurn({
+          cwd,
+          sessionId: activeSessionId,
+          userText: displayPrompt != null ? displayPrompt : prompt,
+          assistantText: state.text,
+          thinking: state.thinking,
+          tools: [...state.tools.values()],
+          model: activeModel,
+          usage: state.usage,
+          existingUserUuid: state.persistedUserUuid || null,
+        });
+      } else if (compactConfirmed && state.usage?.context_tokens > 0) {
+        // C7：只有确认压缩已生效时才记“已压缩”摘要；未确认时不写这条，免得会话历史里留假记录。
+        const postStr = (compactEstimated ? "~" : "") + state.usage.context_tokens.toLocaleString();
+        persistAcpAssistantOnly({
+          cwd,
+          sessionId: activeSessionId,
+          assistantText: preCompactCtx > 0
+            ? `上下文已压缩：${preCompactCtx.toLocaleString()} → ${postStr} tokens`
+            : `上下文已压缩（摘要约 ${state.usage.context_tokens.toLocaleString()} tokens）`,
+          thinking: "",
+          tools: [],
+          model: activeModel,
+          usage: state.usage,
+        });
+      }
     }
 
     emit({
@@ -2777,46 +2894,8 @@ export async function runAcpTurn({
       try { client.notify("session/cancel", { sessionId: activeSessionId }); } catch {}
     }
     // 回合中途失败/被取消：提问、已完成工具、思考与已流出的正文都要落盘，别让整轮凭空消失（B5）。
-    // 只有 prompt 已发出去才落盘：prompt 没发出去说明问题没递到 agent，用户重发时不应多出一份。
-    if (activeSessionId && state.promptSent) {
-      for (const tool of state.tools.values()) {
-        if (!tool.done) {
-          if (run?.aborted) {
-            tool.cancelled = true;
-            tool.isError = false;
-          } else {
-            tool.isError = true;
-          }
-          if (!tool.output) tool.output = run?.aborted ? "（已中断）" : `（回合异常中断：${msg}）`;
-          emitToolResult(tool, emit, state);
-        }
-        state.knownToolIds.add(tool.id);
-      }
-      const isCompactCmd = /^\/compact(?:\s|$)/i.test(String(prompt || "").trim());
-      if (run?.auto === "bg") {
-        persistAcpAssistantOnly({
-          cwd,
-          sessionId: activeSessionId,
-          assistantText: state.text,
-          thinking: state.thinking,
-          tools: [...state.tools.values()],
-          model: model || sessModels?.currentModelId || "antigravity",
-          usage: state.usage,
-        });
-      } else if (!isCompactCmd || state.text || state.tools.size) {
-        persistAcpTurn({
-          cwd,
-          sessionId: activeSessionId,
-          userText: displayPrompt != null ? displayPrompt : prompt,
-          assistantText: state.text,
-          thinking: state.thinking,
-          tools: [...state.tools.values()],
-          model: model || sessModels?.currentModelId || "antigravity",
-          usage: state.usage,
-          existingUserUuid: state.persistedUserUuid || null,
-        });
-      }
-    }
+    // 只有 prompt 已发出去才落盘，且与 forceFinish 共享 turnPersisted 互斥防二次写盘（S-3/P2-6）。
+    persistInterruptedTurn(msg);
     if (!run?.aborted) {
       log(`[agy-acp] 回合异常中断 (${(activeSessionId || "-").slice(0, 8)}, ${Math.round((Date.now() - t0) / 1000)}s): ${msg}`);
       emit({ type: "error", message: tz("Antigravity CLI 执行出错：{msg}", { msg }) + detail });
@@ -3153,12 +3232,13 @@ export async function runAcpTurn({
             if (cmds.length) state.onCommands(cmds);
             return;
           }
-          // 空闲期捕获子代理唤醒信封（user_message* 中的 [Message] sender=<uuid>），不回显也不开 burst（C-09）
+          // 空闲期捕获子代理唤醒信封（user_message* 中的 [Message] sender=<uuid>），不回显也不开 burst（C-09 + S-3/P2-5）
           if (kind === "user_message" || kind === "user_message_chunk") {
             entry.lastUsed = Date.now();
             const uText = acpTextOf(upd.content ?? upd.summary ?? upd.text);
-            captureSubagentSenders(uText, entry);
-            if (idleBurst?.state) captureSubagentSenders(uText, idleBurst.state);
+            const uOpt = { resetAfter: kind === "user_message", msgId: upd.messageId ? String(upd.messageId) : "" };
+            captureSubagentSenders(uText, entry, uOpt);
+            if (idleBurst?.state) captureSubagentSenders(uText, idleBurst.state, uOpt);
             return;
           }
           // MIG-16：空闲期用量/模式更新只更新 entry 与界面，不开 burst——
@@ -3218,8 +3298,7 @@ export async function runAcpTurn({
                   const liveKeys = new Set(liveNow.map((c) => c.key));
                   for (const t of watchShells) {
                     if (!t.childKey || liveKeys.has(t.childKey)) continue;
-                    const tPid = Number(String(t.childKey).split(":")[0]);
-                    if (Number.isInteger(tPid) && tPid > 0 && typeof isPidAlive === "function" && isPidAlive(tPid)) continue;
+                    if (isChildKeyAliveFallback(t.childKey, "/proc", isPidAlive)) continue;
                     entry.nudgedBgTasks.add(t.id);
                     if (removeBgTaskAndDependents(poolScope, entry.bgTasks, t.id)) bgPruned = true;
                   }

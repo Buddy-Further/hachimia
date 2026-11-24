@@ -594,15 +594,23 @@ export async function startRun(item) {
     let isSlashCmd = isCmd;
     if (!run.auto) {
       const cleanMsg = neutralizeMarkers(message);
-      const isSpoofed = cleanMsg !== message;
+      let isSpoofed = cleanMsg !== message;
       displayMsg = cleanMsg;
       const cmdExp = expandCustomCommand(cleanMsg, cwd);
       if (cmdExp.expanded) {
         log(`⌘ 展开常用指令 /${cmdExp.name}`);
         isSlashCmd = false;
         integNote = P.local ? "" : integrityNote(integ);
+        if (!cmdExp.builtin) {
+          const safeExp = neutralizeMarkers(cmdExp.text);
+          if (safeExp !== cmdExp.text) isSpoofed = true;
+          acpPrompt = safeExp;
+        } else {
+          acpPrompt = cmdExp.text;
+        }
+      } else {
+        acpPrompt = cmdExp.text;
       }
-      acpPrompt = cmdExp.text;
       if (!isSlashCmd && !P.local) {
         const arch = await archiveHint(run.sessionId).catch(() => null);
         const refN = await refNote(cleanMsg, run.sessionId).catch((e) => { log("档号引用失败: " + e.message); return ""; });
