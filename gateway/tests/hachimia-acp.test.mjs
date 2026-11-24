@@ -555,7 +555,8 @@ rl.on("line", (line) => {
 
 test("providers：自定义 gemini-api-key 认证与纯 Antigravity 模式过滤 Claude 预设", async () => {
   const { PATHS } = await import("../gw/config.mjs");
-  const { upsertProvider, providerById, isProviderVisible } = await import("../gw/providers.mjs");
+  const { SETTINGS } = await import("../gw/settings-store.mjs");
+  const { upsertProvider, providerById, isProviderVisible, applyProvider } = await import("../gw/providers.mjs");
   const r = upsertProvider(null, {
     label: "自建 Gemini",
     baseUrl: "https://proxy.example.com",
@@ -571,9 +572,14 @@ test("providers：自定义 gemini-api-key 认证与纯 Antigravity 模式过滤
   // 模拟纯 Antigravity 模式（有 agy、无 claude）：应隐藏 anthropic / deepseek 等无 Key 旧预设，保留 antigravity 与自定义接口
   const fakeAgy = path.join(CFG.home, "fake-agy-bin");
   fs.writeFileSync(fakeAgy, "#!/bin/sh\n", { mode: 0o755 });
-  const prevAgy = PATHS.agy, prevClaude = PATHS.claude;
+  const prevAgy = PATHS.agy, prevClaude = PATHS.claude, prevProv = SETTINGS.provider;
   PATHS.agy = fakeAgy;
   PATHS.claude = path.join(CFG.home, "nonexistent-claude");
+  // 同池前序测试（如 a0610-main-providers）可能在同一 CCAPP_HOME 为 deepseek 写入过测试 Key 或设为当前 provider
+  SETTINGS.provider = "antigravity";
+  upsertProvider("deepseek", { clearKey: true });
+  upsertProvider("anthropic-key", { clearKey: true });
+  applyProvider();
   try {
     assert.equal(isProviderVisible("antigravity", providerById("antigravity")), true);
     assert.equal(isProviderVisible("gemini-key", providerById("gemini-key")), true);
@@ -584,6 +590,8 @@ test("providers：自定义 gemini-api-key 认证与纯 Antigravity 模式过滤
   } finally {
     PATHS.agy = prevAgy;
     PATHS.claude = prevClaude;
+    SETTINGS.provider = prevProv;
+    applyProvider();
   }
 });
 
