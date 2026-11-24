@@ -2116,16 +2116,13 @@ export async function runAcpTurn({
   };
   let activeSessionId = sessionId || null;
   let pendingPermCount = 0;
-  // 若 disallowedTools 禁止了写文件或命令执行（如只读定时任务），不得把服务端模式升级为 bypassPermissions / acceptEdits（C-06）
+  // W3-F1：若 disallowedTools 禁止了写文件或命令执行（如只读定时任务），只钳制发往服务端的权限模式，
+  // 绝不篡改本地 permMode / state.permMode / run.permMode，确保未禁用工具仍按原模式放行且界面徽标不变。
   const restrictMode = Array.isArray(disallowedTools) && disallowedTools.some((t) => {
     const g = acpToolGroups(t, "");
     return g.has("__write_edit__") || g.has("__exec__");
   });
-  if (restrictMode && (permMode === "bypassPermissions" || permMode === "acceptEdits")) {
-    permMode = "default";
-    state.permMode = "default";
-    if (run) run.permMode = "default";
-  }
+  const serverModeOf = (m) => (restrictMode && (m === "bypassPermissions" || m === "acceptEdits")) ? "default" : m;
   const pKey = poolKey({ bin, args, cwd, authType, apiKey, env, extraEnv, extraModels, addDirs, mcpServers });
 
   const isBenignStderr = (line) => /logging before google\.Init:.*Initialized Android local timezone/i.test(line);
@@ -2293,8 +2290,14 @@ export async function runAcpTurn({
     run.preSpawn = !client;
     run.dropAcpBg = dropActiveBg;
     // 停止只停当前 prompt，不销毁保活进程：进程留在池里供下轮复用（B10）。
-    // 但若 agent 10s 内不响应 session/cancel，queue.forceEnd 会调用 forceFinish 彻底销毁卡死客户端，防双进程脑裂（C-02）。
+    // W3-F2：冷启动握手期间（!state.promptSent && !reused）尚无可用 prompt 可 cancel，立刻 destroyClient 让在途握手 RPC 立即失败收尾。
+    // 若 prompt 已发但 agent 10s 内不响应 session/cancel，queue.forceEnd 会调用 forceFinish 彻底销毁卡死客户端，防双进程脑裂（C-02）。
     run.cancelAcp = () => {
+      if (!state.promptSent && !reused) {
+        canKeep = false;
+        destroyClient();
+        return;
+      }
       if (activeSessionId && client) client.notify("session/cancel", { sessionId: activeSessionId });
     };
     run.forceFinish = () => {
@@ -2303,12 +2306,12 @@ export async function runAcpTurn({
     };
     // set_mode 被 agent 拒绝时返回 false 并发 error 事件，不再静默返回 true（B11）。
     // 被拒时 applyMode 会把模式纠回被拒前的实际值并再发 perm_mode 事件（MIG-7）。
-    // 返回 Promise<boolean>：调用方 await 它才能知道是否真切过去了。
+    // W3-F1：本地保留用户所选模式，发往服务端时经 serverModeOf 钳制，防止绕过 disallowedTools。
     run.setMode = (mode) => {
       permMode = mode;
       state.permMode = mode;
       run.permMode = mode;
-      if (activeSessionId && client && !client.closed) return applyMode(mode);
+      if (activeSessionId && client && !client.closed) return applyMode(serverModeOf(mode));
       return Promise.resolve(true);
     };
   }
@@ -2346,6 +2349,7 @@ export async function runAcpTurn({
         if (initRes?.agentInfo?.version) {
           setLastInit({ version: String(initRes.agentInfo.version) });
         }
+        if (run?.aborted) throw new Error("aborted");
 
         // 2. authenticate（若 agent 声明了 authMethods 且我们指定了认证方式）
         const authMethods = Array.isArray(initRes?.authMethods) ? initRes.authMethods : [];
@@ -2371,6 +2375,7 @@ export async function runAcpTurn({
           }
         }
 
+        if (run?.aborted) throw new Error("aborted");
         // 3. 优先 session/resume（无历史重放），其次回落 session/load，最后 session/new
         const caps = initRes?.agentCapabilities || {};
         const canResume = !!(caps.sessionCapabilities?.resume || caps.session_capabilities?.resume);
@@ -2518,10 +2523,10 @@ export async function runAcpTurn({
     } else if (effort && reused && poolEntry?.effort === effort) {
       effortApplied = effort;   // 复用且池里记着已生效：本轮没重发，但仍是已生效的状态
     }
-    if (permMode && (!reused || effectivePermMode !== permMode)) {
-      // MIG-7 + C-02：复用 run.setMode 的报错路径（被拒时发 error 事件并把 init 已宣称的模式纠回），
-      // 不得静默吞掉；且当 setPermMode 更新了空闲池 permMode 但未同步服务端时，effectivePermMode !== permMode 自动补发。
-      await applyMode(permMode);
+    const wantServerMode = serverModeOf(permMode);
+    if (wantServerMode && (!reused || effectivePermMode !== wantServerMode)) {
+      // MIG-7 + C-02 + W3-F1：服务端模式经 serverModeOf 钳制，被拒时发 error 事件并纠回
+      await applyMode(wantServerMode);
     }
 
     // 若走的是 session/load 回落路径，排空异步重放再开闸（B3）：
@@ -2532,12 +2537,14 @@ export async function runAcpTurn({
       const drainStart = Date.now();
       const waitEnd = drainStart + 1500;
       while (Date.now() < waitEnd) {
+        if (run?.aborted) throw new Error("aborted");
         const quietMs = Date.now() - state.replaySeenAt;
         if (Date.now() - drainStart >= 600 && quietMs >= 200) break;
         await new Promise((r) => setTimeout(r, 60));
       }
     }
 
+    if (run?.aborted) throw new Error("aborted");
     // 5. session/prompt
     const contentBlocks = [{ type: "text", text: prompt }];
     for (const img of images) {
@@ -2840,6 +2847,7 @@ export async function runAcpTurn({
       entry.effort = effort ? effortApplied : entry.effort;
       entry.permMode = permMode;
       entry.appliedPermMode = effectivePermMode;
+      entry.disallowedTools = Array.isArray(disallowedTools) ? [...disallowedTools] : [];
       entry.knownToolIds = state.knownToolIds;
       entry.lastUsage = state.usage || entry.lastUsage || null;
       entry.lastContextTokens = Number(state.usage?.context_tokens) || entry.lastContextTokens || 0;
@@ -3278,11 +3286,20 @@ export async function runAcpTurn({
           translateAcpUpdate(params, idleBurst.state, idleBurst.emit);
           scheduleIdleFlush();
         },
-        // 空闲期间若有后台任务/子代理发起权限请求：bypassPermissions 下自动放行，否则优雅取消，不再抛 -32603
+        // 空闲期间若有后台任务/子代理发起权限请求：先查 disallowedTools（W3-F1），再在 bypassPermissions 下自动放行，否则优雅取消，不再抛 -32603
         onRequest: async (method, params) => {
           if (method === "session/request_permission") {
             const options = Array.isArray(params?.options) ? params.options : [];
             const allowOpt = pickAcpAllowOption(options);
+            const rejectOpt = options.find(isAcpRejectOpt);
+            const toolTitle = params?.toolCall?.title || params?.toolCall?.name || params?.toolCall?.kind || "Antigravity Tool";
+            const toolRaw = params?.toolCall?.name || "";
+            const toolKind = params?.toolCall?.kind || "";
+            if (isAcpToolDisallowed(toolTitle, toolKind, entry.disallowedTools) || (toolRaw && isAcpToolDisallowed(toolRaw, toolKind, entry.disallowedTools))) {
+              return rejectOpt
+                ? { outcome: { outcome: "selected", optionId: rejectOpt.optionId } }
+                : { outcome: { outcome: "cancelled" } };
+            }
             if (entry.permMode === "bypassPermissions" && allowOpt) {
               return { outcome: { outcome: "selected", optionId: allowOpt.optionId } };
             }

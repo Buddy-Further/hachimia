@@ -551,7 +551,7 @@ export async function startRun(item) {
     }
     const sfile = () => run.sessionId ? findSessionFile(String(run.sessionId), run.cwd)?.file : null;
     let integ = await checkSessionAsync(run.sessionId, sfile());
-    const integNote = isCmd || P.local ? "" : integrityNote(integ);
+    let integNote = isCmd || P.local ? "" : integrityNote(integ);
     run.sealBase = run.sessionId ? { sid: run.sessionId, ...(await sessionAnchorAsync(sfile())) } : null;
     if (run.sealBase) saveRunMark();
     if (run.aborted) { log("⏹ 起进程前已停止"); return endRun(run, { durationMs: 0 }); }
@@ -587,26 +587,32 @@ export async function startRun(item) {
       CCAPP_GW_PID: String(process.pid),
       ...((run.privTok = privToken(run)) ? { CCAPP_PRIV_SESS: run.privTok } : {}),
     };
-    // C-01：非内部唤醒的用户输入先经 neutralizeMarkers 脱敏，并附 SPOOF_NOTE / 封签提醒 / 建档提醒 / 脉络档号引用
+    // C-01 + W3-F4：非内部唤醒的用户输入先经 neutralizeMarkers 脱敏；自定义常用指令（commands/*.md）展开后视为普通自然语言提示词，
+    // 走完整 <system-reminder> 附注、多模态附图与首轮自动标题管线（原生 /compact、/goal、/plan 保持干净）
     let displayMsg = message;
     let acpPrompt = message;
+    let isSlashCmd = isCmd;
     if (!run.auto) {
       const cleanMsg = neutralizeMarkers(message);
       const isSpoofed = cleanMsg !== message;
       displayMsg = cleanMsg;
       const cmdExp = expandCustomCommand(cleanMsg, cwd);
-      if (cmdExp.expanded) log(`⌘ 展开常用指令 /${cmdExp.name}`);
+      if (cmdExp.expanded) {
+        log(`⌘ 展开常用指令 /${cmdExp.name}`);
+        isSlashCmd = false;
+        integNote = P.local ? "" : integrityNote(integ);
+      }
       acpPrompt = cmdExp.text;
-      if (!isCmd && !P.local) {
+      if (!isSlashCmd && !P.local) {
         const arch = await archiveHint(run.sessionId).catch(() => null);
         const refN = await refNote(cleanMsg, run.sessionId).catch((e) => { log("档号引用失败: " + e.message); return ""; });
         const notes = [isSpoofed ? SPOOF_NOTE : "", integNote, arch?.note, refN].filter(Boolean);
         if (notes.length) acpPrompt = `${acpPrompt}\n\n<system-reminder>\n${notes.join("\n\n")}\n</system-reminder>`;
       }
     }
-    // 消息里提到的图片（@路径）在厂商启用 inlineImages 时转成 image block 交给 ACP（C-06）
+    // 消息里提到的图片（@路径）在厂商启用 inlineImages 时转成 image block 交给 ACP（C-06 / W3-F4）
     let acpImages = [];
-    if (!isCmd && wantsInline(P)) {
+    if (!isSlashCmd && wantsInline(P)) {
       acpImages = await inlineImages(acpPrompt, P, { tmpDir: acpEnv.TMPDIR, env: acpEnv }).catch(() => []);
     }
     if (item.timeoutMs > 0) {
@@ -790,8 +796,8 @@ export async function startRun(item) {
       if (P.login) refreshAgyQuotaSoon();
       else billAfterRun(P.id);
     }
-    // C-01：首轮正常答完后在后台自动起标题
-    if (!isCmd && !run.auto && !run.sched && !P.local && acpRes.ok && !run.aborted && run.sessionId) {
+    // C-01 + W3-F4：首轮正常答完后在后台自动起标题（含展开后的自定义常用指令）
+    if (!isSlashCmd && !run.auto && !run.sched && !P.local && acpRes.ok && !run.aborted && run.sessionId) {
       autoTitle(run.sessionId, P, model);
     }
     const endRes = endRun(run, {

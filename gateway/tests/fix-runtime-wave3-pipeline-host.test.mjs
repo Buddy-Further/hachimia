@@ -266,16 +266,28 @@ rl.on("line", (line) => {
       return;
     }
     if (mode === "perm") {
-      const rid = nextReqId++;
-      pending.set(rid, (resp) => {
-        const outcome = resp.result?.outcome?.outcome || "";
-        const opt = resp.result?.outcome?.optionId || "";
-        send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: sid, update: { sessionUpdate: "agent_message", messageId: "m1", content: "PERM:" + outcome + ":" + opt } } });
-        send({ jsonrpc: "2.0", id: msg.id, result: { stopReason: "end_turn" } });
+      const rid1 = nextReqId++;
+      pending.set(rid1, (resp1) => {
+        const o1 = (resp1.result?.outcome?.outcome || "") + ":" + (resp1.result?.outcome?.optionId || "");
+        const rid2 = nextReqId++;
+        pending.set(rid2, (resp2) => {
+          const o2 = (resp2.result?.outcome?.outcome || "") + ":" + (resp2.result?.outcome?.optionId || "");
+          send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: sid, update: { sessionUpdate: "agent_message", messageId: "m1", content: "PERM:" + o1 + "|EXEC:" + o2 } } });
+          send({ jsonrpc: "2.0", id: msg.id, result: { stopReason: "end_turn" } });
+        });
+        send({
+          jsonrpc: "2.0",
+          id: rid2,
+          method: "session/request_permission",
+          params: {
+            toolCall: { toolCallId: "t-exec", title: "Run command", name: "run_command", kind: "execute", rawInput: { CommandLine: "echo ok" } },
+            options: [{ optionId: "allow_once", kind: "allow_once" }, { optionId: "reject_once", kind: "reject_once" }],
+          },
+        });
       });
       send({
         jsonrpc: "2.0",
-        id: rid,
+        id: rid1,
         method: "session/request_permission",
         params: {
           toolCall: { toolCallId: "t-write", title: "Write file", name: "write_file", kind: "write", rawInput: { Path: "/tmp/x" } },
@@ -312,8 +324,9 @@ rl.on("line", (line) => {
     assert.deepEqual(trace.slice(0, 3), ["sync:A", "init:A", "new:A"], `冷启握手必须串行: ${JSON.stringify(trace)}`);
     assert.deepEqual(trace.slice(3, 6), ["sync:B", "init:B", "new:B"], `第二个握手须排在第一个之后: ${JSON.stringify(trace)}`);
 
-    // 2. disallowedTools: 即使 permMode=bypassPermissions，写文件工具也必须被拒绝
-    const runPerm = { id: "r-perm", denied: [] };
+    // 2. W3-F1 + disallowedTools: permMode=bypassPermissions + disallowedTools=["Write"] 时，
+    //    write_file 被拒，同轮未禁用的 run_command 仍按 bypassPermissions 自动放行，且 run.permMode 保持 bypassPermissions
+    const runPerm = { id: "r-perm", permMode: "bypassPermissions", denied: [] };
     const rPerm = await runAcpTurn({
       bin: process.execPath,
       args: [mockPath],
@@ -327,10 +340,32 @@ rl.on("line", (line) => {
       keepAlive: false,
     });
     assert.equal(rPerm.ok, true);
-    assert.match(rPerm.resultText, /PERM:selected:reject_once/, `写文件工具必须被拒: ${rPerm.resultText}`);
+    assert.match(rPerm.resultText, /PERM:selected:reject_once\|EXEC:selected:allow_once/, `write_file 被拒且 run_command 自动放行: ${rPerm.resultText}`);
+    assert.equal(runPerm.permMode, "bypassPermissions", "W3-F1: 不得篡改本地 run.permMode");
     assert.ok(runPerm.denied.length >= 1, "应记录被拒工具");
     assert.equal(isAcpToolDisallowed("Write file", "write", ["Write"]), true);
     assert.equal(isAcpToolAllowed("run_command", "execute", ["Bash"]), true);
+
+    // 2b. W3-F2: 冷启动握手期间点停止（cancelAcp）立即 destroyClient 收尾，不等 10s
+    const runStop = { id: "r-stop-init", aborted: false };
+    const tStop0 = Date.now();
+    const stopTimer = setTimeout(() => {
+      runStop.aborted = true;
+      runStop.cancelAcp?.();
+    }, 30);
+    const rStop = await runAcpTurn({
+      bin: process.execPath,
+      args: [mockPath],
+      cwd: root,
+      env: { ...process.env, MOCK_MODE: "lock", MOCK_TAG: "S" },
+      prompt: "stop-during-init",
+      run: runStop,
+      emit: () => {},
+      keepAlive: false,
+    });
+    clearTimeout(stopTimer);
+    assert.equal(rStop.ok, false);
+    assert.ok(Date.now() - tStop0 < 1500, `冷启握手点停止应立即收尾而非等超时: ${Date.now() - tStop0}ms`);
 
     // 3. 超时置 run.timedOut = true
     const runTo = { id: "r-to" };
@@ -425,17 +460,26 @@ test("C-06.3: 5 个 ACP 预设默认 inlineImages=true 且允许用户覆盖为 
   assert.equal(providerById("antigravity").inlineImages, true);
 });
 
-// ── C-06.5: reconcile.mjs 检查 PATHS.agy 缺失 ───────────────────────────
-test("C-06.5: reconcileNow 在 PATHS.agy 缺失时报 agy error 且带 act.t=claude", async () => {
+// ── C-06.5 + W3-F3: reconcile.mjs 检查 PATHS.agy 缺失与 .agy-uninstalled ──
+test("C-06.5 + W3-F3: reconcileNow 在 PATHS.agy 缺失时报 agy error；有 .agy-uninstalled 标记时不误报", async () => {
   const prevAgy = PATHS.agy;
   PATHS.agy = path.join(CFG.workspace, "definitely-missing-agy-bin");
+  const flagFile = PREFIX ? path.join(path.dirname(PREFIX), ".agy-uninstalled") : "";
   try {
+    if (flagFile) fs.rmSync(flagFile, { force: true });
     const r = await reconcileNow();
     const hit = r.findings.find((f) => f.key === "agy" && f.level === "error");
     assert.ok(hit, `应检出缺失 agy: ${JSON.stringify(r.findings)}`);
     assert.deepEqual(hit.act, { t: "claude" });
+
+    if (flagFile) {
+      fs.writeFileSync(flagFile, "1\n");
+      const r2 = await reconcileNow();
+      assert.equal(r2.findings.some((f) => f.key === "agy"), false, ".agy-uninstalled 存在时不得误报红");
+    }
   } finally {
     PATHS.agy = prevAgy;
+    if (flagFile) fs.rmSync(flagFile, { force: true });
   }
 });
 
