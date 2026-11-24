@@ -349,9 +349,9 @@ test("MIG-29 终端 stderr 用 StringDecoder 且收尾时冲干净（源码锚�
 // ── MIG-30：安装子进程不继承 CCAPP_TOKEN_FILE（源码锚点） ──
 test("MIG-30 Installer.run 起进程前删掉 CCAPP_TOKEN_FILE（源码锚点）", () => {
   const src = readSrc("android/java/ha/chi/mia/Installer.java");
-  const applyIdx = src.indexOf("env.apply(pb.environment())");
+  const applyIdx = src.indexOf("env.proc(cmd)");
   const removeIdx = src.indexOf('pb.environment().remove("CCAPP_TOKEN_FILE")');
-  assert.ok(applyIdx >= 0, "Installer.run 应调 env.apply");
+  assert.ok(applyIdx >= 0, "Installer.run 应调 env.proc(cmd) 注入环境");
   assert.ok(removeIdx > applyIdx, "apply 之后、起进程之前应删掉 CCAPP_TOKEN_FILE");
 });
 

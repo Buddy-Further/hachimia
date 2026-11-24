@@ -188,7 +188,10 @@ test("B10+B11 端到端：set_mode 被拒返回 false 并报错；点停止不�
   try {
     run = { id: "r-b-slow", bgList: [], bgTasks: 0 };
     const p = runAcpTurn(runOpts(mockBin, logFile, { prompt: "slow hi", sessionId: "sess-slow-1", keepAlive: true, run, emit: (e) => evs.push(e) }));
-    await new Promise((r) => setTimeout(r, 800));
+    const waitPromptDeadline = Date.now() + 4000;
+    while (countMethod(logFile, "session/prompt") < 1 && Date.now() < waitPromptDeadline) {
+      await new Promise((r) => setTimeout(r, 40));
+    }
     const smRet = await run.setMode("plan");
     assert.equal(smRet, false, "set_mode 被拒应返回 false");
     assert.ok(evs.some((e) => e.type === "error"), "set_mode 被拒应发 error 事件");

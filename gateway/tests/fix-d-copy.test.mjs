@@ -11,7 +11,7 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8");
 // ── D-04：java-en.json ──
 test("D-04 java-en.json 更新通知与相关文案不写 cccodroid / Claude Code", () => {
   const d = JSON.parse(read("android/assets/i18n/java-en.json"));
-  assert.equal(Object.keys(d).length, 567); // rem/copy 551 键 + #248 终端桥接 4 键 + #255/#262 12 键
+  assert.equal(Object.keys(d).length, 568); // rem/copy 551 键 + #248 终端桥接 4 键 + #255/#262 12 键 + 开机自动激活 Shizuku 1 键
   for (const [k, v] of Object.entries(d)) {
     assert.doesNotMatch(String(k), /cccodroid/, `键仍含 cccodroid: ${JSON.stringify(k)}`);
     assert.doesNotMatch(String(k), /Claude Code/, `键仍含 Claude Code: ${JSON.stringify(k)}`);

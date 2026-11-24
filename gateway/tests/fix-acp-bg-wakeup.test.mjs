@@ -568,8 +568,8 @@ rl.on("line", (line) => {
       return send({ jsonrpc: "2.0", id: msg.id, result: { stopReason: "end_turn" } });
     }
     if (mode === "doublefork-daemon") {
-      // 先启正在跑的 shell（800ms），再登记一个二次 fork 秒退的 daemon（无新子进程）：绝不可把运行中的 shell 误标进 daemonChildKeys
-      children.push(spawn(process.execPath, ["-e", "setTimeout(() => {}, 800)"], { stdio: "ignore" }));
+      // 先启正在跑的 shell（1800ms），再登记一个二次 fork 秒退的 daemon（无新子进程）：绝不可把运行中的 shell 误标进 daemonChildKeys
+      children.push(spawn(process.execPath, ["-e", "setTimeout(() => {}, 1800)"], { stdio: "ignore" }));
       send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: sid, update: {
         sessionUpdate: "tool_call", toolCallId: "tc-s1", title: "long-sh", rawInput: { CommandLine: "sleep 1" }, status: "in_progress",
       } } });
@@ -603,7 +603,9 @@ rl.on("line", (line) => {
       prompt: "mixed", run: { id: "r-mix", bgList: [], bgTasks: 0 }, emit: () => {},
       keepAlive: true, bgPollMs: 40, bgGraceMs: 180, onBgWake: (ev) => wakesA.push(ev),
     });
-    await new Promise((r) => setTimeout(r, 600));
+    for (let i = 0; i < 65 && !wakesA.length; i++) {
+      await new Promise((r) => setTimeout(r, 40));
+    }
     assert.equal(wakesA.length, 1, "daemon 存活时 shell 退出仍应准确触发一次补唤醒");
     assert.equal(wakesA[0].tasks[0].id, "sess-mixed-seq/task-2");
     const remain = getAcpPoolBg("sess-mixed-seq");
