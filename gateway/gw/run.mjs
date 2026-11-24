@@ -11,7 +11,7 @@ import { refreshAgyQuotaSoon } from "./login.mjs";
 import { expandCustomCommand } from "./commands.mjs";
 import { tasksCheck } from "./goal.mjs";
 import { setLastInit } from "./caps.mjs";
-import { RUNS, SESSIONS, rememberSession, runFlag, runList } from "./runs.mjs";
+import { RUNS, SESSIONS, rememberSession, runFlag, runList, runOfSession } from "./runs.mjs";
 import { SWALLOW_HOOKS } from "./streamfix.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
 import { clearIncomplete, markIncomplete } from "./incomplete.mjs";
@@ -533,6 +533,24 @@ export async function startRun(item) {
       run,
       emit: acpEmit,
       onBgChange: () => publishState(),
+      onBgWake: ({ sessionId: sid, tasks }) => {
+        if (!sid || runOfSession(sid)) return;
+        if (QUEUE.some((q) => !q.held && sidForItem(q) === sid)) return;
+        const ids = (tasks || []).map((t) => String(t.id || "").split("/").pop()).filter(Boolean).join(", ");
+        const wakeMsg = `<task-notification>Background shell task completed${ids ? ` (${ids})` : ""}. Please inspect the task result and continue.</task-notification>`;
+        enqueue({
+          message: wakeMsg,
+          sessionId: sid,
+          auto: "bg",
+          internal: true,
+          cwd,
+          provider: P.id,
+          model: model || null,
+          effort: effort || null,
+          permissionMode: permMode,
+          projectId: item.projectId || null,
+        });
+      },
       onSessionFileReady: (sid) => {
         if (!hadAcpSid && !run.sched && !run.fileSeen && sid) {
           run.fileSeen = true;
@@ -541,7 +559,7 @@ export async function startRun(item) {
       },
       timeoutMs: item.timeoutMs || 0,
       askPermission: async ({ tool, toolCallId, input, hasAlways }) => {
-        if (run.unattended || run.auto) return { behavior: "deny" };
+        if (run.unattended || (run.auto && run.auto !== "bg")) return { behavior: "deny" };
         // 标准工具权限确认卡片（不挂 guard，免得误判成「碰到了密钥或登录凭据」）
         return new Promise((resolve) => {
           const id = "acp-perm-" + crypto.randomBytes(6).toString("hex");
@@ -612,7 +630,7 @@ export async function startRun(item) {
       const iTok = (Number(u.input_tokens) || 0) + cTok + (Number(u.cache_creation_input_tokens) || 0);
       const oTok = Number(u.output_tokens) || 0;
       const d = {};
-      if (usageIsPrompt(message)) d.m = 1;
+      if (!run.auto && usageIsPrompt(message)) d.m = 1;
       if (acpRes.ok) d.t = 1;
       if (acpRes.toolCount > 0) d.tl = acpRes.toolCount;
       if (iTok > 0) d.i = iTok;
@@ -638,7 +656,7 @@ export async function startRun(item) {
     if (acpRes.ok && !run.aborted && run.sessionId) {
       if (isCompactMsg || run.auto === "autocompact" || run.auto === "idle") {
         ACP_AUTOCOMPACT.set(run.sessionId, { at: Date.now(), post: usedCtx });
-      } else if (!run.auto) {
+      } else if (!run.auto || run.auto === "bg") {
         // /plan、/boost、/grill-me 与自定义斜杠指令同样会消耗大量上下文，跑完超线后应照常触发自动压缩
         const acLine = acpAutoCompactLine(ctxWin, P);   // C9-2：未设线时按 ACP 默认线（窗口八成），不是没有线
         const prevAc = ACP_AUTOCOMPACT.get(run.sessionId);

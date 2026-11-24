@@ -609,6 +609,11 @@ export function enqueue(body, commitHandoff) {
       && (q.auto === "autocompact" || /^\/compact(?:\s|$)/i.test(String(q.message || "").trim())));
     if (dup) return dup;
   }
+  // 后台命令补唤醒去重：同会话队列里已有待执行的 bg 补唤醒时不再重复入队
+  if (body.auto === "bg" && item.sessionId) {
+    const dup = QUEUE.find((q) => !q.held && sidForItem(q) === item.sessionId && q.auto === "bg");
+    if (dup) return dup;
+  }
   // 插话（"inject"，旧前端叫 "interrupt"）：不打断。消息直接写进正在跑的 claude 的 stdin，
   // claude 会在当前这一步（比如一次工具调用）结束后把它并进对话，同一轮里接着干 —— 和终端里边干边打字一样。
   // 塞不进去（这一轮已在收尾、或者不是同一个会话）就排到队首，这一轮一结束马上发。
