@@ -10,11 +10,11 @@
 # 再查旧 Claude 路径（只在真实存在时用），两个都没有就明确报错退出 127，别让调用方拿到一句看不懂的加载器报错。
 # 「agy 是否调 rg」未验证：真机让 agy 跑一次需要搜索的任务，看 rg 是否被调用、是否报错（见 mig-fix-deep-p2b.md）。
 unset LD_PRELOAD
-if [ -x "$PREFIX/bin/rg" ]; then
+if [ -f "$PREFIX/bin/rg" ]; then
   exec "$PREFIX/bin/rg" "$@"
 fi
 CLAUDE_BIN="$HOME/.local/share/cccodroid/claude/current/claude"
-if [ -x "$CLAUDE_BIN" ]; then
+if [ -f "$CLAUDE_BIN" ]; then
   PRE=${CCAPP_GLIBC_PRELOAD:-${CCAPP_CLAUDE_PRELOAD:-${CCAPP_NATIVE_LIB:-/nonexistent}/libccenosys.so}}
   exec "${CCAPP_LD:-$PREFIX/glibc/lib/ld-linux-aarch64.so.1}" --library-path "$PREFIX/glibc/lib" ${PRE:+--preload "$PRE"} \
     --argv0 rg "$CLAUDE_BIN" "$@"

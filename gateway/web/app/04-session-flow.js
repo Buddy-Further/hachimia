@@ -619,17 +619,20 @@
     box.addEventListener("click", (e) => {
       const p = e.target.dataset && e.target.dataset.p;
       if (!p) return;
-      openDrawer("settings");
-      const sel = $("set-provider");
-      if (p === "login" && [...sel.options].some((o) => o.value === "antigravity")) {
-        sel.value = "antigravity";
-        sel.dispatchEvent(new Event("change"));
-      } else if (p === "key" && [...sel.options].some((o) => o.value === "gemini-key")) {
-        sel.value = "gemini-key";
-        sel.dispatchEvent(new Event("change"));
-      }
-      setTimeout(() => sel.scrollIntoView({ block: "center" }), 50);
-      if (p === "key") sel.focus();
+      openDrawer("settings", "provider");
+      Promise.resolve(typeof loadProviders === "function" ? loadProviders() : null).then(() => {
+        const sel = $("set-provider");
+        if (!sel) return;
+        if (p === "login" && [...sel.options].some((o) => o.value === "antigravity")) {
+          sel.value = "antigravity";
+          sel.dispatchEvent(new Event("change"));
+        } else if (p === "key" && [...sel.options].some((o) => o.value === "gemini-key")) {
+          sel.value = "gemini-key";
+          sel.dispatchEvent(new Event("change"));
+        }
+        setTimeout(() => sel.scrollIntoView({ block: "center" }), 50);
+        if (p === "key") sel.focus();
+      });
     });
   }
 
