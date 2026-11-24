@@ -6,7 +6,7 @@ import { SETTINGS, capList, settingsDiskCheck } from "./settings-store.mjs";
 import { PERM_MODES, PROVIDER, acpAuthType, billAfterRun, hasAcpKeyChannel, hasAdcCredentials, keyOf, noteTokenDelta, providerById, providersDiskCheck } from "./providers.mjs";
 import { ALIAS_SEEN, defaultAcpCompactLine, effortLevelsOf, fetchModels, isLoginMode, learnWindow, modelsCached, normEffort } from "./models.mjs";
 import { agyEnv, bridgeSwitching, claudeAtLeast, claudeCmd, claudeEnv, currentModelInfo, ensureBridge, safeModePerm, settingsArgs } from "./claude.mjs";
-import { runAcpTurn, stopAcpBgTask } from "./acp.mjs";
+import { abortAcpIdleBurst, runAcpTurn, stopAcpBgTask } from "./acp.mjs";
 import { refreshAgyQuotaSoon } from "./login.mjs";
 import { expandCustomCommand } from "./commands.mjs";
 import { tasksCheck } from "./goal.mjs";
@@ -586,17 +586,31 @@ export async function startRun(item) {
           const done = (v) => {
             if (!run.perms?.delete(id)) return;
             clearTimeout(timer);
+            run._acpPermCancelers?.delete(cancelPerm);
             if (!run.perms.size) run.answerPerm = null;
             publishState();
             resolve(v);
           };
+          const cancelPerm = () => {
+            if (!run.perms?.has(id)) return;
+            log(`${runTag(run)} ⏹ ACP 权限确认已中断：${tool}`);
+            emit({ type: "perm_resolved", id, behavior: "deny", interrupt: true });
+            done({ behavior: "deny", interrupt: true });
+          };
           run.perms = run.perms || new Map();
           run.perms.set(id, p);
+          (run._acpPermCancelers ||= new Set()).add(cancelPerm);
+          run.cancelPerms = () => {
+            for (const fn of [...(run._acpPermCancelers || [])]) {
+              try { fn(); } catch {}
+            }
+          };
           const prevAnswer = run.answerPerm;
           run.answerPerm = (pid, a) => {
             if (pid !== id || !run.perms?.has(id)) return prevAnswer ? prevAnswer(pid, a) : false;
             const allow = a.behavior === "allow";
             log(`${allow ? "✓ 允许" : "✗ 拒绝"} ACP 工具 ${tool}${a.always ? "（始终）" : ""}${a.interrupt ? "（并停止）" : ""}`);
+            run._acpPermCancelers?.delete(cancelPerm);
             emit({ type: "perm_resolved", id, behavior: allow ? "allow" : "deny", always: !!a.always, interrupt: !!a.interrupt });
             if (a.interrupt) { holdLane(run); run.aborted = true; }
             const act = permModeAction(allow ? "allow" : "deny", a.mode, run.permMode);
@@ -1581,9 +1595,11 @@ export async function routeRun(req, res, u, p) {
   if (req.method === "POST" && p === "/api/abort") {
     const b = JSON.parse((await readBody(req)) || "{}");
     if (b.clearQueue) QUEUE.length = 0;
-    // 带 id 只停那一轮；不带 id（旧前端）停掉全部
+    // 带 id 只停那一轮；不带 id（旧前端）停掉全部（含正在进行中的 ACP idleBurst）
     const stop = (run) => abortRun(run, { userStopped: true });
-    const killed = b.id ? stop(RUNS.get(String(b.id))) : runList().map(stop).some(Boolean);
+    const killed = b.id
+      ? (stop(RUNS.get(String(b.id))) || abortAcpIdleBurst(String(b.id)))
+      : (runList().map(stop).some(Boolean) || abortAcpIdleBurst());
     if (b.clearQueue) publishState();
     return sendJson(res, 200, { ok: true, killed });
   }

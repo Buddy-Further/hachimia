@@ -23,7 +23,10 @@ import { cleanMergeFrom } from "./merge.mjs";
 import { LOCAL_CMD_RE } from "./modelcmd.mjs";
 import { tamperPending } from "./tamper.mjs";
 import { RATE_LIMITS } from "./stream.mjs";
-import { getAcpIdleRuns, getAcpPoolBg } from "./acp.mjs";
+import { closeAcpSession, getAcpIdleRuns, getAcpPoolBg, hasAcpIdleBurst, onAcpIdleSettled, setAcpPoolPermMode } from "./acp.mjs";
+
+// ACP 空闲冲刷（idleBurst）结束后立刻唤醒队列泵出，避免新消息在池空闲期并发撞上 session/prompt
+onAcpIdleSettled(() => pump());
 
 // ── 生成与排队 ────────────────────────────────────────────────────────
 export const QUEUE = [];                 // 等着跑的消息：{ id, message, sessionId, follow, model, permissionMode, addDirs, at }
@@ -94,6 +97,8 @@ export function setPermMode(mode, { persist = true } = {}) {
     // 重放（切回会话、断线重连）时 init 里还是起跑时的模式，会把界面改回去，用户想收紧也发不出去（安全通告 GHSA-2w6p）
     for (const e of r.log || []) if (e.type === "init") e.permissionMode = eff;
   }
+  // 同步更新 ACP 空闲常驻池的 permMode，保证空闲期权限回调立即生效，且下次复用与 appliedPermMode 不符时自动 applyMode（C-02）
+  setAcpPoolPermMode(eff);
   publish({ type: "perm_mode", mode: eff });
   return { mode: eff, saved };
 }
@@ -231,6 +236,7 @@ export function clearInterrupted(sid) {
 // 会话进了回收站：它的中断记录没用了（不然启动时还会拿它当目标会话打开、挂一张「继续」卡，#173-5）；
 // 正开着它的界面收到 session_gone 自己退回新对话（服务端删的：项目连目录删、定时任务不存对话、别的窗口，#173-4）
 TRASH_HOOKS.push((id) => {
+  closeAcpSession(id);
   dropInterrupted(id);
   const incompleteSaved = clearIncomplete(id);   // 别把旧未完成标记留给同号的将来（FIND-040）
   // 排着的消息也丢掉：不然名额一空就拿已删的会话号去 --resume，claude 报 No conversation found，这条消息悄悄没了（0.6.9 审计 195-W.1）
@@ -429,6 +435,7 @@ export function endRun(run, fields = {}) {
  *  见 run.mjs 的 run.forceFinish，FIND-002）；没有 forceFinish 的才用最小收尾，保证车道不会一直占着 */
 export function forceEnd(run) {
   if (!run || run.ended) return false;
+  try { run.cancelPerms?.(); } catch {}
   if (typeof run.forceFinish === "function") {
     try { run.forceFinish(); } catch (e) { log(`${runTag(run)} 强制收尾出错: ${e.message}`); }
   }
@@ -449,15 +456,16 @@ export function abortRun(run, { hold = true, userStopped = false } = {}) {
   // 并行时只挂起这个会话自己排着的，别的会话不受影响。
   // hold:false 只给「答完了、只剩后台任务、输入已关」的那种：用户要的是让排着的消息发出去，不是停对话
   if (hold) holdLane(run); else run.retired = true;   // retired：这一轮的回答早就完整了，收尾别报成「已中断」
+  try { run.cancelPerms?.(); } catch {}
   // 还没起进程（在等桥、拉模型清单、起端侧模型、核验程序…）：这些等待不全能中断，等它们回来才收尾的话，
   // 这段时间槽一直占着、界面一直「生成中」。现在就收尾；等待回来后 startRun 看到 aborted / ended 不再起进程（0.6.9 审计 200-7-07）
   if (!run.child && run.preSpawn) { log(`${runTag(run)} ⏹ 起进程前停止，立即收尾`); endRun(run, { durationMs: 0 }); return true; }
-  // ACP 轮次：cancelAcp 只发 session/cancel 停当前 prompt，保活进程要留给下轮复用（B10），
-  // 不能像 claude 那样 killTree 整个进程树；5 秒后还没收尾也只强制收尾，不杀进程。
+  // ACP 轮次：cancelAcp 只发 session/cancel 停当前 prompt，保活进程尽量留给下轮复用（B10）；
+  // 但若 agent 在 10 秒内拒不响应 session/cancel，forceEnd 会经 run.forceFinish() 销毁卡死的旧客户端并清池项，
+  // 防止 poolEntry.busy 永久卡死后另起第二个 agy 并发写坏同一 .jsonl（C-02）。
   const acpStop = typeof run.cancelAcp === "function";
   if (acpStop) {
     try { run.cancelAcp(); } catch {}
-    // agent 若不理 session/cancel：10 秒后只收尾、不杀进程；prompt 本身还有 B12 的默认超时兜底
     setTimeout(() => { if (!run.ended) forceEnd(run); }, 10000).unref();
   }
   if (!acpStop && run.child) {
@@ -485,6 +493,7 @@ export function abortRun(run, { hold = true, userStopped = false } = {}) {
 /** 把这个会话排着的消息全挂起：点停止、权限卡上「拒绝并停止」都走这里 */
 export function holdLane(run) {
   run.laneHeld = true;   // 已写进 stdin、还没被吃的插话，结束退回队首时也要挂起（#52 P2-3）
+  try { run.cancelPerms?.(); } catch {}
   for (const q of QUEUE) if (sameLane(q, run)) { q.held = true; q.intr = false; }
 }
 
@@ -519,7 +528,7 @@ function idleFire(sid) {
   const P = runProvider(sid);
   if (!x || SETTINGS.idleCompaction === false || !P.nativeModels) return;
   const why = (() => {
-    if (laneRun("s:" + sid)) return "正在跑";
+    if (laneRun("s:" + sid) || hasAcpIdleBurst(sid)) return "正在跑";
     if (QUEUE.some((q) => sidOfLane(laneOfItem(q)) === sid)) return "有排队的消息";
     try { if (fs.statSync(findSessionFile(sid).file).size !== x.size) return "会话有新内容"; } catch { return "会话文件不见了"; }
     const rl = RATE_LIMITS;
@@ -541,7 +550,8 @@ export function pump() {
     if (q.held) { i++; continue; }                  // 停止时挂起的不自动发，也不挡后面新发的
     if (!startable(q)) { QUEUE.splice(i, 1); publishState(); continue; }
     const lane = laneOfItem(q), key = sidOfLane(lane) || lane;
-    if (blocked.has(key) || laneRun(lane)) { blocked.add(key); i++; continue; }
+    const burstSid = sidForItem(q) || sidOfLane(lane);
+    if (blocked.has(key) || laneRun(lane) || (burstSid && hasAcpIdleBurst(burstSid))) { blocked.add(key); i++; continue; }
     // 会话文件已经不在了（别的途径删的）：同启动恢复那道检查，不拿它去 --resume（195-W.1）。
     // 这次运行里起过的会话不算：claude 写记录文件比 init 晚，刚开的会话接着排的消息不能当成删了
     const qsid = sidForItem(q);

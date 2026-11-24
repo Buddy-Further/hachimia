@@ -139,12 +139,14 @@ test("MIG-20 经 translateAcpUpdate：两段重叠 tool_call_update 不翻倍", 
   assert.equal(st.tools.get("t1").output, "abcd");
 });
 
-// ── MIG-21：权限自动放行锚定匹配 ──
-test("MIG-21 pickAcpAllowOption：disallow 不当允许项，allow_once 优先", () => {
+// ── MIG-21 + C-02：权限自动放行锚定匹配与仅有 allow_always 兜底 ──
+test("MIG-21 pickAcpAllowOption：disallow 不当允许项，allow_once 优先，仅有 allow_always 时兜底", () => {
   assert.equal(pickAcpAllowOption([{ optionId: "disallow", kind: "disallow" }]), undefined);
   assert.equal(pickAcpAllowOption([{ optionId: "disallow_once", kind: "disallow_once" }]), undefined);
   assert.equal(pickAcpAllowOption([{ optionId: "disallow" }, { optionId: "allow_once", kind: "allow_once" }]).optionId, "allow_once");
-  assert.equal(pickAcpAllowOption([{ optionId: "allow_always", kind: "allow_always" }]), undefined, "allow_always 不是 allow_once，不能由 allow 档位代取");
+  assert.equal(pickAcpAllowOption([{ optionId: "allow_once", kind: "allow_once" }, { optionId: "allow_always", kind: "allow_always" }], false).optionId, "allow_once");
+  assert.equal(pickAcpAllowOption([{ optionId: "allow_once", kind: "allow_once" }, { optionId: "allow_always", kind: "allow_always" }], true).optionId, "allow_always");
+  assert.equal(pickAcpAllowOption([{ optionId: "allow_always", kind: "allow_always" }]).optionId, "allow_always", "无 allow_once 仅有 allow_always 时应兜底返回允许项（C-02）");
   assert.equal(pickAcpAllowOption([]), undefined);
   assert.equal(pickAcpAllowOption([{ optionId: "weird" }]).optionId, "weird", "未知 kind 的首选项保留旧兜底");
 });
@@ -162,8 +164,10 @@ test("MIG-21 端到端：bypass 下只发 disallow 选项，不被当允许点�
     const m = fs.readFileSync(logFile, "utf8").match(/PERM-OUTCOME:(.*)/);
     assert.ok(m, "mock 应记下权限决定");
     const outcome = JSON.parse(m[1]);
-    assert.notEqual(outcome.outcome, "selected", "disallow 不能被当允许项选中：" + JSON.stringify(outcome));
-    assert.equal(outcome.optionId, undefined, "不应选中任何允许项");
+    assert.ok(
+      outcome.outcome === "cancelled" || (outcome.outcome === "selected" && outcome.optionId === "disallow"),
+      "disallow 只能被取消或作为拒绝项选中，绝不能被当允许项放行：" + JSON.stringify(outcome)
+    );
     assert.match(r.resultText || "", /拒绝/);
   } finally { closeAllAcpClients(); }
 });

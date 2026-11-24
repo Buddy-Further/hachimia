@@ -22,6 +22,7 @@ import { holdsPrivate, isPrivate } from "./pathguard.mjs";
 import { loadState, saveState } from "./statefile.mjs";
 import { syncGitSafe } from "./gitsafe.mjs";
 import { isAgyOnlyMode, providerById } from "./providers.mjs";
+import { closeAcpSession } from "./acp.mjs";
 
 const FILE = path.join(CFG.home, "ccapp-projects.json");
 // 项目颜色：和界面强调色同一套饱和度，按顺序分配（用户可改）
@@ -178,6 +179,8 @@ export function moveSession(sid, projectId) {
   // 记录里的 cwd 不一样就照样改写（原地换），只是附件目录不用搬（#98 03-004）
   const inPlace = path.dirname(found.file) === dir;
   if (inPlace && peekSession(found.file).cwd === cwd) return { ok: true, same: true };
+  // 搬移或改写 cwd 前关闭常驻 ACP 进程，避免后台 agy 按旧路径继续写入或用旧上下文续聊（C-03）
+  closeAcpSession(sid);
   fs.mkdirSync(dir, { recursive: true });
   const dirty = checkSession(sid, found.file);   // 改写 cwd 前先核对，搬完重新封签：网关自己改的不算外部改动，原本不干净的也不洗白
   const dst = inPlace ? found.file + ".mv" : path.join(dir, sid + ".jsonl");

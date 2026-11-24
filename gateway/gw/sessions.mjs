@@ -17,6 +17,7 @@ import { NEXT, readBody, sendJson } from "./http.mjs";
 import { isInjected } from "./integrity.mjs";
 import { isObj, loadState, saveState } from "./statefile.mjs";
 import { looksBackground } from "./sessmanaged.mjs";
+import { closeAcpSession } from "./acp.mjs";
 
 // ── 会话重命名表 ──────────────────────────────────────────────────────
 // 文件坏了（解析不了、或是 null / 数组之类）：留底成 .bad-* 再当没有，别让整个会话列表跟着抛错（#98 03-012）
@@ -724,6 +725,7 @@ export async function routeSessions(req, res, u, p) {
         const dry = uuid ? await rewindFiles(id, uuid, true) : { ok: false, error: "no uuid" };
         let files = dry;
         if (!b.dryRun && dry.ok && dry.canRewind !== false && (dry.filesChanged || []).length) {
+          closeAcpSession(id);
           files = await rewindFiles(id, uuid, false);
           const fx2 = rewindFixup(loc.found.file, id, uuid, dry.filesChanged);
           if (fx2.fixed || fx2.failed) log(`回退补救：补写 ${fx2.fixed} 个，失败 ${fx2.failed} 个`);
@@ -736,6 +738,7 @@ export async function routeSessions(req, res, u, p) {
           : { canRewind: false, reason: String(files.error || "").slice(0, 300) };
         if (b.dryRun) return sendJson(res, 200, { ok: true, ...fx });
         if (!fx.canRewind && !b.conversation) return sendJson(res, 409, { error: "cannot", message: tz("这条消息之后的文件改动没有留底，没法撤销。") + (fx.reason ? "（" + fx.reason + "）" : "") });
+        closeAcpSession(id);
         log(`回退 ${id.slice(0, 8)}：文件${fx.canRewind ? "已撤销" : "未动"}${b.conversation ? "，对话截到这条之前" : ""}`);
         let fork = null;
         if (b.conversation && loc.best === 0) fork = { ok: true, fresh: true };   // 退到第一条之前 = 空会话，前端直接开新会话

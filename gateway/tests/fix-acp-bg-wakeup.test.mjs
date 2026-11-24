@@ -370,6 +370,7 @@ rl.on("line", (line) => {
   assert.equal(r2.ok, true);
   await new Promise((r) => setTimeout(r, 2000));
   assert.equal(wakes2.length, 0, "多任务场景 agy 原生回报未点名 task-id 时不得在 flushIdle 后重复补唤醒 (C13b)");
+  assert.equal(getAcpPoolBg("sess-native-multi").length, 0, "C13b 确认已退出的多任务后台 shell 必须从 bgTasks 同步摘除 (R2-01 P1-N1)");
   closeAcpSession("sess-native-multi");
 });
 

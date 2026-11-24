@@ -108,9 +108,21 @@ export function listAcpChildren(parentPid, procDir = "/proc") {
   return kids;
 }
 
+/** 当已归属 childKey 的子进程在 /proc 枚举中缺失时（例如 Android hidepid=2 下 PR_SET_DUMPABLE=0 导致 /proc/<pid> 不可见），
+ *  通过 kill(pid, 0) 复核进程是否仍在运行：成功或 EPERM 视为仍存活，仅 ESRCH 才判已退出（R2-01 P2-1）。 */
+export function isPidAliveFallback(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e?.code === "EPERM";
+  }
+}
+
 /** 探测 agy acp 非常驻后台 shell 任务是否仍在运行：
  *  1) 存在无归属 shell（childKey === null）时严格 fail-closed 返回 active；
- *  2) 只要有任一任务归属的子进程仍在存活集合，或存在非 daemon 的存活子进程，即视为仍在执行，绝不误触发；
+ *  2) 只要有任一任务归属的子进程仍在存活集合（或经 kill(pid, 0) 复核仍存活），或存在非 daemon 的存活子进程，即视为仍在执行，绝不误触发；
  *  3) 全部非 daemon 子进程退出后，再核对对应 task-<N>.log 是否仍在 1.5s 内刷盘，确认落稳后才进入宽限窗。 */
 export function acpBgShellActive(parentPid, {
   daemonChildKeys = null,
@@ -120,6 +132,7 @@ export function acpBgShellActive(parentPid, {
   procDir = "/proc",
   brainDir = path.join(CFG.home, ".gemini", "antigravity-cli", "brain"),
   logSettleMs = ACP_BG_TASKLOG_SETTLE_MS,
+  isPidAlive = isPidAliveFallback,
 } = {}) {
   if (!Number.isInteger(parentPid) || parentPid <= 0) return { active: true, reason: "no-pid" };
   if (Array.isArray(tasks) && tasks.some((t) => t && t.childKey === null)) {
@@ -130,6 +143,15 @@ export function acpBgShellActive(parentPid, {
   const liveKeys = new Set(kids.map((c) => c.key));
   if (Array.isArray(tasks) && tasks.some((t) => typeof t?.childKey === "string" && t.childKey.length > 0 && liveKeys.has(t.childKey))) {
     return { active: true, reason: "task-child", children: kids.filter((c) => tasks.some((t) => t?.childKey === c.key)) };
+  }
+  if (Array.isArray(tasks) && typeof isPidAlive === "function") {
+    for (const t of tasks) {
+      if (typeof t?.childKey !== "string" || !t.childKey.length) continue;
+      const pid = Number(t.childKey.split(":")[0]);
+      if (Number.isInteger(pid) && pid > 0 && isPidAlive(pid)) {
+        return { active: true, reason: "hidden-kill0-alive", pid };
+      }
+    }
   }
   const nonDaemon = daemonChildKeys?.size ? kids.filter((c) => !daemonChildKeys.has(c.key)) : kids;
   if (nonDaemon.length > 0) return { active: true, reason: "child", children: nonDaemon };
@@ -351,21 +373,97 @@ export function getAcpIdleRuns() {
   return out;
 }
 
+var IDLE_SETTLED_HOOKS;
+/** 注册 ACP 空闲冲刷（idleBurst）结束后的唤醒钩子（供 queue.mjs 立即泵出等待中的同会话消息，C-02） */
+export function onAcpIdleSettled(fn) {
+  if (typeof fn !== "function") return;
+  if (!IDLE_SETTLED_HOOKS) IDLE_SETTLED_HOOKS = [];
+  if (!IDLE_SETTLED_HOOKS.includes(fn)) IDLE_SETTLED_HOOKS.push(fn);
+}
+function notifyIdleSettled(sessionId) {
+  if (!IDLE_SETTLED_HOOKS) return;
+  for (const fn of IDLE_SETTLED_HOOKS) {
+    try { fn(sessionId); } catch {}
+  }
+}
+
+/** 查询某会话当前是否正处于 ACP 空闲冲刷（idleBurst）期，用于队列泳道互斥，防并发 session/prompt 取消工具（C-02） */
+export function hasAcpIdleBurst(sessionId) {
+  if (!sessionId) return false;
+  const e = ACP_POOL.get(sessionId);
+  return Boolean(e && (e.idleBurstActive || e.idleRun));
+}
+
+/** 显式停止正在进行中的 ACP 空闲冲刷（按 idleRun.id 或 sessionId；不传参则停掉全部） */
+export function abortAcpIdleBurst(idOrSid = null) {
+  let stopped = false;
+  for (const [sid, e] of ACP_POOL) {
+    if (!e || (!e.idleBurstActive && !e.idleRun)) continue;
+    if (idOrSid && e.idleRun?.id !== idOrSid && sid !== idOrSid) continue;
+    try { e.client?.notify("session/cancel", { sessionId: sid }); } catch {}
+    try { e.flushIdle?.(true); } catch {}
+    stopped = true;
+  }
+  return stopped;
+}
+
+/** 全局切权限模式时同步更新 ACP 池中所有空闲项的 permMode（保证空闲期权限回调立即生效，
+ *  不改 appliedPermMode，从而下次复用时若与服务端模式不符会自动 applyMode，C-02） */
+export function setAcpPoolPermMode(mode) {
+  if (!mode) return 0;
+  let n = 0;
+  for (const e of ACP_POOL.values()) {
+    if (e && !e.busy) {
+      e.permMode = mode;
+      n++;
+    }
+  }
+  return n;
+}
+
 /** 停止某个 ACP 会话的后台任务：只删本地登记，绝不发全会话 session/cancel。
  *  ACP 没有单任务取消协议，发 session/cancel 会把正在跑的主轮次一并取消（B9）；
- *  空闲且无后台任务时直接回收进程即可，agent 侧的任务随进程回收一起结束。 */
+ *  当停掉的是子代理/工作流时，同步更新 acpAgents 状态、广播 ag stopped 事件并写入联络簿（C-09）；
+ *  传入具体 taskId（单条停用）时不误杀整个空闲常驻进程，仅 !taskId 整会话清场时才回收进程。 */
 export function stopAcpBgTask(sessionId, taskId) {
   const entry = sessionId && ACP_POOL.get(sessionId);
   if (!entry) return false;
   const poolScope = `pool:${sessionId}`;
   entry.nudgedBgTasks ||= new Set();
+  const stoppedAgents = [];
   if (taskId) {
-    entry.nudgedBgTasks.add(String(taskId));
-    removeBgTaskAndDependents(poolScope, entry.bgTasks, taskId);
+    const tid = String(taskId);
+    const item = entry.bgTasks?.get(tid);
+    const rec = entry.acpAgents?.get(tid);
+    if (rec && rec.status === "running" && (!item || item.type === "agent" || item.type === "workflow")) {
+      stoppedAgents.push(rec);
+    }
+    entry.nudgedBgTasks.add(tid);
+    removeBgTaskAndDependents(poolScope, entry.bgTasks, tid);
   } else {
+    for (const rec of entry.acpAgents?.values() || []) {
+      if (rec && rec.status === "running") stoppedAgents.push(rec);
+    }
     for (const k of entry.bgTasks?.keys() || []) entry.nudgedBgTasks.add(k);
     clearAllBgExpiryTimers(poolScope);
     entry.bgTasks?.clear();
+  }
+  for (const rec of stoppedAgents) {
+    rec.status = "stopped";
+    if (rec.convId) entry.reportedAgentConvs?.delete(rec.convId.toLowerCase());
+    publish({ type: "ag", sessionId, k: "done", id: rec.id, status: "stopped", why: "已停止", at: Date.now() });
+    if (entry.cwd && sessionId) {
+      try {
+        acpAgentDone(entry.cwd, sessionId, {
+          id: rec.id,
+          dir: entry.acpAgentDirs?.get(rec.id) || null,
+          name: rec.name || "agent",
+          status: "stopped",
+          why: "已停止",
+          report: "",
+        });
+      } catch {}
+    }
   }
   entry.dropActiveBg?.(taskId);
   const hasWatchableShell = [...(entry.bgTasks?.values() || [])].some(
@@ -374,7 +472,7 @@ export function stopAcpBgTask(sessionId, taskId) {
   if (!hasWatchableShell) {
     try { entry.clearBgWatch?.(); } catch {}
   }
-  if (!entry.busy && (!entry.bgTasks || entry.bgTasks.size === 0)) {
+  if (!taskId && !entry.busy && (!entry.bgTasks || entry.bgTasks.size === 0)) {
     closeAcpSession(sessionId);
   }
   return true;
@@ -458,21 +556,160 @@ export function mergeToolOutput(prev, next) {
   return prev + (prev.endsWith("\n") ? "" : "\n") + next;
 }
 
-/** 权限选项按 kind/optionId 精确匹配（MIG-21）：子串匹配会把假想的 disallow/disallow_once
- *  当成允许项自动放行。allow_always 与 reject 各自另有档位，不混进 allow_once 的候选。 */
+/** 权限选项按 kind/optionId 精确匹配（MIG-21 + C-02）：
+ *  disallow/reject/deny 永不被当允许项；
+ *  always=true 优先 allow_always/allow_session；always=false 优先 allow_once/allow，
+ *  若选项中仅有 allow_always/allow_session（或明确 allow 类且非 reject/disallow）则兜底返回，避免权限卡失配。 */
 const acpOptKind = (o) => String(o?.kind || o?.optionId || "").trim().toLowerCase();
 const isAcpAllowOpt = (o) => /^(allow_once|allow)$/.test(acpOptKind(o));
-const isAcpAllowAlwaysOpt = (o) => /^allow_always$/.test(acpOptKind(o));
-const isAcpRejectOpt = (o) => /^(reject_once|reject_always|reject|deny|deny_once|deny_always)$/.test(acpOptKind(o));
-const isAcpDenyishOpt = (o) => isAcpRejectOpt(o) || /^disallow(_once|_always)?$/.test(acpOptKind(o));
-/** 挑自动放行用的允许项：精确匹配不到时，首选项不是已知档位（allow_always / reject / deny / disallow）
- *  才兜底——把 allow_always 当 allow_once 点掉会误授永久放行；agent 只发 disallow 时更不能把它当允许点掉。 */
-export function pickAcpAllowOption(options) {
+const isAcpAllowAlwaysOpt = (o) => /^(allow_always|allow_session)$/.test(acpOptKind(o));
+const isAcpRejectOpt = (o) => /^(reject_once|reject_always|reject|deny|deny_once|deny_always|disallow|disallow_once|disallow_always)$/.test(acpOptKind(o));
+const isAcpDenyishOpt = (o) => isAcpRejectOpt(o) || /\b(?:reject|deny|disallow)\b/.test(acpOptKind(o));
+const isAcpAllowishOpt = (o) => !isAcpDenyishOpt(o) && /(?:^|[_-])allow(?:$|[_-])/.test(acpOptKind(o));
+export function pickAcpAllowOption(options, always = false) {
   const list = Array.isArray(options) ? options : [];
+  if (always) {
+    const hitAlways = list.find(isAcpAllowAlwaysOpt);
+    if (hitAlways) return hitAlways;
+  }
   const allow = list.find(isAcpAllowOpt);
   if (allow) return allow;
+  const fallbackAlways = list.find(isAcpAllowAlwaysOpt);
+  if (fallbackAlways) return fallbackAlways;
+  const allowish = list.find(isAcpAllowishOpt);
+  if (allowish) return allowish;
   const first = list[0];
-  return first && !isAcpAllowAlwaysOpt(first) && !isAcpDenyishOpt(first) ? first : undefined;
+  return first && !isAcpDenyishOpt(first) ? first : undefined;
+}
+
+const UUID_EXACT_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_IN_STR_RE = /\b([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/i;
+
+function fileUriToLocalPath(uri) {
+  const s = String(uri || "").trim();
+  if (!s) return null;
+  if (/^file:\/\//i.test(s)) {
+    const raw = s.replace(/^file:\/\//i, "");
+    try { return decodeURIComponent(raw); } catch { return raw; }
+  }
+  return path.isAbsolute(s) ? s : null;
+}
+
+/** 轻量读取子代理 transcript.jsonl 尾部最多 32KB，确定性判断该子代理是否已交卷闲置（C-09）：
+ *  绝不全量读大文件；仅当最后一条有效 JSON 帧满足 source=MODEL, type=PLANNER_RESPONSE, status=DONE 且无未决 tool_calls，
+ *  且满足 reportedConvs 命中、或尾部窗口含发往 parentSessionId 的 send_message、或尾帧已静默超过 quietMs（默认 3000ms）时返回 true。 */
+export function isSubagentTranscriptIdle(logPath, parentSessionId = "", reportedConvs = null, {
+  convId = "",
+  now = Date.now(),
+  quietMs = 3000,
+} = {}) {
+  if (!logPath || typeof logPath !== "string") return false;
+  let st;
+  try { st = fs.statSync(logPath); } catch { return false; }
+  if (!st.isFile() || st.size <= 0) return false;
+  const maxBytes = 32 * 1024;
+  const offset = st.size > maxBytes ? st.size - maxBytes : 0;
+  const len = st.size - offset;
+  let tail = "";
+  let fd = null;
+  try {
+    fd = fs.openSync(logPath, "r");
+    const buf = Buffer.allocUnsafe(len);
+    const n = fs.readSync(fd, buf, 0, len, offset);
+    tail = buf.subarray(0, n).toString("utf8");
+  } catch {
+    return false;
+  } finally {
+    if (fd !== null) try { fs.closeSync(fd); } catch {}
+  }
+  const rawLines = tail.split(/\r?\n/);
+  const lines = offset > 0 && rawLines.length > 1 ? rawLines.slice(1) : rawLines;
+  let last = null;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const s = lines[i].trim();
+    if (!s) continue;
+    try {
+      const obj = JSON.parse(s);
+      if (obj && typeof obj === "object") { last = obj; break; }
+    } catch {}
+  }
+  if (!last || last.source !== "MODEL" || last.type !== "PLANNER_RESPONSE" || last.status !== "DONE") return false;
+  if (Array.isArray(last.tool_calls) && last.tool_calls.length > 0) return false;
+
+  const effConv = String(convId || (UUID_IN_STR_RE.exec(logPath)?.[1] || "")).toLowerCase();
+  if (effConv && reportedConvs && reportedConvs.size > 0) {
+    if (reportedConvs.has(effConv)) return true;
+    for (const c of reportedConvs) {
+      if (String(c).toLowerCase() === effConv) return true;
+    }
+  }
+  if (/"name"\s*:\s*"send_message"/.test(tail) && (!parentSessionId || tail.includes(String(parentSessionId)))) {
+    return true;
+  }
+  const tsRaw = last.timestamp || last.created_at || last.updated_at || "";
+  const parsedTs = tsRaw ? Date.parse(tsRaw) : NaN;
+  const refTs = Number.isFinite(parsedTs) ? parsedTs : st.mtimeMs;
+  return now - refTs >= quietMs;
+}
+
+/** 统一结算已完工的子代理（C-09）：
+ *  结合 user_message 唤醒信封（reportedConvs）与子代理 transcript.jsonl 尾帧确定性对账，
+ *  结算后同步更新 rec.status、从 bgTasks 摘除、发 ag done 事件并调用 acpAgentDone 写联络簿。 */
+function reconcileFinishedSubagents({
+  agents,
+  bgTasks,
+  poolScope,
+  sessionId,
+  cwd,
+  agentDirs,
+  reportedConvs,
+  runId = null,
+  onBgChanged = null,
+  emitAg = null,
+  brainDir = path.join(CFG.home, ".gemini", "antigravity-cli", "brain"),
+  now = Date.now(),
+  quietMs = 3000,
+}) {
+  if (!agents || !agents.size) return false;
+  let changed = false;
+  for (const rec of agents.values()) {
+    if (!rec || rec.status !== "running") continue;
+    const convLower = rec.convId ? String(rec.convId).toLowerCase() : "";
+    const hasReported = !!(convLower && reportedConvs && (reportedConvs.has(convLower) || [...reportedConvs].some((x) => String(x).toLowerCase() === convLower)));
+    const lp = rec.logPath || (rec.convId && UUID_EXACT_RE.test(rec.convId) && brainDir
+      ? path.join(brainDir, rec.convId, ".system_generated", "logs", "transcript.jsonl")
+      : null);
+    let lpExists = false;
+    if (lp) {
+      try { lpExists = fs.statSync(lp).isFile(); } catch {}
+    }
+    const doneByTranscript = lpExists && isSubagentTranscriptIdle(lp, sessionId || "", reportedConvs, { convId: convLower, now, quietMs });
+    // 有 transcript 文件时以尾帧状态为准（防止子代理发中间消息仍在跑时被误结）；无 transcript 文件时可由 reportedConvs 确认交卷
+    const finished = doneByTranscript || (!lpExists && hasReported);
+    if (!finished) continue;
+    rec.status = "done";
+    if (convLower && reportedConvs) {
+      for (const c of [...reportedConvs]) if (String(c).toLowerCase() === convLower) reportedConvs.delete(c);
+    }
+    if (bgTasks && removeBgTaskAndDependents(poolScope, bgTasks, rec.id)) changed = true;
+    const agEv = { type: "ag", ...(runId ? { runId } : {}), sessionId, k: "done", id: rec.id, status: "done", why: "已完成", at: now };
+    if (emitAg) emitAg(agEv);
+    else publish(agEv);
+    if (cwd && sessionId) {
+      try {
+        acpAgentDone(cwd, sessionId, {
+          id: rec.id,
+          dir: agentDirs?.get(rec.id) || null,
+          name: rec.name || "agent",
+          status: "done",
+          why: "已完成",
+          report: "",
+        });
+      } catch {}
+    }
+  }
+  if (changed) onBgChanged?.();
+  return changed;
 }
 
 /** 将 ACP 模式名映射为前端识别的权限模式 */
@@ -841,9 +1078,10 @@ function trackAcpToolSideEffects(phase, tool, state, emit) {
   if (isSubagentCall) {
     if (phase === "start") {
       const label = String(inp.Role || inp.TypeName || inp.Description || rawName).trim().slice(0, 60) || "subagent";
-      agents.set(tool.id, { id: tool.id, convId: null, name: label, status: "running" });
+      const bgType = kind === "run_workflow" ? "workflow" : "agent";
+      agents.set(tool.id, { id: tool.id, convId: null, logPath: null, kind: bgType, name: label, status: "running" });
       emit({ type: "ag", k: "spawn", id: tool.id, tool: tool.id, name: label, parent: null, depth: 1, bg: true, by: "main", at: Date.now() });
-      state.onBgAdd?.({ id: tool.id, type: kind === "run_workflow" ? "workflow" : "agent", desc: label });
+      state.onBgAdd?.({ id: tool.id, type: bgType, desc: label });
       if (state.cwd && state.sessionId && !state.acpAgentDirs?.has(tool.id)) {
         const d = acpAgentSpawn(state.cwd, state.sessionId, { id: tool.id, name: label, prompt: String(inp.Prompt || inp.Description || "") });
         if (d) (state.acpAgentDirs ||= new Map()).set(tool.id, d);
@@ -855,6 +1093,11 @@ function trackAcpToolSideEffects(phase, tool, state, emit) {
       if (rec && mConv) {
         rec.convId = mConv[1];
         byConv.set(rec.convId, rec.id);
+      }
+      const mLog = /"(?:logAbsoluteUri|transcript)"\s*:\s*"([^"]+)"|(?:logAbsoluteUri|transcript)[=:\s]+(file:\/\/[^\s"',}\]]+|\/[^\s"',}\]]+)/i.exec(out);
+      if (rec && mLog) {
+        const lp = fileUriToLocalPath(mLog[1] || mLog[2]);
+        if (lp) rec.logPath = lp;
       }
       // 真实 agy acp 的 invoke_subagent 始终后台启动，且 tool_result.content 常为空串 "" 或仅含 conversationId/logAbsoluteUri 的 JSON；
       // 只有明确返回了非空正文结论（不含 background/running/async/conversationId/logAbsoluteUri）才按前台完成结算（兼容 F-1）。
@@ -890,6 +1133,19 @@ function trackAcpToolSideEffects(phase, tool, state, emit) {
       if (state.cwd && state.sessionId) {
         try { acpAgentMsgOk(state.cwd, state.sessionId, { mid: tool.id, ok: !tool.isError, err: tool.isError ? firstLineOf(tool.output) : "" }); } catch {}
       }
+      // 对称唤醒（C-09）：主代理给已 idle/done 的已知子代理继续派活成功时，重新标回 running 并挂回后台任务条
+      if (!tool.isError) {
+        const rec = agents.get(to) || [...agents.values()].find((r) => r?.convId && r.convId.toLowerCase() === rawTo.toLowerCase());
+        if (rec && rec.status !== "running") {
+          rec.status = "running";
+          if (rec.convId && state.reportedAgentConvs) {
+            const cl = rec.convId.toLowerCase();
+            for (const c of [...state.reportedAgentConvs]) if (String(c).toLowerCase() === cl) state.reportedAgentConvs.delete(c);
+          }
+          emit({ type: "ag", k: "resume", id: rec.id, at: Date.now() });
+          state.onBgAdd?.({ id: rec.id, type: rec.kind === "workflow" ? "workflow" : "agent", desc: rec.name });
+        }
+      }
     }
     return;
   }
@@ -915,6 +1171,72 @@ function trackAcpToolSideEffects(phase, tool, state, emit) {
           bookDone(rec.id, "stopped", "已终止", "");
         }
         state.onBgRemove?.(aid);
+      }
+    } else if (act === "list") {
+      // manage_subagents(Action: "list") 权威对账（C-09）
+      const out = String(tool.output || "");
+      if (!/\btruncated\b|已截断/i.test(out)) {
+        let listed = null;
+        if (/no active (?:direct )?subagents?/i.test(out)) {
+          listed = [];
+        } else {
+          const lb = out.indexOf("["), rb = out.lastIndexOf("]");
+          if (lb >= 0 && rb > lb) {
+            try {
+              const arr = JSON.parse(out.slice(lb, rb + 1));
+              if (Array.isArray(arr)) listed = arr;
+            } catch {}
+          }
+        }
+        if (listed !== null) {
+          const listedByConv = new Map();
+          const listedItems = [];
+          for (const x of listed) {
+            if (!x || typeof x !== "object") continue;
+            const cid = String(x.conversationId || x.id || "").trim();
+            const lp = fileUriToLocalPath(x.transcript || x.logAbsoluteUri || x.logPath);
+            const st = String(x.state || x.status || "").trim().toLowerCase();
+            const role = String(x.role || x.name || "").trim();
+            const entryObj = { convId: cid, logPath: lp, state: st, role };
+            listedItems.push(entryObj);
+            if (cid) listedByConv.set(cid.toLowerCase(), entryObj);
+          }
+          const boundConvs = new Set([...agents.values()].map((r) => r?.convId?.toLowerCase()).filter(Boolean));
+          for (const rec of agents.values()) {
+            if (!rec) continue;
+            if (rec.convId) {
+              const hit = listedByConv.get(rec.convId.toLowerCase());
+              if (hit?.logPath && !rec.logPath) rec.logPath = hit.logPath;
+            } else if (rec.name) {
+              const cands = listedItems.filter((it) => it.role === rec.name && it.convId && !boundConvs.has(it.convId.toLowerCase()));
+              if (cands.length === 1) {
+                rec.convId = cands[0].convId;
+                byConv.set(rec.convId, rec.id);
+                boundConvs.add(rec.convId.toLowerCase());
+                if (cands[0].logPath && !rec.logPath) rec.logPath = cands[0].logPath;
+              }
+            }
+          }
+          for (const rec of agents.values()) {
+            if (!rec || rec.status !== "running") continue;
+            const hit = rec.convId ? listedByConv.get(rec.convId.toLowerCase()) : null;
+            const absentFromList = !hit && (Boolean(rec.convId) || listedItems.length === 0);
+            const notRunning = !!(hit && hit.state && hit.state !== "running");
+            if (!absentFromList && !notRunning) continue;
+            let status = "done";
+            if (hit?.state === "failed" || hit?.state === "error") status = "failed";
+            else if (hit?.state === "stopped" || hit?.state === "killed" || hit?.state === "cancelled" || hit?.state === "canceled") status = "stopped";
+            rec.status = status;
+            if (rec.convId && state.reportedAgentConvs) {
+              const cl = rec.convId.toLowerCase();
+              for (const c of [...state.reportedAgentConvs]) if (String(c).toLowerCase() === cl) state.reportedAgentConvs.delete(c);
+            }
+            const why = status === "stopped" ? "已停止" : status === "failed" ? "执行失败" : "已完成";
+            emit({ type: "ag", k: "done", id: rec.id, status, why, at: Date.now() });
+            state.onBgRemove?.(rec.id);
+            bookDone(rec.id, status, why, "");
+          }
+        }
       }
     }
     return;
@@ -1063,8 +1385,9 @@ export function translateAcpUpdate(params, state, emit) {
     }
     return;
   }
-  // 整条消息（v2 风格 upsert，不走 chunk；旧草稿的字段名叫 summary）：只在还没
-  // 流式收到正文时整段采用，已经收到过的以 chunk 累积为准，避免重复渲染
+  // 整条消息（v2 风格 upsert，不走 chunk；旧草稿的字段名叫 summary）：
+  // 有独立 messageId 且该 id 此前无流式分片（chunkAcc === ""）时，代表新一轮/工具调用后的新一段回复，必须直接追加（C-04）；
+  // 仅当无 messageId 时才保留 if (!state.text) 防重复。
   if (kind === "agent_message") {
     const text = acpTextOf(upd.content ?? upd.summary ?? upd.text);
     log(`[agy-acp] agent_message messageId=${upd.messageId || "-"} text=${(text || "").slice(0, 60).replace(/\n/g, " ")}`);
@@ -1081,6 +1404,11 @@ export function translateAcpUpdate(params, state, emit) {
       }
       if (chunkAcc && chunkAcc.startsWith(text)) { fullTextIds.add(updMsgId); return; } // 整条是已收 chunk 的前缀
       fullTextIds.add(updMsgId);
+      if (!chunkAcc) {
+        state.text += text;
+        emit({ type: "text_delta", text });
+        return;
+      }
     }
     if (!state.text) {
       state.text = text;
@@ -1114,6 +1442,11 @@ export function translateAcpUpdate(params, state, emit) {
       }
       if (chunkAcc && chunkAcc.startsWith(text)) { fullThinkingIds.add(updMsgId); return; }
       fullThinkingIds.add(updMsgId);
+      if (!chunkAcc) {
+        state.thinking += text;
+        emit({ type: "thinking_delta", text });
+        return;
+      }
     }
     if (!state.thinking) {
       state.thinking = text;
@@ -1277,10 +1610,27 @@ export function translateAcpUpdate(params, state, emit) {
     return;
   }
 
+  if (kind === "user_message" || kind === "user_message_chunk") {
+    captureSubagentSenders(acpTextOf(upd.content ?? upd.summary ?? upd.text), state);
+    return;
+  }
+
   // 已知但有意忽略的种类（不回显、不影响本轮正文），之外的记进日志：
   // 真机上 agy 发来新种类时，日志里能直接看到名字，不用再猜
-  const IGNORED = new Set(["user_message", "user_message_chunk", "config_option_update", "session_info_update", "compaction_summary_chunk", "permission_confirmation"]);
+  const IGNORED = new Set(["config_option_update", "session_info_update", "compaction_summary_chunk", "permission_confirmation"]);
   if (!IGNORED.has(kind)) log(`[agy-acp] 未识别的 update 种类：${kind}`);
+}
+
+/** 从 user_message / user_message_chunk 文本中提取子代理唤醒信封的 sender=<uuid>（兼容分片切跨，C-09） */
+function captureSubagentSenders(uText, holder) {
+  if (!uText || !holder) return;
+  const scan = ((holder._userMsgTail || "") + String(uText)).slice(-512);
+  holder._userMsgTail = scan;
+  const reSender = /\bsender=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/gi;
+  let ms;
+  while ((ms = reSender.exec(scan)) !== null) {
+    (holder.reportedAgentConvs ||= new Set()).add(ms[1].toLowerCase());
+  }
 }
 
 /**
@@ -1530,6 +1880,8 @@ export async function runAcpTurn({
   model = "", effort = "", permMode = "default", authType = "", apiKey = "",
   mcpServers = [], addDirs = [], run, emit, askPermission, onBgChange, onBgWake = null,
   bgPollMs = ACP_BG_POLL_MS, bgGraceMs = ACP_BG_GRACE_MS, probeBgShell = acpBgShellActive,
+  isPidAlive = isPidAliveFallback,
+  brainDir = path.join(CFG.home, ".gemini", "antigravity-cli", "brain"),
   onSessionFileReady = null, timeoutMs = 0, idleTimeoutMs = 0,
   keepAlive = LIVE && process.env.CCAPP_ACP_KEEPALIVE !== "0",
 }) {
@@ -1675,7 +2027,7 @@ export async function runAcpTurn({
           pendingPermCount = Math.max(0, pendingPermCount - 1);
         }
         if (decision && decision.behavior === "allow") {
-          const chosen = decision.always && allowAlwaysOpt ? allowAlwaysOpt : allowOpt;
+          const chosen = pickAcpAllowOption(options, !!decision.always);
           return chosen
             ? { outcome: { outcome: "selected", optionId: chosen.optionId } }
             : { outcome: { outcome: "cancelled" } };
@@ -1715,6 +2067,7 @@ export async function runAcpTurn({
       if (poolEntry.acpAgents) state.acpAgents = poolEntry.acpAgents;
       if (poolEntry.acpAgentsByConv) state.acpAgentsByConv = poolEntry.acpAgentsByConv;
       if (poolEntry.acpAgentDirs) state.acpAgentDirs = poolEntry.acpAgentDirs;
+      if (poolEntry.reportedAgentConvs) state.reportedAgentConvs = poolEntry.reportedAgentConvs;
       syncBg();
       poolEntry.client.setHandlers(makeHandlers());
     } else if (hit && !hit.busy) {
@@ -1745,12 +2098,9 @@ export async function runAcpTurn({
   let sessModes = poolEntry?.modes || null;
   let sessConfig = poolEntry?.configOptions || null;
 
-  // MIG-7：agent 实际在跑的权限模式。init 宣称的是用户要的模式（permMode），但 agent
-  // 只有在 set_mode 成功后才真切过去；新会话默认 default，复用会话沿用池里记的。
-  // set_mode 被拒时按这个值纠回（发 perm_mode 事件），不能按 state.permMode 纠——
-  // state.permMode 在轮次开始时就被置成了宣称的模式，纠它等于没纠。
-  // 只有 agent 确认成功时才更新；还没建会话就调 setMode 时只记请求、不更新（内联步骤会真正去申请）。
-  let effectivePermMode = poolEntry?.permMode || "default";
+  // MIG-7 + C-02：agent 实际在跑的权限模式（appliedPermMode）。setPermMode 同步更新空闲池 permMode 时
+  // 不改 appliedPermMode，从而下次复用若两者不符会自动 applyMode。
+  let effectivePermMode = poolEntry?.appliedPermMode || poolEntry?.permMode || "default";
   // 向 agent 申请切模式；被拒时发 error 事件并把三处模式纠回被拒前的实际值（再发 perm_mode 事件）。
   const applyMode = async (mode) => {
     const prev = effectivePermMode;
@@ -1793,9 +2143,13 @@ export async function runAcpTurn({
     run.preSpawn = false;
     run.dropAcpBg = dropActiveBg;
     // 停止只停当前 prompt，不销毁保活进程：进程留在池里供下轮复用（B10）。
-    // 进程回收只由空闲超时 / 显式 closeAcpSession / 网关关闭负责。
+    // 但若 agent 10s 内不响应 session/cancel，queue.forceEnd 会调用 forceFinish 彻底销毁卡死客户端，防双进程脑裂（C-02）。
     run.cancelAcp = () => {
       if (activeSessionId) client.notify("session/cancel", { sessionId: activeSessionId });
+    };
+    run.forceFinish = () => {
+      canKeep = false;
+      destroyClient();
     };
     // set_mode 被 agent 拒绝时返回 false 并发 error 事件，不再静默返回 true（B11）。
     // 被拒时 applyMode 会把模式纠回被拒前的实际值并再发 perm_mode 事件（MIG-7）。
@@ -2014,9 +2368,9 @@ export async function runAcpTurn({
     } else if (effort && reused && poolEntry?.effort === effort) {
       effortApplied = effort;   // 复用且池里记着已生效：本轮没重发，但仍是已生效的状态
     }
-    if (permMode && (!reused || poolEntry?.permMode !== permMode)) {
-      // MIG-7：复用 run.setMode 的报错路径（被拒时发 error 事件并把 init 已宣称的模式纠回），
-      // 不得静默吞掉。run 不存在时（直调）走同一份 applyMode。
+    if (permMode && (!reused || effectivePermMode !== permMode)) {
+      // MIG-7 + C-02：复用 run.setMode 的报错路径（被拒时发 error 事件并把 init 已宣称的模式纠回），
+      // 不得静默吞掉；且当 setPermMode 更新了空闲池 permMode 但未同步服务端时，effectivePermMode !== permMode 自动补发。
       await applyMode(permMode);
     }
 
@@ -2314,6 +2668,7 @@ export async function runAcpTurn({
       run.child = null;
       run.cancelAcp = null;
       run.dropAcpBg = null;
+      run.forceFinish = null;
     }
     if (canKeep) {
       const entry = poolEntry || { client, sessionId: activeSessionId, key: pKey, knownToolIds: new Set() };
@@ -2328,13 +2683,19 @@ export async function runAcpTurn({
       // 要了但没生效（不支持/被拒）的记 null，下轮重发而不是永久静默失效。
       entry.effort = effort ? effortApplied : entry.effort;
       entry.permMode = permMode;
+      entry.appliedPermMode = effectivePermMode;
       entry.knownToolIds = state.knownToolIds;
       entry.lastUsage = state.usage || entry.lastUsage || null;
       entry.lastContextTokens = Number(state.usage?.context_tokens) || entry.lastContextTokens || 0;
       entry.bgTasks = bgTasks;
       const emitPoolBg = () => {
         pruneExpiredBgTasks(poolScope, entry.bgTasks);
-        onBgChange?.([...entry.bgTasks.values()]);
+        const list = [...entry.bgTasks.values()];
+        if (run && !run.ended) {
+          run.bgList = list;
+          run.bgTasks = list.length;
+        }
+        onBgChange?.(list);
       };
       clearAllBgExpiryTimers(poolScope);
       for (const item of entry.bgTasks.values()) {
@@ -2343,7 +2704,21 @@ export async function runAcpTurn({
       entry.acpAgents = state.acpAgents || entry.acpAgents || new Map();
       entry.acpAgentsByConv = state.acpAgentsByConv || entry.acpAgentsByConv || new Map();
       entry.acpAgentDirs = state.acpAgentDirs || entry.acpAgentDirs || new Map();
+      entry.reportedAgentConvs = state.reportedAgentConvs || entry.reportedAgentConvs || new Set();
       entry.nudgedBgTasks = entry.nudgedBgTasks || new Set();
+      // 同步轮次（含 /compact）结束入池前统一对账已完工的子代理，杜绝幽灵后台条残留（C-09）
+      reconcileFinishedSubagents({
+        agents: entry.acpAgents,
+        bgTasks: entry.bgTasks,
+        poolScope,
+        sessionId: activeSessionId,
+        cwd: entry.cwd,
+        agentDirs: entry.acpAgentDirs,
+        reportedConvs: entry.reportedAgentConvs,
+        runId: run?.id || null,
+        onBgChanged: emitPoolBg,
+        brainDir,
+      });
       {
         const liveKids = listAcpChildren(entry.client.child?.pid);
         if (liveKids) {
@@ -2355,6 +2730,7 @@ export async function runAcpTurn({
       entry.knownChildKeys = knownChildKeys;
       entry.daemonChildKeys = daemonChildKeys;
       entry.idleRun = null;
+      entry.idleBurstActive = false;
       entry.busy = false;
       entry.lastUsed = Date.now();
 
@@ -2392,6 +2768,8 @@ export async function runAcpTurn({
               daemonChildKeys: entry.daemonChildKeys,
               sessionId: activeSessionId,
               tasks: shells,
+              brainDir,
+              isPidAlive,
             });
           } catch {
             probe = { active: true, reason: "probe-err" };
@@ -2426,6 +2804,7 @@ export async function runAcpTurn({
         if (!b) return;
         idleBurst = null;
         entry.idleRun = null;
+        entry.idleBurstActive = false;
         for (const tool of b.state.tools.values()) {
           if (!tool.done) {
             const st = String(tool.status || "").toLowerCase();
@@ -2448,13 +2827,27 @@ export async function runAcpTurn({
           entry.lastUsage = b.state.usage;
           if (Number(b.state.usage.context_tokens) > 0) entry.lastContextTokens = Number(b.state.usage.context_tokens);
         }
-        // 如果空闲期间收到了正文回报，结算对应的非常驻后台任务 / 一次性定时器 / 子代理：
-        // 1) 一次性 schedule 只在临近到期、TimerCondition="any"、或回报正文点名了自身/目标条件时摘除（防无关唤醒提前摘掉未触发的长定时器）；
-        // 2) nonDaemon 仅含后台 shell / 子代理 / workflow（排除 monitor），仅 1 个时直接结算，多个时按 token 匹配结算（并通过 removeBgTaskAndDependents 联动摘除绑定它的定时器）。
-        if (entry.bgTasks?.size) {
+        // 如果空闲期间收到了正文回报或确定性完结信号，结算对应的非常驻后台任务 / 一次性定时器 / 子代理：
+        // 1) 先经 reconcileFinishedSubagents 按 user_message sender + transcript.jsonl 尾帧确定性对账子代理（C-09）；
+        // 2) 一次性 schedule 只在临近到期、TimerCondition="any"、或回报正文点名了自身/目标条件时摘除；
+        // 3) nonDaemon 仅含后台 shell / 子代理 / workflow（排除 monitor），仅 1 个时直接结算，多个时按 token（含唯一 8 位短 ID）匹配结算。
+        if (entry.bgTasks?.size || entry.acpAgents?.size) {
           const now = Date.now();
           let bgChanged = pruneExpiredBgTasks(poolScope, entry.bgTasks, now);
-          if (b.state.text) {
+          const reconciledSubagents = reconcileFinishedSubagents({
+            agents: entry.acpAgents,
+            bgTasks: entry.bgTasks,
+            poolScope,
+            sessionId: activeSessionId,
+            cwd: entry.cwd,
+            agentDirs: entry.acpAgentDirs,
+            reportedConvs: entry.reportedAgentConvs,
+            runId: b.runId,
+            brainDir,
+            now,
+          });
+          if (reconciledSubagents) bgChanged = true;
+          if (b.state.text && entry.bgTasks?.size) {
             for (const [k, v] of [...entry.bgTasks]) {
               if (!v?.oneShot) continue;
               const cond = typeof v.timerCondition === "string" ? v.timerCondition : "never";
@@ -2475,23 +2868,54 @@ export async function runAcpTurn({
             const nonDaemon = [...entry.bgTasks].filter(([, v]) => v.type !== "daemon" && v.type !== "monitor");
             const finishOne = (k, v) => {
               removeBgTaskAndDependents(poolScope, entry.bgTasks, k);
-              if (v.type === "agent") {
+              if (v.type === "agent" || v.type === "workflow") {
                 const rec = entry.acpAgents?.get(k);
                 if (rec && rec.status === "running") {
                   rec.status = "done";
-                  publish({ type: "ag", runId: b.runId, sessionId: activeSessionId, k: "done", id: k, status: "done", why: firstLineOf(b.state.text), at: Date.now() });
+                  if (rec.convId && entry.reportedAgentConvs) {
+                    const cl = rec.convId.toLowerCase();
+                    for (const c of [...entry.reportedAgentConvs]) if (String(c).toLowerCase() === cl) entry.reportedAgentConvs.delete(c);
+                  }
+                  const why = firstLineOf(b.state.text);
+                  publish({ type: "ag", runId: b.runId, sessionId: activeSessionId, k: "done", id: k, status: "done", why, at: Date.now() });
+                  if (entry.cwd && activeSessionId) {
+                    try {
+                      acpAgentDone(entry.cwd, activeSessionId, {
+                        id: k,
+                        dir: entry.acpAgentDirs?.get(k) || null,
+                        name: rec.name || "agent",
+                        status: "done",
+                        why,
+                        report: b.state.text || "",
+                      });
+                    } catch {}
+                  }
                 }
               }
             };
-            if (nonDaemon.length === 1) {
+            // 若本次 idleBurst 已通过确定性证据（user_message / transcript.jsonl）结算了子代理，
+            // 则不得再用 nonDaemon.length === 1 盲目兜底摘掉剩余仍在运行的唯一子代理（C-09）
+            if (!reconciledSubagents && nonDaemon.length === 1) {
               finishOne(nonDaemon[0][0], nonDaemon[0][1]);
               bgChanged = true;
             } else if (nonDaemon.length > 1) {
+              const shortConvCounts = new Map();
+              for (const [k] of nonDaemon) {
+                const cid = entry.acpAgents?.get(k)?.convId;
+                if (cid && cid.length >= 8) {
+                  const sc = cid.slice(0, 8).toLowerCase();
+                  shortConvCounts.set(sc, (shortConvCounts.get(sc) || 0) + 1);
+                }
+              }
+              const textLower = b.state.text.toLowerCase();
               for (const [k, v] of nonDaemon) {
                 const rec = entry.acpAgents?.get(k);
                 const shortK = String(k).includes("/") ? String(k).split("/").pop() : null;
-                const tokens = [k, shortK, rec?.convId, rec?.name, v.desc].filter((x) => x && String(x).length >= 4);
-                if (tokens.some((tok) => b.state.text.includes(String(tok)))) {
+                const shortConv = rec?.convId && rec.convId.length >= 8 && shortConvCounts.get(rec.convId.slice(0, 8).toLowerCase()) === 1
+                  ? rec.convId.slice(0, 8)
+                  : null;
+                const tokens = [k, shortK, rec?.convId, shortConv, rec?.name, v.desc].filter((x) => x && String(x).length >= 4);
+                if (tokens.some((tok) => b.state.text.includes(String(tok)) || (tok === shortConv && textLower.includes(shortConv.toLowerCase())))) {
                   finishOne(k, v);
                   bgChanged = true;
                 }
@@ -2514,6 +2938,8 @@ export async function runAcpTurn({
         if (!noRearm && ACP_POOL.get(activeSessionId) === entry && !entry.busy && !entry.client.closed) {
           armBgShellWatch();
         }
+        // 通知队列泵出因 idleBurst 互斥而等待的新消息（C-02）
+        setImmediate(() => notifyIdleSettled(activeSessionId));
       };
       entry.flushIdle = flushIdle;
 
@@ -2554,6 +2980,14 @@ export async function runAcpTurn({
             if (cmds.length) state.onCommands(cmds);
             return;
           }
+          // 空闲期捕获子代理唤醒信封（user_message* 中的 [Message] sender=<uuid>），不回显也不开 burst（C-09）
+          if (kind === "user_message" || kind === "user_message_chunk") {
+            entry.lastUsed = Date.now();
+            const uText = acpTextOf(upd.content ?? upd.summary ?? upd.text);
+            captureSubagentSenders(uText, entry);
+            if (idleBurst?.state) captureSubagentSenders(uText, idleBurst.state);
+            return;
+          }
           // MIG-16：空闲期用量/模式更新只更新 entry 与界面，不开 burst——
           // run_tokens 没有对应的轮次视图，不往外推；模式变化要记回 entry，下一轮复用才认。
           if (IDLE_STATE_KINDS.has(kind)) {
@@ -2569,7 +3003,7 @@ export async function runAcpTurn({
             };
             translateAcpUpdate(params, st, (ev) => {
               if (ev.type === "run_tokens") return;
-              if (ev.type === "perm_mode") entry.permMode = ev.mode;
+              if (ev.type === "perm_mode") { entry.permMode = ev.mode; entry.appliedPermMode = ev.mode; }
               publish({ ...ev, sessionId: activeSessionId });
             });
             if (st.usage) {
@@ -2582,8 +3016,8 @@ export async function runAcpTurn({
           shellGoneSince = 0;
           entry.lastUsed = Date.now();
           if (!idleBurst) {
-            // C13b：agy 自主推来 idleBurst 时，若待监视的后台 shell 子进程已退出，
-            // 立即记入 nudgedBgTasks，防止多任务场景下回报正文未点名 task-N 导致 flushIdle 后再重复补唤醒
+            // C13b + R2-01 (P1-N1 / P2-1)：agy 自主推来 idleBurst 时，若待监视的后台 shell 子进程已退出，
+            // 同步记入 nudgedBgTasks 并摘除 bgTasks（一死一活仅摘已死的那个，保留活壳；/proc 缺失时经 isPidAlive 复核）
             const watchShells = pendingWatchShells();
             if (watchShells.length) {
               let probe = null;
@@ -2593,21 +3027,32 @@ export async function runAcpTurn({
                   sessionId: activeSessionId,
                   tasks: watchShells,
                   logSettleMs: 0,
+                  brainDir,
+                  isPidAlive,
                 });
               } catch {
                 probe = { active: true, reason: "probe-err" };
               }
+              let bgPruned = false;
               if (probe && !probe.active) {
-                for (const t of watchShells) entry.nudgedBgTasks.add(t.id);
+                for (const t of watchShells) {
+                  entry.nudgedBgTasks.add(t.id);
+                  if (removeBgTaskAndDependents(poolScope, entry.bgTasks, t.id)) bgPruned = true;
+                }
               } else {
                 const liveNow = listAcpChildren(entry.client.child?.pid);
                 if (liveNow) {
                   const liveKeys = new Set(liveNow.map((c) => c.key));
                   for (const t of watchShells) {
-                    if (t.childKey && !liveKeys.has(t.childKey)) entry.nudgedBgTasks.add(t.id);
+                    if (!t.childKey || liveKeys.has(t.childKey)) continue;
+                    const tPid = Number(String(t.childKey).split(":")[0]);
+                    if (Number.isInteger(tPid) && tPid > 0 && typeof isPidAlive === "function" && isPidAlive(tPid)) continue;
+                    entry.nudgedBgTasks.add(t.id);
+                    if (removeBgTaskAndDependents(poolScope, entry.bgTasks, t.id)) bgPruned = true;
                   }
                 }
               }
+              if (bgPruned) emitPoolBg();
               while (entry.nudgedBgTasks.size > 500) entry.nudgedBgTasks.delete(entry.nudgedBgTasks.values().next().value);
             }
             const runId = "acp-bg-" + crypto.randomBytes(4).toString("hex");
@@ -2626,6 +3071,7 @@ export async function runAcpTurn({
               acpAgents: entry.acpAgents,
               acpAgentsByConv: entry.acpAgentsByConv,
               acpAgentDirs: entry.acpAgentDirs,
+              reportedAgentConvs: entry.reportedAgentConvs,
               onBgAdd: (t) => {
                 if (!t || !t.id) return;
                 const item = {
@@ -2664,6 +3110,7 @@ export async function runAcpTurn({
               onCommands: state.onCommands,
             };
             idleBurst = { runId, startedAt, lastUpdateAt: startedAt, state: bgState, emit: bgEmit };
+            entry.idleBurstActive = true;
             entry.idleRun = {
               id: runId, cid: null, text: "", sessionId: activeSessionId, follow: null, startedAt,
               perms: [], idle: false, sealed: false, bg: 0, bgList: [], auto: "bg", permMode: entry.permMode || null,
@@ -2693,6 +3140,20 @@ export async function runAcpTurn({
       const armIdleGc = () => {
         entry.idleTimer = setTimeout(() => {
           if (ACP_POOL.get(activeSessionId) === entry && !entry.busy) {
+            // 先对账已完工的子代理，避免幽灵子代理永久拖住空闲回收（C-09）
+            let gcBgChanged = false;
+            if (entry.bgTasks?.size > 0 && pruneExpiredBgTasks(poolScope, entry.bgTasks)) gcBgChanged = true;
+            if (reconcileFinishedSubagents({
+              agents: entry.acpAgents,
+              bgTasks: entry.bgTasks,
+              poolScope,
+              sessionId: activeSessionId,
+              cwd: entry.cwd,
+              agentDirs: entry.acpAgentDirs,
+              reportedConvs: entry.reportedAgentConvs,
+              brainDir,
+            })) gcBgChanged = true;
+            if (gcBgChanged) onBgChange?.([...entry.bgTasks.values()]);
             // 先查常驻 agy acp 进程的真实活跃度（CPU 滴答或 acp-server-*-<pid>.log 近期写入）：
             // 子代理在 agy 内部跑时不会向父会话发 session/update，只要进程还在干活就顺延不杀，杜绝误发 SIGTERM 引发 Server restart
             const act = acpChildActive(entry.client.child?.pid, entry.lastCpuTicks, Date.now());
@@ -2703,19 +3164,14 @@ export async function runAcpTurn({
               return;
             }
             if (entry.bgTasks?.size > 0) {
-              if (pruneExpiredBgTasks(poolScope, entry.bgTasks)) {
-                onBgChange?.([...entry.bgTasks.values()]);
-              }
-              if (entry.bgTasks.size > 0) {
-                const now = Date.now();
-                const hasPersistent = [...entry.bgTasks.values()].some(
-                  (t) => t.type === "daemon" || (t.type === "monitor" && (!t.oneShot || (t.expiresAt > now)))
-                );
-                const bgCap = Math.max(ACP_IDLE_TTL_MS * 3, ACP_BG_IDLE_TTL_MS);
-                if (hasPersistent || Date.now() - entry.lastUsed < bgCap) {
-                  armIdleGc();
-                  return;
-                }
+              const now = Date.now();
+              const hasPersistent = [...entry.bgTasks.values()].some(
+                (t) => t.type === "daemon" || (t.type === "monitor" && (!t.oneShot || (t.expiresAt > now)))
+              );
+              const bgCap = Math.max(ACP_IDLE_TTL_MS * 3, ACP_BG_IDLE_TTL_MS);
+              if (hasPersistent || Date.now() - entry.lastUsed < bgCap) {
+                armIdleGc();
+                return;
               }
             }
             log(`[agy-acp] 会话 ${activeSessionId.slice(0, 8)} 空闲超时，回收常驻进程`);

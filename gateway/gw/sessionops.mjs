@@ -20,6 +20,9 @@ import { forEachLine, lineWriter, writeAll, zipEntries, zipExtract, zipToFile } 
 import { archiveDb, archiveForget, archiveImport, saveArchive } from "./archive-store.mjs";
 import { isObj, loadState, saveState, stateUnread } from "./statefile.mjs";
 import { noteManaged } from "./sessmanaged.mjs";
+import { closeAcpSession } from "./acp.mjs";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ── 会话管理：回收站 / 导出 / 导入 ─────────────────────────────────────
 // 回收站放在 claude 的 projects 目录之外（它看不见，--resume 也就找不回来），同一文件系统，挪进挪出都是 rename。
@@ -222,6 +225,7 @@ export function deleteMessage(id, userText, after, which, uuid = "", replyUuid =
       return { ok: false, status: 409, message: tz("这条回复的提问已经删掉了，没法再单独删它。撤销刚才的删除，或者先删回复再删提问。") };
   }
   const up = (u) => { let n = 0; while (u && parentOf.has(u) && n++ < 100000) u = parentOf.get(u); return u; };
+  closeAcpSession(id);
   const bdir = EDITS_DIR;
   fs.mkdirSync(bdir, { recursive: true });
   const backup = id + "." + Date.now() + ".jsonl";
@@ -282,6 +286,7 @@ export function undoDelete(id, backup) {
   if (!found || !fs.existsSync(src)) return { ok: false, status: 404, message: tz("备份已经不在了。") };
   const st = fs.statSync(found.file);
   if (st.size !== u.size || st.mtimeMs !== u.mtime) return { ok: false, status: 409, message: tz("删除之后会话又有了新内容，没法撤销。") };
+  closeAcpSession(id);
   const dirty = checkSession(id, found.file);
   // 直接 copyFileSync 到活文件会先截断：写一半被杀/满盘会毁掉会话，而备份还在、size/mtime 校验却让重试被 409。
   // 先抄到同目录临时文件，成功后再 rename 替换。
@@ -648,6 +653,8 @@ export function trashSession(id) {
   if (!validProject(project)) throw new Error("Invalid project directory");
   // 这些状态只按会话号索引；已有另一份活记录时不能先挪文件、到通知阶段才拒绝。
   if (hasLiveCopy(id, project)) return { ok: false, error: "exists", message: occupied().message };
+  // 搬移进回收站前关闭常驻 ACP 进程，防止后台 agy 继续把已删会话写回原路径导致恢复报 409 exists（C-03）
+  closeAcpSession(id);
   const { dir, side } = projectParts(project, id);
   const st = absent(file), sideSt = absent(side);
   if (!st?.isFile() || (sideSt && !sideSt.isDirectory())) throw new Error("Invalid session files");
@@ -925,6 +932,7 @@ async function purgeUnlocked(id) {
   if (!meta) return false;
   if (!meta.tx) throw new Error(`Cannot purge an incomplete legacy trash slot: ${id}`);
   if (runOfSession(id)) throw trashError("busy", tz("这个会话正在生成中。"));
+  closeAcpSession(id);
   const detached = hasLiveCopy(id);
   if (meta.tx.phase === "notify" && !detached) meta = completeTrash(slot, meta);
   if (meta.tx.phase !== "purging") {
@@ -955,6 +963,10 @@ async function purgeUnlocked(id) {
   if (meta.tx.side) removeCleanupFile(sideIn(slot), meta.tx.side, true);
   removeCleanupFile(mainIn(slot, id), meta.tx.file, true);
   removeSlot(slot);
+  if (!meta.tx.detached && UUID_RE.test(id)) {
+    const brainDir = path.join(CFG.home, ".gemini", "antigravity-cli", "brain", id);
+    await fs.promises.rm(brainDir, { recursive: true, force: true }).catch(() => {});
+  }
   return true;
 }
 
