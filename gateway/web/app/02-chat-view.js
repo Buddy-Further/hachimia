@@ -490,9 +490,9 @@
     return s.length > 90 ? s.slice(0, 90) + "…" : s;
   }
 
-  const isAgentToolName = (n) => n === "Agent" || n === "Task" || n === "invoke_subagent" || n === "run_workflow";
+  const isAgentToolName = (n) => n === "Agent" || n === "Task" || n === "invoke_subagent" || n === "run_workflow" || /^(?:spawn|invoke)\s+(?:sub)?agent/i.test(String(n || ""));
   const isAsyncAgentResult = (name, txt) => /^Async agent launched/.test(txt)
-    || (name === "invoke_subagent" && (/conversationId|running in (?:the )?background|launched/i.test(txt)));
+    || (isAgentToolName(name) && (/conversationId|running in (?:the )?background|launched/i.test(txt)));
 
   /** 收着的子代理过程里的一步：只记数据，不建 DOM。子代理正在跑时每一步都会来，十几个子代理各几百步，
    *  全建成卡片就是几千个节点常驻页面（展开过程时才 realize 成真卡片，见 ToolBlock 的 openSub）。
@@ -818,7 +818,7 @@
               s.list.prepend(note);
             }
             for (const m of items) {
-              if (m.role === "tool_use") { const k = api.sub(m.id, m.name, m.input); if (mk && (m.name === "Agent" || m.name === "Task") && k && k.subLazy) k.subLazy(mk(m.id), mk); }
+              if (m.role === "tool_use") { const k = api.sub(m.id, m.name, m.input); if (mk && isAgentToolName(m.name) && k && k.subLazy) k.subLazy(mk(m.id), mk); }
               else if (m.role === "tool_result") toolResult(m.id, m.ok, m.text);
               else if (m.role === "assistant") api.subText(m.text);
             }

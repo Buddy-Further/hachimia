@@ -714,6 +714,7 @@
     const live = new Set(srv.runs.map((r) => r.id));
     const missing = [...runViews].filter(([id, rv]) => rv.av && rv.startedAt && rv.startedAt < askedAt && !live.has(id));
     if (!missing.length) return;
+    clearTimeout(resumeTail);
     resumeTail = setTimeout(() => {
       resumeTail = 0;
       if (gen !== view.gen || document.hidden) return;
@@ -896,8 +897,8 @@
         av.phase({ phase: ev.auto === "bg" ? "text" : "prep" });     // 网关起进程前的准备；起了进程换「启动中」，就绪换「连接中」（F6）
         runViews.set(ev.runId, { av, startedAt: ev.startedAt, timer, out: 0 });
         statLive(ev.runId);
-        // 只有本窗口刚发的消息才强制回到底部；别的会话 / 别的窗口开始的轮次别把正在翻历史的人拽走（0.6.9 审计 196-聊天.4）
-        scrollDown(!busReplay && ((!!ev.cid && view.cids.has(ev.cid)) || ev.auto === "bg" || ev.auto === "autocompact"));
+        // 只有本窗口刚发的消息才强制回到底部；别的会话、别的窗口或后台自动唤醒（auto="bg"）别把正在翻历史的人拽走（C-08.4）
+        scrollDown(!busReplay && !!ev.cid && view.cids.has(ev.cid));
         return;
       }
       case "inject": {
@@ -1245,7 +1246,7 @@
     srv.runs = s.runs || (s.run ? [s.run] : []);
     srv.intr = intrList(s.interrupted);
     srv.queueAll = s.queue || [];
-    srv.acpBg = s.acpBg || {};
+    srv.acpBg = s.acpBg && typeof s.acpBg === "object" ? s.acpBg : {};
     if (s.maxParallel) srv.max = s.maxParallel;
     pickViewRun();
     if (srv.run?.permMode) setPermChip(srv.run.permMode);   // 这一轮实际在用的模式，以网关为准（安全通告 GHSA-2w6p）
@@ -1272,8 +1273,9 @@
     else if (srv.connected && !srv.runs.some((r) => r.perms && r.perms.length)
       && !isBusy() && !srv.run?.idle && !srv.runs.some((r) => !r.idle)) setStatus(t("就绪"), "ok");
     askNotice(srv.runs.flatMap((r) => (r.perms || []).map((p) => ({ id: p.id, runId: r.id }))));
+    const acpBgSids = Object.keys(srv.acpBg || {}).filter((k) => Array.isArray(srv.acpBg[k]) && srv.acpBg[k].length > 0).sort();
     const live = srv.runs.map((r) => (r.sessionId || "") + (r.perms && r.perms.length ? "!" : "") + (r.idle ? "~" : "")).join(",") + "|" + srv.intr.map((e) => e.sessionId || "").join(",")
-      + "|" + srv.queueAll.filter((q) => !q.sessionId).map((q) => q.id).join(",") + "|" + (view.sessionId || "");
+      + "|" + acpBgSids.join(",") + "|" + srv.queueAll.filter((q) => !q.sessionId).map((q) => q.id).join(",") + "|" + (view.sessionId || "");
     if (live !== srv.liveKey) { srv.liveKey = live; renderSessions(); }
     renderPermBar();                 // 放最后：有待确认项时状态栏要显示「等你确认」
     renderInterrupted(s.interrupted);

@@ -3173,4 +3173,10 @@ window.I18N_DICT["es"] = {
   "滚动好像卡住了，可以长按顶栏标题约 0.6 秒脱困": "El desplazamiento parece bloqueado; mantén pulsado el título de la barra superior (~0,6 s) para desbloquearlo",
   "判断不了是不是在充电": "No se pudo determinar si el dispositivo está cargando",
   "判断不了当前电量": "No se pudo leer el nivel actual de batería",
+  "索引": "Índice",
+  "记忆文件名不合法": "Nombre de archivo de memoria no válido",
+  "记忆不存在": "Memoria no encontrada",
+  "只允许查看普通记忆文件": "Solo se permiten archivos de memoria normales",
+  "记忆文件太大了（超过 1 MB）": "El archivo de memoria es demasiado grande (más de 1 MB)",
+  "记忆只读，不能在这里修改": "Las memorias son de solo lectura aquí",
 };

@@ -3173,4 +3173,10 @@ window.I18N_DICT["id"] = {
   "滚动好像卡住了，可以长按顶栏标题约 0.6 秒脱困": "Gulir tampak macet — tekan lama judul bilah atas (~0,6 detik) untuk memulihkan",
   "判断不了是不是在充电": "Tidak dapat mengetahui apakah perangkat sedang diisi daya",
   "判断不了当前电量": "Tidak dapat membaca level baterai saat ini",
+  "索引": "Indeks",
+  "记忆文件名不合法": "Nama file memori tidak valid",
+  "记忆不存在": "Memori tidak ditemukan",
+  "只允许查看普通记忆文件": "Hanya file memori biasa yang boleh dilihat",
+  "记忆文件太大了（超过 1 MB）": "File memori terlalu besar (lebih dari 1 MB)",
+  "记忆只读，不能在这里修改": "Memori hanya-baca dan tidak dapat diubah di sini",
 };

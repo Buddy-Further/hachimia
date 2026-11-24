@@ -1168,8 +1168,7 @@ final class Installer {
     }
 
     int run(String... cmd) throws IOException {
-        ProcessBuilder pb = new ProcessBuilder(env.cmd(cmd));
-        env.apply(pb.environment());
+        ProcessBuilder pb = env.proc(cmd);
         // MIG-30：网关令牌文件的位置不交给安装子进程（纵深防御，fix-G 跟进 #1）。
         // squatted() 已不再按该标记杀进程，但标记扩散的源头要摘掉——将来任何按标记认进程的
         // 代码都会重蹈 rc=137。做法与 gateway/gw/claude.mjs:279、:823 对 claude/agy 子进程同款。

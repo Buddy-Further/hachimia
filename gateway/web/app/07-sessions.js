@@ -83,7 +83,12 @@
     const intr = view.sessionId ? (srv.intr || []).filter((e) => !e.sessionId) : [];
     return { n: runs.length + queue.length + intr.length, ask: runs.some((r) => r.perms && r.perms.length), live: runs.length > 0, intr: intr.length > 0 };
   }
-  function liveSessCount() { return new Set(srv.runs.map((r) => r.sessionId).filter(Boolean)).size; }
+  function acpBgActiveSids() {
+    const m = srv.acpBg;
+    if (!m || typeof m !== "object") return [];
+    return Object.keys(m).filter((k) => Array.isArray(m[k]) && m[k].length > 0);
+  }
+  function liveSessCount() { return new Set([...srv.runs.map((r) => r.sessionId).filter(Boolean), ...acpBgActiveSids()]).size; }
   /** 合并已落盘的 state.sessions 与「已拿到 sessionId 但列表还没刷到」的在跑轮次，避免新对话首轮切走后找不到入口 */
   function sessionsWithLive() {
     const base = state.sessions || [];
@@ -116,9 +121,9 @@
       box.innerHTML = state.sessErr ? sessErrRow() : '<div class="tiny">' + t("还没有历史会话。") + '</div>';
       return;
     }
-    // 空闲（答完了、只剩后台任务在跑）的不算「生成中」，单独标出来
+    // 空闲（答完了、只剩后台任务在跑）与 ACP_POOL 常驻后台任务均标「后台任务在跑」（C-08.4）
     const liveSids = new Set(srv.runs.filter((r) => !r.idle).map((r) => r.sessionId).filter(Boolean));
-    const idleSids = new Set(srv.runs.filter((r) => r.idle).map((r) => r.sessionId).filter(Boolean));
+    const idleSids = new Set([...srv.runs.filter((r) => r.idle).map((r) => r.sessionId).filter(Boolean), ...acpBgActiveSids()]);
     const askSids = new Set(srv.runs.filter((r) => r.perms && r.perms.length).map((r) => r.sessionId).filter(Boolean));
     const intrSids = new Set((srv.intr || []).map((e) => e.sessionId).filter(Boolean));
     const picking = sess.mode === "select";

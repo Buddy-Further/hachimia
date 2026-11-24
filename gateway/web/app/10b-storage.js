@@ -48,8 +48,9 @@
     ST.scanning = true; ST.fails = 0;
     $("st-scan").disabled = true;
     $("st-when").textContent = t("正在扫描…");
-    try { await post("/api/storage/scan", {}); } catch (e) { stOut("err", "✗ " + e.message); }
-    ST.poll = setTimeout(stLoad, 800);
+    try { await post("/api/storage/scan", {}); } catch (e) { if (setVisible("storage", visit)) stOut("err", "✗ " + e.message); }
+    if (!setVisible("storage", visit)) return;
+    stLater(800, visit);
   }
   function stOnOpen() { stLoad(); }
 

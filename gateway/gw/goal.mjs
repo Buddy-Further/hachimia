@@ -31,7 +31,7 @@ export function goalStateOf(file) {
       if (st.mtimeMs === c.mtimeMs && goalFp(file, st.size) === c.fp) return c.g;
     } else if (st.size - c.size <= GOAL_TAIL_MAX) {
       const add = readRange(file, c.size, st.size - c.size);
-      if (add != null && !add.includes("goal")) { c.size = st.size; c.mtimeMs = st.mtimeMs; return c.g; }
+      if (add != null && !add.includes("goal")) { c.size = st.size; c.mtimeMs = st.mtimeMs; c.fp = goalFp(file, st.size); return c.g; }
     }
   }
   let g = scanGoal(file, st.size);
@@ -160,30 +160,37 @@ async function readRangeAsync(file, pos, n) {
     return b.subarray(0, bytesRead).toString("latin1");
   } catch { return null; } finally { await fh?.close().catch(() => {}); }
 }
-async function goalCheckAsync(sid) {
-  const f = sid && findSessionFile(sid);
-  if (!f) return;
-  let st; try { st = await fs.promises.stat(f.file); } catch { return; }
-  let g;
-  if (st.size <= GOAL_CHUNK) {
-    g = goalStateOf(f.file);
-  } else {
-    const c = GOAL_CACHE.get(f.file);
-    if (c && c.ino === st.ino && st.size >= c.size) {
-      if (st.size === c.size) g = c.g;
-      else if (st.size - c.size <= GOAL_TAIL_MAX) {
-        const add = await readRangeAsync(f.file, c.size, st.size - c.size);
-        if (add != null && !add.includes("goal")) { c.size = st.size; g = c.g; }
+async function goalFpAsync(file, size) {
+  const head = await readRangeAsync(file, 0, Math.min(1024, size));
+  const tail = size > 1024 ? await readRangeAsync(file, size - Math.min(1024, size), Math.min(1024, size)) : "";
+  return (head || "") + "\n" + (tail || "");
+}
+export async function goalStateOfAsync(file) {
+  let st; try { st = await fs.promises.stat(file); } catch { return null; }
+  if (st.size <= GOAL_CHUNK) return goalStateOf(file);
+  const c = GOAL_CACHE.get(file);
+  if (c && c.ino === st.ino && st.size >= c.size) {
+    if (st.size === c.size) {
+      if (st.mtimeMs === c.mtimeMs && (await goalFpAsync(file, st.size)) === c.fp) return c.g;
+    } else if (st.size - c.size <= GOAL_TAIL_MAX) {
+      const add = await readRangeAsync(file, c.size, st.size - c.size);
+      if (add != null && !add.includes("goal")) {
+        c.size = st.size; c.mtimeMs = st.mtimeMs; c.fp = await goalFpAsync(file, st.size);
+        return c.g;
       }
     }
-    if (g === undefined) {
-      let scanned = await scanGoalAsync(f.file, st.size);
-      if (scanned === undefined) scanned = c && c.ino === st.ino ? c.g : null;
-      g = scanned;
-      GOAL_CACHE.delete(f.file); GOAL_CACHE.set(f.file, { ino: st.ino, size: st.size, g });
-      if (GOAL_CACHE.size > 200) GOAL_CACHE.delete(GOAL_CACHE.keys().next().value);
-    }
   }
+  let g = await scanGoalAsync(file, st.size);
+  if (g === undefined) g = c && c.ino === st.ino ? c.g : null;
+  const fp = await goalFpAsync(file, st.size);
+  GOAL_CACHE.delete(file); GOAL_CACHE.set(file, { ino: st.ino, size: st.size, mtimeMs: st.mtimeMs, fp, g });
+  if (GOAL_CACHE.size > 200) GOAL_CACHE.delete(GOAL_CACHE.keys().next().value);
+  return g;
+}
+export async function goalCheckAsync(sid) {
+  const f = sid && findSessionFile(sid);
+  if (!f) return;
+  const g = await goalStateOfAsync(f.file);
   if (g === undefined) return;
   const j = JSON.stringify(g);
   if (GOAL_SEEN.get(sid) === j) return;

@@ -3173,4 +3173,10 @@ window.I18N_DICT["fr"] = {
   "滚动好像卡住了，可以长按顶栏标题约 0.6 秒脱困": "Le défilement semble bloqué : appuyez longuement (~0,6 s) sur le titre de la barre supérieure pour débloquer",
   "判断不了是不是在充电": "Impossible de savoir si l’appareil est en charge",
   "判断不了当前电量": "Impossible de lire le niveau de batterie actuel",
+  "索引": "Index",
+  "记忆文件名不合法": "Nom de fichier mémoire invalide",
+  "记忆不存在": "Mémoire introuvable",
+  "只允许查看普通记忆文件": "Seuls les fichiers mémoire ordinaires peuvent être consultés",
+  "记忆文件太大了（超过 1 MB）": "Le fichier mémoire est trop volumineux (plus de 1 Mo)",
+  "记忆只读，不能在这里修改": "Les mémoires sont en lecture seule ici",
 };

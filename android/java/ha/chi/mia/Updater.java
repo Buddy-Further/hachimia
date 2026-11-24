@@ -799,8 +799,8 @@ final class Updater {
         String v = "";
         Exception checkErr = null;
         try {
-            ProcessBuilder pb = new ProcessBuilder(env.cmd(env.bin("node").getPath(), script.getPath(), "--check"));
-            env.apply(pb.environment());
+            ProcessBuilder pb = env.proc(env.bin("node").getPath(), script.getPath(), "--check");
+            pb.environment().remove("CCAPP_TOKEN_FILE");
             pb.redirectErrorStream(true);
             Process p = pb.start();
             final byte[][] box = new byte[1][];

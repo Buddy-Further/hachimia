@@ -133,12 +133,12 @@
     if (a === "pj-retry") { PJ.err = ""; renderProjects(); return loadProjects(); }
     const card = e.target.closest("[data-pj]"); if (card) return openProject(card.dataset.pj);
     const sid = e.target.closest("[data-sid]"); if (sid) return goSession(sid.dataset.sid);
-    const tk = e.target.closest("[data-task]"); if (tk) { SC.cur = tk.dataset.task; SC.detail = null; return openPage("sched"); }
+    const tk = e.target.closest("[data-task]"); if (tk) { SC.openSeq = (SC.openSeq || 0) + 1; SC.cur = tk.dataset.task; SC.detail = null; return openPage("sched"); }
     const p = PJ.detail && PJ.detail.project; if (!p) return;
     if (a === "chat") return newChatIn(p.id);
     if (a === "pmenu") return projMenu(p, e.target.closest("[data-a]"));
     if (a === "files") return openFiles(p.path);
-    if (a === "memory") { const m = PJ.detail.memory[0]; return openFiles(m.path.replace(/\/[^/]+$/, "")); }
+    if (a === "memory") return projectMemoryDlg(p);
     if (a === "newtask") return taskDlg(null, { projectId: p.id });
     const f = e.target.closest("[data-file]");
     if (f) {
@@ -299,6 +299,82 @@
       if (mine && (withDir || !view.sessionId)) newConversation();
       await loadProjects(); loadSessions(); renderProjects(); toast(t("已删除项目"));
     });
+  }
+  function projectMemoryDlg(p) {
+    const o = dlg(t("记忆"), `<div class="muted">${esc(t("加载中…"))}</div>`,
+      `<button class="btn sm ghost" data-close>${esc(t("关闭"))}</button>`);
+    const titleEl = o.querySelector("#pj-title");
+    const main = o.querySelector(".pj-smain");
+    const foot = o.querySelector(".pj-sfoot");
+    const baseUrl = `/api/projects/${encodeURIComponent(p.id)}/memory`;
+    let seq = 0, list = null, curText = "";
+
+    const setFoot = (html) => { foot.innerHTML = html; };
+    const paintList = () => {
+      titleEl.textContent = t("记忆");
+      setFoot(`<button class="btn sm ghost" data-close>${esc(t("关闭"))}</button>`);
+      const note = `<div class="muted pj-sub pj-mem-note">${esc(t("只读"))} · ${esc(t("Claude 在这个项目里记下的事"))}</div>`;
+      if (!list || !list.length) {
+        main.innerHTML = note + `<div class="panel">${emptyRow(t("没有"))}</div>`;
+        return;
+      }
+      main.innerHTML = note + `<div class="panel">${list.map((m) =>
+        `<div class="row pj-row" data-mem-file="${esc(m.file)}"><div class="grow">` +
+        `<div class="t1"><b>${esc(m.isIndex ? m.file : m.name)}</b>${m.isIndex ? ` <span class="pill">${esc(t("索引"))}</span>` : ""}</div>` +
+        `<div class="muted pj-sub">${esc([m.isIndex ? "" : m.file, fmtSize(m.size), relTime(m.mtime)].filter(Boolean).join(" · "))}</div>` +
+        `</div>${pi("chev", "pj-go")}</div>`).join("")}</div>`;
+      main.scrollTop = 0;
+    };
+
+    const loadList = async () => {
+      const q = ++seq;
+      titleEl.textContent = t("记忆");
+      main.innerHTML = `<div class="muted">${esc(t("加载中…"))}</div>`;
+      setFoot(`<button class="btn sm ghost" data-close>${esc(t("关闭"))}</button>`);
+      try {
+        const r = await api(baseUrl);
+        if (q !== seq || !o.isConnected) return;
+        list = r.files || [];
+        paintList();
+      } catch (err) {
+        if (q !== seq || !o.isConnected) return;
+        main.innerHTML = `<div class="panel">${emptyRow(err.message)}</div>`;
+      }
+    };
+
+    const openFile = async (file) => {
+      const q = ++seq;
+      curText = "";
+      titleEl.textContent = file;
+      main.innerHTML = `<div class="muted">${esc(t("加载中…"))}</div>`;
+      setFoot(`<button class="btn sm ghost pj-try" data-mem-back>${esc(t("返回"))}</button><button class="btn sm ghost" data-close>${esc(t("关闭"))}</button>`);
+      try {
+        const r = await api(`${baseUrl}?file=${encodeURIComponent(file)}`);
+        if (q !== seq || !o.isConnected) return;
+        curText = r.text || "";
+        titleEl.textContent = r.isIndex ? r.file : r.name;
+        const meta = `<div class="muted pj-sub pj-mem-note">${esc([t("只读"), r.file, fmtSize(r.size), relTime(r.mtime)].filter(Boolean).join(" · "))}</div>`;
+        // 不传 img 回调：纯只读查看，不加载任何本地或外部图片
+        main.innerHTML = meta + (curText.trim() ? `<div class="bubble wn-md pj-mem-md">${renderMd(curText)}</div>` : `<div class="panel">${emptyRow(t("（空）"))}</div>`);
+        enhanceMd(main);
+        main.scrollTop = 0;
+        setFoot(`<button class="btn sm ghost pj-try" data-mem-back>${esc(t("返回"))}</button><button class="btn sm ghost" data-mem-copy>${esc(t("复制"))}</button><button class="btn sm" data-close>${esc(t("关闭"))}</button>`);
+      } catch (err) {
+        if (q !== seq || !o.isConnected) return;
+        main.innerHTML = `<div class="panel">${emptyRow(err.message)}</div>`;
+      }
+    };
+
+    o.addEventListener("click", async (e) => {
+      const row = e.target.closest("[data-mem-file]");
+      if (row) return openFile(row.dataset.memFile);
+      if (e.target.closest("[data-mem-back]")) { seq++; return list ? paintList() : loadList(); }
+      if (e.target.closest("[data-mem-copy]")) {
+        try { await copyText(curText); toast(t("已复制")); } catch (err) { toast(err.message, true); }
+      }
+    });
+
+    loadList();
   }
 
   // ── 输入栏下的项目标签 + 新会话的项目选择 ──
@@ -481,7 +557,7 @@
       appendRunFull(fr, r);
       return;
     }
-    const tk = e.target.closest("[data-task]"); if (tk && !SC.cur) { SC.cur = tk.dataset.task; SC.detail = null; renderSched(); $("page-body").scrollTop = 0; return; }
+    const tk = e.target.closest("[data-task]"); if (tk && !SC.cur) { SC.openSeq = (SC.openSeq || 0) + 1; SC.cur = tk.dataset.task; SC.detail = null; renderSched(); $("page-body").scrollTop = 0; return; }
     const d = SC.detail; if (!d || d.task.id !== SC.cur) return;
     if (a === "edit") return taskDlg(d.task);
     if (a === "run") return runTaskNow(d.task, false, e.target.closest("[data-a]"));
@@ -648,7 +724,7 @@
       try {
         const r = edit ? await jsend("/api/sched/" + encodeURIComponent(x.id), b, "PATCH") : await jsend("/api/sched", b);
         OV.close(o); toast(edit ? t("已保存") : t("已创建：{f}", { f: freqText(r.task.freq) }));
-        SC.cur = r.task.id; SC.detail = null; await loadSched();
+        SC.openSeq = (SC.openSeq || 0) + 1; SC.cur = r.task.id; SC.detail = null; await loadSched();
         if (curPage !== "sched") openPage("sched"); else renderSched();
       } catch (err) { btn.disabled = false; toast(err.message, true); }
     });
@@ -757,13 +833,15 @@
     if (name === "ext") { loadModules(); loadComponents(60); }
     if (name === "sched") { renderSched(); loadSched(); schedPollSet(true); }
     if (name === "projects") renderProjects();
-    if (name === "sessions") renderSessions();
+    if (name === "sessions") { renderSessions(); loadSessions(); if (sess.mode === "trash") loadTrash(); }
+    if (name === "trash") loadTrash();
+    if (name === "bookmarks") loadBookmarks();
     if (name === "caps") renderCaps();
     if (name === "changelog") loadChangelog();
   }
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) { pausePageReads(curPage, false); if (setOpen) pauseSetReads(); }
-    else if (setOpen) enterSetCat(setCatOpen, true);
+    else if (setOpen) { setBaseRead = refreshSettings(false); enterSetCat(setCatOpen, true); }
     else resumePageReads(curPage);
   });
   /** 打开整页：窄屏收起侧栏、盖住对话；宽屏侧栏照旧常驻，高亮当前项 */

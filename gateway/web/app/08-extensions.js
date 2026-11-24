@@ -185,12 +185,13 @@
     if (bar._html !== inner) {
       bar._html = inner; bar.innerHTML = inner;
       bar.classList.toggle("hidden", chips.length < 2 && !cur);    // 只有一类时没什么可切的
-      for (const it of items) it.classList.toggle("hidden", !!cur && !it.dataset.tags.split(" ").includes(cur));
     }
+    for (const it of items) it.classList.toggle("hidden", !!cur && !it.dataset.tags.split(" ").includes(cur));
   }
   $("tab-ext").addEventListener("click", (e) => {
     const c = e.target.closest(".idx-chip"); if (!c) return;
     extPick[c.dataset.sec] = c.dataset.idx; renderIdx(c.dataset.sec);
+    if (c.dataset.sec === "comp") syncCatalog();
   });
   // 节头照设计稿：图标块 + 标题，下面一句说明（原来是节里第一行小字，挪进标题里）；节不再折叠，靠顶上的分区导航跳
   for (const d of document.querySelectorAll("#tab-ext details.ext-sec")) {
@@ -241,6 +242,7 @@
     pauseCatalog();
   }
   async function loadComponents(refresh) {
+    if (!pageOn("ext")) return "stale";
     const request = ++compLoad;
     clearTimeout(compTimer);
     let netErr = null;
@@ -254,7 +256,7 @@
     const r = raw || { supported: true, items: [], indexError: netErr ? netErr.message : "" };
     const compOff = new Set((await extOffNow()).comp || []);
     // 完成后的刷新比卸载中的轮询新；旧响应不能把已恢复的卡片盖回去。
-    if (request !== compLoad) return "stale";
+    if (request !== compLoad || !pageOn("ext")) return "stale";
     const outcome = { err: r.indexError || "" };
     $("comp-field").classList.toggle("hidden", !r.supported);
     if (!r.supported) { compHasItems = false; syncCatalog(); return loadGhField(); }
@@ -611,7 +613,16 @@
         keep.before(...box.childNodes);
       }
       else body.innerHTML = llmDl.html;
-      body.querySelectorAll(".llm-fam").forEach((d) => d.addEventListener("toggle", () => { d.open ? llmDl.fam.add(d.dataset.fam) : llmDl.fam.delete(d.dataset.fam); }));
+      if (!body.dataset.famBound) {
+        body.dataset.famBound = "1";
+        body.addEventListener("toggle", (e) => {
+          const d = e.target;
+          if (d && d.classList && d.classList.contains("llm-fam") && d.dataset.fam) {
+            if (d.open) llmDl.fam.add(d.dataset.fam);
+            else llmDl.fam.delete(d.dataset.fam);
+          }
+        }, true);
+      }
       // 正打字的输入框是原地保留的：每次轮询都 addEventListener 会越积越多（195-6.04）
       const inp = $("llm-url"); if (inp) inp.oninput = () => { llmDl.url = inp.value; };
     }

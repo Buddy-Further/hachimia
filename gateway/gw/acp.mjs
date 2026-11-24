@@ -485,14 +485,23 @@ export function closeAllAcpClients() {
 
 onShutdown("ACP 会话池", () => closeAllAcpClients());
 
-/** 将工作目录编码为会话项目目录名（与 sessions.mjs / transcript.mjs 兼容） */
+/** 将工作目录编码为会话项目目录名（对齐 sessions.mjs projEnc：超过 200 字符截断并拼 sha256 前 8 位防 ENAMETOOLONG，C-08.5） */
 export function encodeProjectDir(cwd) {
-  return String(cwd || CFG.workspace || CFG.home).replace(/[^A-Za-z0-9]/g, "-");
+  const p = String(cwd || CFG.workspace || CFG.home);
+  const s = p.replace(/[^A-Za-z0-9]/g, "-");
+  return s.length <= 200 ? s : s.slice(0, 200) + "-" + crypto.createHash("sha256").update(p).digest("hex").slice(0, 8);
 }
 
-/** 构造本次会话的本地 jsonl 落盘路径 */
+/** 构造本次会话的本地 jsonl 落盘路径（平滑兼容旧版未截断长目录里的既有文件） */
 export function acpSessionFile(cwd, sessionId) {
-  const dir = path.join(PATHS.projects, encodeProjectDir(cwd));
+  const p = String(cwd || CFG.workspace || CFG.home);
+  const rawEnc = p.replace(/[^A-Za-z0-9]/g, "-");
+  const enc = encodeProjectDir(p);
+  if (rawEnc !== enc && rawEnc.length <= 250) {
+    const legacy = path.join(PATHS.projects, rawEnc, `${sessionId}.jsonl`);
+    try { if (fs.existsSync(legacy)) return legacy; } catch {}
+  }
+  const dir = path.join(PATHS.projects, enc);
   fs.mkdirSync(dir, { recursive: true });
   return path.join(dir, `${sessionId}.jsonl`);
 }

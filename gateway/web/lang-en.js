@@ -3213,4 +3213,10 @@ window.I18N_DICT.en = {
   "滚动好像卡住了，可以长按顶栏标题约 0.6 秒脱困": "Scroll seems stuck — long-press the top bar title (~0.6s) to unfreeze",
   "判断不了是不是在充电": "Could not tell whether the device is charging",
   "判断不了当前电量": "Could not read the current battery level",
+  "索引": "Index",
+  "记忆文件名不合法": "Invalid memory file name",
+  "记忆不存在": "Memory not found",
+  "只允许查看普通记忆文件": "Only regular memory files can be viewed",
+  "记忆文件太大了（超过 1 MB）": "Memory file is too large (over 1 MB)",
+  "记忆只读，不能在这里修改": "Project memories are read-only here",
 };
