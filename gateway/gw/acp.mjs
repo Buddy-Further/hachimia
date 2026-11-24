@@ -145,6 +145,189 @@ export function isChildKeyAliveFallback(childKey, procDir = "/proc", isPidAlive 
   return false;
 }
 
+/** 读取 /proc/<pid>/stat 的第 22 字段 starttime；读不到返回 "" */
+function readProcStartTicks(pid, procDir = "/proc") {
+  if (!Number.isInteger(pid) || pid <= 0) return "";
+  try {
+    const s = fs.readFileSync(path.join(procDir, String(pid), "stat"), "utf8");
+    const rp = s.lastIndexOf(")");
+    if (rp < 0) return "";
+    const f = s.slice(rp + 2).trim().split(/\s+/);
+    if (f[0] === "Z" || f[0] === "X") return "";
+    return String(f[19] || "");
+  } catch {
+    return "";
+  }
+}
+
+// 收集 rootPid 的全部存活子孙 PID（结合 /proc/<pid>/stat 的 ppid 与 /proc/<pid>/task/<tid>/children，覆盖 hidepid=2 不可 dump 子进程）
+export function listDescendantPids(rootPid, procDir = "/proc") {
+  if (!Number.isInteger(rootPid) || rootPid <= 0) return [];
+  const byParent = new Map();
+  let entries = [];
+  try { entries = fs.readdirSync(procDir); } catch {}
+  for (const d of entries) {
+    if (!/^\d+$/.test(d)) continue;
+    try {
+      const s = fs.readFileSync(path.join(procDir, d, "stat"), "utf8");
+      const rp = s.lastIndexOf(")");
+      if (rp < 0) continue;
+      const f = s.slice(rp + 2).trim().split(/\s+/);
+      if (f[0] === "Z" || f[0] === "X") continue;
+      const ppid = Number(f[1]);
+      if (Number.isInteger(ppid) && ppid > 0) {
+        let arr = byParent.get(ppid);
+        if (!arr) { arr = []; byParent.set(ppid, arr); }
+        arr.push(Number(d));
+      }
+    } catch {}
+  }
+  const out = [];
+  const seen = new Set([rootPid]);
+  const stack = [rootPid];
+  while (stack.length) {
+    const p = stack.pop();
+    const direct = byParent.get(p) || [];
+    const taskKids = readTaskChildrenPids(procDir, p);
+    const merged = taskKids ? [...direct, ...taskKids] : direct;
+    for (const k of merged) {
+      if (!Number.isInteger(k) || k <= 0 || seen.has(k)) continue;
+      seen.add(k);
+      out.push(k);
+      stack.push(k);
+    }
+  }
+  return out;
+}
+
+/** 安全精准终止单个已归属 childKey（pid:startTicks）的后台 shell/daemon 子进程及其子孙树：
+ *  1) 先经 isChildKeyAliveFallback 核对 starttime 防 PID 复用；
+ *  2) 核验目标 pid 确实是 parentPid 的存活后代且绝非 parentPid / 网关自身；
+ *  3) 先 SIGTERM 整棵子树与进程组，宽限 graceMs 后再对经 startTicks 复核仍存活的节点补 SIGKILL。 */
+export function killBgChildTree(parentPid, childKey, {
+  procDir = "/proc",
+  graceMs = 1500,
+  isPidAlive = isPidAliveFallback,
+  signalFn = (p, sig) => process.kill(p, sig),
+} = {}) {
+  if (!Number.isInteger(parentPid) || parentPid <= 0) return false;
+  if (typeof childKey !== "string" || !childKey.length) return false;
+  const colon = childKey.indexOf(":");
+  const pid = Number(colon >= 0 ? childKey.slice(0, colon) : childKey);
+  if (!Number.isInteger(pid) || pid <= 0 || pid === parentPid || pid === process.pid) return false;
+  if (!isChildKeyAliveFallback(childKey, procDir, isPidAlive)) return false;
+  const ancTree = listDescendantPids(parentPid, procDir);
+  if (!ancTree.includes(pid)) {
+    const directKids = listAcpChildren(parentPid, procDir);
+    if (!directKids || !directKids.some((c) => c.pid === pid)) return false;
+  }
+  const subPids = listDescendantPids(pid, procDir);
+  const targets = [
+    { pid, key: childKey },
+    ...subPids.filter((p) => p !== parentPid && p !== process.pid).map((p) => {
+      const ticks = readProcStartTicks(p, procDir);
+      return { pid: p, key: ticks ? `${p}:${ticks}` : `${p}:hidden` };
+    }),
+  ];
+  const hit = (p, sig) => {
+    try { signalFn(-p, sig); } catch {}
+    try { signalFn(p, sig); } catch {}
+  };
+  for (const t of targets) hit(t.pid, "SIGTERM");
+  if (graceMs > 0) {
+    const timer = setTimeout(() => {
+      for (const t of targets) {
+        if (isChildKeyAliveFallback(t.key, procDir, isPidAlive)) hit(t.pid, "SIGKILL");
+      }
+    }, graceMs);
+    timer.unref?.();
+  }
+  return true;
+}
+
+/** 扫描 agy 会话的 .system_generated/tasks/task-<N>.log（轻量仅 stat，不读内容） */
+export function scanAcpTaskLogs(sessionId, brainDir = path.join(CFG.home, ".gemini", "antigravity-cli", "brain"), sinceMs = 0) {
+  if (!sessionId || !brainDir) return [];
+  const taskDir = path.join(brainDir, String(sessionId), ".system_generated", "tasks");
+  let names;
+  try { names = fs.readdirSync(taskDir); } catch { return []; }
+  const out = [];
+  for (const name of names) {
+    const m = /^task-(\d+)\.log$/.exec(name);
+    if (!m) continue;
+    const logPath = path.join(taskDir, name);
+    try {
+      const st = fs.statSync(logPath);
+      if (!st.isFile()) continue;
+      if (sinceMs > 0 && st.mtimeMs < sinceMs - 2000) continue;
+      const shortId = `task-${m[1]}`;
+      out.push({
+        num: Number(m[1]),
+        shortId,
+        fullId: `${sessionId}/${shortId}`,
+        logPath,
+        size: st.size,
+        mtimeMs: st.mtimeMs,
+      });
+    } catch {}
+  }
+  out.sort((a, b) => a.num - b.num);
+  return out;
+}
+
+/** 轻量读取后台任务日志文件末尾最多 maxBytes 字节，并折叠 \r 进度覆盖行，避免大日志 OOM 与界面乱码 */
+export function readTaskLogTail(logPath, maxBytes = 4096) {
+  if (!logPath || typeof logPath !== "string") return "";
+  let st;
+  try { st = fs.statSync(logPath); } catch { return ""; }
+  if (!st.isFile() || st.size <= 0) return "";
+  const cap = Math.max(256, Math.min(Number(maxBytes) || 4096, 32768));
+  const offset = st.size > cap ? st.size - cap : 0;
+  const len = st.size - offset;
+  let fd = null;
+  let raw = "";
+  try {
+    fd = fs.openSync(logPath, "r");
+    const buf = Buffer.allocUnsafe(len);
+    const n = fs.readSync(fd, buf, 0, len, offset);
+    raw = buf.subarray(0, n).toString("utf8");
+  } catch {
+    return "";
+  } finally {
+    if (fd !== null) try { fs.closeSync(fd); } catch {}
+  }
+  const norm = raw.replace(/\r\n/g, "\n");
+  let lines = norm.split("\n");
+  if (offset > 0 && lines.length > 1) lines = lines.slice(1);
+  // 折叠同一行内由 \r 覆盖刷新的进度条（如 git Receiving objects），只保留最后一段非空内容
+  const clean = lines.map((line) => {
+    if (!line.includes("\r")) return line;
+    const segs = line.split("\r").map((s) => s.trimEnd()).filter(Boolean);
+    return segs.length ? segs[segs.length - 1] : "";
+  });
+  const text = clean.join("\n").trim();
+  return offset > 0 && text ? `…\n${text}` : text;
+}
+
+/** 预判空闲期到来的 session/update 是否会产生实质内容（防取消后的迟到旧工具帧或空文本触发 0 字幻影 idleBurst） */
+export function shouldOpenIdleBurst(kind, upd, entry, idleWakeKinds) {
+  if (!idleWakeKinds?.has(kind)) return false;
+  if (kind === "tool_call" || kind === "tool_call_update") {
+    const tid = String(upd?.toolCallId || upd?.id || "");
+    if (!tid) return false;
+    if (entry?.knownToolIds?.has(tid)) return false;
+    return true;
+  }
+  if (kind === "agent_message" || kind === "agent_message_chunk" || kind === "text_delta"
+    || kind === "agent_thought" || kind === "agent_thought_chunk" || kind === "thinking_delta") {
+    const mid = upd?.messageId ? String(upd.messageId) : "";
+    if (mid && entry?.replayMessageIds?.has(mid)) return false;
+    const txt = acpTextOf(upd?.content ?? upd?.summary ?? upd?.text);
+    return txt.length > 0;
+  }
+  return true;
+}
+
 /** 探测 agy acp 非常驻后台 shell 任务是否仍在运行：
  *  1) 存在无归属 shell（childKey === null）时严格 fail-closed 返回 active；
  *  2) 只要有任一任务归属的子进程仍在存活集合（或经 isChildKeyAliveFallback 核验仍存活），或存在非 daemon 的存活子进程，即视为仍在执行，绝不误触发；
@@ -333,7 +516,8 @@ function reconcileBgTasksFromList(scopeKey, map, outText) {
   if (!liveIds.size) return false;
   let changed = false;
   for (const [k, v] of map) {
-    if (v.type !== "shell") continue;
+    const isTaskWorkflow = v.type === "workflow" && /(?:^|\/)task-\d+$/.test(String(k));
+    if (v.type !== "shell" && !isTaskWorkflow) continue;
     const shortK = k.includes("/") ? k.split("/").pop() : k;
     if (!liveIds.has(k) && !liveIds.has(shortK)) {
       if (removeBgTaskAndDependents(scopeKey, map, k)) changed = true;
@@ -342,19 +526,31 @@ function reconcileBgTasksFromList(scopeKey, map, outText) {
   return changed;
 }
 
-/** 常驻 ACP 进程的收尾（MIG-19）：先 SIGTERM 整组（agy 派生的孙进程一起带走），
- *  宽限期后仍活着再 SIGKILL 整组；组杀失败回落单进程。子进程以 detached:true 起，
- *  是进程组长，负 pid 即整组。定时器 unref，不拖住网关退出。 */
+/** 常驻 ACP 进程的收尾（MIG-19）：先摘下 /proc 整棵子孙树（覆盖 setsid / 独立进程组的后台 shell 命令），
+ *  再 SIGTERM 整组与全部子孙；宽限期后经 startTicks 复核仍存活的节点补 SIGKILL，防止孤儿残留且杜绝 PID 复用误杀。 */
 export const ACP_KILL_GRACE_MS = 3000;
 export function killAcpChild(child, graceMs = ACP_KILL_GRACE_MS) {
   if (!child || !child.pid) return;
+  const descPids = listDescendantPids(child.pid);
+  const descSnap = descPids.map((p) => {
+    const ticks = readProcStartTicks(p);
+    return { pid: p, key: ticks ? `${p}:${ticks}` : `${p}:hidden` };
+  });
   const killGroup = (sig) => {
     try { process.kill(-child.pid, sig); return true; }
     catch { try { child.kill(sig); } catch {} return false; }
   };
+  const killPidAndGroup = (p, sig) => {
+    try { process.kill(-p, sig); } catch {}
+    try { process.kill(p, sig); } catch {}
+  };
   killGroup("SIGTERM");
+  for (const d of descSnap) killPidAndGroup(d.pid, "SIGTERM");
   const t = setTimeout(() => {
     if (child.exitCode === null && child.signalCode == null) killGroup("SIGKILL");
+    for (const d of descSnap) {
+      if (isChildKeyAliveFallback(d.key)) killPidAndGroup(d.pid, "SIGKILL");
+    }
   }, graceMs);
   t.unref?.();
 }
@@ -460,12 +656,20 @@ export function stopAcpBgTask(sessionId, taskId) {
     const tid = String(taskId);
     const item = entry.bgTasks?.get(tid);
     const rec = entry.acpAgents?.get(tid);
+    if (item && (item.type === "shell" || item.type === "daemon") && typeof item.childKey === "string" && item.childKey.length > 0) {
+      try { killBgChildTree(entry.client?.child?.pid, item.childKey); } catch {}
+    }
     if (rec && rec.status === "running" && (!item || item.type === "agent" || item.type === "workflow")) {
       stoppedAgents.push(rec);
     }
     entry.nudgedBgTasks.add(tid);
     removeBgTaskAndDependents(poolScope, entry.bgTasks, tid);
   } else {
+    for (const item of entry.bgTasks?.values() || []) {
+      if (item && (item.type === "shell" || item.type === "daemon") && typeof item.childKey === "string" && item.childKey.length > 0) {
+        try { killBgChildTree(entry.client?.child?.pid, item.childKey); } catch {}
+      }
+    }
     for (const rec of entry.acpAgents?.values() || []) {
       if (rec && rec.status === "running") stoppedAgents.push(rec);
     }
@@ -1163,9 +1367,10 @@ function trackAcpToolSideEffects(phase, tool, state, emit) {
     if (phase === "start") {
       const label = String(inp.Role || inp.TypeName || inp.Description || rawName).trim().slice(0, 60) || "subagent";
       const bgType = kind === "run_workflow" ? "workflow" : "agent";
-      agents.set(tool.id, { id: tool.id, convId: null, logPath: null, kind: bgType, name: label, status: "running" });
-      emit({ type: "ag", k: "spawn", id: tool.id, tool: tool.id, name: label, parent: null, depth: 1, bg: true, by: "main", at: Date.now() });
-      state.onBgAdd?.({ id: tool.id, type: bgType, desc: label });
+      const nowAt = Date.now();
+      agents.set(tool.id, { id: tool.id, convId: null, logPath: null, kind: bgType, name: label, status: "running", startedAt: nowAt });
+      emit({ type: "ag", k: "spawn", id: tool.id, tool: tool.id, name: label, parent: null, depth: 1, bg: true, by: "main", at: nowAt });
+      state.onBgAdd?.({ id: tool.id, type: bgType, desc: label, toolId: tool.id, startedAt: nowAt, lastActiveAt: nowAt });
       if (state.cwd && state.sessionId && !state.acpAgentDirs?.has(tool.id)) {
         const d = acpAgentSpawn(state.cwd, state.sessionId, { id: tool.id, name: label, prompt: String(inp.Prompt || inp.Description || "") });
         if (d) (state.acpAgentDirs ||= new Map()).set(tool.id, d);
@@ -1330,14 +1535,23 @@ function trackAcpToolSideEffects(phase, tool, state, emit) {
     return;
   }
 
-  if (kind === "run_command" && phase === "done" && !tool.isError) {
+    if (kind === "run_command" && phase === "done") {
+      const outDone = String(tool.output || "");
+      const sepDone = /\r?\n(?:Command|Log) output:\r?\n/;
+      const hdrDone = sepDone.test(outDone) ? outDone.split(sepDone)[0] : outDone.split(/\r?\n/, 6).join("\n");
+      const exitedDone = /^Command (?:exited with code \d+|was terminated by signal)/m.test(hdrDone);
+      if (tool.bgTaskId && (tool.isError || tool.cancelled || exitedDone)) {
+        state.onBgRemove?.(tool.bgTaskId);
+      }
+    }
+    if (kind === "run_command" && (phase === "done" || phase === "update") && !tool.isError) {
     const out = String(tool.output || "");
     // 只检视工具信封头（有 Command/Log output: 分隔符时取其前；无分隔符时仅取前 6 行信封头），
     // 防止同步退出或前台超时的命令输出正文里含 "background task" / "TaskId" 被误挂为幽灵后台任务。
     const sepRe = /\r?\n(?:Command|Log) output:\r?\n/;
     const header = sepRe.test(out) ? out.split(sepRe)[0] : out.split(/\r?\n/, 6).join("\n");
     const syncExited = /^Command (?:exited with code \d+|was terminated by signal)/m.test(header);
-    const bgMatch = !!inp.IsDaemon || (!syncExited && (
+    const bgMatch = (phase === "done" && !!inp.IsDaemon) || (!syncExited && (
       /^Tool is running (?:as a background task|in the background)\b/m.test(header)
       || /\bCommand running in (?:the )?background\b/i.test(header)
       || /\b(?:TaskId|task[_\s-]?id)["':=\s]+[A-Za-z0-9._/-]*[A-Za-z0-9_/-]/i.test(header)
@@ -1345,13 +1559,27 @@ function trackAcpToolSideEffects(phase, tool, state, emit) {
     if (bgMatch) {
       const mId = /(?:TaskId|task[_\s-]?id)["':=\s]+([A-Za-z0-9._/-]*[A-Za-z0-9_/-])/i.exec(header);
       const tid = mId ? mId[1] : tool.id;
+      const mLog = /Task logs are available at:\s*(file:\/\/\S+|\/\S+)/i.exec(header);
+      const logPath = mLog ? fileUriToLocalPath(mLog[1]) : (tool.logPath || null);
       const titleCmd = rawName.replace(/^run\s+/i, "").trim();
       const desc = String(
         inp.toolSummary || inp.description || inp.CommandLine
         || (titleCmd && titleCmd.toLowerCase() !== "run_command" ? titleCmd : "")
         || "后台命令"
       ).trim().slice(0, 80);
-      state.onBgAdd?.({ id: tid, type: inp.IsDaemon ? "daemon" : "shell", desc });
+      const nowAt = Date.now();
+      tool.bgTaskId = tid;
+      if (logPath) tool.logPath = logPath;
+      if (!tool.done) tool.status = "background";
+      state.onBgAdd?.({
+        id: tid,
+        type: inp.IsDaemon ? "daemon" : "shell",
+        desc,
+        toolId: tool.id,
+        ...(logPath ? { logPath } : {}),
+        startedAt: tool.startedAt || nowAt,
+        lastActiveAt: nowAt,
+      });
     }
     return;
   }
@@ -1470,6 +1698,7 @@ export function translateAcpUpdate(params, state, emit) {
       if (updMsgId) chunkTextById.set(updMsgId, (chunkTextById.get(updMsgId) || "") + text);
       state.text += text;
       state.segText = (state.segText || "") + text;
+      state.lastOutputAt = Date.now();
       emit({ type: "text_delta", text });
     }
     return;
@@ -1574,7 +1803,7 @@ export function translateAcpUpdate(params, state, emit) {
     }
     state.segText = "";
     state.segThinking = "";
-    const rec = { id, name, rawName: upd.name ? String(upd.name) : "", kind: upd.kind ? String(upd.kind) : "", input, status: upd.status || "pending", output: "", isError: false, cancelled: false, done: false };
+    const rec = { id, name, rawName: upd.name ? String(upd.name) : "", kind: upd.kind ? String(upd.kind) : "", input, status: upd.status || "pending", output: "", isError: false, cancelled: false, done: false, startedAt: Date.now() };
     state.tools.set(id, rec);
     emit({ type: "tool_use", id, name, ...(rec.rawName ? { rawName: rec.rawName } : {}), ...(rec.kind ? { kind: rec.kind } : {}), input });
     trackAcpToolSideEffects("start", rec, state, emit);
@@ -1603,7 +1832,7 @@ export function translateAcpUpdate(params, state, emit) {
       const input = upd.rawInput && typeof upd.rawInput === "object"
         ? upd.rawInput
         : (upd.input && typeof upd.input === "object" ? upd.input : {});
-      prev = { id, name, rawName: upd.name ? String(upd.name) : "", kind: upd.kind ? String(upd.kind) : "", input, status: upd.status || "in_progress", output: "", isError: false, cancelled: false, done: false };
+      prev = { id, name, rawName: upd.name ? String(upd.name) : "", kind: upd.kind ? String(upd.kind) : "", input, status: upd.status || "in_progress", output: "", isError: false, cancelled: false, done: false, startedAt: Date.now() };
       state.tools.set(id, prev);
       emit({ type: "tool_use", id, name, ...(prev.rawName ? { rawName: prev.rawName } : {}), ...(prev.kind ? { kind: prev.kind } : {}), input });
       trackAcpToolSideEffects("start", prev, state, emit);
@@ -1633,6 +1862,7 @@ export function translateAcpUpdate(params, state, emit) {
       prev.isError = st === "failed" || st === "error";
       emitToolResult(prev, emit, state);
     } else if (changed && !prev.done) {
+      if (!prev.bgTaskId && prev.output) trackAcpToolSideEffects("update", prev, state, emit);
       const fullOut = String(prev.output || "");
       const clippedOut = fullOut.length > TOOL_OUT_MAX ? fullOut.slice(-TOOL_OUT_MAX) : fullOut;
       emit({
@@ -1640,7 +1870,8 @@ export function translateAcpUpdate(params, state, emit) {
         id: prev.id,
         name: prev.name,
         input: prev.input,
-        status: prev.status,
+        status: prev.bgTaskId ? "background" : prev.status,
+        ...(prev.bgTaskId ? { bgTaskId: prev.bgTaskId } : {}),
         ...(clippedOut ? { output: clippedOut } : {}),
       });
     }
@@ -2085,6 +2316,7 @@ export async function runAcpTurn({
   disallowedTools = [], allowedTools = [],
   run, emit, askPermission, onBgChange, onBgWake = null,
   bgPollMs = ACP_BG_POLL_MS, bgGraceMs = ACP_BG_GRACE_MS, probeBgShell = acpBgShellActive,
+  activeBgPollMs = 2000, inflightStallWarnMs = 60000,
   isPidAlive = isPidAliveFallback,
   brainDir = path.join(CFG.home, ".gemini", "antigravity-cli", "brain"),
   onSessionFileReady = null, timeoutMs = 0, idleTimeoutMs = 0,
@@ -2135,13 +2367,20 @@ export async function runAcpTurn({
     sessionId: sessionId || null,
     onBgAdd: (t) => {
       if (!t || !t.id) return;
+      const nowAt = Date.now();
+      const prev = bgTasks.get(String(t.id));
       const item = {
         id: String(t.id),
-        type: t.type || "shell",
-        desc: String(t.desc || t.id),
+        type: t.type || prev?.type || "shell",
+        desc: String(t.desc || prev?.desc || t.id),
+        startedAt: Number(t.startedAt) || prev?.startedAt || nowAt,
+        lastActiveAt: Number(t.lastActiveAt) || prev?.lastActiveAt || nowAt,
+        ...(Number.isFinite(Number(t.bytes)) && Number(t.bytes) >= 0 ? { bytes: Number(t.bytes) } : (prev?.bytes != null ? { bytes: prev.bytes } : {})),
+        ...(t.logPath ? { logPath: String(t.logPath) } : (prev?.logPath ? { logPath: prev.logPath } : {})),
+        ...(t.toolId ? { toolId: String(t.toolId) } : (prev?.toolId ? { toolId: prev.toolId } : {})),
+        ...(t.progress ? { progress: String(t.progress) } : (prev?.progress ? { progress: prev.progress } : {})),
         ...(t.oneShot ? { oneShot: true, expiresAt: Number(t.expiresAt) || 0, timerCondition: String(t.timerCondition || "never") } : {}),
       };
-      const prev = bgTasks.get(item.id);
       if (prev && prev.type === item.type && prev.childKey !== undefined) {
         item.childKey = prev.childKey;
       } else if (item.type === "shell" || item.type === "daemon") {
@@ -2158,7 +2397,8 @@ export async function runAcpTurn({
     onBgClearTasks: () => {
       let changed = false;
       for (const [k, v] of bgTasks) {
-        if (v.type !== "agent" && v.type !== "workflow") {
+        const isTaskWorkflow = v.type === "workflow" && /(?:^|\/)task-\d+$/.test(String(k));
+        if ((v.type !== "agent" && v.type !== "workflow") || isTaskWorkflow) {
           clearBgExpiryTimer(turnScope, k);
           bgTasks.delete(k);
           changed = true;
@@ -2206,6 +2446,7 @@ export async function runAcpTurn({
       if (line && !isBenignStderr(line)) log(`[agy-acp!] ${line.slice(0, 300)}`);
     },
     onNotification: (method, params) => {
+      state.lastRpcAt = Date.now();
       if (method === "session/update") {
         translateAcpUpdate(params, state, emit);
       }
@@ -2344,10 +2585,26 @@ export async function runAcpTurn({
   const dropActiveBg = (tid) => {
     let removed = false;
     const poolScope = activeSessionId ? `pool:${activeSessionId}` : "";
+    const parentPid = clientRef?.child?.pid;
+    const killShellItem = (item) => {
+      if (item && (item.type === "shell" || item.type === "daemon") && typeof item.childKey === "string" && item.childKey.length > 0) {
+        try { killBgChildTree(parentPid, item.childKey); } catch {}
+      }
+    };
     if (tid) {
-      if (removeBgTaskAndDependents(turnScope, bgTasks, tid)) removed = true;
-      if (poolEntry?.bgTasks && removeBgTaskAndDependents(poolScope, poolEntry.bgTasks, tid)) removed = true;
+      const sid = String(tid);
+      const item = bgTasks.get(sid) || poolEntry?.bgTasks?.get(sid);
+      killShellItem(item);
+      const rec = state.acpAgents?.get(sid);
+      if (rec && rec.status === "running" && (!item || item.type === "agent" || item.type === "workflow")) {
+        rec.status = "stopped";
+        if (rec.convId) state.reportedAgentConvs?.delete(rec.convId.toLowerCase());
+        emit({ type: "ag", k: "done", id: rec.id, status: "stopped", why: "已停止", at: Date.now() });
+      }
+      if (removeBgTaskAndDependents(turnScope, bgTasks, sid)) removed = true;
+      if (poolEntry?.bgTasks && removeBgTaskAndDependents(poolScope, poolEntry.bgTasks, sid)) removed = true;
     } else {
+      for (const item of bgTasks.values()) killShellItem(item);
       if (bgTasks.size > 0 || poolEntry?.bgTasks?.size > 0) removed = true;
       clearAllBgExpiryTimers(turnScope);
       if (poolScope) clearAllBgExpiryTimers(poolScope);
@@ -2360,6 +2617,10 @@ export async function runAcpTurn({
   if (poolEntry) poolEntry.dropActiveBg = dropActiveBg;
 
   let turnPersisted = false;
+  let activeBgTimer = null;
+  const clearActiveBgWatch = () => {
+    if (activeBgTimer) { clearInterval(activeBgTimer); activeBgTimer = null; }
+  };
   const persistInterruptedTurn = (reasonMsg) => {
     if (turnPersisted || !activeSessionId || !state.promptSent) return;
     turnPersisted = true;
@@ -2698,12 +2959,25 @@ export async function runAcpTurn({
       });
       try { onSessionFileReady?.(activeSessionId); } catch {}
     }
+    let lastBgProgressAt = 0;
+    const effIdleMs = idleTimeoutMs > 0 ? idleTimeoutMs : ACP_DEFAULT_PROMPT_TIMEOUT_MS;
+    const bgExtendWindowMs = Math.min(5 * 60e3, Math.max(effIdleMs * 2, 1000));
     const promptTimeoutCfg = timeoutMs > 0
       ? { timeoutMs }
       : {
-          idleTimeoutMs: idleTimeoutMs > 0 ? idleTimeoutMs : ACP_DEFAULT_PROMPT_TIMEOUT_MS,
+          idleTimeoutMs: effIdleMs,
           maxTotalMs: ACP_MAX_PROMPT_TIMEOUT_MS,
-          shouldExtend: () => pendingPermCount > 0 || run?.perms?.size > 0,
+          shouldExtend: () => {
+            if (pendingPermCount > 0 || run?.perms?.size > 0) return true;
+            const now = Date.now();
+            if (bgTasks.size > 0) {
+              for (const t of bgTasks.values()) {
+                if (t?.oneShot && t.expiresAt > now) return true;
+              }
+              if (lastBgProgressAt > 0 && now - lastBgProgressAt < bgExtendWindowMs) return true;
+            }
+            return false;
+          },
         };
     // 新建常驻 agy 进程在发首轮 session/prompt 前拍一次基线快照：
     // 将此时已存在的内部/stdio MCP 直接子进程全部记入 knownChildKeys 与 daemonChildKeys，避免后续误归属给后台 shell 任务
@@ -2716,10 +2990,205 @@ export async function runAcpTurn({
         }
       }
     }
+    // 在途后台任务实时观测器（解决 agy acp 1.5.13 后台化 run_command 不发 completed/content、外层 session/prompt 挂起期间前端无反馈与 30 分钟误杀）：
+    // 1) 对比本轮开始前的 tasks/ 快照，发现新落盘的 task-<N>.log 并绑定到未决 run_command/run_workflow 工具卡，立刻挂入 bgTasks；
+    // 2) 轻量 stat 跟踪任务日志与子代理 transcript.jsonl 体积/活跃度，仅在字节增长时按尾部 4KB 推给 tool_update 与 phase: "bg"；
+    // 3) 有真实日志/子代理进展时刷新 lastBgProgressAt 供 shouldExtend 续期，纯假死不续期；
+    // 4) 若已归属的在途非 daemon shell 子进程全部退出且静默超 inflightStallWarnMs，提示用户避免干等 30 分钟。
+    const turnStartMs = Date.now();
+    const preTurnLogs = new Map();
+    for (const l of scanAcpTaskLogs(activeSessionId, brainDir, 0)) {
+      preTurnLogs.set(l.shortId, { size: l.size, mtimeMs: l.mtimeMs });
+    }
+    let lastBgSyncAt = 0;
+    let lastBgPhaseKey = "";
+    let inflightGoneSince = 0;
+    let stallWarned = false;
+    state.lastRpcAt = turnStartMs;
+    const pollActiveBg = () => {
+      if (!state.promptSent || !activeSessionId || !client || client.closed) { clearActiveBgWatch(); return; }
+      const pendingTools = [...state.tools.values()].filter((t) => !t.done);
+      if (!pendingTools.length && !bgTasks.size && !(state.acpAgents?.size > 0)) return;
+      const now = Date.now();
+      let bgMetaChanged = false;
+      let forceSync = false;
+
+      // 1) 探测静默后台化的 run_command / run_workflow（agy 写了 task-<N>.log 却未发 tool_call_update）
+      const unboundTools = pendingTools.filter((t) => {
+        if (t.bgTaskId) return false;
+        const k = classifyAcpTool(t.name, t.input, t.output);
+        return k === "run_command" || k === "run_workflow";
+      });
+      if (unboundTools.length) {
+        const logs = scanAcpTaskLogs(activeSessionId, brainDir, turnStartMs);
+        const boundIds = new Set([...bgTasks.keys(), ...[...state.tools.values()].map((t) => t.bgTaskId).filter(Boolean)]);
+        const freshLogs = logs.filter((l) => {
+          if (boundIds.has(l.fullId) || boundIds.has(l.shortId)) return false;
+          const pre = preTurnLogs.get(l.shortId);
+          return !pre || pre.size !== l.size || pre.mtimeMs !== l.mtimeMs;
+        });
+        const totalToolsCount = state.tools.size;
+        for (const l of freshLogs) {
+          const cand = unboundTools.find((t) => {
+            if (t.bgTaskId) return false;
+            const age = now - (t.startedAt || turnStartMs);
+            const hasLaterActivity = (state.lastOutputAt && state.lastOutputAt >= (t.startedAt || 0))
+              || totalToolsCount > 1;
+            const waitMs = Number(t.input?.WaitMsBeforeAsync);
+            const threshold = Number.isFinite(waitMs) && waitMs > 0 ? Math.min(waitMs, 10000) : 10000;
+            return age >= Math.min(threshold, 1000) || hasLaterActivity;
+          }) || unboundTools.find((t) => !t.bgTaskId);
+          if (!cand) break;
+          const k = classifyAcpTool(cand.name, cand.input, cand.output);
+          const inp = cand.input && typeof cand.input === "object" ? cand.input : {};
+          const titleCmd = String(cand.name || "").replace(/^run\s+/i, "").trim();
+          const desc = String(
+            inp.toolSummary || inp.description || inp.CommandLine
+            || (titleCmd && titleCmd.toLowerCase() !== "run_command" ? titleCmd : "")
+            || l.shortId
+          ).trim().slice(0, 80);
+          cand.bgTaskId = l.fullId;
+          cand.logPath = l.logPath;
+          cand.status = "background";
+          state.onBgAdd({
+            id: l.fullId,
+            type: inp.IsDaemon ? "daemon" : (k === "run_workflow" ? "workflow" : "shell"),
+            desc,
+            toolId: cand.id,
+            logPath: l.logPath,
+            startedAt: cand.startedAt || now,
+            lastActiveAt: l.mtimeMs || now,
+            bytes: l.size,
+          });
+          lastBgProgressAt = now;
+          forceSync = true;
+        }
+      }
+
+      // 2) 刷新已登记后台任务的日志体积 / 活跃度与关联工具卡尾部输出
+      for (const item of bgTasks.values()) {
+        if (!item) continue;
+        let lp = item.logPath || null;
+        if (!lp && (item.type === "shell" || item.type === "daemon" || item.type === "workflow")) {
+          const shortId = String(item.id || "").split("/").pop();
+          if (/^task-\d+$/.test(shortId) && brainDir) {
+            lp = path.join(brainDir, String(activeSessionId), ".system_generated", "tasks", `${shortId}.log`);
+          }
+        }
+        if (!lp && item.type === "agent") {
+          const rec = state.acpAgents?.get(item.id);
+          if (rec?.status === "running") {
+            lp = rec.logPath || (rec.convId && UUID_EXACT_RE.test(rec.convId) && brainDir
+              ? path.join(brainDir, rec.convId, ".system_generated", "logs", "transcript.jsonl")
+              : null);
+          }
+        }
+        if (!lp) continue;
+        let st = null;
+        try { st = fs.statSync(lp); } catch {}
+        if (!st || !st.isFile()) continue;
+        item.logPath = lp;
+        const grew = st.size > (Number(item.bytes) || 0) || st.mtimeMs > (Number(item.lastActiveAt) || 0) + 500;
+        if (grew) {
+          if (Math.abs(st.size - (Number(item.bytes) || 0)) >= 4096 || item.bytes == null) forceSync = true;
+          item.bytes = st.size;
+          item.lastActiveAt = Math.max(Number(item.lastActiveAt) || 0, st.mtimeMs);
+          lastBgProgressAt = now;
+          bgMetaChanged = true;
+        }
+        if (item.toolId) {
+          const tool = state.tools.get(item.toolId);
+          if (tool && !tool.done && (grew || tool._lastTailBytes == null)) {
+            const tail = readTaskLogTail(lp, 4096);
+            tool._lastTailBytes = st.size;
+            tool.status = "background";
+            emit({
+              type: "tool_update",
+              id: tool.id,
+              name: tool.name,
+              input: tool.input,
+              status: "background",
+              bgTaskId: item.id,
+              bytes: st.size,
+              lastActiveAt: item.lastActiveAt,
+              ...(tail ? { output: tail } : {}),
+            });
+          }
+        }
+      }
+
+      if (bgMetaChanged && (forceSync || now - lastBgSyncAt >= 4000)) {
+        lastBgSyncAt = now;
+        syncBg();
+      }
+
+      // 3) 推送前端 phase: "bg"（模型已暂停吐字但后台任务仍在运行）
+      if (bgTasks.size > 0 && (!state.lastOutputAt || now - state.lastOutputAt >= 1500)) {
+        const list = [...bgTasks.values()];
+        const totalBytes = list.reduce((acc, x) => acc + (Number(x.bytes) || 0), 0);
+        const newestActive = list.reduce((acc, x) => Math.max(acc, Number(x.lastActiveAt) || Number(x.startedAt) || 0), 0);
+        const silentBucket = newestActive > 0 && now - newestActive >= 60000 ? Math.floor((now - newestActive) / 60000) : 0;
+        const pKeyNow = `${list.length}|${Math.floor(totalBytes / 4096)}|${silentBucket}|${list[0]?.desc || ""}`;
+        if (pKeyNow !== lastBgPhaseKey) {
+          lastBgPhaseKey = pKeyNow;
+          emit({
+            type: "phase",
+            phase: "bg",
+            count: list.length,
+            bytes: totalBytes,
+            lastActiveAt: newestActive || turnStartMs,
+            desc: String(list[0]?.desc || "").slice(0, 80),
+          });
+        }
+      }
+
+      // 4) 在途后台 shell 子进程全退却丢唤醒的早告警（绝不误伤运行中子代理/workflow/未到期定时任务）
+      const trackedShells = [...bgTasks.values()].filter((t) => t && t.type === "shell" && typeof t.childKey === "string" && t.childKey.length > 0);
+      const hasOtherActiveBg = [...bgTasks.values()].some((t) => t && (t.type === "agent" || t.type === "workflow" || (t.oneShot && t.expiresAt > now)));
+      if (trackedShells.length > 0 && !hasOtherActiveBg && inflightStallWarnMs > 0) {
+        let probe = null;
+        try {
+          probe = probeBgShell(client.child?.pid, {
+            daemonChildKeys,
+            sessionId: activeSessionId,
+            tasks: trackedShells,
+            brainDir,
+            isPidAlive,
+          });
+        } catch {
+          probe = { active: true, reason: "probe-err" };
+        }
+        if (probe && !probe.active) {
+          if (!inflightGoneSince) inflightGoneSince = now;
+          const goneMs = now - inflightGoneSince;
+          const quietRpc = now - Math.max(state.lastRpcAt || turnStartMs, state.lastOutputAt || 0);
+          if (!stallWarned && goneMs >= inflightStallWarnMs && quietRpc >= inflightStallWarnMs) {
+            stallWarned = true;
+            const dur = goneMs >= 60000 ? `${Math.round(goneMs / 60000)}m` : `${Math.round(goneMs / 1000)}s`;
+            log(`[agy-acp] 在途后台 shell 子进程已全部退出但 session/prompt 静默 ${dur}（${activeSessionId.slice(0, 8)}）`);
+            emit({
+              type: "note",
+              key: "acp-bg-stalled",
+              text: tz("后台命令子进程已退出，但引擎尚未回报（已静默 {d}）；可点击停止或直接发新消息。", { d: dur }),
+            });
+          }
+        } else {
+          inflightGoneSince = 0;
+          stallWarned = false;
+        }
+      } else {
+        inflightGoneSince = 0;
+      }
+    };
+    const effActivePollMs = Math.max(50, Number(activeBgPollMs) || 2000);
+    activeBgTimer = setInterval(pollActiveBg, effActivePollMs);
+    activeBgTimer.unref?.();
+
     const promptRes = await client.request("session/prompt", {
       sessionId: activeSessionId,
       prompt: contentBlocks,
     }, promptTimeoutCfg);
+    clearActiveBgWatch();
 
     // 补采 promptRes.usage（整轮累计统计：保留单步 usage_update 的真实 context_tokens，不拿多步累加值冲爆上下文条）
     if (promptRes?.usage) {
@@ -2913,6 +3382,7 @@ export async function runAcpTurn({
       durationMs: Date.now() - t0,
     };
   } finally {
+    clearActiveBgWatch();
     clearAllBgExpiryTimers(turnScope);
     if (poolEntry && poolEntry.dropActiveBg === dropActiveBg) poolEntry.dropActiveBg = null;
     if (run) {
@@ -3265,7 +3735,7 @@ export async function runAcpTurn({
             }
             return;
           }
-          if (!idleBurst && !IDLE_WAKE_KINDS.has(kind)) return;
+          if (!idleBurst && !shouldOpenIdleBurst(kind, upd, entry, IDLE_WAKE_KINDS)) return;
           shellGoneSince = 0;
           entry.lastUsed = Date.now();
           if (!idleBurst) {
@@ -3326,13 +3796,19 @@ export async function runAcpTurn({
               reportedAgentConvs: entry.reportedAgentConvs,
               onBgAdd: (t) => {
                 if (!t || !t.id) return;
+                const nowAt = Date.now();
+                const prev = entry.bgTasks.get(String(t.id));
                 const item = {
                   id: String(t.id),
-                  type: t.type || "shell",
-                  desc: String(t.desc || t.id),
+                  type: t.type || prev?.type || "shell",
+                  desc: String(t.desc || prev?.desc || t.id),
+                  startedAt: Number(t.startedAt) || prev?.startedAt || nowAt,
+                  lastActiveAt: Number(t.lastActiveAt) || prev?.lastActiveAt || nowAt,
+                  ...(Number.isFinite(Number(t.bytes)) && Number(t.bytes) >= 0 ? { bytes: Number(t.bytes) } : (prev?.bytes != null ? { bytes: prev.bytes } : {})),
+                  ...(t.logPath ? { logPath: String(t.logPath) } : (prev?.logPath ? { logPath: prev.logPath } : {})),
+                  ...(t.toolId ? { toolId: String(t.toolId) } : (prev?.toolId ? { toolId: prev.toolId } : {})),
                   ...(t.oneShot ? { oneShot: true, expiresAt: Number(t.expiresAt) || 0, timerCondition: String(t.timerCondition || "never") } : {}),
                 };
-                const prev = entry.bgTasks.get(item.id);
                 if (prev && prev.type === item.type && prev.childKey !== undefined) {
                   item.childKey = prev.childKey;
                 } else if (item.type === "shell" || item.type === "daemon") {
@@ -3348,7 +3824,8 @@ export async function runAcpTurn({
               onBgClearTasks: () => {
                 let changed = false;
                 for (const [k, v] of entry.bgTasks) {
-                  if (v.type !== "agent" && v.type !== "workflow") {
+                  const isTaskWorkflow = v.type === "workflow" && /(?:^|\/)task-\d+$/.test(String(k));
+                  if ((v.type !== "agent" && v.type !== "workflow") || isTaskWorkflow) {
                     clearBgExpiryTimer(poolScope, k);
                     entry.bgTasks.delete(k);
                     changed = true;

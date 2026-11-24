@@ -493,6 +493,16 @@
   const isAgentToolName = (n) => n === "Agent" || n === "Task" || n === "invoke_subagent" || n === "run_workflow" || /^(?:spawn|invoke)\s+(?:sub)?agent/i.test(String(n || ""));
   const isAsyncAgentResult = (name, txt) => /^Async agent launched/.test(txt)
     || (isAgentToolName(name) && (/conversationId|running in (?:the )?background|launched/i.test(txt)));
+  const isShellToolName = (n, inp) => n === "Bash" || n === "PowerShell" || n === "run_command" || n === "run_shell"
+    || !!(inp && (typeof inp.CommandLine === "string" || typeof inp.command === "string"));
+  const isBgShellResult = (name, inp, txt) => {
+    if (!isShellToolName(name, inp)) return false;
+    const s = String(txt || "");
+    const head = s.split(/\r?\n/, 6).join("\n");
+    if (/^Command (?:exited with code \d+|was terminated by signal)/m.test(head)) return false;
+    return !!(inp && (inp.run_in_background || inp.IsDaemon))
+      || /^(?:Command running in (?:the )?background|Tool is running (?:as a background task|in the background))\b/im.test(head);
+  };
 
   /** 收着的子代理过程里的一步：只记数据，不建 DOM。子代理正在跑时每一步都会来，十几个子代理各几百步，
    *  全建成卡片就是几千个节点常驻页面（展开过程时才 realize 成真卡片，见 ToolBlock 的 openSub）。
@@ -518,12 +528,15 @@
           if (!cancelled && c.isAgent && a[0] && isAsyncAgentResult(name, String(a[1] || "")) && !c.subEnded) {
             const fin = AG.byTool.get(id)?.status;
             c.state = fin && fin !== "running" ? (fin === "done" ? "ok" : "err") : "run";
+          } else if (live && !cancelled && !c.isAgent && a[0] && isBgShellResult(c.name, c.input, String(a[1] || "")) && !c.bgEnded) {
+            c.state = "run";
           }
           c.attention = (!cancelled && !a[0] && live) || (!cancelled && a[0] && /\.(png|jpe?g|gif|webp)\b/i.test(String(a[1] || "")));
         }
         if (k === "subDone") {
           if (c.isAgent) c.subEnded = true;
-          if (c.isAgent || c.hasResult || a[0] !== "completed") c.state = a[0] === "completed" ? "ok" : "err";
+          else c.bgEnded = true;
+          if (c.isAgent || c.state === "run" || c.hasResult || a[0] !== "completed") c.state = a[0] === "completed" ? "ok" : "err";
         }
         if ((k === "stop" || k === "fail") && c.state === "run") c.state = "err";
         c.onChange && c.onChange();
@@ -577,7 +590,7 @@
     parent.appendChild(card);
     const st = card.querySelector(".tool-state"), bodyEl = card.querySelector(".tool-body");
     const nameEl = card.querySelector(".tool-name"), argEl = card.querySelector(".tool-arg");
-    let result = null, liveOut = "", built = false;
+    let result = null, liveOut = "", built = false, bgDone = false;
     // 子代理（Agent / Task / agy invoke_subagent / run_workflow）：卡片下面挂一块「子代理过程」，默认收起
     const isAgent = isAgentToolName(name);
     let sub = null;
@@ -662,6 +675,15 @@
           }
         }
         if (typeof u.output === "string" && u.output !== liveOut) liveOut = u.output;
+        if (!result && (u.status === "background" || u.bgTaskId)) {
+          api.state = "run";
+          st.className = "tool-state run";
+          const parts = [t("后台运行")];
+          if (u.bytes > 0) parts.push(fmtSize(u.bytes));
+          const idleMs = u.lastActiveAt > 0 ? Date.now() - u.lastActiveAt : 0;
+          if (idleMs >= 90000) parts.push(t("静默 {d}", { d: fmtDur(idleMs) }));
+          st.textContent = parts.join(" · ");
+        }
         if (built && !result) { built = false; build(); }
         api.onChange && api.onChange();
       },
@@ -681,6 +703,8 @@
           const fin = AG.byTool.get(id)?.status;
           if (fin && fin !== "running") api.subDone(fin === "done" ? "completed" : fin);
           else { api.state = "run"; st.className = "tool-state run"; st.textContent = t("后台运行"); }
+        } else if (live && !isCancel && !isAgent && ok && isBgShellResult(name, input, result.text) && !bgDone) {
+          api.state = "run"; st.className = "tool-state run"; st.textContent = t("后台运行");
         }
         if (built) { built = false; build(); }
         if (!isCancel && !ok && live) { card.classList.add("open"); build(); }
@@ -779,13 +803,21 @@
         s.text = String(text || "");
         if (s.box.classList.contains("open")) paintSubText();   // 收着就只记下，展开时再排版
       },
-      subProgress(desc) { if (!disposed && desc && isAgent) subArea().now.textContent = desc; },
+      subProgress(desc) {
+        if (disposed || !desc) return;
+        if (isAgent) { subArea().now.textContent = desc; return; }
+        if (api.state === "run") {
+          const s = String(desc).trim();
+          st.textContent = t("后台运行") + (s ? " · " + (s.length > 24 ? s.slice(0, 24) + "…" : s) : "");
+        }
+      },
       subDone(status) {
         if (disposed) return;
         const ok = status === "completed";
         if (!isAgent) {
-          if (result && result.ok === ok) return;          // 工具结果已经说清楚了
-          if (!result && ok) return;                        // 结果马上就到，交给 result()
+          bgDone = true;
+          if (api.state !== "run" && result && result.ok === ok) return;          // 工具结果已经说清楚了
+          if (api.state !== "run" && !result && ok) return;                        // 结果马上就到，交给 result()
         } else {
           const s = subArea();
           s.done = true; s.now.textContent = "";

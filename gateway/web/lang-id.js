@@ -3179,4 +3179,8 @@ window.I18N_DICT["id"] = {
   "只允许查看普通记忆文件": "Hanya file memori biasa yang boleh dilihat",
   "记忆文件太大了（超过 1 MB）": "File memori terlalu besar (lebih dari 1 MB)",
   "记忆只读，不能在这里修改": "Memori hanya-baca dan tidak dapat diubah di sini",
+  "等待后台任务": "Menunggu tugas latar belakang",
+  "静默 {d}": "diam {d}",
+  "剩 {d}": "sisa {d}",
+  "后台命令子进程已退出，但引擎尚未回报（已静默 {d}）；可点击停止或直接发新消息。": "Proses perintah latar belakang telah selesai, tetapi mesin belum melapor (diam {d}); ketuk Hentikan atau kirim pesan baru.",
 };

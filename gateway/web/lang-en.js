@@ -3219,4 +3219,8 @@ window.I18N_DICT.en = {
   "只允许查看普通记忆文件": "Only regular memory files can be viewed",
   "记忆文件太大了（超过 1 MB）": "Memory file is too large (over 1 MB)",
   "记忆只读，不能在这里修改": "Project memories are read-only here",
+  "等待后台任务": "Waiting for background tasks",
+  "静默 {d}": "idle {d}",
+  "剩 {d}": "{d} left",
+  "后台命令子进程已退出，但引擎尚未回报（已静默 {d}）；可点击停止或直接发新消息。": "The background command process exited, but the engine has not reported back (idle {d}); tap Stop or send a new message.",
 };

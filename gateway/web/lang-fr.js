@@ -3179,4 +3179,8 @@ window.I18N_DICT["fr"] = {
   "只允许查看普通记忆文件": "Seuls les fichiers mémoire ordinaires peuvent être consultés",
   "记忆文件太大了（超过 1 MB）": "Le fichier mémoire est trop volumineux (plus de 1 Mo)",
   "记忆只读，不能在这里修改": "Les mémoires sont en lecture seule ici",
+  "等待后台任务": "En attente des tâches en arrière-plan",
+  "静默 {d}": "inactif {d}",
+  "剩 {d}": "{d} restant",
+  "后台命令子进程已退出，但引擎尚未回报（已静默 {d}）；可点击停止或直接发新消息。": "Le processus en arrière-plan s’est terminé, mais le moteur n’a pas encore répondu (inactif {d}) ; touchez Arrêter ou envoyez un nouveau message.",
 };
