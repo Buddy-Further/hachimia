@@ -54,6 +54,14 @@ test("R-02 notices.json 签名仍有效（无钥匙改了就失效，整个通�
   assert.equal(crypto.verify(null, body, pub, Buffer.from(sig, "base64")), true);
 });
 
+test("R-02b claude-code/verified.json 签名有效（与 notices.mjs 正式公钥配套）", () => {
+  const pubPem = /-----BEGIN PUBLIC KEY-----\\n([A-Za-z0-9+/=]+)\\n/.exec(read("gateway/gw/notices.mjs"))[1];
+  const pub = crypto.createPublicKey(`-----BEGIN PUBLIC KEY-----\n${pubPem}\n-----END PUBLIC KEY-----\n`);
+  const body = fs.readFileSync(path.join(ROOT, "claude-code/verified.json"));
+  const sig = fs.readFileSync(path.join(ROOT, "claude-code/verified.json.sig"), "utf8").trim();
+  assert.equal(crypto.verify(null, body, pub, Buffer.from(sig, "base64")), true);
+});
+
 // ── R-03 发布脚本 SITE ──
 test("R-03 notice/claude-verified 的 SITE 与运行时取数地址一致（raw.githubusercontent.com/Buddy-Further/hachimia/main/…）", () => {
   assert.match(read("scripts/notice.mjs"), /const SITE = "https:\/\/raw\.githubusercontent\.com\/Buddy-Further\/hachimia\/main\/notices\/notices\.json"/);

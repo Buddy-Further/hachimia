@@ -460,18 +460,18 @@
     if (more) items.push(...more); else items.push({ label: t("在脉络中查看"), icon: SM.lineage, fn: () => { closeDrawer(); openLineage(id); } });
     popMenu(anchor, items, null, "lineage");
   }
+  let acctUpdKickAt = 0;
   // 账户菜单：常用的在上，不可逆的放最下
   function acctMenu() {
     const st = state.serverStatus || {};
-    // 更新直达设置里的「更新」类目；有东西可下 / 可装就在右边标出来（状态是上次取的，顺手再取一次给下回用）
-    const pend = (lastUpd.items || []).filter((it) => it.state === "available" || it.state === "ready").length;
-    loadUpd();
+    const updLabel = () => { const n = (lastUpd.items || []).filter((it) => it.state === "available" || it.state === "ready").length; return n ? t("有 {n} 项可更新", { n }) : ""; };
+    const updateItem = { label: t("更新"), icon: SM.update, small: updLabel(), fn: () => openPage("settings", "update") };
     const items = [
       { label: t("设置"), icon: PAGES.settings.icon, fn: () => openPage("settings") },
       { label: t("头像与昵称"), icon: SM.edit, fn: () => openPage("settings", "general") },
       { label: t("切换接口 / 账户"), icon: SM.swap, fn: () => openPage("settings", "provider") },
       { label: t("用量"), icon: PAGES.usage.icon, fn: () => openPage("usage") },
-      { label: t("更新"), icon: SM.update, small: pend ? t("有 {n} 项可更新", { n: pend }) : "", fn: () => openPage("settings", "update") },
+      updateItem,
       "hr",
       { label: t("帮助"), icon: PAGES.help.icon, fn: () => openPage("help") },
       { label: t("更新日志"), icon: PAGES.changelog.icon, fn: () => openPage("changelog") },
@@ -490,7 +490,29 @@
     } });
     else if (st.keyMode === "login" && acctLogged === false) items.push("hr", { label: t("登录账户"), icon: SM.swap, fn: () => openPage("settings", "provider") });
     if (st.keyMode === "login") { acctEmailAt = 0; paintAcct(st); }
-    popMenu($("side-acct"), items, "up");
+    const anchor = $("side-acct"), menu = popMenu(anchor, items, "up");
+    if (!menu) return;
+    const paintUpdBadge = () => {
+      if (OV.at(anchor) !== menu) return;
+      const row = menu.querySelector(`[data-i="${items.indexOf(updateItem)}"]`);
+      if (!row) return;
+      const text = updLabel();
+      let badge = row.querySelector("small");
+      if (!text) { badge?.remove(); return; }
+      if (!badge) { badge = document.createElement("small"); row.appendChild(badge); }
+      badge.textContent = text;
+    };
+    readUpdateStatus().then((upd) => {
+      paintUpdBadge();
+      if (upd?.ok && upd.checkedOnce === false && !upd.checking && Date.now() - acctUpdKickAt > 20000) {
+        acctUpdKickAt = Date.now();
+        post("/api/app/upd_check").then(() => {
+          setTimeout(() => {
+            if (OV.at(anchor) === menu) readUpdateStatus().then(paintUpdBadge).catch(() => {});
+          }, 2500);
+        }).catch(() => {});
+      }
+    }).catch(() => {});
   }
 
   // ══ 项目与定时任务（照稿）════════════════════════════════════════

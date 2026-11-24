@@ -385,7 +385,8 @@
       compTimer = setTimeout(() => { if (request === compLoad && pageOn("ext")) loadComponents(); }, 1500);
     // 先显示的是上回存下的列表、网关还在后台拉新索引：两秒后再要一次，拉完自然停
     else if (r.refreshing && pageOn("ext"))
-      compTimer = setTimeout(loadComponents, 2000);    return outcome;
+      compTimer = setTimeout(() => { if (request === compLoad && pageOn("ext")) loadComponents(); }, 2000);
+    return outcome;
   }
 
   // ── 自定义组件：用户自己导入 Linux arm64 程序。选文件 → 网关分析（ELF 类型、缺的库）→ 勾要用的命令 → 安装（补库、写入口和技能）──

@@ -19,16 +19,21 @@ const DEV_UPD_FILE = path.join(CFG.home, "ccapp-update.json");
 // ~/.local/share/hachimia/agy/<版本>/ 并更新 current 软链，正好是 PATHS.agy 指的地方
 const INSTALL_AGY_SCRIPT = path.join(HERE, "..", "android", "assets", "scripts", "install-agy.mjs");
 const devUpd = {
-  auto: true, channel: "stable", lastCheck: 0, checking: false, error: "",
+  auto: true, channel: "stable", lastCheck: 0, checking: false, checkedOnce: false, error: "",
   agy: { id: "agy", name: "Antigravity CLI (agy)", current: "", latest: "", state: "unknown", message: "", done: 0, total: 0 },
 };
 try {
-  Object.assign(devUpd, JSON.parse(fs.readFileSync(DEV_UPD_FILE, "utf8")), { checking: false, error: "" });
+  Object.assign(devUpd, JSON.parse(fs.readFileSync(DEV_UPD_FILE, "utf8")), { checking: false, checkedOnce: false, error: "" });
   // 旧版持久化是 { claude: {...} }：id/name 换成 agy，版本号下次检查时按 agy 重读
   if (!devUpd.agy && devUpd.claude) { devUpd.agy = { ...devUpd.claude, id: "agy", name: "Antigravity CLI (agy)" }; delete devUpd.claude; }
   devUpd.agy.state = devUpd.agy.state === "installing" ? "unknown" : devUpd.agy.state;
 } catch {}
-const devUpdSave = () => { try { fs.writeFileSync(DEV_UPD_FILE, JSON.stringify(devUpd)); } catch {} };
+const devUpdSave = () => {
+  try {
+    const { checkedOnce: _co, ...disk } = devUpd;
+    fs.writeFileSync(DEV_UPD_FILE, JSON.stringify(disk));
+  } catch {}
+};
 const cmpVer = (a, b) => {
   const x = String(a).split(/[^0-9]+/).map(Number), y = String(b).split(/[^0-9]+/).map(Number);
   for (let i = 0; i < Math.max(x.length, y.length); i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d < 0 ? -1 : 1; }
@@ -74,7 +79,9 @@ async function devUpdCheck() {
     devUpd.lastCheck = Date.now();
   } catch (e) { devUpd.error = e.message; }
   finally {
-    devUpd.checking = false; devUpdSave();
+    devUpd.checking = false;
+    if (!devUpdAgain) devUpd.checkedOnce = true;
+    devUpdSave();
     if (devUpdAgain) { devUpdAgain = false; setImmediate(devUpdCheck); }
   }
 }
@@ -131,8 +138,8 @@ if (!PREFIX) {
     await devUpdCheck();
     if (devUpd.auto && devUpd.agy.state === "available") devUpdInstall();
   };
-  setTimeout(tick, 60_000);
-  setInterval(tick, 30 * 60_000);
+  setTimeout(tick, 60_000).unref?.();
+  setInterval(tick, 30 * 60_000).unref?.();
 }
 
 // hachimia：已装的 agy 版本目录里若有 .mismatch 或需要复核，定期跑 install-agy.mjs --recheck 核对 sha256
@@ -175,8 +182,7 @@ export function devPrivStatus() {
 
 async function devApp(op, b) {
   if (op === "upd_status") {
-    if (!devUpd.lastCheck && !devUpd.checking) devUpdCheck();
-    else if (!devUpd.agy.current) devUpd.agy.current = await agyVersionOf();
+    if (!devUpd.agy.current) devUpd.agy.current = await agyVersionOf();
     return devUpdStatus();
   }
   if (op === "upd_check") { devUpdCheck(); await new Promise((r) => setTimeout(r, 200)); return devUpdStatus(); }
