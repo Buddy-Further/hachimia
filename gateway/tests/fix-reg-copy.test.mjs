@@ -66,8 +66,11 @@ test("F-4 i18n：旧 key 已清、新 key 九语齐全、无孤儿", () => {
     assert.ok(!dict.includes("由 claude 决定"), `lang-${lang}.js 仍有“由 claude 决定”`);
     assert.ok(!dict.includes("claude 自己决定"), `lang-${lang}.js 仍有“claude 自己决定”`);
     // txt 才是源头：6 条对应序号行的译文都应含 Antigravity、不含 claude
+    const enKeys = [...en.matchAll(/^  "((?:[^"\\]|\\.)*)":/gm)].map((m) => JSON.parse('"' + m[1] + '"'));
     const txt = read(`i18n/lang-${lang}.txt`);
-    for (const n of [188, 189, 193, 194, 196, 1850]) {
+    for (const k of NEW_KEYS) {
+      const n = enKeys.indexOf(k) + 1;
+      assert.ok(n > 0, `lang-en.js 缺序号键 ${k}`);
       const line = txt.split("\n").find((l) => l.startsWith(`${n}\t`));
       assert.ok(line, `lang-${lang}.txt 缺序号 ${n}`);
       assert.ok(line.includes("Antigravity"), `lang-${lang}.txt:${n} 译文未同步 Antigravity`);

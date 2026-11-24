@@ -7,7 +7,7 @@ hachimia 没有用户账号体系、没有后端业务服务器、没有对话�
 ## 1. 零第一方遥测与本地数据存储
 
 - **零第一方遥测与闭源统计 SDK**：hachimia 本身不包含任何使用统计上报、持久化设备实例 ID（`iid`）、崩溃自动上传，也未集成 Google Play Services、ML Kit、Firebase、Sentry 等任何闭源统计或广告 SDK。界面所用的全部脚本与字体（[`gateway/web/vendor/`](gateway/web/vendor/)）均随包离线内置，不请求任何外部 CDN。
-- **关于上游 Antigravity CLI（`agy`）的边界披露**：hachimia 运行的是你首次启动时从 Google 官方渠道下载的原版闭源二进制 `agy`（校验记录的 SHA-256，绝不反编译或打补丁，见 [`android/assets/scripts/install-agy.mjs`](android/assets/scripts/install-agy.mjs)）。`agy` 进程直连 Google 服务进行认证与模型推理，其进程内部可能包含受 [Google 条款与隐私政策](https://policies.google.com/privacy)约束的官方诊断/遥测逻辑；该流量属于上游官方客户端自身行为，不经过 hachimia 任何服务器。当网关驱动可选的 Claude Code 路径时，则在 [`gateway/gw/claude.mjs`](gateway/gw/claude.mjs)（`claudeEnv`）中注入 `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1"` 抑制非必要流量。
+- **关于上游 Antigravity CLI（`agy`）的边界披露**：hachimia 运行的是你首次启动时从 Google 官方渠道下载的原版闭源二进制 `agy`（校验记录的 SHA-256，绝不反编译或打补丁，见 [`android/assets/scripts/install-agy.mjs`](android/assets/scripts/install-agy.mjs)）。`agy` 进程直连 Google 服务进行认证与模型推理，其进程内部可能包含受 [Google 条款与隐私政策](https://policies.google.com/privacy)约束的官方诊断/遥测逻辑；该流量属于上游官方客户端自身行为，不经过 hachimia 任何服务器。此外，网关在构建子进程环境（[`gateway/gw/claude.mjs`](gateway/gw/claude.mjs) `claudeEnv`）时统一注入 `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1"` 抑制非必要流量。
 - **凭据与会话只留本机私有目录**：
   - 应用声明 `android:allowBackup="false"`（[`android/AndroidManifest.xml`](android/AndroidManifest.xml)），对话记录、API 密钥与登录凭据存放在应用私有目录 `/data/data/ha.chi.mia/files/home/` 下，不进系统云备份。
   - Google 账户登录走 `agy` 自己的 OAuth 流程；hachimia 仅在本地检查凭据 JSON 文件是否为非空对象，**不提取、不记录、不上传任何 OAuth 令牌字段**（[`gateway/gw/agy-creds.mjs`](gateway/gw/agy-creds.mjs) `hasAgySessionFiles`、[`gateway/gw/login.mjs`](gateway/gw/login.mjs)）。

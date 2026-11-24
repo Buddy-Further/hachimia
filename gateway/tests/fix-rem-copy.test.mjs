@@ -71,10 +71,10 @@ test("rem/copy Updater.java:467 用 hachimia.net 镜像活键", () => {
 });
 
 // ── java-*.json 九语：活键改名 + 11 死键删除 + 其余 8 语值里的 cccodroid（+ #248 终端桥接 4 键 + #255/#262 12 键 = 567）──
-test("rem/copy java-*.json 九语 568 键一致，键与值均无 cccodroid / Claude Code", () => {
+test("rem/copy java-*.json 九语 573 键一致，键与值均无 cccodroid / Claude Code", () => {
   const langs = ["ar", "en", "es", "fr", "id", "ja", "ko", "ru", "zh-Hant"];
   const dicts = langs.map((l) => JSON.parse(read(`android/assets/i18n/java-${l}.json`)));
-  for (const d of dicts) assert.equal(Object.keys(d).length, 568);
+  for (const d of dicts) assert.equal(Object.keys(d).length, 573);
   const base = Object.keys(dicts[1]).sort();
   for (const d of dicts) assert.deepEqual(Object.keys(d).sort(), base);
   for (const d of dicts) {
@@ -109,7 +109,7 @@ test("rem/copy 5 条新文案键已追加进 lang-en.js（C-01 重排后为 3122
 test("rem/copy 路径绑定 3 处未改：仍指真实磁盘路径，需路径迁移时再动", () => {
   const ext = read("gateway/web/app/08-extensions.js");
   const st = read("gateway/web/app/10b-storage.js");
-  assert.match(ext, /模型放在 \/sdcard\/cccodroid\/models/);
+  assert.match(ext, /(?:模型放在|存放在) \/sdcard\/cccodroid\/models/);
   assert.match(st, /组件的运行数据（~\/\.cccodroid）/);
   assert.match(st, /共享目录 \/sdcard\/cccodroid/);
 });

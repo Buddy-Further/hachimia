@@ -11,7 +11,7 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8");
 // ── D-04：java-en.json ──
 test("D-04 java-en.json 更新通知与相关文案不写 cccodroid / Claude Code", () => {
   const d = JSON.parse(read("android/assets/i18n/java-en.json"));
-  assert.equal(Object.keys(d).length, 568); // rem/copy 551 键 + #248 终端桥接 4 键 + #255/#262 12 键 + 开机自动激活 Shizuku 1 键
+  assert.equal(Object.keys(d).length, 573); // 568 基线 + A11y 隐私拦截 3 键 + 恢复初始设置简明化同步净增 2 键 = 573
   for (const [k, v] of Object.entries(d)) {
     assert.doesNotMatch(String(k), /cccodroid/, `键仍含 cccodroid: ${JSON.stringify(k)}`);
     assert.doesNotMatch(String(k), /Claude Code/, `键仍含 Claude Code: ${JSON.stringify(k)}`);
@@ -81,8 +81,7 @@ test("D-09 诊断包确认框写 hachimia / Antigravity，不写 cccodroid / Cla
   const s = read("gateway/web/app/08-extensions.js");
   assert.doesNotMatch(s, /版本与设备：cccodroid/);
   assert.doesNotMatch(s, /你发给 Claude 的消息内容/);
-  assert.match(s, /版本与设备：hachimia/);
-  assert.match(s, /你发给 Antigravity 的消息内容/);
+  assert.match(s, /导出诊断包并调用系统分享？\\n\\n包含：版本与机型、工具包与自检状态、近期脱敏日志、修复账本、网络连通结果。\\n不含：密钥、凭据、邮箱、消息正文与会话记录。/);
   assert.doesNotMatch(s, /重新安装 Claude Code/);
   assert.match(s, /重新安装 Antigravity CLI \(agy\)/);
 });
