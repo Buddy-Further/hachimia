@@ -3268,7 +3268,7 @@ export async function runAcpTurn({
             emit({
               type: "note",
               key: "acp-bg-stalled",
-              text: tz("后台命令子进程已退出，但引擎尚未回报（已静默 {d}）；可点击停止或直接发新消息。", { d: dur }),
+              text: tz("后台命令已退出，引擎逾 {d} 未响应；可点停止或直接发新消息。", { d: dur }),
             });
           }
         } else {

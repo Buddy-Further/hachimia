@@ -74,7 +74,7 @@ export async function routeSettings(req, res, u, p) {
         if (want && isAgyOnlyMode() && PROVIDERS_CFG.providers[want]?.group === "claude") {
           return sendJson(res, 400, {
             error: "claude_hidden_in_agy_only",
-            message: tz("当前是纯 Antigravity 模式，Claude 预设（{id}）不可用：Antigravity CLI 无法用 Claude 账户或 Claude API Key 登录。请选 Google Antigravity 订阅登录或其他接口。", { id: want }),
+            message: tz("纯 Antigravity 模式不支持 Claude 预设（{id}），请改用 Google 登录或 Gemini 接口。", { id: want }),
           });
         }
         if (want !== PROVIDER.id && (RUNS.size || bridgeSwitching())) {

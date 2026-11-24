@@ -116,7 +116,7 @@
     text(t("次对话"), P + nw + 20, y - 12, font(600, 44), FG);
     const dp = st.prev.m ? Math.round(((st.tot.m - st.prev.m) / st.prev.m) * 100) : null;
     y += 62;
-    text(dp == null ? t("和 Claude 一起度过的这个月") : (st.partial ? t("比上月同期 {p}", { p: (dp >= 0 ? "+" : "") + dp + "%" }) : t("比上月 {p}", { p: (dp >= 0 ? "+" : "") + dp + "%" })), P, y, font(500, 32), dp == null ? FG2 : dp >= 0 ? K.UP : K.DOWN);
+    text(dp == null ? t("本月使用概览") : (st.partial ? t("比上月同期 {p}", { p: (dp >= 0 ? "+" : "") + dp + "%" }) : t("比上月 {p}", { p: (dp >= 0 ? "+" : "") + dp + "%" })), P, y, font(500, 32), dp == null ? FG2 : dp >= 0 ? K.UP : K.DOWN);
     // 六格数字
     y += 50;
     const tiles = [
@@ -521,14 +521,14 @@
 ${p && p.plainHttp ? `<div class="tiny warn">${esc(t("这个地址是明文 http，密钥和对话内容会不加密地发到对方机器上；能用 https 就换成 https。"))}</div>` : ""}
       <div class="prov-state" id="pc-result"></div>
       <div class="tiny">${t("选择 <b>Gemini / Antigravity</b> 认证时会通过 <code>GOOGLE_GEMINI_BASE_URL</code> + <code>GEMINI_API_KEY</code> 驱动官方 <code>agy</code> CLI。")}
-        <br>${t("建议到服务商控制台设个消费上限；怀疑 Key 泄漏时请立即作废更换。")}</div>
-      <details class="cc-tpl"><summary>${t("示例模板（换成你自己的服务地址）")}</summary>
+        <br>${t("建议在服务商后台设置额度上限；若怀疑泄漏请及时轮换 Key。")}</div>
+      <details class="cc-tpl"><summary>${t("示例模板（请替换为实际服务地址）")}</summary>
         <pre style="white-space:pre-wrap;word-break:break-all;margin:6px 0;font-size:12px;line-height:1.5">Base URL: https://proxy.example.com
 Auth: x-goog-api-key (Gemini / Antigravity)
 Default model: gemini-3.8-flash
 Models URL: https://proxy.example.com/v1beta/models (optional)
 Context window: 1m</pre>
-        <div class="tiny">${t("第三方端口由你自己选择，应用不审核、不背书。对方能看到你的 Key、代码和对话，请只用你信任的服务。")}</div>
+        <div class="tiny">${t("第三方调用由你自行配置，对方可见 Key、代码与对话，请仅使用可信服务。")}</div>
       </details>`;
     box.onclick = async (e) => {
       const btn = e.target.closest && e.target.closest("button[data-act]");

@@ -198,7 +198,7 @@ test("C-01 i18n/scan.mjs --all：孤儿键 0，九语仍全译", () => {
     "名字只能用字母、数字、- 和 _，不超过 40 个字符", "和自带的命令重名了，换个名字",
     "指令内容不能是空的", "指令内容太长了（上限 64 KB）", "已经有同名的指令了",
     "最多导入 10 个字体，先删掉一个再导入", "这是字体集合（.ttc），浏览器用不了；请换成单个的 ttf / otf",
-    "不是能用的字体文件，只支持 ttf、otf、woff、woff2", "界面脚本没能加载，点这里重试"]) {
+    "不是能用的字体文件，只支持 ttf、otf、woff、woff2", "界面加载失败，点此重试"]) {
     assert.ok(enSrc.includes(JSON.stringify(k) + ":"), `lang-en.js 应有键 ${k}`);
   }
   assert.doesNotMatch(enSrc, /请在 cccodroid 应用里打开/);
