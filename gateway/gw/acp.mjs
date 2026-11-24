@@ -309,6 +309,51 @@ export function readTaskLogTail(logPath, maxBytes = 4096) {
   return offset > 0 && text ? `…\n${text}` : text;
 }
 
+/** 轻量读取会话 transcript.jsonl 尾部（最多 maxBytes），提取 task-<N> → Task Description 精确映射，
+ *  用于同轮并发多个 run_command / run_workflow 时零误绑匹配各自的工具卡。 */
+export function readAcpTaskDescriptions(sessionId, brainDir = path.join(CFG.home, ".gemini", "antigravity-cli", "brain"), maxBytes = 65536) {
+  const out = new Map();
+  if (!sessionId || !brainDir) return out;
+  const tp = path.join(brainDir, String(sessionId), ".system_generated", "logs", "transcript.jsonl");
+  let st;
+  try { st = fs.statSync(tp); } catch { return out; }
+  if (!st.isFile() || st.size <= 0) return out;
+  const cap = Math.max(4096, Math.min(Number(maxBytes) || 65536, 262144));
+  const offset = st.size > cap ? st.size - cap : 0;
+  const len = st.size - offset;
+  let fd = null;
+  let raw = "";
+  try {
+    fd = fs.openSync(tp, "r");
+    const buf = Buffer.allocUnsafe(len);
+    const n = fs.readSync(fd, buf, 0, len, offset);
+    raw = buf.subarray(0, n).toString("utf8");
+  } catch {
+    return out;
+  } finally {
+    if (fd !== null) try { fs.closeSync(fd); } catch {}
+  }
+  const lines = raw.split("\n");
+  for (let i = offset > 0 && lines.length > 1 ? 1 : 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line || !line.includes("task-")) continue;
+    try {
+      const obj = JSON.parse(line);
+      const c = typeof obj?.content === "string" ? obj.content : "";
+      if (!c) continue;
+      const m = /task id:\s*(?:[^\s/]+\/)?(task-\d+)\r?\nTask Description:\s*([^\r\n]+)/i.exec(c);
+      if (m) out.set(m[1], m[2].trim());
+    } catch {}
+  }
+  return out;
+}
+
+/** 非常驻后台 shell 任务结束或停止时，向关联前端工具卡补发 sub_done 收口「后台运行」状态 */
+function emitShellSubDone(item, status, emitFn) {
+  if (!item || !item.toolId || item.type !== "shell") return;
+  emitFn?.({ type: "sub_done", parent: item.toolId, status: status || "completed" });
+}
+
 /** 预判空闲期到来的 session/update 是否会产生实质内容（防取消后的迟到旧工具帧或空文本触发 0 字幻影 idleBurst） */
 export function shouldOpenIdleBurst(kind, upd, entry, idleWakeKinds) {
   if (!idleWakeKinds?.has(kind)) return false;
@@ -475,15 +520,27 @@ function pruneExpiredBgTasks(scopeKey, map, now = Date.now()) {
   return changed;
 }
 
-/** 移除某个后台任务时，同步移除以它为 TimerCondition 的一次性 schedule 定时器（防不同会话同号短 ID 误删） */
-function removeBgTaskAndDependents(scopeKey, map, id) {
+/** 移除某个后台任务时，同步移除以它为 TimerCondition 的一次性 schedule 定时器（兼容全名与短 ID，防跨会话误删） */
+function removeBgTaskAndDependents(scopeKey, map, id, onRemoved = null) {
   if (!map || !id) return false;
   const sid = String(id);
   const shortId = sid.includes("/") ? sid.split("/").pop() : sid;
   let changed = false;
-  if (map.delete(sid)) {
+  if (map.has(sid)) {
+    const item = map.get(sid);
+    map.delete(sid);
     clearBgExpiryTimer(scopeKey, sid);
     changed = true;
+    onRemoved?.(item);
+  } else if (!sid.includes("/")) {
+    for (const [k, v] of [...map]) {
+      if (k.endsWith("/" + sid)) {
+        map.delete(k);
+        clearBgExpiryTimer(scopeKey, k);
+        changed = true;
+        onRemoved?.(v);
+      }
+    }
   }
   for (const [k, v] of map) {
     const cond = v?.oneShot && typeof v.timerCondition === "string" ? v.timerCondition : "";
@@ -500,7 +557,7 @@ function removeBgTaskAndDependents(scopeKey, map, id) {
   return changed;
 }
 
-function reconcileBgTasksFromList(scopeKey, map, outText) {
+function reconcileBgTasksFromList(scopeKey, map, outText, onRemoved = null) {
   if (!map || !map.size) return false;
   if (/\btruncated\b|已截断|(?:\r?\n|^)\.{3}\s*$/i.test(outText)) return false;
   const liveIds = new Set();
@@ -520,7 +577,7 @@ function reconcileBgTasksFromList(scopeKey, map, outText) {
     if (v.type !== "shell" && !isTaskWorkflow) continue;
     const shortK = k.includes("/") ? k.split("/").pop() : k;
     if (!liveIds.has(k) && !liveIds.has(shortK)) {
-      if (removeBgTaskAndDependents(scopeKey, map, k)) changed = true;
+      if (removeBgTaskAndDependents(scopeKey, map, k, onRemoved)) changed = true;
     }
   }
   return changed;
@@ -652,9 +709,10 @@ export function stopAcpBgTask(sessionId, taskId) {
   const poolScope = `pool:${sessionId}`;
   entry.nudgedBgTasks ||= new Set();
   const stoppedAgents = [];
+  const stoppedShells = [];
   if (taskId) {
     const tid = String(taskId);
-    const item = entry.bgTasks?.get(tid);
+    const item = entry.bgTasks?.get(tid) || (!tid.includes("/") ? [...(entry.bgTasks?.values() || [])].find((x) => String(x?.id || "").endsWith("/" + tid)) : null);
     const rec = entry.acpAgents?.get(tid);
     if (item && (item.type === "shell" || item.type === "daemon") && typeof item.childKey === "string" && item.childKey.length > 0) {
       try { killBgChildTree(entry.client?.child?.pid, item.childKey); } catch {}
@@ -662,13 +720,14 @@ export function stopAcpBgTask(sessionId, taskId) {
     if (rec && rec.status === "running" && (!item || item.type === "agent" || item.type === "workflow")) {
       stoppedAgents.push(rec);
     }
-    entry.nudgedBgTasks.add(tid);
-    removeBgTaskAndDependents(poolScope, entry.bgTasks, tid);
+    entry.nudgedBgTasks.add(item?.id || tid);
+    removeBgTaskAndDependents(poolScope, entry.bgTasks, tid, (rm) => stoppedShells.push(rm));
   } else {
     for (const item of entry.bgTasks?.values() || []) {
       if (item && (item.type === "shell" || item.type === "daemon") && typeof item.childKey === "string" && item.childKey.length > 0) {
         try { killBgChildTree(entry.client?.child?.pid, item.childKey); } catch {}
       }
+      stoppedShells.push(item);
     }
     for (const rec of entry.acpAgents?.values() || []) {
       if (rec && rec.status === "running") stoppedAgents.push(rec);
@@ -676,6 +735,9 @@ export function stopAcpBgTask(sessionId, taskId) {
     for (const k of entry.bgTasks?.keys() || []) entry.nudgedBgTasks.add(k);
     clearAllBgExpiryTimers(poolScope);
     entry.bgTasks?.clear();
+  }
+  for (const shItem of stoppedShells) {
+    emitShellSubDone(shItem, "stopped", (ev) => publish({ ...ev, sessionId }));
   }
   for (const rec of stoppedAgents) {
     rec.status = "stopped";
@@ -1588,12 +1650,15 @@ function trackAcpToolSideEffects(phase, tool, state, emit) {
     const act = String(inp.Action || "").toLowerCase();
     const out = String(tool.output || "");
     if (act === "kill" && inp.TaskId) {
-      state.onBgRemove?.(String(inp.TaskId));
+      state.onBgRemove?.(String(inp.TaskId), "stopped");
     } else if (act === "status" && inp.TaskId) {
       const sepRe = /\r?\n(?:Command|Log) output:\r?\n/;
       const header = sepRe.test(out) ? out.split(sepRe)[0] : out.split(/\r?\n/, 8).join("\n");
       if (/\bStatus:\s*(?:DONE|COMPLETED|FAILED|ERROR|CANCELL?ED|KILLED|STOPPED)\b|\bTask\b[^\r\n]*\b(?:is not running|not found)\b/i.test(header)) {
-        state.onBgRemove?.(String(inp.TaskId));
+        const st = /\bStatus:\s*(?:FAILED|ERROR)\b/i.test(header)
+          ? "failed"
+          : (/\bStatus:\s*(?:CANCELL?ED|KILLED|STOPPED)\b/i.test(header) ? "stopped" : "completed");
+        state.onBgRemove?.(String(inp.TaskId), st);
       }
     } else if (act === "list") {
       if (/No background tasks are currently running/i.test(out)) state.onBgClearTasks?.();
@@ -2390,9 +2455,9 @@ export async function runAcpTurn({
       armBgExpiryTimer(turnScope, bgTasks, item, syncBg);
       syncBg();
     },
-    onBgRemove: (id) => {
+    onBgRemove: (id, status = "completed") => {
       if (!id) return;
-      if (removeBgTaskAndDependents(turnScope, bgTasks, id)) syncBg();
+      if (removeBgTaskAndDependents(turnScope, bgTasks, id, (rm) => emitShellSubDone(rm, status, emit))) syncBg();
     },
     onBgClearTasks: () => {
       let changed = false;
@@ -2401,13 +2466,14 @@ export async function runAcpTurn({
         if ((v.type !== "agent" && v.type !== "workflow") || isTaskWorkflow) {
           clearBgExpiryTimer(turnScope, k);
           bgTasks.delete(k);
+          emitShellSubDone(v, "completed", emit);
           changed = true;
         }
       }
       if (changed) syncBg();
     },
     onBgReconcileTasks: (outText) => {
-      if (reconcileBgTasksFromList(turnScope, bgTasks, outText)) syncBg();
+      if (reconcileBgTasksFromList(turnScope, bgTasks, outText, (rm) => emitShellSubDone(rm, "completed", emit))) syncBg();
     },
     onCommands: (cmds) => {
       const names = [];
@@ -2593,7 +2659,8 @@ export async function runAcpTurn({
     };
     if (tid) {
       const sid = String(tid);
-      const item = bgTasks.get(sid) || poolEntry?.bgTasks?.get(sid);
+      const item = bgTasks.get(sid) || poolEntry?.bgTasks?.get(sid)
+        || (!sid.includes("/") ? [...bgTasks.values(), ...(poolEntry?.bgTasks?.values() || [])].find((x) => String(x?.id || "").endsWith("/" + sid)) : null);
       killShellItem(item);
       const rec = state.acpAgents?.get(sid);
       if (rec && rec.status === "running" && (!item || item.type === "agent" || item.type === "workflow")) {
@@ -2601,10 +2668,19 @@ export async function runAcpTurn({
         if (rec.convId) state.reportedAgentConvs?.delete(rec.convId.toLowerCase());
         emit({ type: "ag", k: "done", id: rec.id, status: "stopped", why: "已停止", at: Date.now() });
       }
-      if (removeBgTaskAndDependents(turnScope, bgTasks, sid)) removed = true;
-      if (poolEntry?.bgTasks && removeBgTaskAndDependents(poolScope, poolEntry.bgTasks, sid)) removed = true;
+      const notified = new Set();
+      const onStopShell = (rm) => {
+        if (!rm?.toolId || notified.has(rm.toolId)) return;
+        notified.add(rm.toolId);
+        emitShellSubDone(rm, "stopped", emit);
+      };
+      if (removeBgTaskAndDependents(turnScope, bgTasks, sid, onStopShell)) removed = true;
+      if (poolEntry?.bgTasks && removeBgTaskAndDependents(poolScope, poolEntry.bgTasks, sid, onStopShell)) removed = true;
     } else {
-      for (const item of bgTasks.values()) killShellItem(item);
+      for (const item of bgTasks.values()) {
+        killShellItem(item);
+        emitShellSubDone(item, "stopped", emit);
+      }
       if (bgTasks.size > 0 || poolEntry?.bgTasks?.size > 0) removed = true;
       clearAllBgExpiryTimers(turnScope);
       if (poolScope) clearAllBgExpiryTimers(poolScope);
@@ -3022,23 +3098,41 @@ export async function runAcpTurn({
       if (unboundTools.length) {
         const logs = scanAcpTaskLogs(activeSessionId, brainDir, turnStartMs);
         const boundIds = new Set([...bgTasks.keys(), ...[...state.tools.values()].map((t) => t.bgTaskId).filter(Boolean)]);
+        // agy 的 task-<step_index>.log 按步号单调递增且绝不复写旧文件：本轮前已存在的日志必属历史轮次，禁止绑给本轮新工具卡
         const freshLogs = logs.filter((l) => {
           if (boundIds.has(l.fullId) || boundIds.has(l.shortId)) return false;
-          const pre = preTurnLogs.get(l.shortId);
-          return !pre || pre.size !== l.size || pre.mtimeMs !== l.mtimeMs;
+          return !preTurnLogs.has(l.shortId);
         });
-        const totalToolsCount = state.tools.size;
+        const taskDescs = freshLogs.length ? readAcpTaskDescriptions(activeSessionId, brainDir) : null;
+        const normWs = (s) => String(s || "").replace(/\s+/g, " ").trim();
         for (const l of freshLogs) {
-          const cand = unboundTools.find((t) => {
-            if (t.bgTaskId) return false;
-            const age = now - (t.startedAt || turnStartMs);
-            const hasLaterActivity = (state.lastOutputAt && state.lastOutputAt >= (t.startedAt || 0))
-              || totalToolsCount > 1;
-            const waitMs = Number(t.input?.WaitMsBeforeAsync);
-            const threshold = Number.isFinite(waitMs) && waitMs > 0 ? Math.min(waitMs, 10000) : 10000;
-            return age >= Math.min(threshold, 1000) || hasLaterActivity;
-          }) || unboundTools.find((t) => !t.bgTaskId);
-          if (!cand) break;
+          const freeTools = unboundTools.filter((t) => !t.bgTaskId);
+          if (!freeTools.length) break;
+          let cand = null;
+          const wantDesc = taskDescs?.get(l.shortId) || "";
+          if (wantDesc) {
+            const wantNorm = normWs(wantDesc);
+            cand = freeTools.find((t) => {
+              const inp0 = t.input && typeof t.input === "object" ? t.input : {};
+              return [inp0.CommandLine, inp0.Description, inp0.toolSummary].some((v) => typeof v === "string" && v.trim() && normWs(v) === wantNorm);
+            }) || null;
+          }
+          if (!cand) {
+            if (freeTools.length === 1) {
+              cand = freeTools[0];
+            } else {
+              // 同轮并发多条命令/工作流且 transcript 尚未刷盘时，仅绑定已跨过各自 WaitMsBeforeAsync 阈值的候选，杜绝串绑快前景命令
+              const due = freeTools.map((t) => {
+                const kTool = classifyAcpTool(t.name, t.input, t.output);
+                const waitMs = Number(t.input?.WaitMsBeforeAsync);
+                const threshold = Number.isFinite(waitMs) && waitMs > 0 ? Math.min(waitMs, 10000) : (kTool === "run_workflow" ? 200 : 10000);
+                const started = t.startedAt || turnStartMs;
+                return { t, dueAt: started + threshold, ok: now - started >= threshold };
+              }).filter((x) => x.ok).sort((a, b) => a.dueAt - b.dueAt);
+              cand = due[0]?.t || null;
+            }
+          }
+          if (!cand) continue;
           const k = classifyAcpTool(cand.name, cand.input, cand.output);
           const inp = cand.input && typeof cand.input === "object" ? cand.input : {};
           const titleCmd = String(cand.name || "").replace(/^run\s+/i, "").trim();
@@ -3122,7 +3216,7 @@ export async function runAcpTurn({
         syncBg();
       }
 
-      // 3) 推送前端 phase: "bg"（模型已暂停吐字但后台任务仍在运行）
+      // 3) 推送前端 phase: "bg"（模型已暂停吐字但后台任务仍在运行；后台任务清零后及时退回 wait）
       if (bgTasks.size > 0 && (!state.lastOutputAt || now - state.lastOutputAt >= 1500)) {
         const list = [...bgTasks.values()];
         const totalBytes = list.reduce((acc, x) => acc + (Number(x.bytes) || 0), 0);
@@ -3139,6 +3233,11 @@ export async function runAcpTurn({
             lastActiveAt: newestActive || turnStartMs,
             desc: String(list[0]?.desc || "").slice(0, 80),
           });
+        }
+      } else if (bgTasks.size === 0 && lastBgPhaseKey) {
+        lastBgPhaseKey = "";
+        if (!state.lastOutputAt || now - state.lastOutputAt >= 1500) {
+          emit({ type: "phase", phase: "wait" });
         }
       }
 
@@ -3504,7 +3603,9 @@ export async function runAcpTurn({
           clearBgWatch();
           for (const t of shells) {
             entry.nudgedBgTasks.add(t.id);
-            removeBgTaskAndDependents(poolScope, entry.bgTasks, t.id);
+            removeBgTaskAndDependents(poolScope, entry.bgTasks, t.id, (rm) => {
+              emitShellSubDone(rm, "completed", (ev) => publish({ ...ev, sessionId: activeSessionId }));
+            });
           }
           while (entry.nudgedBgTasks.size > 500) entry.nudgedBgTasks.delete(entry.nudgedBgTasks.values().next().value);
           emitPoolBg();
@@ -3589,7 +3690,9 @@ export async function runAcpTurn({
             }
             const nonDaemon = [...entry.bgTasks].filter(([, v]) => v.type !== "daemon" && v.type !== "monitor");
             const finishOne = (k, v) => {
-              removeBgTaskAndDependents(poolScope, entry.bgTasks, k);
+              removeBgTaskAndDependents(poolScope, entry.bgTasks, k, (rm) => {
+                emitShellSubDone(rm, "completed", (ev) => publish({ ...ev, runId: b.runId, sessionId: activeSessionId }));
+              });
               if (v.type === "agent" || v.type === "workflow") {
                 const rec = entry.acpAgents?.get(k);
                 if (rec && rec.status === "running") {
@@ -3757,10 +3860,11 @@ export async function runAcpTurn({
                 probe = { active: true, reason: "probe-err" };
               }
               let bgPruned = false;
+              const emitPoolShellDone = (rm) => emitShellSubDone(rm, "completed", (ev) => publish({ ...ev, sessionId: activeSessionId }));
               if (probe && !probe.active) {
                 for (const t of watchShells) {
                   entry.nudgedBgTasks.add(t.id);
-                  if (removeBgTaskAndDependents(poolScope, entry.bgTasks, t.id)) bgPruned = true;
+                  if (removeBgTaskAndDependents(poolScope, entry.bgTasks, t.id, emitPoolShellDone)) bgPruned = true;
                 }
               } else {
                 const liveNow = listAcpChildren(entry.client.child?.pid);
@@ -3770,7 +3874,7 @@ export async function runAcpTurn({
                     if (!t.childKey || liveKeys.has(t.childKey)) continue;
                     if (isChildKeyAliveFallback(t.childKey, "/proc", isPidAlive)) continue;
                     entry.nudgedBgTasks.add(t.id);
-                    if (removeBgTaskAndDependents(poolScope, entry.bgTasks, t.id)) bgPruned = true;
+                    if (removeBgTaskAndDependents(poolScope, entry.bgTasks, t.id, emitPoolShellDone)) bgPruned = true;
                   }
                 }
               }
@@ -3818,8 +3922,8 @@ export async function runAcpTurn({
                 armBgExpiryTimer(poolScope, entry.bgTasks, item, emitPoolBg);
                 emitPoolBg();
               },
-              onBgRemove: (id) => {
-                if (id && removeBgTaskAndDependents(poolScope, entry.bgTasks, id)) emitPoolBg();
+              onBgRemove: (id, status = "completed") => {
+                if (id && removeBgTaskAndDependents(poolScope, entry.bgTasks, id, (rm) => emitShellSubDone(rm, status, bgEmit))) emitPoolBg();
               },
               onBgClearTasks: () => {
                 let changed = false;
@@ -3828,13 +3932,14 @@ export async function runAcpTurn({
                   if ((v.type !== "agent" && v.type !== "workflow") || isTaskWorkflow) {
                     clearBgExpiryTimer(poolScope, k);
                     entry.bgTasks.delete(k);
+                    emitShellSubDone(v, "completed", bgEmit);
                     changed = true;
                   }
                 }
                 if (changed) emitPoolBg();
               },
               onBgReconcileTasks: (outText) => {
-                if (reconcileBgTasksFromList(poolScope, entry.bgTasks, outText)) emitPoolBg();
+                if (reconcileBgTasksFromList(poolScope, entry.bgTasks, outText, (rm) => emitShellSubDone(rm, "completed", bgEmit))) emitPoolBg();
               },
               onCommands: state.onCommands,
             };

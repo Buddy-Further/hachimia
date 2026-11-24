@@ -10,10 +10,12 @@ import {
   killAcpChild,
   killBgChildTree,
   listDescendantPids,
+  readAcpTaskDescriptions,
   readTaskLogTail,
   runAcpTurn,
   scanAcpTaskLogs,
   shouldOpenIdleBurst,
+  stopAcpBgTask,
   translateAcpUpdate,
 } from "../gw/acp.mjs";
 
@@ -269,13 +271,116 @@ test("scanAcpTaskLogs 过滤陈旧日志并按任务号排序", () => {
   assert.deepEqual(found.map((x) => x.shortId), ["task-3", "task-12"]);
 });
 
-test("前端 02-chat-view.js 与 03-perm-status.js 后台任务可观测性契约完备", () => {
+test("前端 02-chat-view.js、03-perm-status.js 与 04-session-flow.js 后台任务可观测性及跨轮收口契约完备", () => {
   const cv = fs.readFileSync(path.join(process.cwd(), "gateway/web/app/02-chat-view.js"), "utf8");
   const ps = fs.readFileSync(path.join(process.cwd(), "gateway/web/app/03-perm-status.js"), "utf8");
+  const sf = fs.readFileSync(path.join(process.cwd(), "gateway/web/app/04-session-flow.js"), "utf8");
   assert.match(cv, /isBgShellResult/);
+  assert.match(cv, /if \(inp && inp\.IsDaemon\) return false/);
   assert.match(cv, /u\.status === "background" \|\| u\.bgTaskId/);
   assert.match(cv, /t\("静默 \{d\}"/);
   assert.match(ps, /case "bg":/);
   assert.match(ps, /t\("等待后台任务"\)/);
   assert.match(ps, /querySelectorAll\("\.rs-el"\)/);
+  assert.match(sf, /if \(!rv0\?\.av && !belongs\(ev\)\) return;/);
+});
+
+test("并发多条 run_command + 历史残留 task 日志：按 transcript Task Description 精准匹配且绝不串绑前景命令，manage_task 短 ID kill 补发 sub_done(stopped)", { timeout: 15000 }, async () => {
+  const brainDir = path.join(tmpDir, "brain-conc");
+  const sid = "sess-conc-2912";
+  const taskDir = path.join(brainDir, sid, ".system_generated", "tasks");
+  const logDir = path.join(brainDir, sid, ".system_generated", "logs");
+  fs.mkdirSync(taskDir, { recursive: true });
+  fs.mkdirSync(logDir, { recursive: true });
+  // 历史轮次已存在的旧日志：即使在本轮期间发生写入，也不得绑给本轮新工具卡
+  const oldLog = path.join(taskDir, "task-100.log");
+  fs.writeFileSync(oldLog, "old-turn\n");
+
+  const trFile = path.join(logDir, "transcript.jsonl");
+  fs.writeFileSync(trFile, JSON.stringify({
+    step_index: 2912,
+    source: "MODEL",
+    type: "GENERIC",
+    status: "RUNNING",
+    content: `Created At: now\nTool is running as a background task with task id: ${sid}/task-2912\nTask Description: git log --all --graph\nTask logs are available at: file://${path.join(taskDir, "task-2912.log")}\nLog output:\nscanning`,
+  }) + "\n");
+  const descMap = readAcpTaskDescriptions(sid, brainDir);
+  assert.equal(descMap.get("task-2912"), "git log --all --graph");
+
+  const mockBin = path.join(tmpDir, "mock-agy-conc.mjs");
+  fs.writeFileSync(mockBin, `
+import fs from "node:fs";
+import readline from "node:readline";
+const rl = readline.createInterface({ input: process.stdin });
+const send = (o) => process.stdout.write(JSON.stringify(o) + "\\n");
+const oldLog = ${JSON.stringify(oldLog)};
+const bgLog = ${JSON.stringify(path.join(taskDir, "task-2912.log"))};
+rl.on("line", (line) => {
+  const msg = JSON.parse(line);
+  if (msg.method === "initialize") return send({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: 1, agentCapabilities: {} } });
+  if (msg.method === "session/new") return send({ jsonrpc: "2.0", id: msg.id, result: { sessionId: ${JSON.stringify(sid)} } });
+  if (msg.method === "session/prompt") {
+    // 工具 1：前景快命令（WaitMsBeforeAsync=10000，排在前面）
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: ${JSON.stringify(sid)}, update: {
+      sessionUpdate: "tool_call", toolCallId: "tc-fg-fast", title: "echo fast",
+      rawInput: { CommandLine: "echo fast", WaitMsBeforeAsync: 10000 }, status: "in_progress",
+    } } });
+    // 工具 2：真正转后台的慢命令（排在第二个）
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: ${JSON.stringify(sid)}, update: {
+      sessionUpdate: "tool_call", toolCallId: "tc-bg-real", title: "git log --all --graph",
+      rawInput: { CommandLine: "git log --all --graph", WaitMsBeforeAsync: 10000 }, status: "in_progress",
+    } } });
+    fs.appendFileSync(oldLog, "more-old\\n");
+    fs.writeFileSync(bgLog, "commit 1\\ncommit 2\\n");
+    setTimeout(() => {
+      // 前景快命令先同步完成，不得误摘 tc-bg-real 的后台任务
+      send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: ${JSON.stringify(sid)}, update: {
+        sessionUpdate: "tool_call_update", toolCallId: "tc-fg-fast", status: "completed",
+        rawOutput: "Command exited with code 0.\\n\\nCommand output:\\nfast",
+      } } });
+    }, 140);
+    setTimeout(() => {
+      // 模型随后调用 manage_task(Action=kill, TaskId="task-2912" 短 ID) 终止后台命令
+      send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: ${JSON.stringify(sid)}, update: {
+        sessionUpdate: "tool_call", toolCallId: "tc-kill-short", title: "Run manage_task",
+        rawInput: { Action: "kill", TaskId: "task-2912" }, status: "completed",
+        rawOutput: "Killed task-2912",
+      } } });
+      send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: ${JSON.stringify(sid)}, update: {
+        sessionUpdate: "tool_call_update", toolCallId: "tc-bg-real", status: "completed",
+        rawOutput: "Tool is running as a background task with task id: ${sid}/task-2912",
+      } } });
+      setTimeout(() => {
+        send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: ${JSON.stringify(sid)}, update: {
+          sessionUpdate: "tool_call", toolCallId: "tc-kill-2", title: "Run manage_task",
+          rawInput: { Action: "kill", TaskId: "task-2912" }, status: "completed",
+          rawOutput: "Killed task-2912",
+        } } });
+        send({ jsonrpc: "2.0", id: msg.id, result: { stopReason: "end_turn" } });
+      }, 60);
+    }, 280);
+  }
+});
+`, { mode: 0o755 });
+
+  const evs = [];
+  const run = { id: "r-conc", bgList: [], bgTasks: 0 };
+  const res = await runAcpTurn({
+    bin: process.execPath,
+    args: [mockBin],
+    cwd: tmpDir,
+    env: { ...process.env },
+    prompt: "concurrent check",
+    run,
+    emit: (e) => evs.push(e),
+    brainDir,
+    activeBgPollMs: 50,
+    keepAlive: false,
+  });
+  assert.equal(res.ok, true);
+  assert.equal(evs.some((e) => e.type === "tool_update" && e.id === "tc-fg-fast" && e.status === "background"), false, "前景命令绝不能被串绑为 background");
+  assert.equal(evs.some((e) => e.type === "tool_update" && e.id === "tc-bg-real" && e.status === "background"), true, "后台命令应被精准绑定到 task-2912.log");
+  assert.equal(evs.some((e) => e.type === "sub_done" && e.parent === "tc-bg-real" && e.status === "stopped"), true, "短 ID kill 应精准摘除并向 tc-bg-real 发 sub_done(stopped)");
+  assert.equal(run.bgList.length, 0);
+  void stopAcpBgTask;
 });
