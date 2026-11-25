@@ -1002,7 +1002,7 @@
       if (m.role === "user") { renderUser(m.text, page, m.uuid); av = null; continue; }
       if (m.role === "note") { (m.chapter ? chapterSep : addNote)(m.chapter ? m : m.text, page); av = null; continue; }
       if (m.role === "hookctx") { addHookCtx(m.event, m.text, page); av = null; continue; }
-      if (m.role === "tool_result") { toolResult(m.id, m.ok, m.text); continue; }
+      if (m.role === "tool_result") { toolResult(m.id, m.ok, m.text, !!m.cancelled); continue; }
       if (!av) { av = AssistantView(page, false); avs.push(av); }
       if (m.role === "assistant") av.text(m.text, m.uuid);
       else if (m.role === "thinking") av.thinking(m.text);

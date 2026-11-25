@@ -113,9 +113,31 @@ function permRules() {
   return r;
 }
 
+function installedAgyVersion() {
+  const bin0 = PATHS.agy;
+  if (!bin0) return "";
+  try {
+    const realBin = fs.realpathSync(bin0);
+    const bst = fs.statSync(realBin);
+    if (!bst.isFile()) return "";
+    const dir = path.dirname(realBin);
+    const mf = path.join(dir, "manifest.json");
+    if (fs.existsSync(mf) && !fs.existsSync(path.join(dir, ".mismatch"))) {
+      const mst = fs.statSync(mf);
+      // 若二进制 mtime 明显晚于 manifest.json（例如旧版遗留的原地自更新），不盲信旧清单版本号，交由 ACP init 实测版本兜底
+      if (bst.mtimeMs <= mst.mtimeMs + 5000) {
+        const j = JSON.parse(fs.readFileSync(mf, "utf8"));
+        if (typeof j?.version === "string" && /^\d+\.\d+\.\d+/.test(j.version)) return j.version.trim();
+      }
+    }
+  } catch {}
+  return "";
+}
+
 export function buildCapabilities() {
   const init = LAST_INIT || {};
   const hasAgy = !!(PATHS.agy && fs.existsSync(PATHS.agy));
+  const diskAgyVer = hasAgy ? installedAgyVersion() : "";
   const localAgy = hasAgy ? scanAgyLocal() : { skills: [], plugins: [], mcp: [] };
   const dynMeta = init.slash_command_meta && typeof init.slash_command_meta === "object" ? init.slash_command_meta : {};
   const rawCmds = Array.isArray(init.slash_commands) && init.slash_commands.length
@@ -152,7 +174,7 @@ export function buildCapabilities() {
     plugins,
     mcpServers,
     outputStyle: init.output_style || "default",
-    version: init.version || init.claude_code_version || "",
+    version: diskAgyVer || init.version || init.claude_code_version || "",
     tier: init.tier || AUTH_CACHE?.v?.plan || "",
     rules: permRules(),
     settings: SETTINGS,
@@ -189,6 +211,7 @@ export async function routeCaps(req, res, u, p) {
       bridge: await bridgeAlive(),
       uptimeMs: Math.round(process.uptime() * 1000),
       version: "3.0.0",
+      appVersion: process.env.CCAPP_APP_VERSION || "",
       busy: RUNS.size > 0,
       running: RUNS.size,
       // 挂起的（点了停止、被系统中断的）不会自己发出去，不算「有活要干」：外壳据 queued 判断能不能换工具包

@@ -47,18 +47,47 @@ function parseVersion(text) {
   return m ? m[1] : "";
 }
 
+const cmpVer = (a, b) => {
+  const [ab, ...ap] = String(a).split("-"), [bb, ...bp] = String(b).split("-");
+  const x = ab.split(".").map(Number), y = bb.split(".").map(Number);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d < 0 ? -1 : 1; }
+  const pa = ap.join("-"), pb = bp.join("-");
+  if (!pa || !pb) return pa ? -1 : pb ? 1 : 0;
+  return pa < pb ? -1 : pa > pb ? 1 : 0;
+};
+
+function probeBinVersion(bin, timeoutMs = 10000) {
+  const env = { ...process.env, AGY_CLI_DISABLE_AUTO_UPDATE: "1" };
+  let r = spawnSync(bin, ["--version"], { encoding: "utf8", timeout: timeoutMs, env });
+  if ((r.status !== 0 || r.error?.code === "EACCES") && process.env.CCAPP_EXEC === "loader" && fs.existsSync("/system/bin/linker64")) {
+    r = spawnSync("/system/bin/linker64", [bin, "--version"], {
+      encoding: "utf8",
+      timeout: timeoutMs,
+      env: { ...env, TERMUX_EXEC__PROC_SELF_EXE: bin },
+    });
+  }
+  if (r.status !== 0) return "";
+  return parseVersion(r.stdout || r.stderr);
+}
+
+function switchCurrentLink(ver) {
+  const tmpLink = path.join(DEST, `.current.tmp.${process.pid}`);
+  try { fs.unlinkSync(tmpLink); } catch {}
+  fs.symlinkSync(ver, tmpLink);
+  fs.renameSync(tmpLink, path.join(DEST, "current"));
+}
+
 function installedVersion() {
   try {
     const cur = fs.realpathSync(path.join(DEST, "current"));
     const dirName = path.basename(cur);
-    // 0.0.0-local 是旧版装坏了的占位版本（E-11），不是真版本号：以二进制实际报的为准，报不出就是没装好
-    if (isVer(dirName) && dirName !== "0.0.0-local") return dirName;
     const bin = path.join(cur, "agy");
-    if (fs.existsSync(bin)) {
-      const r = spawnSync(bin, ["--version"], { encoding: "utf8", timeout: 10000 });
-      const v = parseVersion(r.stdout || r.stderr);
-      return v || (dirName === "0.0.0-local" ? "" : dirName);
-    }
+    if (!fs.existsSync(bin)) return "";
+    // 始终以二进制实际报出的版本号为准：旧版未设 AGY_CLI_DISABLE_AUTO_UPDATE 时，
+    // agy 后台自更新会原地覆写 <旧版本>/agy 而不改 current 软链，只读目录名会导致更新页显示旧版或假版本。
+    const v = probeBinVersion(bin, 10000);
+    if (isVer(v)) return v;
+    if (isVer(dirName) && dirName !== "0.0.0-local") return dirName;
   } catch {}
   return "";
 }
@@ -102,6 +131,8 @@ if (ARG === "--check") {
 // ── --recheck：校验已装二进制与本地清单 sha256 ──
 if (ARG === "--recheck") {
   let bad = 0;
+  let curDir = "";
+  try { curDir = fs.realpathSync(path.join(DEST, "current")); } catch {}
   for (const d of (() => { try { return fs.readdirSync(DEST); } catch { return []; } })()) {
     const dir = path.join(DEST, d);
     const bin = path.join(dir, "agy");
@@ -122,6 +153,43 @@ if (ARG === "--recheck") {
         fs.rmSync(path.join(dir, ".mismatch"), { force: true });
         say(`✓ ${d}：sha256 一致`);
       } else {
+        // 检查是否为历史版本里 agy 内置自更新原地覆写（例如 1.5.14/agy 被自更新成 1.5.15）：
+        // 若二进制本身可正常报出更高版本号 actualVer，则归位到 actualVer 目录（或清理已被新目录取代的漂移旧目录），避免误报篡改与版本选单假条目。
+        const actualVer = probeBinVersion(bin, 10000);
+        if (isVer(actualVer) && actualVer !== d && cmpVer(actualVer, d) > 0) {
+          const targetDir = path.join(DEST, actualVer);
+          const targetBin = path.join(targetDir, "agy");
+          const targetMf = path.join(targetDir, "manifest.json");
+          let targetReady = false;
+          if (fs.existsSync(targetBin) && fs.existsSync(targetMf)) {
+            try {
+              const tm = JSON.parse(fs.readFileSync(targetMf, "utf8"));
+              targetReady = Boolean(tm.sha256 && sha256(targetBin) === tm.sha256);
+            } catch {}
+          }
+          if (!targetReady) {
+            fs.mkdirSync(targetDir, { recursive: true });
+            fs.copyFileSync(bin, targetBin);
+            fs.chmodSync(targetBin, 0o755);
+            fs.writeFileSync(targetMf, JSON.stringify({
+              name: "agy",
+              version: actualVer,
+              sha256: got,
+              source: m.source || INSTALL_URL,
+              installedAt: new Date().toISOString(),
+            }, null, 2) + "\n");
+            targetReady = true;
+          }
+          if (targetReady) {
+            if (curDir === dir) {
+              switchCurrentLink(actualVer);
+              curDir = fs.realpathSync(path.join(DEST, "current"));
+            }
+            fs.rmSync(dir, { recursive: true, force: true });
+            say(`✓ ${d}：检测到历史原地自更新（实为 ${actualVer}），已归位并清理漂移目录`);
+            continue;
+          }
+        }
         bad++;
         fs.writeFileSync(path.join(dir, ".mismatch"), got + "\n");
         say(`✗ ${d}：sha256 不符（期望 ${String(m.sha256 || "").slice(0, 12)}…，实得 ${got.slice(0, 12)}…）`);
@@ -137,6 +205,25 @@ if (ARG === "--recheck") {
 // ── 安装 / 更新流程 ──
 if (!HOME) die("未设置 HOME 目录");
 fs.mkdirSync(DEST, { recursive: true });
+
+// 若请求固定/切换到某一具体版本，且本机该版本目录已完整存在并通过 sha256 与 --version 双重核验，
+// 直接原子切换 current 软链（上游 install.sh 不支持拉取历史版本，联网必装最新版并在版本核验处报错）。
+if (isVer(ARG)) {
+  const localDir = path.join(DEST, ARG);
+  const localBin = path.join(localDir, "agy");
+  const localMf = path.join(localDir, "manifest.json");
+  if (fs.existsSync(localBin) && fs.existsSync(localMf) && !fs.existsSync(path.join(localDir, ".mismatch"))) {
+    try {
+      const m = JSON.parse(fs.readFileSync(localMf, "utf8"));
+      const got = sha256(localBin);
+      if (m.sha256 && got === m.sha256 && probeBinVersion(localBin, 15000) === ARG) {
+        switchCurrentLink(ARG);
+        say(`✓ Antigravity CLI ${ARG} 安装完成（复用本机已校验版本，sha256 ${got.slice(0, 12)}…）`);
+        process.exit(0);
+      }
+    } catch {}
+  }
+}
 
 say(`正在获取官方 Antigravity CLI 安装脚本：${INSTALL_URL}`);
 const fetched = curlSmall(INSTALL_URL, 30);
@@ -205,7 +292,8 @@ try {
   fs.chmodSync(realFound, 0o755);
   // 刚装好的二进制必须自己能跑、且 --version 报得出版本号（A5/E-11）：
   // 报不出就说明装进来的东西是坏的或输出格式变了，不能把它钉成当前版，更不能回退到 0.0.0-local
-  const vr = spawnSync(realFound, ["--version"], { encoding: "utf8", timeout: 15000 });
+  const probeEnv = { ...process.env, AGY_CLI_DISABLE_AUTO_UPDATE: "1" };
+  const vr = spawnSync(realFound, ["--version"], { encoding: "utf8", timeout: 15000, env: probeEnv });
   if (vr.status !== 0) {
     throw new Error(`刚装好的 agy 无法运行（--version 退出码 ${vr.status ?? "null"}${vr.signal ? `（信号 ${vr.signal}）` : ""}），未安装`);
   }
@@ -225,7 +313,7 @@ try {
   fs.chmodSync(finalBin, 0o755);
 
   // 拷贝后的最终文件再校验一次 --version（A5）：截断/损坏的拷贝 sha256 是现算的，能自洽过关，但跑不起来
-  const vr2 = spawnSync(finalBin, ["--version"], { encoding: "utf8", timeout: 15000 });
+  const vr2 = spawnSync(finalBin, ["--version"], { encoding: "utf8", timeout: 15000, env: probeEnv });
   if (vr2.status !== 0 || parseVersion(vr2.stdout || vr2.stderr) !== ver) {
     try { fs.rmSync(finalBin, { force: true }); } catch {}
     try { fs.rmSync(path.join(verDir, "manifest.json"), { force: true }); } catch {}
@@ -241,11 +329,9 @@ try {
     source: INSTALL_URL,
     installedAt: new Date().toISOString(),
   }, null, 2) + "\n");
+  fs.rmSync(path.join(verDir, ".mismatch"), { force: true });
 
-  const tmpLink = path.join(DEST, `.current.tmp.${process.pid}`);
-  try { fs.unlinkSync(tmpLink); } catch {}
-  fs.symlinkSync(ver, tmpLink);
-  fs.renameSync(tmpLink, path.join(DEST, "current"));
+  switchCurrentLink(ver);
 
   say(`✓ Antigravity CLI ${ver} 安装完成（sha256 ${sum.slice(0, 12)}…）`);
 } catch (e) {

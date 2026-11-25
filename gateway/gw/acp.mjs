@@ -690,8 +690,15 @@ export function abortAcpIdleBurst(idOrSid = null) {
 export function setAcpPoolPermMode(mode) {
   if (!mode) return 0;
   let n = 0;
-  for (const e of ACP_POOL.values()) {
+  for (const [sid, e] of [...ACP_POOL.entries()]) {
     if (e && !e.busy) {
+      // 以 --dangerously-skip-permissions 冷启动的常驻 worker 在 agy 内部锁定为 always-proceed，
+      // 仅靠 session/set_mode 无法降权；切离 bypassPermissions 时立即回收该空闲进程，下轮按新权限冷启恢复。
+      if (e.spawnedSkipPerms && mode !== "bypassPermissions") {
+        closeAcpSession(sid);
+        n++;
+        continue;
+      }
       e.permMode = mode;
       n++;
     }
@@ -1692,14 +1699,36 @@ function trackAcpToolSideEffects(phase, tool, state, emit) {
   }
 }
 
+/** 识别 agy 1.5.13 将取消步骤（CORTEX_STEP_STATUS_CANCELED=6）映射为 status="failed" 时的固定文面 */
+export function isAcpCanceledToolOutput(text) {
+  const s = String(text || "").trim();
+  return /^(?:Tool execution was canceled\b|Command was terminated by signal or canceled\.)/m.test(s);
+}
+
+/** 后台命令被取消或终止时 agy 常只回一行状态而省去 task-<N>.log 里的真实输出：补齐尾部日志避免整段输出丢失 */
+function attachBgTailIfMissing(tool) {
+  if (!tool || (!tool.bgTaskId && !tool.logPath)) return;
+  if (tool.logPath) {
+    const latest = readTaskLogTail(tool.logPath, 4096);
+    if (latest) tool._bgTail = latest;
+  }
+  const tail = typeof tool._bgTail === "string" ? tool._bgTail.trimEnd() : "";
+  if (!tail) return;
+  const cur = String(tool.output || "");
+  if (/(?:^|\n)(?:Command|Log) output:\r?\n/.test(cur) || cur.includes(tail)) return;
+  tool.output = cur ? `${cur}\n\nCommand output:\n${tail}` : tail;
+}
+
 /** 构造发往前端的 tool_result 事件（遵循前端 ok/text 契约，并保留 content/is_error/cancelled 字段） */
 function emitToolResult(tool, emit, state = null) {
+  attachBgTailIfMissing(tool);
   const full = String(tool.output || "");
   const clipped = full.length > TOOL_OUT_MAX ? full.slice(0, TOOL_OUT_MAX) + "\n\n…（已截断）" : full;
   const isCancelled = !!tool.cancelled;
   const isErr = !isCancelled && !!tool.isError;
+  const alreadyDone = !!tool.done;
   tool.done = true;
-  if (state) trackAcpToolSideEffects("done", tool, state, emit);
+  if (state && !alreadyDone) trackAcpToolSideEffects("done", tool, state, emit);
   emit({
     type: "tool_result",
     id: tool.id,
@@ -1877,8 +1906,9 @@ export function translateAcpUpdate(params, state, emit) {
     if (st0 === "completed" || st0 === "failed" || st0 === "error" || st0 === "cancelled" || st0 === "canceled") {
       const out0 = acpTextOf(upd.content ?? upd.rawOutput ?? upd.output);
       if (out0) rec.output = mergeToolOutput(rec.output, out0);
-      rec.cancelled = st0 === "cancelled" || st0 === "canceled";
-      rec.isError = st0 === "failed" || st0 === "error";
+      const wasStoppedBg0 = !!(state.stoppedBgToolIds?.has(id) && isAcpCanceledToolOutput(rec.output));
+      rec.cancelled = st0 === "cancelled" || st0 === "canceled" || wasStoppedBg0;
+      rec.isError = !rec.cancelled && (st0 === "failed" || st0 === "error");
       emitToolResult(rec, emit, state);
     }
     return;
@@ -1923,8 +1953,9 @@ export function translateAcpUpdate(params, state, emit) {
     const st = String(upd.status || "").toLowerCase();
     const terminal = st === "completed" || st === "failed" || st === "error" || st === "cancelled" || st === "canceled";
     if (terminal) {
-      prev.cancelled = st === "cancelled" || st === "canceled";
-      prev.isError = st === "failed" || st === "error";
+      const wasStoppedBg = !!(state.stoppedBgToolIds?.has(id) && isAcpCanceledToolOutput(prev.output));
+      prev.cancelled = st === "cancelled" || st === "canceled" || wasStoppedBg;
+      prev.isError = !prev.cancelled && (st === "failed" || st === "error");
       emitToolResult(prev, emit, state);
     } else if (changed && !prev.done) {
       if (!prev.bgTaskId && prev.output) trackAcpToolSideEffects("update", prev, state, emit);
@@ -2103,7 +2134,8 @@ export function persistAcpAssistantOnly({ cwd, sessionId, assistantText, thinkin
         type: "tool_result",
         tool_use_id: t.id,
         content: String(t.output || "").slice(0, TOOL_OUT_MAX),
-        is_error: !!t.isError,
+        is_error: !t.cancelled && !!t.isError,
+        ...(t.cancelled ? { cancelled: true } : {}),
       })),
     },
   });
@@ -2220,7 +2252,8 @@ export function persistAcpTurn({ cwd, sessionId, userText, assistantText, thinki
     type: "tool_result",
     tool_use_id: t.id,
     content: String(t.output || "").slice(0, TOOL_OUT_MAX),
-    is_error: !!t.isError,
+    is_error: !t.cancelled && !!t.isError,
+    ...(t.cancelled ? { cancelled: true } : {}),
   }));
   appendJsonl(file, {
     type: "user",
@@ -2326,6 +2359,18 @@ export function isAcpToolAllowed(toolName, toolKind, allowedTools) {
   return false;
 }
 
+function agyBinFingerprint(bin) {
+  if (!bin || typeof bin !== "string" || (!bin.includes("/") && !bin.includes("\\"))) return "";
+  try {
+    const real = fs.realpathSync(bin);
+    const st = fs.statSync(real);
+    if (!st.isFile()) return "";
+    return `${real}:${st.ino}:${st.size}:${Math.trunc(st.mtimeMs)}`;
+  } catch {
+    return "";
+  }
+}
+
 export function poolKey({ bin, args, cwd, authType, apiKey, env = null, extraEnv = null, extraModels = null, addDirs = [], mcpServers = [] }) {
   const keyHash = apiKey ? crypto.createHash("sha256").update(String(apiKey)).digest("hex").slice(0, 12) : "";
   const envSlice = {};
@@ -2340,8 +2385,11 @@ export function poolKey({ bin, args, cwd, authType, apiKey, env = null, extraEnv
     : [];
   const normDirs = Array.isArray(addDirs) ? addDirs.filter((d) => typeof d === "string" && d.trim()) : [];
   const normMcp = Array.isArray(mcpServers) ? mcpServers : [];
+  // 计入真实二进制路径与 inode/size/mtime 指纹：更新页切换 current 软链或升级 agy 后，
+  // 下一轮对话立即淘汰池里旧版常驻进程并拉起新版二进制（兑现「下一轮对话起生效」且让能力页版本同步更新）。
+  const binFp = agyBinFingerprint(bin);
   const cfgHash = crypto.createHash("sha256")
-    .update(JSON.stringify({ envSlice, extraEnvPairs, modelIds, normDirs, normMcp }))
+    .update(JSON.stringify({ envSlice, extraEnvPairs, modelIds, normDirs, normMcp, ...(binFp ? { binFp } : {}) }))
     .digest("hex")
     .slice(0, 16);
   return JSON.stringify([bin, args, cwd, authType || "", keyHash, cfgHash]);
@@ -2381,7 +2429,7 @@ export async function runAcpTurn({
   disallowedTools = [], allowedTools = [],
   run, emit, askPermission, onBgChange, onBgWake = null,
   bgPollMs = ACP_BG_POLL_MS, bgGraceMs = ACP_BG_GRACE_MS, probeBgShell = acpBgShellActive,
-  activeBgPollMs = 2000, inflightStallWarnMs = 60000,
+  activeBgPollMs = 2000, inflightStallWarnMs = 15000,
   isPidAlive = isPidAliveFallback,
   brainDir = path.join(CFG.home, ".gemini", "antigravity-cli", "brain"),
   onSessionFileReady = null, timeoutMs = 0, idleTimeoutMs = 0,
@@ -2457,7 +2505,10 @@ export async function runAcpTurn({
     },
     onBgRemove: (id, status = "completed") => {
       if (!id) return;
-      if (removeBgTaskAndDependents(turnScope, bgTasks, id, (rm) => emitShellSubDone(rm, status, emit))) syncBg();
+      if (removeBgTaskAndDependents(turnScope, bgTasks, id, (rm) => {
+        if (status === "stopped" && rm?.toolId) (state.stoppedBgToolIds ||= new Set()).add(rm.toolId);
+        emitShellSubDone(rm, status, emit);
+      })) syncBg();
     },
     onBgClearTasks: () => {
       let changed = false;
@@ -2503,7 +2554,22 @@ export async function runAcpTurn({
     return g.has("__write_edit__") || g.has("__exec__");
   });
   const serverModeOf = (m) => (restrictMode && (m === "bypassPermissions" || m === "acceptEdits")) ? "default" : m;
-  const pKey = poolKey({ bin, args, cwd, authType, apiKey, env, extraEnv, extraModels, addDirs, mcpServers });
+  const extraDirs = Array.isArray(addDirs) ? addDirs.filter((d) => typeof d === "string" && d.trim()) : [];
+  // agy 1.5.13 服务端无 bypassPermissions mode（accept-edits 仅豁免工作区内写文件，非白名单 run_command 仍走 policyguardian 确认甚至静默取消）；
+  // 在纯全部放行且无任何 disallowedTools 限制时，向 agy acp 注入 --dangerously-skip-permissions（仅写内存 settingsProvider，不落盘），
+  // 同时通过 --add-dir 传入附加目录（与 session/* 的 additionalDirectories 双保险对齐）。
+  const isDefaultAgyArgs = Array.isArray(args) && args[0] === "acp";
+  const hasDisallowed = Array.isArray(disallowedTools) && disallowedTools.length > 0;
+  const useSkipPermsFlag = isDefaultAgyArgs && permMode === "bypassPermissions" && !restrictMode && !hasDisallowed;
+  const effectiveArgs = isDefaultAgyArgs
+    ? [
+        ...args,
+        ...(useSkipPermsFlag && !args.includes("--dangerously-skip-permissions") ? ["--dangerously-skip-permissions"] : []),
+        ...extraDirs.filter((d) => !args.some((a) => a === `--add-dir=${d}`)).map((d) => `--add-dir=${d}`),
+      ]
+    : args;
+  let skipPermsDowngraded = false;
+  const pKey = poolKey({ bin, args: effectiveArgs, cwd, authType, apiKey, env, extraEnv, extraModels, addDirs: extraDirs, mcpServers });
 
   const isBenignStderr = (line) => /logging before google\.Init:.*Initialized Android local timezone/i.test(line);
   const makeHandlers = () => ({
@@ -2529,13 +2595,15 @@ export async function runAcpTurn({
 
         // C-06：命中 disallowedTools 一律拒绝（即使 permMode 为 bypassPermissions 也不得自动放行）
         if (isAcpToolDisallowed(toolTitle, toolKind, disallowedTools) || (toolRaw && isAcpToolDisallowed(toolRaw, toolKind, disallowedTools))) {
+          log(`[agy-acp] disallowedTools 拦截工具: ${toolTitle}`);
           if (run) (run.denied ||= []).push(toolTitle);
           return rejectOpt
             ? { outcome: { outcome: "selected", optionId: rejectOpt.optionId } }
             : { outcome: { outcome: "cancelled" } };
         }
 
-        if (permMode === "bypassPermissions" && allowOpt) {
+        if ((state.permMode === "bypassPermissions" || permMode === "bypassPermissions") && allowOpt) {
+          log(`[agy-acp] 权限自动放行: ${toolTitle} -> ${allowOpt.optionId}`);
           return { outcome: { outcome: "selected", optionId: allowOpt.optionId } };
         }
         if (!askPermission) {
@@ -2672,6 +2740,7 @@ export async function runAcpTurn({
       const onStopShell = (rm) => {
         if (!rm?.toolId || notified.has(rm.toolId)) return;
         notified.add(rm.toolId);
+        (state.stoppedBgToolIds ||= new Set()).add(rm.toolId);
         emitShellSubDone(rm, "stopped", emit);
       };
       if (removeBgTaskAndDependents(turnScope, bgTasks, sid, onStopShell)) removed = true;
@@ -2679,6 +2748,7 @@ export async function runAcpTurn({
     } else {
       for (const item of bgTasks.values()) {
         killShellItem(item);
+        if (item?.toolId) (state.stoppedBgToolIds ||= new Set()).add(item.toolId);
         emitShellSubDone(item, "stopped", emit);
       }
       if (bgTasks.size > 0 || poolEntry?.bgTasks?.size > 0) removed = true;
@@ -2709,6 +2779,12 @@ export async function runAcpTurn({
           tool.isError = true;
         }
         if (!tool.output) tool.output = run?.aborted ? "（已中断）" : `（回合异常中断：${reasonMsg}）`;
+        emitToolResult(tool, emit, state);
+      } else if (run?.aborted && !tool.cancelled && tool.isError && isAcpCanceledToolOutput(tool.output)) {
+        // agy 在收到 session/cancel 后会抢先发 status="failed" + "Command was terminated by signal or canceled."，
+        // 随后才中断回合：此处将抢先落成红框的被取消工具纠回 cancelled，保留后台真实日志且不误标失败。
+        tool.cancelled = true;
+        tool.isError = false;
         emitToolResult(tool, emit, state);
       }
       state.knownToolIds.add(tool.id);
@@ -2766,6 +2842,9 @@ export async function runAcpTurn({
       permMode = mode;
       state.permMode = mode;
       run.permMode = mode;
+      if ((reused ? !!poolEntry?.spawnedSkipPerms : useSkipPermsFlag) && mode !== "bypassPermissions") {
+        skipPermsDowngraded = true;
+      }
       if (activeSessionId && client && !client.closed) return applyMode(serverModeOf(mode));
       return Promise.resolve(true);
     };
@@ -2785,7 +2864,7 @@ export async function runAcpTurn({
         if (run?.aborted) throw new Error("aborted before spawn");
         client = createAcpClient({
           bin,
-          args,
+          args: effectiveArgs,
           cwd,
           env,
           ...makeHandlers(),
@@ -2799,7 +2878,7 @@ export async function runAcpTurn({
         const initRes = await client.request("initialize", {
           protocolVersion: ACP_PROTOCOL_VERSION,
           clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
-          clientInfo: { name: "hachimia", version: "0.1.0" },
+          clientInfo: { name: "hachimia", version: process.env.CCAPP_APP_VERSION || "0.1.0" },
         }, 30000);
         if (initRes?.agentInfo?.version) {
           setLastInit({ version: String(initRes.agentInfo.version) });
@@ -2835,9 +2914,9 @@ export async function runAcpTurn({
         const caps = initRes?.agentCapabilities || {};
         const canResume = !!(caps.sessionCapabilities?.resume || caps.session_capabilities?.resume);
         const canLoad = !!(caps.loadSession || caps.load_session || caps.sessionCapabilities?.load || caps.session_capabilities?.load);
-        const extraDirs = Array.isArray(addDirs) ? addDirs.filter((d) => typeof d === "string" && d.trim()) : [];
-        const canAddDirs = !!(caps.sessionCapabilities?.additionalDirectories || caps.session_capabilities?.additionalDirectories);
-        const extraDirParam = canAddDirs && extraDirs.length ? { additionalDirectories: extraDirs } : {};
+        // agy 1.5.13 的 BuildInitializeResult 未声明 sessionCapabilities.additionalDirectories，
+        // 但其 sessionWorkspaceDirs 实际读取 NewSessionParams.AdditionalDirs（否则 /sdcard/hachimia 等附加目录会被当成越界目录拦截）。
+        const extraDirParam = extraDirs.length ? { additionalDirectories: extraDirs } : {};
         let sessRes = null;
         let resumeErr = null;
         let loadErr = null;
@@ -3194,6 +3273,7 @@ export async function runAcpTurn({
           const tool = state.tools.get(item.toolId);
           if (tool && !tool.done && (grew || tool._lastTailBytes == null)) {
             const tail = readTaskLogTail(lp, 4096);
+            if (tail) tool._bgTail = tail;
             tool._lastTailBytes = st.size;
             tool.status = "background";
             emit({
@@ -3377,6 +3457,12 @@ export async function runAcpTurn({
         tool.isError = !tool.cancelled && (st === "failed" || st === "error");
         if (tool.cancelled && !tool.output) tool.output = "（已中断）";
         emitToolResult(tool, emit, state);
+      } else if (turnCancelled && !tool.cancelled && tool.isError && isAcpCanceledToolOutput(tool.output)) {
+        // agy 1.5.13 将 CORTEX_STEP_STATUS_CANCELED 统一映射为 status="failed"，且在 stopReason="cancelled" 返回前数毫秒先发终态通知：
+        // 在确认整轮因取消结束时将该工具纠回 cancelled，补齐后台真实输出并消除误报红框。
+        tool.cancelled = true;
+        tool.isError = false;
+        emitToolResult(tool, emit, state);
       }
     }
 
@@ -3439,7 +3525,7 @@ export async function runAcpTurn({
       ...(state.usage ? { usage: state.usage } : {}),
     });
 
-    canKeep = keepAlive && !client.closed && !!activeSessionId;
+    canKeep = keepAlive && !client.closed && !!activeSessionId && !skipPermsDowngraded;
 
     return {
       ok: true,
@@ -3504,6 +3590,7 @@ export async function runAcpTurn({
       entry.effort = effort ? effortApplied : entry.effort;
       entry.permMode = permMode;
       entry.appliedPermMode = effectivePermMode;
+      entry.spawnedSkipPerms = reused ? !!poolEntry?.spawnedSkipPerms : useSkipPermsFlag;
       entry.disallowedTools = Array.isArray(disallowedTools) ? [...disallowedTools] : [];
       entry.knownToolIds = state.knownToolIds;
       entry.lastUsage = state.usage || entry.lastUsage || null;

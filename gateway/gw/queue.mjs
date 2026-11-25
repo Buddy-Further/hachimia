@@ -472,6 +472,7 @@ export function abortRun(run, { hold = true, userStopped = false } = {}) {
   // 防止 poolEntry.busy 永久卡死后另起第二个 agy 并发写坏同一 .jsonl（C-02）。
   const acpStop = typeof run.cancelAcp === "function";
   if (acpStop) {
+    log(`${runTag(run)} ⏹ 发送 ACP session/cancel`);
     try { run.cancelAcp(); } catch {}
     setTimeout(() => { if (!run.ended) forceEnd(run); }, 10000).unref();
   }

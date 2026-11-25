@@ -25,8 +25,8 @@ import org.json.JSONObject;
 /**
  * 三样东西的更新：应用本体（APK）、开发工具包（devkit）、Antigravity CLI。默认自动。
  *
- *   Antigravity CLI：装进新的版本目录再切 current 指针 —— 正在跑的 claude 用的还是旧文件，不受影响，所以全程静默。
- *                （它自带的自动更新被 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC 关了，而且也不认我们的目录布局。）
+ *   Antigravity CLI：装进新的版本目录再切 current 指针 —— 正在跑的 agy 用的还是旧文件，不受影响，所以全程静默。
+ *                （它自带的后台自更新已由 AGY_CLI_DISABLE_AUTO_UPDATE=1 关闭，统一归口到本类按版本目录管理。）
  *   APK：下载、核对签名与本应用一致。有 Shizuku 且空闲、界面不在前台时静默装；否则发通知，点一下走系统安装确认。
  *   工具包：按已装的模块下（0.3.8 及以前的整包约 650 MB，升上来时装全部模块），会替换整个 $PREFIX。自动模式只在不计流量的网络上预先下载；
  *           下次冷启动且没有任务在跑时替换（或用户在设置页点"安装"）。用户自装进 $PREFIX 的东西会搬过去。
@@ -284,6 +284,7 @@ final class Updater {
         // 同一时间只换一次：上一次还在等确认就不接新的
         if (!switching.compareAndSet(false, true)) { Log.i("hachimia", "上一次换渠道还没完，这次不接"); return; }
         final String toCh = ch, toPin = pin;
+        final String prevCh = prefs().getString("channel", "stable"), prevPin = prefs().getString("pin", "");
         // 换渠道是用户明说要哪个版本：马上按新渠道查，版本对不上就直接换（切回 stable 也会换回 stable 的版本）
         new Thread(() -> {
             boolean keep = false;
@@ -296,6 +297,21 @@ final class Updater {
                 // 换渠道 / 固定版本落到比已装的旧：和 upd_apply 指定旧版本一样要用户点头（10-31 四轮复核：这是降级的另一条路）
                 if (down && !Priv.confirm(Tr.f("把 Antigravity CLI 降级到 {0}", to), who, "upd:" + to)) {
                     Log.i("hachimia", "没有允许降级到 " + to + "，设置不变");
+                } else if ("pinned".equals(toCh) && "available".equals(claude.state)) {
+                    // 固定到指定版本需要先真正切换成功再落盘偏好：否则上游不支持装旧版而报错时，界面却已显示「CLI：固定 x.y.z」，与实际装着的版本永久脱节
+                    ovCh = null; ovPin = null;
+                    boolean okInstall;
+                    synchronized (Updater.this) {
+                        if ("downloading".equals(claude.state) || "installing".equals(claude.state)) okInstall = false;
+                        else { claude.set("installing", ""); okInstall = true; }
+                    }
+                    if (okInstall && installClaude(to) && toPin.equals(claude.current)) {
+                        prefs().edit().putString("channel", toCh).putString("pin", toPin).commit();
+                        keep = true;
+                    } else {
+                        prefs().edit().putString("channel", prevCh).putString("pin", prevPin).commit();
+                        keep = true; // 保留 installClaude 写下的明确错误提示，不让 finally 的 checkClaude 把错误冲掉
+                    }
                 } else {
                     prefs().edit().putString("channel", toCh).putString("pin", toPin).commit();
                     keep = true;
@@ -314,12 +330,34 @@ final class Updater {
         }, "upd-channel").start();
     }
 
+    /** 最近一次经 install-agy.mjs --check 实测到的 current/agy --version 版本号（按软链目标 + 文件大小 + 修改时间绑定） */
+    private volatile String probedClaudeKey = "", probedClaudeVer = "";
+
+    private static String claudeFileKey(String linkVer, File bin) {
+        return linkVer + ":" + bin.length() + ":" + bin.lastModified();
+    }
+
     private void refreshCurrent() {
         try { app.current = ctx.getPackageManager().getPackageInfo(ctx.getPackageName(), 0).versionName; } catch (Exception ignored) {}
         String b = installedDevkitBase();
         devkit.current = !b.isEmpty() ? tagOf(b) : !installedDevkitSha().isEmpty() ? Tr.t("本地安装") : env.devkitReady() ? Tr.t("未知") : "";
-        try { claude.current = new File(Os.readlink(new File(env.home, ".local/share/hachimia/agy/current").getPath())).getName(); }
-        catch (Exception e) { claude.current = ""; }
+        try {
+            File curLink = new File(env.home, ".local/share/hachimia/agy/current");
+            File bin = new File(curLink, "agy");
+            if (!bin.isFile()) {
+                claude.current = "";
+                probedClaudeKey = "";
+                probedClaudeVer = "";
+                return;
+            }
+            String linkVer = new File(Os.readlink(curLink.getPath())).getName();
+            String fk = claudeFileKey(linkVer, bin);
+            if (fk.equals(probedClaudeKey) && !probedClaudeVer.isEmpty()) {
+                claude.current = probedClaudeVer;
+            } else {
+                claude.current = linkVer;
+            }
+        } catch (Exception e) { claude.current = ""; }
     }
 
     /**
@@ -840,6 +878,23 @@ final class Updater {
             String out = new String(box[0] != null ? box[0] : new byte[0], StandardCharsets.UTF_8).trim();
             JSONObject j = null;
             try { j = new JSONObject(out.substring(out.lastIndexOf('{'))); } catch (Exception ignored) {}
+            if (j != null) {
+                String inst = j.optString("installed", "").trim();
+                try {
+                    File curLink = new File(env.home, ".local/share/hachimia/agy/current");
+                    File bin = new File(curLink, "agy");
+                    if (!inst.isEmpty() && bin.isFile()) {
+                        String linkVer = new File(Os.readlink(curLink.getPath())).getName();
+                        probedClaudeKey = claudeFileKey(linkVer, bin);
+                        probedClaudeVer = inst;
+                        claude.current = inst;
+                    } else if (inst.isEmpty() && !bin.isFile()) {
+                        probedClaudeKey = "";
+                        probedClaudeVer = "";
+                        claude.current = "";
+                    }
+                } catch (Exception ignored) {}
+            }
             if (j == null || !j.optBoolean("ok", false)) {
                 throw new IOException(j != null ? j.optString("error", "check failed") : ("exit " + rc));
             }
@@ -1203,16 +1258,18 @@ final class Updater {
     /** 卸载之后（MainActivity.uninstallUi）：状态改成「未安装」 */
     void claudeRemoved() { refreshCurrent(); claude.set("missing", ""); }
 
-    private void installClaude(String ver) {
+    private boolean installClaude(String ver) {
         claude.set("installing", "");
         claude.done = 0; claude.total = 0;
         try {
             int rc = installer(claude).run(env.bin("bash").getPath(), new File(env.app, "scripts/install-agy.sh").getPath(), ver);
+            probedClaudeKey = ""; probedClaudeVer = "";
             refreshCurrent();
             if (rc != 0) throw new IOException(Tr.t("install-agy.sh 返回 ") + rc);
             env.claudeOffFlag().delete();        // 装上了：以后照常跟着更新走
             claude.set("uptodate", Tr.f("已更新到 {0}（下一轮对话起生效）", claude.current));
-        } catch (Exception e) { claude.set("error", e.getMessage()); }
+            return true;
+        } catch (Exception e) { claude.set("error", e.getMessage()); return false; }
     }
 
     // ── 工具包替换 ───────────────────────────────────────────────────────

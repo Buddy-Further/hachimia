@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import { execFile } from "node:child_process";
 import { CFG, HERE, PATHS, PREFIX, log, tz } from "./config.mjs";
 import { verifiedInfo } from "./ccverified.mjs";
@@ -41,17 +42,17 @@ const cmpVer = (a, b) => {
   return 0;
 };
 
-/** 已装 agy 的版本：直接跑 agy --version；跑不起来就读 current 软链指的版本目录名 */
+/** 已装 agy 的版本：直接跑 agy --version（禁掉内置自更新）；二进制不在时返回空串，绝不凭悬空软链谎报已装 */
 function agyVersionOf() {
   return new Promise((ok) => {
     const bin = PATHS.agy;
-    if (!bin || !fs.existsSync(bin)) {
-      try { ok(path.basename(fs.realpathSync(path.join(CFG.home, ".local", "share", "hachimia", "agy", "current")))); return; } catch {}
-      return ok("");
-    }
-    execFile(bin, ["--version"], { timeout: 15000 }, (e, out, err) => {
-      const m = String(out || err || "").match(/\d+\.\d+\.\d+/);
-      if (m) return ok(m[0]);
+    if (!bin || !fs.existsSync(bin)) return ok("");
+    execFile(bin, ["--version"], {
+      timeout: 15000,
+      env: { ...process.env, AGY_CLI_DISABLE_AUTO_UPDATE: "1" },
+    }, (e, out, err) => {
+      const m = String(out || err || "").match(/\b(\d+\.\d+\.\d+(?:-[0-9A-Za-z.+-]+)?)\b/);
+      if (m) return ok(m[1]);
       try { ok(path.basename(fs.realpathSync(path.join(path.dirname(bin), "..", "current")))); }
       catch { ok(""); }
     });
@@ -128,6 +129,7 @@ async function devUpdInstall(version) {
     log(`Antigravity CLI 已更新 ${c.current} → ${v || want}`);
     if (out) log("[agy 安装] " + String(out).trim().split("\n").slice(-3).join("；"));
     c.current = v || want; c.state = "uptodate"; c.message = `已更新到 ${c.current}（下一轮对话起生效）`;
+    ccVersions = { at: 0, data: null };
   } catch (e) {
     c.state = "error"; c.message = e.message;
   } finally { devUpdSave(); }
@@ -234,9 +236,48 @@ async function devApp(op, b) {
   return { ok: false, message: tz("开发端不支持：{op}", { op }) };
 }
 
-// ── Antigravity CLI (agy) 版本清单：查官方 android manifest + 本机已装版本目录 ──
+// ── Antigravity CLI (agy) 版本清单：查官方 android manifest + 本机已装且校验通过的版本目录 ──
 let ccVersions = { at: 0, data: null };
 let ccVersionsInFlight = null;
+const LOCAL_AGY_VER_CACHE = new Map();
+
+function sha256FileSync(f) {
+  const h = crypto.createHash("sha256");
+  const fd = fs.openSync(f, "r");
+  const buf = Buffer.alloc(1 << 20);
+  try {
+    let n;
+    while ((n = fs.readSync(fd, buf, 0, buf.length)) > 0) h.update(buf.subarray(0, n));
+  } finally { fs.closeSync(fd); }
+  return h.digest("hex");
+}
+
+function isLocalAgyDirValid(dest, d) {
+  const dir = path.join(dest, d);
+  const bin = path.join(dir, "agy");
+  const mf = path.join(dir, "manifest.json");
+  if (fs.existsSync(path.join(dir, ".mismatch"))) return false;
+  let bst, mst;
+  try {
+    bst = fs.statSync(bin);
+    mst = fs.statSync(mf);
+    if (!bst.isFile() || !mst.isFile()) return false;
+  } catch { return false; }
+  const fp = `${bst.ino}:${bst.size}:${Math.trunc(bst.mtimeMs)}:${Math.trunc(mst.mtimeMs)}`;
+  const hit = LOCAL_AGY_VER_CACHE.get(dir);
+  if (hit && hit.fp === fp) return hit.ok;
+  let ok = false;
+  try {
+    const j = JSON.parse(fs.readFileSync(mf, "utf8"));
+    if ((!j.version || j.version === d) && typeof j.sha256 === "string" && /^[0-9a-f]{64}$/.test(j.sha256)) {
+      ok = sha256FileSync(bin) === j.sha256;
+    }
+  } catch { ok = false; }
+  if (LOCAL_AGY_VER_CACHE.size > 64) LOCAL_AGY_VER_CACHE.clear();
+  LOCAL_AGY_VER_CACHE.set(dir, { fp, ok });
+  return ok;
+}
+
 async function claudeVersions(force) {
   if (!force && ccVersions.data && Date.now() - ccVersions.at < 600e3) return ccVersions.data;
   if (ccVersionsInFlight) return ccVersionsInFlight;
@@ -255,7 +296,9 @@ async function claudeVersions(force) {
     if (latest) set.add(latest);
     const dest = path.join(CFG.home, ".local", "share", "hachimia", "agy");
     try {
-      for (const d of fs.readdirSync(dest)) if (/^\d+\.\d+\.\d+/.test(d)) set.add(d);
+      for (const d of fs.readdirSync(dest)) {
+        if (/^\d+\.\d+\.\d+/.test(d) && isLocalAgyDirValid(dest, d)) set.add(d);
+      }
     } catch {}
     const versions = [...set].sort((a, b) => cmpVer(b, a));
     const data = { ok: versions.length > 0, versions, stable: latest, latest, message: versions.length ? "" : tz("取不到 Antigravity CLI 版本列表：{err}", { err }) };

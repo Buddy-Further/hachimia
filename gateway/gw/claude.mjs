@@ -936,6 +936,10 @@ export function agyEnv(o = {}) {
     CCAPP_PROVIDER: p.id || "antigravity",
     CCAPP_RUN: "1",
     NO_COLOR: "1",
+    // 禁用 agy 内置后台自更新（agy 不认 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC，只认 AGY_CLI_DISABLE_AUTO_UPDATE）：
+    // 否则 agy 会在对话期间原地覆写 realpath(current/agy)，导致版本目录名与真实二进制脱节、破坏 manifest.json sha256 封签，
+    // 且无视用户的「关闭自动更新」与「固定版本」设置。
+    AGY_CLI_DISABLE_AUTO_UPDATE: "1",
   };
   if (loaderBin) {
     env.CCAPP_LOADER_BIN = loaderBin;
@@ -960,9 +964,9 @@ export function agyEnv(o = {}) {
       env.GOOGLE_GEMINI_BASE_URL = p.baseUrl;
     }
   }
-  // C-05：合入厂商配置的 extraEnv（与 claudeEnv 同口径过滤敏感内部变量，不许覆盖密钥/端点/加载器变量）
+  // C-05：合入厂商配置的 extraEnv（与 claudeEnv 同口径过滤敏感内部变量，不许覆盖密钥/端点/加载器/自更新锁变量）
   for (const [k, v] of Object.entries(p.extraEnv || {})) {
-    if (/^[A-Z_][A-Z0-9_]*$/.test(k) && !EXTRA_ENV_DENY.test(k) && !/^(GEMINI_API_KEY|GOOGLE_GEMINI_BASE_URL|AGY_ADC_AUTH)$/.test(k)) {
+    if (/^[A-Z_][A-Z0-9_]*$/.test(k) && !EXTRA_ENV_DENY.test(k) && !/^(GEMINI_API_KEY|GOOGLE_GEMINI_BASE_URL|AGY_ADC_AUTH|AGY_CLI_DISABLE_AUTO_UPDATE)$/.test(k)) {
       env[k] = String(v);
     }
   }

@@ -63,7 +63,7 @@ export function transcriptItems(ev) {
         let t = "";
         if (typeof r.content === "string") t = r.content;
         else if (Array.isArray(r.content)) t = r.content.map((x) => (x && x.type === "text" ? String(x.text ?? "") : `[${(x && x.type) || "?"}]`)).join("\n");
-        out.push({ role: "tool_result", id: r.tool_use_id, ok: !r.is_error, text: String(t).slice(0, 4000) });
+        out.push({ role: "tool_result", id: r.tool_use_id, ok: !r.is_error, text: String(t).slice(0, 4000), ...(r.cancelled ? { cancelled: true } : {}) });
       }
     }
   } else if (ev.type === "assistant") {

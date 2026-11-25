@@ -852,7 +852,7 @@
             }
             for (const m of items) {
               if (m.role === "tool_use") { const k = api.sub(m.id, m.name, m.input); if (mk && isAgentToolName(m.name) && k && k.subLazy) k.subLazy(mk(m.id), mk); }
-              else if (m.role === "tool_result") toolResult(m.id, m.ok, m.text);
+              else if (m.role === "tool_result") toolResult(m.id, m.ok, m.text, !!m.cancelled);
               else if (m.role === "assistant") api.subText(m.text);
             }
             s.now.textContent = items.length ? "" : t("没有记录");

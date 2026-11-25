@@ -636,6 +636,10 @@ export async function startRun(item) {
       if (ev?.type === "init" && ev.sessionId) noteAcpInit(run, ev.sessionId, item);
       emit(ev);
     };
+    const acpLogDesc = isSlashCmd
+      ? String(displayMsg || "").trim().split(/\s+/)[0].slice(0, 40)
+      : `(${String(displayMsg || "").length} 字)`;
+    log(`▶ [ACP] ${acpLogDesc}  ${run.sessionId ? `(续 ${String(run.sessionId).slice(0, 8)})` : "(新会话)"}  [model=${model || "默认"} effort=${effort || "默认"} perm=${permMode}${run.auto ? ` auto=${run.auto}` : ""}]`);
     const acpRes = await runAcpTurn({
       bin: cliBin,
       cwd,
@@ -691,6 +695,7 @@ export async function startRun(item) {
         }
         if (run.unattended || run.auto) {
           if (run.auto === "bg" && permMode === "bypassPermissions") return { behavior: "allow" };
+          if (run.auto === "bg" && run.permMode === "bypassPermissions") return { behavior: "allow" };
           if (run.unattended && allowed.length && (isAcpToolAllowed(tool, kind, allowed) || (rawName && isAcpToolAllowed(rawName, kind, allowed)))) {
             return { behavior: "allow" };
           }
