@@ -57,7 +57,11 @@ const cmpVer = (a, b) => {
 };
 
 function probeBinVersion(bin, timeoutMs = 10000) {
-  const env = { ...process.env, AGY_CLI_DISABLE_AUTO_UPDATE: "1" };
+  const env = {
+    ...process.env,
+    AGY_CLI_DISABLE_AUTO_UPDATE: "true",
+    DBUS_SESSION_BUS_ADDRESS: process.env.DBUS_SESSION_BUS_ADDRESS || "unix:path=/nonexistent",
+  };
   let r = spawnSync(bin, ["--version"], { encoding: "utf8", timeout: timeoutMs, env });
   if ((r.status !== 0 || r.error?.code === "EACCES") && process.env.CCAPP_EXEC === "loader" && fs.existsSync("/system/bin/linker64")) {
     r = spawnSync("/system/bin/linker64", [bin, "--version"], {
@@ -254,6 +258,8 @@ try {
     ...process.env,
     HOME: stageHome,
     TMPDIR: process.env.TMPDIR || stage,
+    AGY_CLI_DISABLE_AUTO_UPDATE: "true",
+    DBUS_SESSION_BUS_ADDRESS: process.env.DBUS_SESSION_BUS_ADDRESS || "unix:path=/nonexistent",
     ...(wantVer ? { ANTIGRAVITY_VERSION: wantVer, AGY_VERSION: wantVer } : {}),
   };
   const run = spawnSync(SH, scriptArgs, {
@@ -292,7 +298,11 @@ try {
   fs.chmodSync(realFound, 0o755);
   // 刚装好的二进制必须自己能跑、且 --version 报得出版本号（A5/E-11）：
   // 报不出就说明装进来的东西是坏的或输出格式变了，不能把它钉成当前版，更不能回退到 0.0.0-local
-  const probeEnv = { ...process.env, AGY_CLI_DISABLE_AUTO_UPDATE: "1" };
+  const probeEnv = {
+    ...process.env,
+    AGY_CLI_DISABLE_AUTO_UPDATE: "true",
+    DBUS_SESSION_BUS_ADDRESS: process.env.DBUS_SESSION_BUS_ADDRESS || "unix:path=/nonexistent",
+  };
   const vr = spawnSync(realFound, ["--version"], { encoding: "utf8", timeout: 15000, env: probeEnv });
   if (vr.status !== 0) {
     throw new Error(`刚装好的 agy 无法运行（--version 退出码 ${vr.status ?? "null"}${vr.signal ? `（信号 ${vr.signal}）` : ""}），未安装`);

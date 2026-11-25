@@ -49,7 +49,11 @@ function agyVersionOf() {
     if (!bin || !fs.existsSync(bin)) return ok("");
     execFile(bin, ["--version"], {
       timeout: 15000,
-      env: { ...process.env, AGY_CLI_DISABLE_AUTO_UPDATE: "1" },
+      env: {
+        ...process.env,
+        AGY_CLI_DISABLE_AUTO_UPDATE: "true",
+        DBUS_SESSION_BUS_ADDRESS: process.env.DBUS_SESSION_BUS_ADDRESS || "unix:path=/nonexistent",
+      },
     }, (e, out, err) => {
       const m = String(out || err || "").match(/\b(\d+\.\d+\.\d+(?:-[0-9A-Za-z.+-]+)?)\b/);
       if (m) return ok(m[1]);

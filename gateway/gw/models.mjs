@@ -258,8 +258,15 @@ function clearAgyModelsDisk() {
   try { fs.unlinkSync(AGY_MODELS_FILE); } catch {}
 }
 
-function defaultAgyModelsEnv() {
-  const env = { ...process.env, HOME: CFG.home, NO_COLOR: "1" };
+export function defaultAgyModelsEnv() {
+  const env = {
+    ...process.env,
+    HOME: CFG.home,
+    NO_COLOR: "1",
+    // 防止后台 `agy models` 探测触发 auto_updater.go 原地覆写二进制或拉起孤儿 dbus-daemon
+    AGY_CLI_DISABLE_AUTO_UPDATE: "true",
+    DBUS_SESSION_BUS_ADDRESS: process.env.DBUS_SESSION_BUS_ADDRESS || "unix:path=/nonexistent",
+  };
   delete env.GEMINI_API_KEY;
   delete env.GOOGLE_GEMINI_BASE_URL;
   return env;
@@ -272,8 +279,14 @@ export function execAgyModelsShared(bin = PATHS.agy, env = null, { timeoutMs = 1
   }
   const canShare = shared && bin === PATHS.agy;
   if (canShare && AGY_RAW_INFLIGHT) return AGY_RAW_INFLIGHT;
+  const baseEnv = env || defaultAgyModelsEnv();
+  const runEnv = {
+    ...baseEnv,
+    AGY_CLI_DISABLE_AUTO_UPDATE: "true",
+    DBUS_SESSION_BUS_ADDRESS: baseEnv.DBUS_SESSION_BUS_ADDRESS || "unix:path=/nonexistent",
+  };
   const run = new Promise((resolve) => {
-    execFile(bin, ["models"], { cwd: CFG.home, env: env || defaultAgyModelsEnv(), encoding: "utf8", timeout: timeoutMs, maxBuffer: 2 << 20 }, (err, stdout, stderr) => {
+    execFile(bin, ["models"], { cwd: CFG.home, env: runEnv, encoding: "utf8", timeout: timeoutMs, maxBuffer: 2 << 20 }, (err, stdout, stderr) => {
       const status = err ? (typeof err.code === "number" ? err.code : 1) : 0;
       const errMsg = err && !stdout && !stderr ? (err.killed ? "timeout" : err.message || String(err.code || "")) : "";
       resolve({ status, stdout: String(stdout || ""), stderr: String(stderr || errMsg) });

@@ -936,10 +936,13 @@ export function agyEnv(o = {}) {
     CCAPP_PROVIDER: p.id || "antigravity",
     CCAPP_RUN: "1",
     NO_COLOR: "1",
-    // 禁用 agy 内置后台自更新（agy 不认 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC，只认 AGY_CLI_DISABLE_AUTO_UPDATE）：
+    // 禁用 agy 内置后台自更新（auto_updater.go 严格校验 == "true"，填 "1" 无效；且不认 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC）：
     // 否则 agy 会在对话期间原地覆写 realpath(current/agy)，导致版本目录名与真实二进制脱节、破坏 manifest.json sha256 封签，
     // 且无视用户的「关闭自动更新」与「固定版本」设置。
-    AGY_CLI_DISABLE_AUTO_UPDATE: "1",
+    AGY_CLI_DISABLE_AUTO_UPDATE: "true",
+    // Android 无桌面 org.freedesktop.secrets 服务：$PREFIX/bin 在 PATH 中时，若此变量为空，agy (go-keyring / auth_store.go)
+    // 每次启动都会经 dbus-launch 派生孤儿 dbus-daemon --syslog --fork 进程后再回退 plugin-secrets.json。
+    DBUS_SESSION_BUS_ADDRESS: process.env.DBUS_SESSION_BUS_ADDRESS || "unix:path=/nonexistent",
   };
   if (loaderBin) {
     env.CCAPP_LOADER_BIN = loaderBin;

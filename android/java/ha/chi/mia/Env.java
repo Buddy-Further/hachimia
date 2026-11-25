@@ -497,6 +497,9 @@ final class Env {
         e.put("CCAPP_LOADER", new File(usr, "glibc/lib/ld-linux-aarch64.so.1").getPath());
         e.put("CCAPP_GLIBC_LIB", new File(usr, "glibc/lib").getPath());
         e.put("CCAPP_AGY", claude().getPath());
+        // agy 的 auto_updater.go 严格比较 os.Getenv("AGY_CLI_DISABLE_AUTO_UPDATE") == "true"（填 "1" 无效）；
+        // 从宿主根环境起统一锁死为 "true"，杜绝网关/子脚本漏传时后台静默原地覆写版本目录破坏 manifest.json 封签
+        e.put("AGY_CLI_DISABLE_AUTO_UPDATE", "true");
         // 设备上只有 agy、没有独立的 Claude Code 二进制：不要把 agy 路径再写进 CCAPP_CLAUDE。
         // config.mjs 里“claude 存在”会被当成“不是纯 agy 模式”（isAgyOnlyMode），
         // 导致 Claude-only 厂商照常展示、非 ACP 分支拿 glibc 加载器去跑 bionic 的 agy（A7）。

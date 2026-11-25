@@ -1,5 +1,5 @@
 // 更新页版本显示与实际版本脱节（第 3 窝）全链路回归测试：
-// 1. agyEnv 与 bin/agy 锁定 AGY_CLI_DISABLE_AUTO_UPDATE=1，防止后台原地覆写旧版本目录
+// 1. Env.java / agyEnv / defaultAgyModelsEnv / termEnv / bin/agy / install-agy.mjs 统一锁定 AGY_CLI_DISABLE_AUTO_UPDATE="true"（auto_updater.go 严格比较 == "true"，"1" 无效），并注入 DBUS_SESSION_BUS_ADDRESS 抑制孤儿 dbus-daemon
 // 2. install-agy.mjs --check 读真实二进制 --version（而非软链目录名），悬空软链不谎报已装
 // 3. install-agy.mjs <version> 支持离线秒切已校验本地版本；--recheck 自动归位历史自更新漂移目录并继续拦截真篡改
 // 4. devside.mjs /api/claude/versions 剔除 sha256 已漂移的假版本目录
@@ -16,6 +16,8 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { CFG, PATHS } from "../gw/config.mjs";
 import { agyEnv } from "../gw/claude.mjs";
+import { defaultAgyModelsEnv, execAgyModelsShared } from "../gw/models.mjs";
+import { termEnv } from "../gw/terminal.mjs";
 import { closeAllAcpClients, poolKey, runAcpTurn } from "../gw/acp.mjs";
 import { buildCapabilities, setLastInit } from "../gw/caps.mjs";
 import { routeDevside } from "../gw/devside.mjs";
@@ -45,26 +47,87 @@ function writeFakeAgyDir(dest, dirVer, reportVer = dirVer, { writeManifest = tru
   return { dir, bin, sha256: realSha };
 }
 
-test("1. agyEnv 强制注入 AGY_CLI_DISABLE_AUTO_UPDATE=1 且禁止 extraEnv 覆盖；bin/agy 同步拦截自更新", () => {
-  const env = agyEnv({
-    sync: false,
-    provider: {
-      id: "antigravity",
-      group: "antigravity",
-      extraEnv: {
-        AGY_CLI_DISABLE_AUTO_UPDATE: "0",
-        CUSTOM_SAFE_VAR: "ok",
-      },
-    },
-  });
-  assert.equal(env.AGY_CLI_DISABLE_AUTO_UPDATE, "1", "必须锁定 AGY_CLI_DISABLE_AUTO_UPDATE=1");
-  assert.equal(env.CUSTOM_SAFE_VAR, "ok");
+test("1. 全链路强制锁定 AGY_CLI_DISABLE_AUTO_UPDATE=true（覆盖旧值 1/0 与 extraEnv）并抑制孤儿 dbus-daemon", async () => {
+  const prevAuto = process.env.AGY_CLI_DISABLE_AUTO_UPDATE;
+  const prevDbus = process.env.DBUS_SESSION_BUS_ADDRESS;
+  const root = path.join(CFG.workspace, "nest3-env-true");
+  fs.rmSync(root, { recursive: true, force: true });
+  fs.mkdirSync(root, { recursive: true });
 
-  const wrapper = fs.readFileSync(path.join(REPO, "android/assets/bin/agy"), "utf8");
-  assert.match(wrapper, /export AGY_CLI_DISABLE_AUTO_UPDATE="\$\{AGY_CLI_DISABLE_AUTO_UPDATE:-1\}"/);
-  assert.match(wrapper, /if \[ "\$1" = "update" \] && \[ "\$#" -eq 1 \]/);
-  assert.match(wrapper, /scripts\/install-agy\.mjs/);
-  assert.match(wrapper, /exec "\$NODE_BIN" "\$AGY_INSTALLER" stable/);
+  try {
+    // 模拟宿主残留旧版无效值 "1" 且未设 DBUS_SESSION_BUS_ADDRESS
+    process.env.AGY_CLI_DISABLE_AUTO_UPDATE = "1";
+    delete process.env.DBUS_SESSION_BUS_ADDRESS;
+
+    const env = agyEnv({
+      sync: false,
+      provider: {
+        id: "antigravity",
+        group: "antigravity",
+        extraEnv: {
+          AGY_CLI_DISABLE_AUTO_UPDATE: "0",
+          CUSTOM_SAFE_VAR: "ok",
+        },
+      },
+    });
+    assert.equal(env.AGY_CLI_DISABLE_AUTO_UPDATE, "true", "auto_updater.go 严格要求字符串 true，不得为 1 或被 extraEnv 覆盖");
+    assert.equal(env.DBUS_SESSION_BUS_ADDRESS, "unix:path=/nonexistent", "默认注入不存在的 D-Bus 地址以阻断 dbus-launch 孤儿进程");
+    assert.equal(env.CUSTOM_SAFE_VAR, "ok");
+
+    // 显式指定自定义 D-Bus 地址时应予保留
+    process.env.DBUS_SESSION_BUS_ADDRESS = "unix:path=/tmp/custom-dbus.sock";
+    assert.equal(agyEnv({ sync: false }).DBUS_SESSION_BUS_ADDRESS, "unix:path=/tmp/custom-dbus.sock");
+    delete process.env.DBUS_SESSION_BUS_ADDRESS;
+
+    // models.mjs 后台模型探测漏口封堵验证
+    const mEnv = defaultAgyModelsEnv();
+    assert.equal(mEnv.AGY_CLI_DISABLE_AUTO_UPDATE, "true");
+    assert.equal(mEnv.DBUS_SESSION_BUS_ADDRESS, "unix:path=/nonexistent");
+
+    const spyModelsBin = path.join(root, "spy-agy-models");
+    fs.writeFileSync(spyModelsBin, `#!${SH_BIN}\necho "AUTO=$AGY_CLI_DISABLE_AUTO_UPDATE DBUS=$DBUS_SESSION_BUS_ADDRESS"\n`, { mode: 0o755 });
+    const mr = await execAgyModelsShared(spyModelsBin, { ...process.env, AGY_CLI_DISABLE_AUTO_UPDATE: "1", DBUS_SESSION_BUS_ADDRESS: "" }, { shared: false });
+    assert.match(mr.stdout, /AUTO=true DBUS=unix:path=\/nonexistent/);
+
+    // 应用内终端环境同样锁定 true
+    assert.equal(termEnv().AGY_CLI_DISABLE_AUTO_UPDATE, "true");
+
+    // bin/agy 包装脚本：即使父进程传入旧值 AGY_CLI_DISABLE_AUTO_UPDATE=1，也必须强制覆写为 true
+    const wrapperPath = path.join(REPO, "android/assets/bin/agy");
+    const wrapper = fs.readFileSync(wrapperPath, "utf8");
+    assert.match(wrapper, /export AGY_CLI_DISABLE_AUTO_UPDATE="true"/);
+    assert.match(wrapper, /export DBUS_SESSION_BUS_ADDRESS="\$\{DBUS_SESSION_BUS_ADDRESS:-unix:path=\/nonexistent\}"/);
+    assert.match(wrapper, /if \[ "\$1" = "update" \] && \[ "\$#" -eq 1 \]/);
+    assert.match(wrapper, /scripts\/install-agy\.mjs/);
+    assert.match(wrapper, /exec "\$NODE_BIN" "\$AGY_INSTALLER" stable/);
+
+    const wr = spawnSync(SH_BIN, [wrapperPath, "--version"], {
+      env: { ...process.env, CCAPP_AGY: spyModelsBin, AGY_CLI_DISABLE_AUTO_UPDATE: "1", DBUS_SESSION_BUS_ADDRESS: "" },
+      encoding: "utf8",
+    });
+    assert.equal(wr.status, 0);
+    assert.match(wr.stdout, /AUTO=true DBUS=unix:path=\/nonexistent/);
+
+    // Env.java / install-agy.mjs / devside.mjs 源码契约：不得残留 = "1"
+    const envJava = fs.readFileSync(path.join(REPO, "android/java/ha/chi/mia/Env.java"), "utf8");
+    assert.match(envJava, /e\.put\("AGY_CLI_DISABLE_AUTO_UPDATE",\s*"true"\)/);
+    for (const rel of [
+      "android/assets/scripts/install-agy.mjs",
+      "gateway/gw/claude.mjs",
+      "gateway/gw/models.mjs",
+      "gateway/gw/devside.mjs",
+      "gateway/gw/terminal.mjs",
+    ]) {
+      const src = fs.readFileSync(path.join(REPO, rel), "utf8");
+      assert.doesNotMatch(src, /AGY_CLI_DISABLE_AUTO_UPDATE\s*[:=]\s*["']1["']/, `${rel} 不得残留无效的 AGY_CLI_DISABLE_AUTO_UPDATE="1"`);
+    }
+  } finally {
+    if (prevAuto === undefined) delete process.env.AGY_CLI_DISABLE_AUTO_UPDATE;
+    else process.env.AGY_CLI_DISABLE_AUTO_UPDATE = prevAuto;
+    if (prevDbus === undefined) delete process.env.DBUS_SESSION_BUS_ADDRESS;
+    else process.env.DBUS_SESSION_BUS_ADDRESS = prevDbus;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("2. install-agy.mjs --check 返回真实二进制版本（纠正原地自更新后的目录名错位）且悬空软链返回空串", () => {

@@ -23,8 +23,11 @@ if [ ! -e "$AGY_BIN" ]; then
   echo "hachimia: Antigravity CLI (agy) 未安装，请到 设置 → 更新 中安装。" >&2
   exit 127
 fi
-# 统一关闭 agy 后台静默原地自更新，版本升级统一归口到 设置 → 更新（或上面的 agy update -> install-agy.mjs）
-export AGY_CLI_DISABLE_AUTO_UPDATE="${AGY_CLI_DISABLE_AUTO_UPDATE:-1}"
+# 统一关闭 agy 后台静默原地自更新（auto_updater.go 严格比较 == "true"，填 1 无效），
+# 版本升级统一归口到 设置 → 更新（或上面的 agy update -> install-agy.mjs）；
+# 同时在未显式配置 D-Bus 时指向不存在的套接字，避免无桌面环境每次启动派生孤儿 dbus-daemon。
+export AGY_CLI_DISABLE_AUTO_UPDATE="true"
+export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=/nonexistent}"
 # targetSdk ≥ 29「经加载器」模式：agy（Go）直发裸 SYS_execve 绕过 LD_PRELOAD，
 # 将 SHELL 与 PATH 首段指向 APK 原生库跳板软链目录，保证 run_command 与常用工具可正常拉起。
 if [ "$CCAPP_EXEC" = "loader" ] && [ -n "$CCAPP_LOADER_BIN" ] && [ -n "$CCAPP_LOADER_RUN" ] && [ -e "$CCAPP_LOADER_RUN" ]; then

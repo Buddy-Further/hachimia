@@ -101,6 +101,8 @@ export function termEnv() {
   const loc = path.join(PATHS.toolchain, "dshtc", "prefix", "glibc", "lib", "locale");
   if (!PREFIX && !env.LOCPATH && fs.existsSync(loc)) env.LOCPATH = loc;
   env.CCAPP_TERMINAL = "1";
+  // 终端里即便绕过包装脚本直接调真实 agy 二进制，也保持禁用内置后台原地自更新（必须为精确字符串 "true"）
+  env.AGY_CLI_DISABLE_AUTO_UPDATE = "true";
   // 终端里直接敲 claude 也用应用配的这家：claudeEnv 不带密钥（防 env 泄漏），这里只给钥匙文件的路径，见 termKeyFile
   const kf = termKeyFile();
   if (kf) env.CCAPP_KEY_FILE = kf; else delete env.CCAPP_KEY_FILE;
