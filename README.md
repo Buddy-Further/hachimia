@@ -248,6 +248,10 @@ Layout:
 - **[Shizuku](https://shizuku.rikka.app)** (RikkaApps): system privileges without root.
 - **[OpenCC](https://github.com/BYVoid/OpenCC)** / [opencc-js](https://github.com/nk2028/opencc-js): the Traditional Chinese UI strings were converted with it, then reviewed by hand.
 
+### Community contributors
+
+- **[YQXYWM](https://github.com/YQXYWM)**: tracked down and submitted a full root-cause report for the infinite startup loop where a pre-downloaded toolchain was misclassified as a downgrade across an APK upgrade and deadlocked waiting on the startup confirmation dialog (fixed in 0.1.15).
+
 ## License
 
 hachimia itself is released under the [Apache License 2.0](LICENSE) (see also [NOTICE](NOTICE)).

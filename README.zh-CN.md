@@ -248,6 +248,10 @@ node devkit/devkit.mjs build --target ha.chi.mia   # 构建工具链（CI 也能
 - **[Shizuku](https://shizuku.rikka.app)**（RikkaApps）：不用 Root 的系统权限。
 - **[OpenCC](https://github.com/BYVoid/OpenCC)** / [opencc-js](https://github.com/nk2028/opencc-js)：繁体中文界面字符串由它转换，再人工校对。
 
+### 社区贡献者
+
+- **[YQXYWM](https://github.com/YQXYWM)**：排查并提交跨版本升级后预下载开发工具包误判降级、启动期确认弹窗死锁导致无限重试循环的完整根因定位报告（0.1.15 同步修复）。
+
 ## 许可
 
 hachimia 本身以 [Apache License 2.0](LICENSE) 发布（另见 [NOTICE](NOTICE)）。
