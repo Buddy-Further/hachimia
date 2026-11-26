@@ -34,4 +34,6 @@ if [ -f "$AJAR" ]; then
   java -cp "$OUT:$AJAR" ha.chi.mia.GatewaySquattedTest
   javac -nowarn -d "$OUT" -cp "$OUT:$AJAR" "$ROOT/android/tests/ha/chi/mia/A11yProtectedPackageTest.java"
   java -cp "$OUT:$AJAR" ha.chi.mia.A11yProtectedPackageTest
+  javac -nowarn -d "$OUT" -cp "$OUT:$AJAR" "$ROOT/android/tests/ha/chi/mia/UpdaterDevkitStagedTest.java"
+  java -cp "$OUT:$AJAR" ha.chi.mia.UpdaterDevkitStagedTest
 else echo "跳过 WhatsNewPickTest（没有 android.jar）"; fi
