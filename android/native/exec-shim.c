@@ -52,9 +52,11 @@ extern int *__errno_location(void);
 #define ENOENT_ 2
 #define E2BIG_ 7
 #define ENOEXEC_ 8
+#define ENOMEM_ 12
 #define EACCES_ 13
 #define ENOTDIR_ 20
 #define ETXTBSY_ 26
+#define ELOOP_ 40
 #define AT_EMPTY_PATH_ 0x1000
 #define NR_execveat 281
 
@@ -104,26 +106,35 @@ static int kind(const char *path, char *line, size_t cap) {
     int k = K_OTHER;
     long hn = sc(NR_pread64, fd, (long)h, 64, 0);   /* 短文件读不满 64 字节：只看读到的（11-04 报告 二） */
     if (hn == 64 && h[0] == 0x7f && h[1] == 'E' && h[2] == 'L' && h[3] == 'F' && h[4] == 2) {
-        unsigned long phoff = *(unsigned long *)(h + 32);
-        unsigned short phent = *(unsigned short *)(h + 54), phnum = *(unsigned short *)(h + 56);
+        unsigned long phoff = 0;
+        unsigned short phent = 0, phnum = 0;
+        __builtin_memcpy(&phoff, h + 32, sizeof(phoff));
+        __builtin_memcpy(&phent, h + 54, sizeof(phent));
+        __builtin_memcpy(&phnum, h + 56, sizeof(phnum));
         k = ends(path, "ld-linux-aarch64.so.1") ? K_LDSO : K_OTHER;
-        for (int i = 0; i < phnum && i < 64; i++) {
-            unsigned char ph[56];
-            if (sc(NR_pread64, fd, (long)ph, 56, phoff + (unsigned long)i * phent) != 56) break;
-            if (*(unsigned int *)ph != 3 /* PT_INTERP */) continue;
-            unsigned long off = *(unsigned long *)(ph + 8), sz = *(unsigned long *)(ph + 32);
-            char ip[128];
-            if (sz == 0 || sz >= sizeof ip) break;
-            if (sc(NR_pread64, fd, (long)ip, sz, off) != (long)sz) break;
-            ip[sz] = 0;
-            k = ends(ip, "linker64") ? K_BIONIC : ends(ip, "ld-linux-aarch64.so.1") ? K_GLIBC : K_OTHER;
-            break;
+        if (phent >= 56) {
+            for (int i = 0; i < phnum && i < 64; i++) {
+                unsigned char ph[56];
+                if (sc(NR_pread64, fd, (long)ph, 56, phoff + (unsigned long)i * phent) != 56) break;
+                unsigned int ptype = 0;
+                __builtin_memcpy(&ptype, ph, sizeof(ptype));
+                if (ptype != 3 /* PT_INTERP */) continue;
+                unsigned long off = 0, sz = 0;
+                __builtin_memcpy(&off, ph + 8, sizeof(off));
+                __builtin_memcpy(&sz, ph + 32, sizeof(sz));
+                char ip[128];
+                if (sz == 0 || sz >= sizeof ip) break;
+                if (sc(NR_pread64, fd, (long)ip, sz, off) != (long)sz) break;
+                ip[sz] = 0;
+                k = ends(ip, "linker64") ? K_BIONIC : ends(ip, "ld-linux-aarch64.so.1") ? K_GLIBC : K_OTHER;
+                break;
+            }
         }
     } else if (hn >= 2 && h[0] == '#' && h[1] == '!') {
         long n = sc(NR_pread64, fd, (long)line, cap - 1, 2);
         if (n > 0) {
             line[n] = 0;
-            for (long i = 0; i < n; i++) if (line[i] == '\n') { line[i] = 0; break; }
+            for (long i = 0; i < n; i++) if (line[i] == '\n' || line[i] == '\r') { line[i] = 0; break; }
             k = K_SCRIPT;
         }
     }
@@ -145,25 +156,28 @@ static char **fixenv2(char *const *envp, char **ev, int mode, arena *a, const ch
     for (int i = 0; envp && envp[i]; i++)
         if (!pre(envp[i], "LD_PRELOAD=") && !(var && pre(envp[i], var))) ev[n++] = envp[i];
     const char *bp = getenv("CCAPP_BIONIC_PRELOAD");
-    if (mode == ENV_BIONIC && bp && *bp) { char *s = put(a, "LD_PRELOAD=", bp, 0); if (s) ev[n++] = s; }
-    if (var && val) { char *s = put(a, var, val, 0); if (s) ev[n++] = s; }
+    if (mode == ENV_BIONIC && bp && *bp) {
+        char *s = put(a, "LD_PRELOAD=", bp, 0);
+        if (!s) return 0;
+        ev[n++] = s;
+    }
+    if (var && val) {
+        char *s = put(a, var, val, 0);
+        if (!s) return 0;
+        ev[n++] = s;
+    }
     ev[n] = 0;
     return ev;
 }
 #define SELF_B "TERMUX_EXEC__PROC_SELF_EXE="
 #define SELF_G "CCAPP_SELF_EXE="
 static char **fixenv(char *const *envp, char **ev, int mode, arena *a) {
-    int n = 0;
-    for (int i = 0; envp && envp[i]; i++) if (!pre(envp[i], "LD_PRELOAD=")) ev[n++] = envp[i];
-    const char *bp = getenv("CCAPP_BIONIC_PRELOAD");
-    if (mode == ENV_BIONIC && bp && *bp) { char *s = put(a, "LD_PRELOAD=", bp, 0); if (s) ev[n++] = s; }
-    ev[n] = 0;
-    return ev;
+    return fixenv2(envp, ev, mode, a, 0, 0);
 }
 
 /*
  * 算出真正要 exec 的东西。av / ev / a 都是调用方栈上的空间：
- * av 至少 argc + 24 格，ev 至少 envc + 2 格。返回 0 表示原样执行。
+ * av 至少 argc + 24 格，ev 至少 envc + 2 格。返回 1 表示已改写、0 表示原样执行、负数表示 -errno 失败。
  */
 static int mkplan(const char *path, char *const *argv, char *const *envp, char **av, char **ev, arena *a, plan *p) {
     const char *ld = getenv("CCAPP_LD");
@@ -179,9 +193,11 @@ static int mkplan(const char *path, char *const *argv, char *const *envp, char *
     int scripted = 0;
     for (int depth = 0; depth < 5; depth++) {
         if (streq(cur, ld)) {                        /* 直接 exec APK 里的 ld.so（claude 包装脚本就这样）：原样，环境按 glibc 来（不许带回 bionic 的 LD_PRELOAD） */
-            if (!scripted) { p->path = path; p->argv = (char **)argv; p->envp = fixenv2(envp, ev, ENV_GLIBC, a, SELF_G, 0); return 1; }
+            char **ne = fixenv2(envp, ev, ENV_GLIBC, a, SELF_G, 0);
+            if (!ne) return -E2BIG_;
+            if (!scripted) { p->path = path; p->argv = (char **)argv; p->envp = ne; return 1; }
             av[s] = (char *)cur;
-            p->path = cur; p->argv = av + s; p->envp = fixenv2(envp, ev, ENV_GLIBC, a, SELF_G, 0);
+            p->path = cur; p->argv = av + s; p->envp = ne;
             return 1;
         }
         if (sysdir(cur)) {                           /* 系统程序：能直接 exec */
@@ -189,28 +205,36 @@ static int mkplan(const char *path, char *const *argv, char *const *envp, char *
                脚本里再拉工具包里的同名程序（$PREFIX/bin/cmd）就被直接 exec、Permission denied */
             if (!scripted) {                         /* 原样执行，只把 termux-exec 塞进环境 */
                 if (!getenv("CCAPP_BIONIC_PRELOAD")) return 0;
-                p->path = path; p->argv = (char **)argv; p->envp = fixenv(envp, ev, ENV_BIONIC, a);
+                char **ne = fixenv(envp, ev, ENV_BIONIC, a);
+                if (!ne) return -E2BIG_;
+                p->path = path; p->argv = (char **)argv; p->envp = ne;
                 return 1;
             }
+            char **ne = fixenv(envp, ev, ENV_BIONIC, a);
+            if (!ne) return -E2BIG_;
             av[s] = (char *)cur;
-            p->path = cur; p->argv = av + s; p->envp = fixenv(envp, ev, ENV_BIONIC, a);
+            p->path = cur; p->argv = av + s; p->envp = ne;
             return 1;
         }
         char line[256];
         int k = kind(cur, line, sizeof line);
         if (k == K_SCRIPT) {
+            size_t ll = slen(line);
+            while (ll > 0 && (line[ll - 1] == ' ' || line[ll - 1] == '\t' || line[ll - 1] == '\r' || line[ll - 1] == '\n'))
+                line[--ll] = 0;
             char *q = line;
             while (*q == ' ' || *q == '\t') q++;
             char *ip = q; while (*q && *q != ' ' && *q != '\t') q++;
             char *arg = 0;
-            if (*q) { *q++ = 0; while (*q == ' ' || *q == '\t') q++; if (*q) { arg = q; char *t = q + slen(q); while (t > q && (t[-1] == ' ' || t[-1] == '\t' || t[-1] == '\r')) *--t = 0; } }
-            if (!*ip || s < 10) return 0;
+            if (*q) { *q++ = 0; while (*q == ' ' || *q == '\t') q++; if (*q) arg = q; }
+            if (!*ip) return -ENOEXEC_;
+            if (s < 10) return -ELOOP_;
             /* /usr/bin/env、/bin/bash 这类安卓上没有的解释器改指 $PREFIX/bin（与 termux-exec 一致） */
             const char *pf = getenv("PREFIX");
             const char *nm = pre(ip, "/usr/bin/") ? ip + 9 : pre(ip, "/bin/") ? ip + 5 : 0;
-            if (nm && pf && !exists(ip)) { char *m = put(a, pf, "/bin/", nm); if (m) ip = m; }
+            if (nm && pf && !exists(ip)) { char *m = put(a, pf, "/bin/", nm); if (!m) return -E2BIG_; ip = m; }
             char *ipc = put(a, ip, 0, 0), *argc_ = arg ? put(a, arg, 0, 0) : 0;
-            if (!ipc || (arg && !argc_)) return 0;
+            if (!ipc || (arg && !argc_)) return -E2BIG_;
             av[s] = (char *)cur;                     /* 原来的槽 0 变成脚本路径 */
             if (argc_) av[--s] = argc_;
             av[--s] = ipc;
@@ -223,46 +247,60 @@ static int mkplan(const char *path, char *const *argv, char *const *envp, char *
 #endif
             char *abs = (char *)cur;
             if (cur[0] != '/') {
-                char cwd[512];
-                if (sc(NR_getcwd, (long)cwd, sizeof cwd, 0, 0) <= 0) return 0;
-                abs = put(a, cwd, "/", cur); if (!abs) return 0;
+                char cwd[2048];
+                if (sc(NR_getcwd, (long)cwd, sizeof cwd, 0, 0) <= 0) return -E2BIG_;
+                abs = put(a, cwd, "/", cur); if (!abs) return -E2BIG_;
             }
-            av[s] = abs;
+            /* /system/bin/linker64 仅支持 [<--list>] PROGRAM [ARGS...]，无 --argv0：PROGRAM 必须留在 argv[1] 并会成为目标 argv[0]；
+               对于 -bash/-sh 登录 shell，补入 -l 以保留登录语义（同 loader-run.c）。 */
+            if (!scripted && argv0 && argv0[0] == '-' && (ends(abs, "/bash") || ends(abs, "/sh")) &&
+                !(av[s + 1] && (streq(av[s + 1], "-l") || streq(av[s + 1], "--login")))) {
+                av[s] = (char *)"-l";
+                av[--s] = abs;
+            } else {
+                av[s] = abs;
+            }
             av[--s] = "/system/bin/linker64";
-            p->path = "/system/bin/linker64"; p->argv = av + s; p->envp = fixenv2(envp, ev, ENV_BIONIC, a, SELF_B, abs);
+            char **ne = fixenv2(envp, ev, ENV_BIONIC, a, SELF_B, abs);
+            if (!ne) return -E2BIG_;
+            p->path = "/system/bin/linker64"; p->argv = av + s; p->envp = ne;
             return 1;
         }
         if (k == K_GLIBC) {
             const char *lib = getenv("CCAPP_GLIBC_LIB"), *pl = getenv("CCAPP_GLIBC_PRELOAD");
             char *abs = (char *)cur;
             if (cur[0] != '/') {
-                char cwd[512];
-                if (sc(NR_getcwd, (long)cwd, sizeof cwd, 0, 0) <= 0) return 0;
-                abs = put(a, cwd, "/", cur); if (!abs) return 0;
+                char cwd[2048];
+                if (sc(NR_getcwd, (long)cwd, sizeof cwd, 0, 0) <= 0) return -E2BIG_;
+                abs = put(a, cwd, "/", cur); if (!abs) return -E2BIG_;
             }
             av[s] = abs;
             if (pl && *pl) { av[--s] = (char *)pl; av[--s] = "--preload"; }
             if (lib && *lib) { av[--s] = (char *)lib; av[--s] = "--library-path"; }
             av[--s] = (char *)argv0; av[--s] = "--argv0";
             av[--s] = (char *)ld;
-            p->path = ld; p->argv = av + s; p->envp = fixenv2(envp, ev, ENV_GLIBC, a, SELF_G, abs);
+            char **ne = fixenv2(envp, ev, ENV_GLIBC, a, SELF_G, abs);
+            if (!ne) return -E2BIG_;
+            p->path = ld; p->argv = av + s; p->envp = ne;
             return 1;
         }
         if (k == K_LDSO) {                           /* 有人直接 exec 工具包里的 ld.so：换成 APK 里那份 */
+            char **ne = fixenv2(envp, ev, ENV_GLIBC, a, SELF_G, 0);
+            if (!ne) return -E2BIG_;
             av[s] = (char *)ld;
-            p->path = ld; p->argv = av + s; p->envp = fixenv2(envp, ev, ENV_GLIBC, a, SELF_G, 0);
+            p->path = ld; p->argv = av + s; p->envp = ne;
             return 1;
         }
         return 0;                                    /* 静态程序 / 不认识的：原样 */
     }
-    return 0;
+    return -ELOOP_;
 }
 
 #define PLAN_SPACE(argv, envp)                                              \
     int ac_ = 0, ec_ = 0;                                                   \
     while ((argv) && (argv)[ac_]) ac_++;                                    \
     while ((envp) && (envp)[ec_]) ec_++;                                    \
-    char *av_[ac_ + 24]; /* 前 20 格留给加载器和解释器 */ char *ev_[ec_ + 3]; char buf_[2048];               \
+    char *av_[ac_ + 24]; /* 前 20 格留给加载器和解释器 */ char *ev_[ec_ + 3]; char buf_[8192]; \
     arena ar_ = { buf_, 0, sizeof buf_ }; plan pl_
 
 static long raw_execve(const char *p, char *const *a, char *const *e) { return sc(NR_execve, (long)p, (long)a, (long)e, 0); }
@@ -321,7 +359,9 @@ ssize_t readlinkat(int fd, const char *p, char *buf, size_t sz) {
 int execve(const char *path, char *const argv[], char *const envp[]) {
     if (path && streq(path, "/proc/self/exe")) { const char *e = realself(); if (e) path = e; }
     PLAN_SPACE(argv, envp);
-    if (mkplan(path, argv, envp, av_, ev_, &ar_, &pl_)) { ERRNO = (int)-raw_execve(pl_.path, pl_.argv, pl_.envp); return -1; }
+    int mr = mkplan(path, argv, envp, av_, ev_, &ar_, &pl_);
+    if (mr < 0) { ERRNO = -mr; return -1; }
+    if (mr > 0) { ERRNO = (int)-raw_execve(pl_.path, pl_.argv, pl_.envp); return -1; }
 #ifdef BIONIC
     if (!next_execve) next_execve = (execve_fn)dlsym(RTLD_NEXT, "execve");
     if (next_execve) return next_execve(path, argv, envp);
@@ -378,6 +418,22 @@ static const char *which_nth(const char *f, char *out, size_t cap, int skip) {
 }
 __attribute__((unused)) static const char *which(const char *f, char *out, size_t cap) { return which_nth(f, out, cap, 0); }
 
+static const char *sh_path(void) { return exists("/system/bin/sh") ? "/system/bin/sh" : "/bin/sh"; }
+
+/* targetSdk 36 W^X 下无 #! 脚本直调 execve 返回 EACCES 而非 ENOEXEC：仅对非系统目录、普通可执行且可读的非 ELF 非 #! 文件放行回退 sh */
+static int is_plain_script(const char *p) {
+    if (!p || !*p || sysdir(p) || !executable(p)) return 0;
+    if (sc(NR_faccessat, AT_FDCWD, (long)p, 4 /* R_OK */, 0) != 0) return 0;
+    int fd = (int)sc(NR_openat, AT_FDCWD, (long)p, 0x80800 /* O_CLOEXEC|O_NONBLOCK */, 0);
+    if (fd < 0) return 0;
+    unsigned char h[4];
+    long n = sc(NR_pread64, fd, (long)h, 4, 0);
+    sc(NR_close, fd, 0, 0, 0);
+    if (n >= 4 && h[0] == 0x7f && h[1] == 'E' && h[2] == 'L' && h[3] == 'F') return 0;
+    if (n >= 2 && h[0] == '#' && h[1] == '!') return 0;
+    return 1;
+}
+
 int execvpe(const char *file, char *const argv[], char *const envp[]) {
     char tmp[1024];
     if (!file || !*file) { ERRNO = ENOENT_; return -1; }
@@ -387,21 +443,20 @@ int execvpe(const char *file, char *const argv[], char *const envp[]) {
         if (!p) break;
         execve(p, argv, envp);
         int e = ERRNO;
-        if (e == ENOEXEC_) {
+        if (e == ENOEXEC_ || (e == EACCES_ && is_plain_script(p))) {
             /* 没有 #! 的脚本：同 bionic / glibc 的 execvp，交给 sh 跑；sh 也起不来再接着找 */
             int ac = 0; while (argv && argv[ac]) ac++;
-            if (ac < 250) {
+            if (ac < 4096) {
                 char *sv[ac + 3]; sv[0] = (char *)"sh"; sv[1] = (char *)p;
                 for (int j = 1; j <= ac; j++) sv[j + 1] = argv[j];
                 if (ac == 0) sv[2] = 0;
-                execve("/system/bin/sh", sv, envp);
+                execve(sh_path(), sv, envp);
             }
-            e = ENOEXEC_;
         }
         /* 这几种换下一个接着试（同 glibc execvpe）；别的错误直接报 */
+        if (has(file, '/')) { ERRNO = e; return -1; }
         if (e == EACCES_) eacces = 1;
         else if (e != ENOENT_ && e != ENOTDIR_ && e != ENOEXEC_ && e != ETXTBSY_) return -1;
-        if (has(file, '/')) break;
     }
     ERRNO = eacces ? EACCES_ : ENOENT_;
     return -1;
@@ -410,24 +465,26 @@ int execvpe(const char *file, char *const argv[], char *const envp[]) {
 int execvp(const char *file, char *const argv[]) { return execvpe(file, argv, environ); }
 
 /* execl / execle / execlp：参数表收进栈上的数组再走 execve / execvp（11-04 报告 二：以前这几个绕过了垫片） */
-#define EXECL_ARGS(first, ap, av, n, envp_out)                                   \
+#define EXECL_ARGS(first, ap, av, n)                                             \
     __builtin_va_list ap; char *av[256]; int n = 0; av[n++] = (char *)(first);   \
     __builtin_va_start(ap, first);                                               \
-    while (n < 255 && (av[n] = __builtin_va_arg(ap, char *))) n++;               \
-    if (n >= 255) { __builtin_va_end(ap); ERRNO = E2BIG_; return -1; }          \
+    if (first) {                                                                 \
+        while (n < 255 && (av[n] = __builtin_va_arg(ap, char *))) n++;           \
+        if (n >= 255) { __builtin_va_end(ap); ERRNO = E2BIG_; return -1; }       \
+    }                                                                            \
     av[n] = 0
 int execl(const char *path, const char *arg0, ...) {
-    EXECL_ARGS(arg0, ap, av, n, 0);
+    EXECL_ARGS(arg0, ap, av, n);
     __builtin_va_end(ap);
     return execve(path, av, environ);
 }
 int execlp(const char *file, const char *arg0, ...) {
-    EXECL_ARGS(arg0, ap, av, n, 0);
+    EXECL_ARGS(arg0, ap, av, n);
     __builtin_va_end(ap);
     return execvp(file, av);
 }
 int execle(const char *path, const char *arg0, ...) {
-    EXECL_ARGS(arg0, ap, av, n, 0);
+    EXECL_ARGS(arg0, ap, av, n);
     char **envp = __builtin_va_arg(ap, char **);   /* NULL 后面跟着环境 */
     __builtin_va_end(ap);
     return execve(path, av, envp);
@@ -468,16 +525,39 @@ static spawn_fn real_spawn, real_spawnp;
 
 int posix_spawn(int *pid, const char *path, const void *fa, const void *at, char *const argv[], char *const envp[]) {
     if (!real_spawn) real_spawn = (spawn_fn)dlsym(RTLD_NEXT, "posix_spawn");
+    if (path && streq(path, "/proc/self/exe")) { const char *e = realself(); if (e) path = e; }
     PLAN_SPACE(argv, envp);
-    if (mkplan(path, argv, envp, av_, ev_, &ar_, &pl_)) return real_spawn(pid, pl_.path, fa, at, pl_.argv, pl_.envp);
+    int mr = mkplan(path, argv, envp, av_, ev_, &ar_, &pl_);
+    if (mr < 0) return -mr;
+    if (!real_spawn) return ENOEXEC_;
+    if (mr > 0) return real_spawn(pid, pl_.path, fa, at, pl_.argv, pl_.envp);
     return real_spawn(pid, path, fa, at, argv, envp);
 }
 
 int posix_spawnp(int *pid, const char *file, const void *fa, const void *at, char *const argv[], char *const envp[]) {
     if (!real_spawnp) real_spawnp = (spawn_fn)dlsym(RTLD_NEXT, "posix_spawnp");
+    if (!file || !*file) return ENOENT_;
+    int eacces = 0;
     char tmp[1024];
-    const char *p = getenv("CCAPP_LD") ? which(file, tmp, sizeof tmp) : 0;
-    if (!p) return real_spawnp(pid, file, fa, at, argv, envp);
-    return posix_spawn(pid, p, fa, at, argv, envp);
+    for (int i = 0; i < 256; i++) {
+        const char *p = which_nth(file, tmp, sizeof tmp, i);
+        if (!p) break;
+        int e = posix_spawn(pid, p, fa, at, argv, envp);
+        if (e == 0) return 0;
+        if (e == ENOEXEC_ || (e == EACCES_ && is_plain_script(p))) {
+            int ac = 0; while (argv && argv[ac]) ac++;
+            if (ac < 4096) {
+                char *sv[ac + 3]; sv[0] = (char *)"sh"; sv[1] = (char *)p;
+                for (int j = 1; j <= ac; j++) sv[j + 1] = argv[j];
+                if (ac == 0) sv[2] = 0;
+                int se = posix_spawn(pid, sh_path(), fa, at, sv, envp);
+                if (se == 0) return 0;
+            }
+        }
+        if (has(file, '/')) return e;
+        if (e == EACCES_) eacces = 1;
+        else if (e != ENOENT_ && e != ENOTDIR_ && e != ENOEXEC_ && e != ETXTBSY_) return e;
+    }
+    return eacces ? EACCES_ : ENOENT_;
 }
 #endif

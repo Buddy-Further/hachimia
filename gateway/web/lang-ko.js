@@ -3175,4 +3175,12 @@ window.I18N_DICT["ko"] = {
   "检测编译器、Python、Node、git 等可用状态并同步给 Antigravity（更新后自动重测）。": "컴파일러, Python, Node, git 등의 사용 가능 여부를 점검해 Antigravity에 전달합니다(업데이트 후 자동 재검사).",
   "界面加载失败，点此重试": "화면을 불러오지 못했습니다(탭하여 재시도)",
   "保存不调用远端模型，也不切换当前会话。": "저장 시 원격 모델을 호출하거나 현재 세션을 전환하지 않습니다.",
+  "Antigravity CLI 程序核验没过，这次没有运行：{why}": "Antigravity CLI 무결성 검사를 통과하지 못해 실행하지 않았습니다: {why}",
+  "当前引擎 (Antigravity CLI) 暂不支持文件检查点回退": "현재 엔진(Antigravity CLI)은 파일 체크포인트 되돌리기를 아직 지원하지 않습니다",
+  "当前引擎 (Antigravity CLI) 暂不支持插件市场管理": "현재 엔진(Antigravity CLI)은 플러그인 마켓플레이스 관리를 아직 지원하지 않습니다",
+  "当前引擎 (Antigravity CLI) 暂不支持该 MCP 子命令": "현재 엔진(Antigravity CLI)은 이 MCP 하위 명령을 아직 지원하지 않습니다",
+  "MCP 配置不是合法的 JSON": "MCP 설정이 올바른 JSON 형식이 아닙니다",
+  "共享目录 /sdcard/hachimia": "공유 폴더 /sdcard/hachimia",
+  "拒绝写入可能影响下一轮安全性的内容：{what}": "다음 턴의 보안에 영향을 줄 수 있는 내용 쓰기를 차단했습니다: {what}",
+  "模型「{model}」设置被 agent 拒绝（{msg}），已按默认跑。": "모델 \"{model}\" 설정이 에이전트에 의해 거부되어({msg}) 기본 모델로 실행합니다.",
 };

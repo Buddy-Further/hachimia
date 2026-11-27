@@ -35,6 +35,7 @@ const STATE_FILE = () => H("ccapp-storage.json");
 // ── 永不碰：设置与状态、密钥、技能、插件、记忆、说明文件、审计与网关日志（落在这些下面的一律不删，哪怕规则算错了） ──
 const NEVER = () => [H(".keys"), H(".ssh"), H(".gateway-token"), H(".bldtools"), H(".claude", "skills"), H(".claude", "plugins"),
   H(".claude", "projects"), H(".claude", "CLAUDE.md"), H(".claude", "settings.json"), H(".claude", ".credentials.json"), H(".claude.json"),
+  H(".gemini", "antigravity-cli"), H(".local", "share", "hachimia", "agy"), H(".hachimia"),
   H(".cache", "ccapp-login"), H(".cache", "llama-api-key"), H("priv-audit.jsonl"), H("gateway.log"), H(".ccapp-userconf"), H(".config")];
 const NEVER_NAME = /^(ccapp-key.*|\.gateway-token|.*\.pem|id_[a-z0-9]+(\.pub)?|known_hosts|hosts\.yml)$/;
 
@@ -252,11 +253,27 @@ function pkgSizes() {
 }
 async function programs() {
   const f = FILES_DIR();
+  const agyDefault = H(".local", "share", "hachimia", "agy");
+  const agyDir = PATHS.agy && path.basename(path.dirname(PATHS.agy)) === "current"
+    ? path.dirname(path.dirname(PATHS.agy))
+    : agyDefault;
   const claudeDir = H(".local", "share", "cccodroid", "claude");
-  let cur = ""; try { cur = path.basename(fs.realpathSync(path.join(claudeDir, "current"))); } catch {}
-  const versions = [];
-  try { for (const v of fs.readdirSync(claudeDir)) if (v !== "current" && fs.lstatSync(path.join(claudeDir, v)).isDirectory()) versions.push({ version: v, current: v === cur, bytes: await du(path.join(claudeDir, v)) }); } catch {}
-  const known = new Set([".claude", ".cache", ".npm", ".local", ".ccapp-trash", ".cccodroid", path.basename(CFG.workspace)]);
+  const scanCliDir = async (dir, engine) => {
+    const list = [];
+    let cur = ""; try { cur = path.basename(fs.realpathSync(path.join(dir, "current"))); } catch {}
+    try {
+      for (const v of fs.readdirSync(dir)) {
+        if (v !== "current" && fs.lstatSync(path.join(dir, v)).isDirectory()) {
+          list.push({ version: v, current: v === cur, bytes: await du(path.join(dir, v)), engine });
+        }
+      }
+    } catch {}
+    return list;
+  };
+  const agyVersions = await scanCliDir(agyDir, "agy");
+  const claudeVersions = path.resolve(claudeDir) === path.resolve(agyDir) ? [] : await scanCliDir(claudeDir, "claude");
+  const versions = [...agyVersions, ...claudeVersions];
+  const known = new Set([".claude", ".gemini", ".cache", ".npm", ".local", ".ccapp-trash", ".cccodroid", ".hachimia", path.basename(CFG.workspace)]);
   const homeDirs = [];
   try {
     for (const n of fs.readdirSync(CFG.home)) {
@@ -267,14 +284,19 @@ async function programs() {
     }
   } catch {}
   homeDirs.sort((a, b) => (b.bytes || 0) - (a.bytes || 0));
+  const cd1 = await du(H(".cccodroid"));
+  const cd2 = await du(H(".hachimia"));
+  const compData = cd1 == null && cd2 == null ? null : (cd1 || 0) + (cd2 || 0);
   return {
     toolkit: PREFIX ? await du(PREFIX) : null,
     components: f ? await du(path.join(f, "components")) : null,
-    compData: await du(H(".cccodroid")),
+    compData,
     pkgs: pkgSizes(),
+    agy: agyVersions,
     claude: versions,
     workspace: await du(CFG.workspace),
     shared: process.env.CCAPP_SHARED ? await du(process.env.CCAPP_SHARED) : null,
+    sharedPath: process.env.CCAPP_SHARED || "/sdcard/hachimia",
     home: homeDirs.slice(0, 12),
   };
 }

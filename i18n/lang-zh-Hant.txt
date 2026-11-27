@@ -3172,3 +3172,11 @@
 3172	偵測編譯器、Python、Node、git 等可用狀態並同步給 Antigravity（更新後自動重測）。
 3173	介面載入失敗，點此重試
 3174	儲存不呼叫遠端模型，也不切換目前工作階段。
+3175	Antigravity CLI 程式核驗沒過，這次沒有執行：{why}
+3176	目前引擎 (Antigravity CLI) 暫不支援檔案檢查點回退
+3177	目前引擎 (Antigravity CLI) 暫不支援外掛市集管理
+3178	目前引擎 (Antigravity CLI) 暫不支援此 MCP 子命令
+3179	MCP 設定不是合法的 JSON
+3180	共享目錄 /sdcard/hachimia
+3181	拒絕寫入可能影響下一輪安全性的內容：{what}
+3182	模型「{model}」設定被 agent 拒絕（{msg}），已按預設執行。

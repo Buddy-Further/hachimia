@@ -3211,4 +3211,12 @@ window.I18N_DICT.en = {
   "检测编译器、Python、Node、git 等可用状态并同步给 Antigravity（更新后自动重测）。": "Checks compilers, Python, Node, git, etc. and reports availability to Antigravity (re-runs automatically after updates).",
   "界面加载失败，点此重试": "Failed to load UI — tap to retry",
   "保存不调用远端模型，也不切换当前会话。": "Saving never calls remote models or switches the current session.",
+  "Antigravity CLI 程序核验没过，这次没有运行：{why}": "Antigravity CLI failed its integrity check, so it was not run: {why}",
+  "当前引擎 (Antigravity CLI) 暂不支持文件检查点回退": "The current engine (Antigravity CLI) does not support file checkpoint rewind yet",
+  "当前引擎 (Antigravity CLI) 暂不支持插件市场管理": "The current engine (Antigravity CLI) does not support plugin marketplace management yet",
+  "当前引擎 (Antigravity CLI) 暂不支持该 MCP 子命令": "The current engine (Antigravity CLI) does not support this MCP subcommand yet",
+  "MCP 配置不是合法的 JSON": "MCP configuration is not valid JSON",
+  "共享目录 /sdcard/hachimia": "Shared folder /sdcard/hachimia",
+  "拒绝写入可能影响下一轮安全性的内容：{what}": "Blocked writing content that could compromise the next turn's safety: {what}",
+  "模型「{model}」设置被 agent 拒绝（{msg}），已按默认跑。": "Model \"{model}\" was rejected by the agent ({msg}); continuing with the default model.",
 };

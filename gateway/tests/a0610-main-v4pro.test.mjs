@@ -16,11 +16,10 @@ test("建项目克隆：不许 ext:: 传输、不跑 fsmonitor，地址前有 --
   assert.match(rd("gw/projects.mjs"), /spawn\("git", \["-c", "protocol\.ext\.allow=never", "-c", "core\.fsmonitor=false", "clone", "--depth", "50", "--", url, dest\]/);
 });
 
-test("195-M.4 guard 半：只打版本时不联网补核，没核过照样不起", () => {
+test("195-M.4 guard 半：核验失败直接 fail-closed 退出 4，不再联网补核", () => {
   const s = rd("guard/cc-seal.mjs");
-  assert.match(s, /const versionOnly = user\.length === 1 && \(user\[0\] === "--version" \|\| user\[0\] === "-v"\);/);
-  assert.match(s, /if \(cs\.pending && !versionOnly && fs\.existsSync\(inst\)\) \{/);
-  assert.ok(s.indexOf("versionOnly") < s.indexOf("if (cs.ok === false)"), "核验失败照样退出 4");
+  assert.doesNotMatch(s, /cs\.pending|install-claude\.mjs|--recheck/);
+  assert.match(s, /if \(cs\.ok === false\)[\s\S]*process\.exit\(4\)/);
 });
 
 test("195-G.6 真机：浏览器打开时 403 记成 foreign，事件流别再重拨、也别用「断开」盖掉提示", () => {

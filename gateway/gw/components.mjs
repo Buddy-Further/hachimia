@@ -1105,8 +1105,11 @@ export function compHealSkills() {
     if (!f.endsWith(".json")) continue;
     const id = f.slice(0, -5), rec = compRecord(id);
     if (!rec || rec.state !== "ok" || rec.skill || (COMP_JOBS.get(id) && !COMP_JOBS.get(id).finished)) continue;
-    const rel = `usr/share/cccodroid/components/${id}/skill`;
-    if (!fs.existsSync(path.join(PREFIX, rel.slice(4), "SKILL.md"))) continue;
+    const rel = [
+      `usr/share/hachimia/components/${id}/skill`,
+      `usr/share/cccodroid/components/${id}/skill`,
+    ].find((c) => fs.existsSync(path.join(PREFIX, c.slice(4), "SKILL.md")));
+    if (!rel) continue;
     try { fs.rmdirSync(path.join(SKILLS_DIR, id)); } catch {}     // 当时留下的空目录（只删空的）
     // 这段跑在启动定时器里（网关没装 uncaughtException 兜底）：哪一步抛了都只跳过这一个组件
     try {

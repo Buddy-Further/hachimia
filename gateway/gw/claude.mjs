@@ -687,43 +687,73 @@ export function clearKeyCache(id, active) {
   for (const f of files) { try { fs.unlinkSync(f); } catch {} }
 }
 
-/** 跑一次 claude 并收集全部 stdout（用于取 CLI 状态类输出） */
-/** 起 claude 之前核程序本身（claudeseal.mjs）：对不上返回给人看的原因，能起返回 ""。
+/** 判断当前是否处于纯 Antigravity CLI (agy) 模式（装有 agy 且不存在独立 claude 二进制） */
+export function isAgyOnlyCli() {
+  return !!(PATHS.agy && fs.existsSync(PATHS.agy) && !(PATHS.claude && fs.existsSync(PATHS.claude)));
+}
+
+/** 构造拉起原生 agy 的 [程序, 参数] */
+export function agyCmd(extra = []) {
+  return [PATHS.agy, Array.isArray(extra) ? [...extra] : []];
+}
+
+/** 剥除 agy 启动时 Go glog 吐出的 Android 时区提示行，避免污染 JSON 解析与错误摘要 */
+export function stripAgyGlog(s) {
+  return String(s || "")
+    .split("\n")
+    .filter((l) => !/logging before google\.Init:/i.test(l))
+    .join("\n")
+    .trim();
+}
+
+/** 跑一次 claude / agy 并收集全部 stdout（用于取 CLI 状态类输出） */
+/** 起 claude / agy 之前核程序本身（claudeseal.mjs）：对不上返回给人看的原因，能起返回 ""。
  *  开会话以外的路也要核：mcp list、doctor、登录、补档、回退文件、扩展命令都会执行它（审查 11-05 第 16 组 1） */
 export async function claudeBlocked() {
   const gw = gwRuntimeBlocked();
   if (gw) return gw;
   const s = await claudeSeal().catch((e) => ({ ok: false, why: e.message }));
   if (s.ok !== false) return "";
+  if (isAgyOnlyCli()) {
+    return tz("Antigravity CLI 程序核验没过，这次没有运行：{why}", { why: String(s.why || "") });
+  }
   return s.pending ? tz("这个版本的 Claude Code 还没有官方签名清单，这一轮没有启动。正在联网补核，过一两分钟再发送；一直不行就到 设置 → 更新 里重新安装。") : tz("Claude Code 程序核验没过，这次没有运行：{why}", { why: String(s.why || "") });
 }
 
 export async function runClaude(args, { cwd, timeoutMs = 60000 } = {}) {
   const blocked = await claudeBlocked();
   if (blocked) return { out: "", err: blocked, error: true };
+  const agyOnly = isAgyOnlyCli();
   return new Promise((resolve) => {
     let out = "", err = "", done = false;
-    const [cmd0, args0] = claudeCmd([...settingsArgs(), ...args]);   // mcp list 之类会拉起 MCP 服务器，也要罩住
+    const [cmd0, args0] = agyOnly ? agyCmd(args) : claudeCmd([...settingsArgs(), ...args]);   // mcp list 之类会拉起 MCP 服务器，也要罩住
     const child = spawn(cmd0, args0, {
       cwd: cwd || (fs.existsSync(CFG.workspace) ? CFG.workspace : CFG.home),
-      env: claudeEnv(),
+      env: agyOnly ? agyEnv() : claudeEnv(),
       stdio: ["ignore", "pipe", "pipe"],
       detached: true,          // 当进程组长，中断时好整组带走（见 killTree）
     });
     const timer = setTimeout(() => {
-      if (!done) { done = true; killTree(child); resolve({ out, err, timeout: true }); }
+      if (!done) {
+        done = true; killTree(child);
+        resolve({ out: agyOnly ? stripAgyGlog(out) : out, err: agyOnly ? stripAgyGlog(err) : err, timeout: true });
+      }
     }, timeoutMs);
     child.stdout.setEncoding("utf8"); child.stderr.setEncoding("utf8");   // 按流解码：多字节字符跨块不会被拆坏
     child.stdout.on("data", (d) => { out += d.toString("utf8"); });
     child.stderr.on("data", (d) => { err += d.toString("utf8"); });
     child.on("error", (e) => {
       if (done) return;
-      done = true; clearTimeout(timer); resolve({ out, err: err + e.message, error: true });
+      done = true; clearTimeout(timer);
+      resolve({ out: agyOnly ? stripAgyGlog(out) : out, err: (agyOnly ? stripAgyGlog(err) : err) + e.message, error: true });
     });
     child.on("close", (code, signal) => {
       if (done) return;
       // 被信号杀掉时 code 是 null：把信号名带出去，不然调用方只看到一片空白
-      done = true; clearTimeout(timer); resolve({ out, err: err + (signal ? `（claude 被信号 ${signal} 终止）` : ""), code, signal });
+      done = true; clearTimeout(timer);
+      const cleanOut = agyOnly ? stripAgyGlog(out) : out;
+      const cleanErr = agyOnly ? stripAgyGlog(err) : err;
+      resolve({ out: cleanOut, err: cleanErr + (signal ? `（${agyOnly ? "agy" : "claude"} 被信号 ${signal} 终止）` : ""), code, signal });
     });
   });
 }

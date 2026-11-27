@@ -103,10 +103,12 @@
     if (p.toolkit != null) pr.push(row(t("工具包"), sz(p.toolkit)));
     if (p.components) pr.push(row(t("组件"), sz(p.components)));
     if (p.compData) pr.push(row(t("组件的运行数据（~/.cccodroid）"), sz(p.compData)));
-    for (const v of p.claude || []) pr.push(row("Claude Code " + v.version + (v.current ? " · " + t("正在用") : ""), sz(v.bytes)));
+    for (const v of p.claude || []) {
+      pr.push(row((v.engine === "claude" ? "Claude Code " + v.version : "Antigravity CLI (agy) " + v.version) + (v.current ? " · " + t("正在用") : ""), sz(v.bytes)));
+    }
     for (const x of p.pkgs || []) pr.push(row(t("pkg 装的 {name}", { name: x.name + " " + x.version }), sz(x.bytes) + ` · <code>pkg uninstall ${esc(x.name)}</code>`));
     if (p.workspace != null) pr.push(row(t("工作区"), sz(p.workspace)));
-    if (p.shared != null) pr.push(row(t("共享目录 /sdcard/cccodroid"), sz(p.shared)));
+    if (p.shared != null) pr.push(row(p.sharedPath && p.sharedPath.endsWith("/cccodroid") ? t("共享目录 /sdcard/cccodroid") : t("共享目录 /sdcard/hachimia"), sz(p.shared)));
     for (const x of p.home || []) pr.push(row(x.path, sz(x.bytes)));
     out.push(card(t("程序和你的文件"), esc(t("只显示大小，这里不删")), `<div class="list compact">${pr.join("")}</div>`));
     // 6 已有的清理入口

@@ -31,6 +31,7 @@ const SECRETS = [
   [/\.git-credentials\b/, "git credentials"],
   [/(?:^|[\/\s"'=~@<>:])\.netrc\b/, ".netrc credentials"],
   [/\.claude\/\.credentials\.json\b/, "Claude login credentials"],
+  [/\.gemini\/antigravity-cli\/(?:\.?credentials|oauth_creds|google_accounts|plugin-secrets|mcp-oauth-tokens|auth)[\w.-]*\.json\b/, "Antigravity CLI credentials"],
   [/\.(?:keystore|jks|p12|pfx)\b/, "signing keystore"],
   [/[\w-]\.(?:pem|key)(?=$|[\s"'\/;|&)])/, "private key file"],
   [/(?:^|[\/\s"'=~@<>:])\.(?:npmrc|pypirc)\b/, "package registry token"],
@@ -47,9 +48,11 @@ const SECRETS = [
 // 只拦写（写文件的工具、命令里提到）；读不拦。CLAUDE.md 不在里面：记项目约定是它的正经用途，天天要改
 const PROMPT = [
   [/\.claude\/settings(?:\.local)?\.json\b/, "Claude Code settings and hooks"],
+  [/\.gemini\/antigravity-cli\/settings(?:\.local)?\.json\b/, "Antigravity CLI settings"],
   [/\.claude\/output-styles\//, "output style"],
   // 用户级 CLAUDE.md 每个会话都加载，等于常驻系统提示（第三份破甲审计的常驻层之一）；项目里的 CLAUDE.md 照旧不问
   [/(?:(?:^|[\s"'=:])(?:~|\$\{?HOME\}?)|\/files\/home)\/\.claude\/(?:CLAUDE\.md|rules\/)/, "user-level CLAUDE.md (loaded into every session)"],
+  [/\.gemini\/antigravity-cli\/(?:GEMINI\.md|CLAUDE\.md|(?:rules|memories|skills|commands|plugins|agents|hooks|builtin)\/)/, "user-level Antigravity CLI config, skills, rules and plugins"],
   [/\.claude\/projects\/[^\s"']*\.jsonl\b/, "conversation history"],
   [/ccapp-session-seals\.json\b/, "conversation integrity seals"],
   [/ccapp-settings\.json\b/, "app settings"],
@@ -67,8 +70,9 @@ const PROMPT = [
   // 网关自己的运行库（files/gw，安全 4 第 2 层）：网关的 node 和库、它起 claude 用的 glibc。改了网关会拒绝起 claude、重启后按安装包还原，这里先拦
   [/(?:\/files|(?:~|\$\{?HOME\}?)\/\.\.)\/gw(?:-stage)?(?=$|[\/\s"';|&)])/, "the gateway's own runtime"],
   [/\.cccodroid-env\.json\b/, "device facts in the system prompt"],
-  // 不提文件名、经 claude 自己的命令改用户级配置：加 MCP 服务器、改设置（钩子 / disableAllHooks）、装插件（DeepSeek 复核 11-03 C-1）
+  // 不提文件名、经 claude / agy 自己的命令改用户级配置：加 MCP 服务器、改设置（钩子 / disableAllHooks）、装插件（DeepSeek 复核 11-03 C-1）
   [/\bclaude\s+(?:mcp\s+(?:add|add-json|add-from-claude-desktop)|config\s+(?:set|add)|plugins?\s+(?:install|add|enable|marketplace))\b/, "Claude Code config via CLI"],
+  [/\bagy\s+(?:mcp\s+(?:add|enable|disable|remove)|plugins?\s+(?:install|uninstall|enable|disable|import|link))\b/, "Antigravity CLI config via CLI"],
   // 能把这一层整个关掉的：安全模式（--safe-mode 连 --settings 挂的钩子一起不跑）的开关文件和接口，
   // 以及再起一个不带这一层的 claude —— 多个 --settings 后一个整个顶掉前一个，--bare / --safe-mode 不跑任何钩子（2.1.311 实测）
   [/\.ccapp-safe-mode\b|\/api\/safe-mode\b/, "safe mode (turns this check off)"],
@@ -76,10 +80,12 @@ const PROMPT = [
   [/\/api\/(?:perm\/mode|providers\/save|ext\/hooks\/(?:save|test)|term\/new)\b/, "gateway control endpoint (changes global state)"],
   // 旗标前允许引号（claude "--bare"），--allowedTools 能不问就放行工具（DeepSeek 复核必修 4）
   [/\bclaude\b[^\n;&|]*?[\s"'](?:--settings|--setting-sources|--safe-mode|--bare|--dangerously-skip-permissions|--allow-dangerously-skip-permissions|--allowed-?[Tt]ools|--permission-mode["']?[\s=]+["']?(?:bypassPermissions|auto|dontAsk|acceptEdits))(?=$|[\s=;|&)'"])/, "Claude Code started without this check"],
-  // Claude Code 程序、它的签名清单、current 软链：删了清单再换程序，起 claude 前的核验就无从比对（见 gw/claudeseal.mjs）
-  [/\.local\/share\/cccodroid\/claude(?=$|[\/\s"';|&)])/, "the Claude Code program and its signed manifest"],  // 下次开终端 / 起命令就会自动跑的：shell 启动文件，和排在 PATH 里的自定义命令包装（0.6.9 审计 199-4-01）
+  [/\bagy\b[^\n;&|]*?[\s"'](?:--settings|--dangerously-skip-permissions|--mode["']?[\s=]+["']?(?:auto|accept-edits))(?=$|[\s=;|&)'"])/, "Antigravity CLI started with modified settings or permissions"],
+  // Claude Code / Antigravity CLI 程序、签名清单、current 软链：删了清单再换程序，核验就无从比对（见 gw/claudeseal.mjs）
+  [/\.local\/share\/cccodroid\/claude(?=$|[\/\s"';|&)])/, "the Claude Code program and its signed manifest"],
+  [/\.local\/share\/hachimia\/agy(?=$|[\/\s"';|&)])/, "the Antigravity CLI program and its signed manifest"],  // 下次开终端 / 起命令就会自动跑的：shell 启动文件，和排在 PATH 里的自定义命令包装（0.6.9 审计 199-4-01）
   [/(?:^|[\/\s"'=~@<>:])\.(?:bashrc|bash_profile|bash_login|profile|zshrc|zprofile|zshenv|inputrc)(?=$|[\s"';|&)])/, "shell startup files (run in every new terminal)"],
-  [/\.cccodroid\/bin(?=$|[\/\s"';|&)])/, "command wrappers on PATH"],
+  [/\.(?:cccodroid|hachimia)\/bin(?=$|[\/\s"';|&)])/, "command wrappers on PATH"],
 ];
 const WRITERS = new Set(["Bash", "Write", "Edit", "MultiEdit", "NotebookEdit"]);
 
@@ -94,9 +100,9 @@ const DEVICE = {
 let scanTextFn = typeof scanText === "function" ? scanText : null;   // eslint-disable-line no-undef
 if (!scanTextFn) try { ({ scanText: scanTextFn } = await import(new URL("../gw/breach.mjs", import.meta.url))); } catch {}
 
-// 会进下一轮上下文的文字：CLAUDE.md、.claude 底下的说明 / skill / 命令 / 记忆。往里写破甲内容当场拒绝（不是问）：
+// 会进下一轮上下文的文字：CLAUDE.md、GEMINI.md、.claude/.gemini 底下的说明 / skill / 命令 / 记忆。往里写破甲内容当场拒绝（不是问）：
 // 发行版下一轮起进程前也会查到、整轮不跑，这里提前挡住，别让模型把自己下一轮堵死（见 gw/seal.mjs）
-const CONTEXT_PATH = /(?:^|[\/\s"'=>])CLAUDE(?:\.local)?\.md\b|\.claude\/|\/memory\/[^\s"']*\.md\b/;
+const CONTEXT_PATH = /(?:^|[\/\s"'=>])(?:CLAUDE|GEMINI)(?:\.local)?\.md\b|\.claude\/|\.gemini\/antigravity-cli\/|\/memory\/[^\s"']*\.md\b/;
 function written(tool, inp) {
   if (!inp || typeof inp !== "object") return [];
   if (tool === "Write") return [inp.content];

@@ -3172,3 +3172,11 @@
 3172	Comprueba compiladores, Python, Node, git, etc. e informa a Antigravity (se repite tras actualizar).
 3173	Error al cargar la interfaz; toca para reintentar
 3174	Guardar no invoca modelos remotos ni cambia la sesión actual.
+3175	Antigravity CLI no superó la verificación de integridad, así que no se ejecutó: {why}
+3176	El motor actual (Antigravity CLI) aún no admite revertir puntos de control de archivos
+3177	El motor actual (Antigravity CLI) aún no admite la gestión de mercados de complementos
+3178	El motor actual (Antigravity CLI) aún no admite este subcomando MCP
+3179	La configuración de MCP no es un JSON válido
+3180	Carpeta compartida /sdcard/hachimia
+3181	Se bloqueó la escritura de contenido que podría afectar la seguridad del siguiente turno: {what}
+3182	El agente rechazó el modelo «{model}» ({msg}); se continuará con el modelo predeterminado.

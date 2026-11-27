@@ -110,7 +110,7 @@ test("R-07 内置 hook 脚本的 git 身份是 hachimia，5 个头注释同步",
 test("R-08 cc-seal.mjs 终端前缀写 hachimia，不写 cccodroid", () => {
   const s = read("gateway/guard/cc-seal.mjs");
   assert.doesNotMatch(s, /cccodroid: /);
-  assert.match(s, /hachimia: 这个版本还没有官方签名清单/);
+  assert.match(s, /process\.stderr\.write\("hachimia: " \+ m/);
   assert.match(s, /hachimia: \$\{flag\} 在发行版里不能用/);
 });
 

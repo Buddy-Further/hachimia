@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { CFG, PREFIX, log, tz } from "./config.mjs";
-import { claudeBlocked, claudeCmd, claudeEnv, ensureShell, killTree } from "./claude.mjs";
+import { agyCmd, agyEnv, claudeBlocked, claudeCmd, claudeEnv, ensureShell, isAgyOnlyCli, killTree, stripAgyGlog } from "./claude.mjs";
 import { SID_RE, skillDirOk, zipReadAsync } from "./sessionops.mjs";
 import { NEXT, readBody, readBodyBuf, sendJson } from "./http.mjs";
 import { termEnv } from "./terminal.mjs";
@@ -26,26 +26,110 @@ function withExtLock(fn) {
   EXT_LOCK = job.catch(() => {});
   return job;
 }
+/** 纯 agy 模式下把 Claude CLI 参数映射为 `agy` 原生子命令参数；不支持的子命令返回 { error } */
+function agyExtCmd(args) {
+  const [group, sub, ...rest] = args;
+  if (group === "plugin") {
+    if (sub === "marketplace") return { error: tz("当前引擎 (Antigravity CLI) 暂不支持插件市场管理") };
+    if (sub === "list") return { args: ["plugin", "list", ...rest.filter((a) => a !== "--available")] };
+    if (sub === "install") {
+      const id = rest[0];
+      return { args: ["plugin", "install", ...(id ? [id] : [])] };
+    }
+    if (sub === "uninstall") {
+      const id = rest[0];
+      return { args: ["plugin", "uninstall", ...(id ? [id] : [])] };
+    }
+    return { args };
+  }
+  if (group === "mcp") {
+    if (sub === "get") return { error: tz("当前引擎 (Antigravity CLI) 暂不支持该 MCP 子命令") };
+    if (sub === "remove") {
+      const out = ["mcp", "remove"];
+      for (let i = 0; i < rest.length; i++) {
+        if (rest[i] === "-s" || rest[i] === "--scope") { i++; continue; }
+        out.push(rest[i]);
+      }
+      return { args: out };
+    }
+    if (sub === "add-json") {
+      let i = 0;
+      while (i < rest.length && (rest[i] === "-s" || rest[i] === "--scope")) i += 2;
+      const name = rest[i], rawJson = rest[i + 1];
+      let def;
+      try { def = JSON.parse(rawJson || "{}"); } catch { return { error: tz("MCP 配置不是合法的 JSON") }; }
+      const flags = [];
+      if (def.url || def.type === "http" || def.type === "sse") {
+        flags.push("--type", def.type === "sse" ? "http" : (def.type || "http"));
+        for (const [k, v] of Object.entries(def.headers || {})) flags.push("--header", `${k}: ${v}`);
+        return { args: ["mcp", "add", ...flags, name, String(def.url || "")] };
+      }
+      flags.push("--type", "stdio");
+      for (const [k, v] of Object.entries(def.env || {})) flags.push("-e", `${k}=${v}`);
+      const cmdParts = [def.command, ...(Array.isArray(def.args) ? def.args : [])].filter((x) => x != null).map(String);
+      return { args: ["mcp", "add", ...flags, name, "--", ...cmdParts] };
+    }
+    if (sub === "add") {
+      // agy mcp add 要求所有旗标都在 <name> 之前：把 -s user 去掉，--transport 改为 --type，并将 -e / --header 挪到 name 前
+      let transport = "stdio", name = "", target = "";
+      const flags = [], cmdParts = [];
+      let afterDash = false;
+      for (let i = 0; i < rest.length; i++) {
+        const a = rest[i];
+        if (afterDash) { cmdParts.push(a); continue; }
+        if (a === "--") { afterDash = true; continue; }
+        if (a === "-s" || a === "--scope") { i++; continue; }
+        if (a === "--transport" || a === "-t") { transport = rest[++i] || "stdio"; continue; }
+        if (a === "-e" || a === "--env") { flags.push("-e", rest[++i] || ""); continue; }
+        if (a === "--header" || a === "-H") { flags.push("--header", rest[++i] || ""); continue; }
+        if (!name) name = a;
+        else if (!target) target = a;
+        else cmdParts.push(a);
+      }
+      const agyType = transport === "stdio" ? "stdio" : "http";
+      const stdioCmd = target ? [target, ...cmdParts] : cmdParts;
+      const pos = transport === "stdio"
+        ? [name, ...(stdioCmd.length ? ["--", ...stdioCmd] : [])]
+        : [name, target, ...cmdParts];
+      return { args: ["mcp", "add", "--type", agyType, ...flags, ...pos] };
+    }
+    return { args };
+  }
+  return { args };
+}
 function extExecRaw(args, timeoutMs = 180000) {
+  const agyOnly = isAgyOnlyCli();
+  const mapped = agyOnly ? agyExtCmd(args) : { args };
+  if (mapped.error) return Promise.resolve({ code: -1, out: "", err: mapped.error });
   const writes = ["plugin", "mcp"].includes(args[0]) && !args.includes("list") && !args.includes("get");
   const appWrote = (ucb) => {
     if (!writes) return;
-    if (args[0] === "mcp") ucAppWrote([".claude.json"], ucb);
+    if (agyOnly) {
+      ucAppWrote([".gemini/antigravity-cli/settings.json", ".claude.json", ".claude/settings.json", ".claude/plugins/"], ucb,
+        { ".claude/settings.json": ["enabledPlugins", "extraKnownMarketplaces"] });
+    } else if (args[0] === "mcp") ucAppWrote([".claude.json"], ucb);
     else ucAppWrote([".claude/settings.json", ".claude/plugins/"], ucb, { ".claude/settings.json": ["enabledPlugins", "extraKnownMarketplaces"] });
   };
   return Promise.resolve().then(() => claudeBlocked()).then((blocked) => blocked ? { code: -1, out: "", err: blocked } : new Promise((resolve) => {
-    const [cmd0, args0] = claudeCmd(args);
+    const [cmd0, args0] = agyOnly ? agyCmd(mapped.args) : claudeCmd(mapped.args);
     const ucb = writes ? ucAppBegin() : null;
     const child = spawn(cmd0, args0, {
       cwd: fs.existsSync(CFG.workspace) ? CFG.workspace : CFG.home,
-      env: claudeEnv(), stdio: ["ignore", "pipe", "pipe"], detached: true,
+      env: agyOnly ? agyEnv() : claudeEnv(), stdio: ["ignore", "pipe", "pipe"], detached: true,
     });
     let out = "", err = "";
     child.stdout.setEncoding("utf8"); child.stderr.setEncoding("utf8");   // 按流解码：多字节字符跨块不会被拆坏
     child.stdout.on("data", (d) => (out += d)); child.stderr.on("data", (d) => (err += d));
     const t = setTimeout(() => killTree(child), timeoutMs);
-    child.on("close", (code) => { clearTimeout(t); appWrote(code === 0 ? ucb : null); resolve({ code, out, err }); });
-    child.on("error", (e) => { clearTimeout(t); resolve({ code: -1, out, err: err + e.message }); });
+    child.on("close", (code) => {
+      clearTimeout(t);
+      appWrote(code === 0 ? ucb : null);
+      resolve({ code, out: agyOnly ? stripAgyGlog(out) : out, err: agyOnly ? stripAgyGlog(err) : err });
+    });
+    child.on("error", (e) => {
+      clearTimeout(t);
+      resolve({ code: -1, out: agyOnly ? stripAgyGlog(out) : out, err: (agyOnly ? stripAgyGlog(err) : err) + e.message });
+    });
   }));
 }
 function extRun(args, timeoutMs = 180000) {
@@ -65,11 +149,15 @@ let PLUGIN_STATE_FLIGHT = null;
 async function pluginState(withAvailable) {
   if (PLUGIN_STATE_FLIGHT && (!withAvailable || PLUGIN_STATE_FLIGHT.withAvailable)) return PLUGIN_STATE_FLIGHT.p;
   const p = withExtLock(async () => {
+    const agyOnly = isAgyOnlyCli();
     const fresh = PLUGIN_CATALOG && Date.now() - PLUGIN_CATALOG.at < 600000;
-    const r = await extExecRaw(["plugin", "list", "--json", ...(withAvailable && !fresh ? ["--available"] : [])], 120000);
+    const r = await extExecRaw(["plugin", "list", "--json", ...(withAvailable && !fresh && !agyOnly ? ["--available"] : [])], 120000);
     const j = lastJson(r.out);
-    if (!j) throw new Error(cliMsg(r) || "claude plugin list 没有输出");
-    const installed = Array.isArray(j) ? j : j.installed || [];
+    if (!j) {
+      if (agyOnly && r.code === 0) return [];
+      throw new Error(cliMsg(r) || (agyOnly ? "agy plugin list 没有输出" : "claude plugin list 没有输出"));
+    }
+    const installed = Array.isArray(j) ? j : j.installed || j.plugins || [];
     if (!Array.isArray(j) && j.available) PLUGIN_CATALOG = { at: Date.now(), list: j.available };
     return installed;
   }).finally(() => { if (PLUGIN_STATE_FLIGHT && PLUGIN_STATE_FLIGHT.p === p) PLUGIN_STATE_FLIGHT = null; });
@@ -79,9 +167,9 @@ async function pluginState(withAvailable) {
 
 async function listPlugins(q, offset, withAvailable) {
   const installed = await pluginState(withAvailable);
-  const ids = new Set(installed.map((p) => p.id));
+  const ids = new Set(installed.map((p) => p.id || p.name));
   const res = {
-    installed: installed.map((p) => ({ id: p.id, version: p.version, scope: p.scope, enabled: p.enabled !== false, installedAt: p.installedAt })),
+    installed: installed.map((p) => ({ id: p.id || p.name, version: p.version, scope: p.scope, enabled: p.enabled !== false, installedAt: p.installedAt })),
   };
   if (withAvailable && PLUGIN_CATALOG) {
     const words = String(q || "").toLowerCase().split(/\s+/).filter(Boolean);
@@ -126,12 +214,14 @@ async function pluginOp(op, id) {
 }
 
 async function listMarketplaces() {
+  if (isAgyOnlyCli()) return [];
   const r = await extRun(["plugin", "marketplace", "list", "--json"], 60000);
   const j = lastJson(r.out);
   return Array.isArray(j) ? j.map((m) => ({ name: m.name, source: m.source?.repo || m.source?.url || m.source?.path || m.url || "" })) : [];
 }
 
 async function marketplaceOp(op, arg) {
+  if (isAgyOnlyCli()) return { ok: false, message: tz("当前引擎 (Antigravity CLI) 暂不支持插件市场管理") };
   if (badArg(String(arg ?? ""))) return { ok: false, message: tz("名字格式不对") };
   const r = await extRun(["plugin", "marketplace", op, arg], 300000);
   if (r.code === 0) PLUGIN_CATALOG = null;
@@ -143,11 +233,11 @@ async function listMcp() {
   const r = await extRun(["mcp", "list"], 90000);
   const out = [];
   for (const line of r.out.replace(/\x1b\[[0-9;]*m/g, "").split("\n")) {
-    const m = line.match(/^(.+?): (.+) - ([✔✗⚠!]|[^\s]+)\s*(.*)$/u);
+    const m = line.match(/^(.+?): (.+) - ([✔✓✗⚠!]|[^\s]+)\s*(.*)$/u);
     if (!m) continue;
     const name = m[1].trim();
     const def = userMcpDef(name);
-    out.push({ name, target: m[2].trim(), ok: m[3] === "✔", status: (m[3] + " " + m[4]).trim().slice(0, 200), cloud: name.startsWith("claude.ai "), user: !!def, hdr: headerNames(def) });
+    out.push({ name, target: m[2].trim(), ok: m[3] === "✔" || m[3] === "✓", status: (m[3] + " " + m[4]).trim().slice(0, 200), cloud: name.startsWith("claude.ai "), user: !!def, hdr: headerNames(def) });
   }
   for (const [name, d] of Object.entries(extOff().mcp)) if (!out.some((x) => x.name === name)) out.push({ name, target: mcpTarget(d), ok: false, status: "", disabled: true });
   return out;
@@ -565,13 +655,16 @@ async function setSkillMode(dir, mode) {
   return { ok: true };
 }
 
-/** 用户级 MCP 定义（~/.claude.json 顶层 mcpServers，只读）；项目级、账户连接器不归这里管 */
+/** 用户级 MCP 定义（~/.claude.json 或 ~/.gemini/antigravity-cli/settings.json 顶层 mcpServers，只读）；项目级、账户连接器不归这里管 */
 function userMcpDef(name) {
-  try {
-    const j = JSON.parse(readSmallFile(path.join(CFG.home, ".claude.json"), 32 << 20) || "{}");
-    const d = j && j.mcpServers && j.mcpServers[name];
-    return d && typeof d === "object" && !Array.isArray(d) ? d : null;
-  } catch { return null; }
+  for (const fp of [path.join(CFG.home, ".claude.json"), path.join(CFG.home, ".gemini", "antigravity-cli", "settings.json")]) {
+    try {
+      const j = JSON.parse(readSmallFile(fp, 32 << 20) || "{}");
+      const d = j && j.mcpServers && j.mcpServers[name];
+      if (d && typeof d === "object" && !Array.isArray(d)) return d;
+    } catch {}
+  }
+  return null;
 }
 /** 列表里只显示请求头的名字（值可能是令牌，不显示）：一眼能看出令牌到底配上没有，
  *  不用等 claude 报 "Dynamic Client Registration rejected (HTTP 404)" 再猜。 */
@@ -734,7 +827,7 @@ async function installCatalogSkill(dir) {
 
 // MCP 注册表：任何人都能发布，没人审 —— 界面写明，装 npm 包前把命令亮给人看。
 // 本机能直接用的两种：远程（streamable-http / sse）和 npm 包（npx 起 stdio）。pypi / docker 的标成装不了
-const onPath = (bin) => String(claudeEnv().PATH || "").split(":").some((d) => d && fs.existsSync(path.join(d, bin)));
+const onPath = (bin) => String((isAgyOnlyCli() ? agyEnv() : claudeEnv()).PATH || "").split(":").some((d) => d && fs.existsSync(path.join(d, bin)));
 async function listMcpCatalog(q, cursor) {
   const u = new URL("https://registry.modelcontextprotocol.io/v0/servers");
   u.searchParams.set("version", "latest"); u.searchParams.set("limit", "30");

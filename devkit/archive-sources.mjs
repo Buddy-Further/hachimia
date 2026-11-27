@@ -89,19 +89,28 @@ export function parseTermuxRecipeSources(buildShText, pkgVersion = "") {
   };
   const urls = grab("TERMUX_PKG_SRCURL").filter((u) => /^https?:\/\//.test(u));
   const shas = grab("TERMUX_PKG_SHA256").filter((h) => /^[0-9a-f]{64}$/i.test(h));
-  return urls.map((url, i) => ({ url, sha256: shas[i] ? shas[i].toLowerCase() : "" }));
+  if (!urls.length) throw new Error("配方未提取出有效的 TERMUX_PKG_SRCURL");
+  if (shas.length < urls.length) throw new Error("配方未提取出有效的 TERMUX_PKG_SHA256");
+  return urls.map((url, i) => ({ url, sha256: shas[i].toLowerCase() }));
 }
 
-export function buildSourcePlan(lockObj, { includeAll = false, termuxRef, glibcRef } = {}) {
+export function buildSourcePlan(lockObj, { includeAll = false, termuxRef, glibcRef, apkOnly = false } = {}) {
   const pkgs = Array.isArray(lockObj?.packages) ? lockObj.packages : [];
-  const selected = pkgs.filter((p) => includeAll || requiresCorrespondingSource(p.license));
-  const tRef = String(lockObj?.termuxRef || termuxRef || "master");
-  const gRef = String(lockObj?.glibcRef || glibcRef || DEFAULT_GLIBC_RECIPE_REF);
+  const selected = apkOnly ? [] : pkgs.filter((p) => includeAll || requiresCorrespondingSource(p.license));
+  const tRef = String(termuxRef || lockObj?.termuxRef || "").trim();
+  const gRef = String(glibcRef || lockObj?.glibcRef || DEFAULT_GLIBC_RECIPE_REF).trim();
+  const needsTermux = selected.some((p) => p.repo !== "glibc" && !p.rawBuildShUrl);
+  if (needsTermux && (!tRef || /^(master|main|head)$/i.test(tRef) || !/^[A-Za-z0-9._\/-]+$/.test(tRef) || tRef.includes(".."))) {
+    throw new Error("缺少固定的 termuxRef（禁止默认抓取可变 master/main/HEAD 分支，请通过 --termux-ref 或 lock.termuxRef 指定 commit/tag）");
+  }
+  if (selected.some((p) => p.repo === "glibc" && !p.rawBuildShUrl) && (!gRef || /^(master|main|head)$/i.test(gRef) || !/^[A-Za-z0-9._\/-]+$/.test(gRef) || gRef.includes(".."))) {
+    throw new Error("缺少固定的 glibcRef");
+  }
   return {
     release: lockObj?.release || lockObj?.snapshot || "local",
     generatedAt: new Date().toISOString(),
     policy: includeAll ? "all-packages" : "copyleft-and-unknown",
-    refs: { termuxPackages: tRef, glibcPackages: gRef },
+    refs: { termuxPackages: tRef || null, glibcPackages: gRef },
     apkBundled: APK_BUNDLED_LGPL_SOURCES.map((item) => ({ ...item })),
     devkitPackages: selected.map((p) => {
       const srcPkg = String(p.source || p.name || "").replace(/[^A-Za-z0-9_.+-]/g, "");
@@ -137,13 +146,22 @@ function sha256File(file) {
   return h.digest("hex");
 }
 
-function curlDownload(url, dest, expectedSha = "") {
+export function curlDownload(url, dest, expectedSha = "", { requireSha = false } = {}) {
+  if (!/^https:\/\//i.test(String(url || ""))) {
+    throw new Error(`仅允许 https:// 下载: ${url}`);
+  }
+  if (requireSha && !/^[0-9a-f]{64}$/i.test(String(expectedSha || ""))) {
+    throw new Error(`${url}: 缺少有效 SHA-256，拒绝无校验下载`);
+  }
   if (fs.existsSync(dest) && (!expectedSha || sha256File(dest) === expectedSha.toLowerCase())) {
     return sha256File(dest);
   }
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   const part = dest + ".part";
-  execFileSync("curl", ["-fsSL", "--retry", "3", "--connect-timeout", "15", "--max-time", "600", "-o", part, url], { stdio: "inherit" });
+  execFileSync("curl", [
+    "-fsSL", "--proto", "=https", "--proto-redir", "=https",
+    "--retry", "3", "--connect-timeout", "15", "--max-time", "600", "-o", part, url,
+  ], { stdio: "inherit" });
   const got = sha256File(part);
   if (expectedSha && got !== expectedSha.toLowerCase()) {
     fs.rmSync(part, { force: true });
@@ -179,6 +197,7 @@ async function main() {
 
   const plan = buildSourcePlan(lockObj, {
     includeAll,
+    apkOnly,
     ...(termuxRef ? { termuxRef } : {}),
     ...(glibcRef ? { glibcRef } : {}),
   });
@@ -190,7 +209,7 @@ async function main() {
       const dest = path.join(outDir, "apk-prebuilt", fileName);
       console.log(`▸ 归档 APK 随包 LGPL 源码: ${item.name} ${item.version} ← ${item.srcUrl}`);
       item.archivedFile = `apk-prebuilt/${fileName}`;
-      item.sha256 = curlDownload(item.srcUrl, dest, item.sha256 || "");
+      item.sha256 = curlDownload(item.srcUrl, dest, item.sha256 || "", { requireSha: true });
       if (item.recipeBuildShUrl) {
         const recipeDest = path.join(outDir, "apk-prebuilt", `${item.name}-build.sh`);
         curlDownload(item.recipeBuildShUrl, recipeDest);
@@ -216,7 +235,7 @@ async function main() {
         for (const up of upstreams) {
           const fn = safeArchiveFileName(up.url);
           const upRel = `devkit-upstream/${safePkg}/${fn}`;
-          const gotSha = curlDownload(up.url, path.join(outDir, upRel), up.sha256 || "");
+          const gotSha = curlDownload(up.url, path.join(outDir, upRel), up.sha256 || "", { requireSha: true });
           pkg.archivedSources.push({ url: up.url, file: upRel, sha256: gotSha });
         }
       }

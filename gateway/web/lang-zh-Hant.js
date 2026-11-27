@@ -3175,4 +3175,12 @@ window.I18N_DICT["zh-Hant"] = {
   "检测编译器、Python、Node、git 等可用状态并同步给 Antigravity（更新后自动重测）。": "偵測編譯器、Python、Node、git 等可用狀態並同步給 Antigravity（更新後自動重測）。",
   "界面加载失败，点此重试": "介面載入失敗，點此重試",
   "保存不调用远端模型，也不切换当前会话。": "儲存不呼叫遠端模型，也不切換目前工作階段。",
+  "Antigravity CLI 程序核验没过，这次没有运行：{why}": "Antigravity CLI 程式核驗沒過，這次沒有執行：{why}",
+  "当前引擎 (Antigravity CLI) 暂不支持文件检查点回退": "目前引擎 (Antigravity CLI) 暫不支援檔案檢查點回退",
+  "当前引擎 (Antigravity CLI) 暂不支持插件市场管理": "目前引擎 (Antigravity CLI) 暫不支援外掛市集管理",
+  "当前引擎 (Antigravity CLI) 暂不支持该 MCP 子命令": "目前引擎 (Antigravity CLI) 暫不支援此 MCP 子命令",
+  "MCP 配置不是合法的 JSON": "MCP 設定不是合法的 JSON",
+  "共享目录 /sdcard/hachimia": "共享目錄 /sdcard/hachimia",
+  "拒绝写入可能影响下一轮安全性的内容：{what}": "拒絕寫入可能影響下一輪安全性的內容：{what}",
+  "模型「{model}」设置被 agent 拒绝（{msg}），已按默认跑。": "模型「{model}」設定被 agent 拒絕（{msg}），已按預設執行。",
 };

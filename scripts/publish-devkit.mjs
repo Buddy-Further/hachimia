@@ -355,14 +355,15 @@ step.preview = async () => {
   const apk = path.join(ROOT, "dist/hachimia.apk");
   const inApk = sh("unzip", ["-p", apk, "assets/devkit-pin.json"]);
   if (inApk !== fs.readFileSync(path.join(ROOT, "devkit-pin.json"), "utf8").trim()) fail("APK 里带的 devkit-pin.json 和仓库里的不一样");
-  const out = `/sdcard/Download/hachimia-${pv}.apk`;
-  fs.copyFileSync(apk, out);
-  const h = await shaFile(out);
-  say(`  ✓ 预览包 ${out}（${pv}，sha256 ${h.slice(0, 16)}…，钉 ${TAG}）`);
+  const h = await shaFile(apk);
+  const size = fs.statSync(apk).size;
+  say(`  ✓ 预览包 ${apk}（${pv}，sha256 ${h.slice(0, 16)}…，钉 ${TAG}）`);
   if (INSTALL) {
-    say(sh("priv", [`cp ${out} /data/local/tmp/ccp.apk && pm install -r /data/local/tmp/ccp.apk; rm -f /data/local/tmp/ccp.apk`]));
-  } else say(`  没装（加 --install 才装）。手动装：priv 'cp ${out} /data/local/tmp/ccp.apk && pm install -r /data/local/tmp/ccp.apk; rm -f /data/local/tmp/ccp.apk'`);
-  return { apk: out, version: pv, sha256: h };
+    // 经 stdin 流式传给 pm install -r -S（同 scripts/ship.mjs），避免落入共享存储或全局可读临时文件引发 TOCTOU 替换窗口
+    const fd = fs.openSync(apk, "r");
+    try { run("priv", [`pm install -r -S ${size}`], { stdio: [fd, "inherit", "inherit"] }); } finally { fs.closeSync(fd); }
+  } else say(`  没装（加 --install 才装）。手动装：priv 'pm install -r -S ${size}' < ${apk}`);
+  return { apk, version: pv, sha256: h };
 };
 
 step.testmerge = async () => {

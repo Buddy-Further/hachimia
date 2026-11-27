@@ -232,7 +232,7 @@ async function devApp(op, b) {
     return devUpdStatus();
   }
   if (op === "upd_apply") {
-    if (b.item !== "agy") return { ok: false, message: tz("开发端只管 Antigravity CLI (agy)（应用本体由你在本机构建安装）") };
+    if (b.item !== "agy" && b.item !== "claude") return { ok: false, message: tz("开发端只管 Antigravity CLI (agy)（应用本体由你在本机构建安装）") };
     if (devUpd.agy.state !== "available" && devUpd.agy.state !== "error") return { ok: false, message: tz("没有可装的新版，先检查更新") };
     devUpdInstall(b.version);
     return { ok: true, message: tz("开始更新 Antigravity CLI (agy)") };

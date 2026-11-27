@@ -8,7 +8,7 @@ import { zipReadCore } from "./zipcore.mjs";
 import { CFG, LAST_LANG, PATHS, PREFIX, log, tr, tz } from "./config.mjs";
 import { NAMES, PEEK_CACHE, PINS, findSessionFile, peekSession, saveNames, savePins } from "./sessions.mjs";
 import { agentsDir } from "./agents.mjs";
-import { claudeBlocked, claudeCmd, claudeEnv, killTree } from "./claude.mjs";
+import { claudeBlocked, claudeCmd, claudeEnv, isAgyOnlyCli, killTree } from "./claude.mjs";
 import { sealed } from "./edition.mjs";
 import { sessionRetention } from "./retention.mjs";
 import { LAST_SESSION, TRASH_HOOKS, forgetSession, runOfSession } from "./runs.mjs";
@@ -306,6 +306,9 @@ export function undoDelete(id, backup) {
 /** 把 Claude 改过的文件退回到某条用户消息之前（claude 的文件检查点，只覆盖 Edit / Write / NotebookEdit，命令改的不算）。
  *  每轮一个进程也没关系：检查点记在会话记录里，--resume 起来就能用（2026-10-19 实测）。dryRun 只算会动哪些文件。 */
 export async function rewindFiles(sid, userUuid, dryRun) {
+  if (isAgyOnlyCli()) {
+    return { ok: false, error: tz("当前引擎 (Antigravity CLI) 暂不支持文件检查点回退") };
+  }
   // 这里也 --resume 起了 claude：它要是往记录里写了什么，是我们起的，不算外部改动（见 integrity.mjs）
   const sf = findSessionFile(sid)?.file, dirty = checkSession(sid, sf);
   // 起 claude 就会加载用户级钩子：有没确认的改动先别起（见 userconf.mjs），发一条消息在卡片里处理

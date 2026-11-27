@@ -6,7 +6,6 @@
 // 包装给的参数（guard 钩子、密钥读取器的 --settings）可以带 --settings；用户自己带的那些能往上下文里塞东西的旗标一律不认。
 import fs from "node:fs";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 // stdout 只放结果：网关模块的日志改走 stderr（先改再加载模块）
 console.log = (...a) => process.stderr.write(a.join(" ") + "\n");
 const { sealArgv, sealed } = await import("../gw/edition.mjs");
@@ -24,25 +23,25 @@ const ours = argv.slice(i1 + 1, i2), user = argv.slice(i2 + 1);
 // 开发版：原样交回
 if (!sealed()) { process.stdout.write([...ours, ...user].map(q).join(" ") + "\n"); process.exit(0); }
 
-// claude 程序本身：和网关起的一样（gw/claudeseal.mjs），没有 Anthropic 签名清单、或和清单对不上就不起；管理子命令也一样，跑的是同一个程序。
-// 没清单的当场补核一次（install-claude.mjs --recheck，联网取官方清单），输出走 stderr，stdout 只放结果
+// agy / claude 程序本身：和网关起的一样（gw/claudeseal.mjs），没有本地清单或和清单对不上就不起；管理子命令也一样，跑的是同一个程序。
 {
   const { claudeSeal } = await import("../gw/claudeseal.mjs");
-  // 和 bin/claude 最后 exec 的是同一条路径：都按 $HOME 算（CCAPP_HOME 终端里能随便改，不能让核的和跑的是两份）
+  const { PATHS } = await import("../gw/config.mjs");
+  // 和 bin/agy / bin/claude 最后 exec 的是同一条路径：优先按 $HOME 算（CCAPP_HOME 终端里能随便改，不能让核的和跑的是两份）
   const home = process.env.HOME || "/nonexistent";
-  const BIN = path.join(home, ".local", "share", "cccodroid", "claude", "current", "claude");
+  const agyDef = path.join(home, ".local", "share", "hachimia", "agy", "current", "agy");
+  const claudeDef = path.join(home, ".local", "share", "cccodroid", "claude", "current", "claude");
+  const agyBin = process.env.CCAPP_AGY || agyDef;
+  const claudeBin = process.env.CCAPP_CLAUDE || claudeDef;
+  const BIN = fs.existsSync(agyBin) ? agyBin
+    : (fs.existsSync(claudeBin) ? claudeBin
+      : (PATHS.agy && fs.existsSync(PATHS.agy) ? PATHS.agy
+        : (PATHS.claude && fs.existsSync(PATHS.claude) ? PATHS.claude : agyBin)));
   const check = () => claudeSeal(BIN, { home }).catch((e) => ({ ok: false, why: e.message }));
-  let cs = await check();
-  const inst = path.join(HERE, "scripts", "install-claude.mjs");
-  // 只是打个版本（自检就这么问）：不为它联网补核、一等十分钟；没核过照样不起，当场报（0.6.9 审计 195-M.4 guard 半，v4pro 复核）
-  const versionOnly = user.length === 1 && (user[0] === "--version" || user[0] === "-v");
-  if (cs.pending && !versionOnly && fs.existsSync(inst)) {
-    process.stderr.write("hachimia: 这个版本还没有官方签名清单，正在联网补核… / no signed manifest yet, fetching the official one…\n");
-    spawnSync(process.execPath, [inst, "--recheck"], { stdio: ["ignore", 2, 2], timeout: 600000 });
-    cs = await check();
-  }
+  const cs = await check();
+  // 核验未过时直接 fail-closed 拒停（不再联网补核或执行外部脚本，0.6.9 审计 195-M.4 / Wave 4）
   if (cs.ok === false) {
-    const m = cs.pending ? tz("这个版本的 Claude Code 还没有官方签名清单，这一轮没有启动。正在联网补核，过一两分钟再发送；一直不行就到 设置 → 更新 里重新安装。") : tz("Claude Code 程序核验没过，这次没有运行：{why}", { why: String(cs.why || "") });
+    const m = tz("Antigravity CLI 程序核验没过，这次没有运行：{why}", { why: String(cs.why || "") });
     process.stderr.write("hachimia: " + m + "\nhachimia: " + tr("en", m) + "\n");
     process.exit(4);
   }

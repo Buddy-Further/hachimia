@@ -741,7 +741,7 @@ const COMP_ID = COMP ? (RECIPE_DIR ? COMP.id : args[1]) : null;
 if (cmd === "component" && !COMP) throw new Error("devkit.json 的 components 里没有: " + args[1]);
 const COMP_BASE = RECIPE_DIR || HERE;          // files 的 src 相对它找
 
-/** 外部配方：recipe.json + 可选的 skill/ 目录（自动装到 usr/share/cccodroid/components/<id>/skill/） */
+/** 外部配方：recipe.json + 可选的 skill/ 目录（自动装到 usr/share/hachimia/components/<id>/skill/） */
 function loadRecipe(dir) {
   const r = JSON.parse(fs.readFileSync(path.join(dir, "recipe.json"), "utf8"));
   if (r.schema !== 1) throw new Error("配方 schema 必须是 1");
@@ -791,7 +791,7 @@ function loadRecipe(dir) {
   }
   const sk = path.join(dir, "skill");
   if (fs.existsSync(path.join(sk, "SKILL.md"))) {
-    r.skill = `usr/share/cccodroid/components/${r.id}/skill`;
+    r.skill = `usr/share/hachimia/components/${r.id}/skill`;
     for (const f of fs.readdirSync(sk)) r.files[`${r.skill}/${f}`] = { src: path.join("skill", f) };
   }
   return r;
@@ -1508,7 +1508,18 @@ if (cmd === "build" || cmd === "component") {
     fr.push(`echo "▸ ${f.pkg}"; "${R.to}files/${p}" configure || echo "  （${f.pkg} 的 postinst 失败，rc=$?）"`);
   }
   const py = R.to + "files/usr/bin/python3";
-  if (EXTRAS) fr.push(`if [ -x "${py}" ]; then echo "▸ 预编译 Python 标准库与 site-packages"; LD_PRELOAD= "${py}" -m compileall -q -j 0 "$(LD_PRELOAD= "${py}" -c "import sysconfig; print(sysconfig.get_path(\x27stdlib\x27))")" >/dev/null 2>&1; fi`);
+  if (EXTRAS) {
+    fr.push(
+      `if [ -x "${py}" ]; then`,
+      `  echo "▸ 预编译 Python 标准库与 site-packages"`,
+      `  if [ "$CCAPP_EXEC" = "loader" ]; then`,
+      `    "${py}" -m compileall -q -j 0 "$("${py}" -c "import sysconfig; print(sysconfig.get_path('stdlib'))")" >/dev/null 2>&1`,
+      `  else`,
+      `    LD_PRELOAD= "${py}" -m compileall -q -j 0 "$(LD_PRELOAD= "${py}" -c "import sysconfig; print(sysconfig.get_path('stdlib'))")" >/dev/null 2>&1`,
+      `  fi`,
+      `fi`
+    );
+  }
   tw.add({ name: `${LX}/first-run.sh`, type: "0", mode: 0o755, mtime: 0, data: Buffer.from(fr.join("\n") + "\n") });
   const manText = [...manifest].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([p, [h, n]]) => `${h} ${n} ${p}`).join("\n") + "\n";
   twAdd({ name: `${LX}/MANIFEST`, type: "0", mode: 0o644, mtime: 0, data: Buffer.from(manText) });

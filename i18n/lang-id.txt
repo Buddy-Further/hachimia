@@ -3172,3 +3172,11 @@
 3172	Memeriksa kompiler, Python, Node, git, dll. lalu menyinkronkan statusnya ke Antigravity (otomatis diuji ulang usai pembaruan).
 3173	Gagal memuat antarmuka — ketuk untuk mencoba lagi
 3174	Menyimpan tidak memanggil model jarak jauh atau mengalihkan sesi saat ini.
+3175	Antigravity CLI gagal pemeriksaan integritas, jadi tidak dijalankan: {why}
+3176	Mesin saat ini (Antigravity CLI) belum mendukung pemulihan titik pemeriksaan file
+3177	Mesin saat ini (Antigravity CLI) belum mendukung pengelolaan marketplace plugin
+3178	Mesin saat ini (Antigravity CLI) belum mendukung subperintah MCP ini
+3179	Konfigurasi MCP bukan JSON yang valid
+3180	Folder bersama /sdcard/hachimia
+3181	Penulisan konten yang dapat memengaruhi keamanan giliran berikutnya diblokir: {what}
+3182	Pengaturan model "{model}" ditolak oleh agen ({msg}); dijalankan dengan model bawaan.

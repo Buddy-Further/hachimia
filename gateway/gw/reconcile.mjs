@@ -25,9 +25,9 @@ const CUSTOM_DIR = PREFIX ? path.join(CFG.home, ".cccodroid", "custom") : "";
 let last = null, busy = null;
 // 「修补」动作（act）：comp / mod 在网关里重装并等它做完；devkit / claude 交给应用（「设置 → 更新」里那两个按钮做的事）。
 // 没有 act 的（路径格式不对、清单前缀不对、自定义组件）没法自动修，照旧只给文字建议
-const ACTS = ["comp", "mod", "devkit", "claude"];
+const ACTS = ["comp", "mod", "devkit", "claude", "agy"];
 const ID_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/;
-function actOk(a) { return !!a && typeof a === "object" && ACTS.includes(a.t) && (a.t === "devkit" || a.t === "claude" || (typeof a.id === "string" && ID_RE.test(a.id))); }
+function actOk(a) { return !!a && typeof a === "object" && ACTS.includes(a.t) && (a.t === "devkit" || a.t === "claude" || a.t === "agy" || (typeof a.id === "string" && ID_RE.test(a.id))); }
 // 上次的结果存在 home 下（同 uid 能写），读回来只认形状对的：findings 得是对象数组（审查 11-05 第 19 组 1）
 try { last = JSON.parse(fs.readFileSync(STATE, "utf8")); } catch {}
 if (!last || typeof last !== "object" || !Array.isArray(last.findings)) last = null;
@@ -104,7 +104,7 @@ async function ownedPaths() {
 // 本应用的包名（清单前缀要对得上的那个）：/data/user/0/<包>/files/usr 或 /data/data/<包>/files/usr（工作资料分区是 /data/user_de/N）
 const OWN = PREFIX ? (/\/data\/(?:data|user\/\d+|user_de\/\d+)\/([^/]+)\/files\/usr\/?$/.exec(PREFIX) || [])[1] || "" : "";
 
-const comp = (id) => ({ t: "comp", id }), mod = (id) => ({ t: "mod", id }), DEVKIT = { t: "devkit" }, CLAUDE = { t: "claude" };
+const comp = (id) => ({ t: "comp", id }), mod = (id) => ({ t: "mod", id }), DEVKIT = { t: "devkit" }, CLAUDE = { t: "claude" }, AGY = { t: "agy" };
 
 /** 核一遍，返回 { at, findings:[{key, level:error|warn|info, k, v, fix, samples, act}] }。k/v 是 tz 的原句和变量，出门时再翻 */
 export async function reconcileNow() {
@@ -118,7 +118,7 @@ export async function reconcileNow() {
   const agyUninstalled = PREFIX && (exists(path.join(path.dirname(PREFIX), ".agy-uninstalled")) || exists(path.join(path.dirname(PREFIX), ".claude-uninstalled")));
   // C-06：hachimia 主模式检查 PATHS.agy（此前 !isAgyOnlyMode() 导致纯 agy 设备丢失 agy 二进制时永远报绿）
   if (PATHS.agy && !fs.existsSync(PATHS.agy) && !agyUninstalled) {
-    add("agy", "error", tz("找不到 Antigravity CLI (agy) 程序"), null, tz("设置 → 更新：重装 Antigravity CLI (agy)"), [PATHS.agy], CLAUDE);
+    add("agy", "error", tz("找不到 Antigravity CLI (agy) 程序"), null, tz("设置 → 更新：重装 Antigravity CLI (agy)"), [PATHS.agy], AGY);
   } else if (!isAgyOnlyMode() && PATHS.claude && !fs.existsSync(PATHS.claude) && !agyUninstalled) {
     add("claude", "error", tz("找不到 Antigravity CLI (agy) 程序"), null, tz("设置 → 更新：重装 Antigravity CLI (agy)"), [PATHS.claude], CLAUDE);
   }
@@ -252,7 +252,7 @@ export function fixPlan(findings, keys) {
     if (!steps.has(k)) steps.set(k, { act: f.act, k: f.k, v: f.v, keys: [] });
     steps.get(k).keys.push(f.key);
   }
-  const order = { mod: 0, comp: 1, claude: 2, devkit: 3 };
+  const order = { mod: 0, comp: 1, agy: 2, claude: 2, devkit: 3 };
   return [...steps.values()].sort((a, b) => order[a.act.t] - order[b.act.t]);
 }
 async function runStep(st) {
@@ -264,7 +264,8 @@ async function runStep(st) {
     if (err) throw new Error(err);
     return;
   }
-  const r = await privCall(a.t === "claude" ? { op: "upd_apply", item: "claude" } : { op: "upd_repair", full: true });
+  const item = a.t === "agy" || (a.t === "claude" && (isAgyOnlyMode() || (PATHS.agy && !(PATHS.claude && fs.existsSync(PATHS.claude))))) ? "agy" : "claude";
+  const r = await privCall(a.t === "agy" || a.t === "claude" ? { op: "upd_apply", item } : { op: "upd_repair", full: true });
   if (!r || r.ok === false) throw new Error((r && r.message) || "failed");
   st.msg = r.message || "";
   st.state = "handed";

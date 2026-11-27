@@ -32,8 +32,8 @@ export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=/nonexist
 # 将 SHELL 与 PATH 首段指向 APK 原生库跳板软链目录，保证 run_command 与常用工具可正常拉起。
 if [ "$CCAPP_EXEC" = "loader" ] && [ -n "$CCAPP_LOADER_BIN" ] && [ -n "$CCAPP_LOADER_RUN" ] && [ -e "$CCAPP_LOADER_RUN" ]; then
   mkdir -p "$CCAPP_LOADER_BIN" 2>/dev/null
-  [ -L "$CCAPP_LOADER_BIN/bash" ] || ln -sf "$CCAPP_LOADER_RUN" "$CCAPP_LOADER_BIN/bash" 2>/dev/null
-  [ -L "$CCAPP_LOADER_BIN/sh" ] || ln -sf "$CCAPP_LOADER_RUN" "$CCAPP_LOADER_BIN/sh" 2>/dev/null
+  [ "$(readlink "$CCAPP_LOADER_BIN/bash" 2>/dev/null)" = "$CCAPP_LOADER_RUN" ] || ln -sf "$CCAPP_LOADER_RUN" "$CCAPP_LOADER_BIN/bash" 2>/dev/null
+  [ "$(readlink "$CCAPP_LOADER_BIN/sh" 2>/dev/null)" = "$CCAPP_LOADER_RUN" ] || ln -sf "$CCAPP_LOADER_RUN" "$CCAPP_LOADER_BIN/sh" 2>/dev/null
   export SHELL="$CCAPP_LOADER_BIN/bash"
   case ":$PATH:" in
     *":$CCAPP_LOADER_BIN:"*) ;;

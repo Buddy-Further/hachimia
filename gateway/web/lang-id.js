@@ -3175,4 +3175,12 @@ window.I18N_DICT["id"] = {
   "检测编译器、Python、Node、git 等可用状态并同步给 Antigravity（更新后自动重测）。": "Memeriksa kompiler, Python, Node, git, dll. lalu menyinkronkan statusnya ke Antigravity (otomatis diuji ulang usai pembaruan).",
   "界面加载失败，点此重试": "Gagal memuat antarmuka — ketuk untuk mencoba lagi",
   "保存不调用远端模型，也不切换当前会话。": "Menyimpan tidak memanggil model jarak jauh atau mengalihkan sesi saat ini.",
+  "Antigravity CLI 程序核验没过，这次没有运行：{why}": "Antigravity CLI gagal pemeriksaan integritas, jadi tidak dijalankan: {why}",
+  "当前引擎 (Antigravity CLI) 暂不支持文件检查点回退": "Mesin saat ini (Antigravity CLI) belum mendukung pemulihan titik pemeriksaan file",
+  "当前引擎 (Antigravity CLI) 暂不支持插件市场管理": "Mesin saat ini (Antigravity CLI) belum mendukung pengelolaan marketplace plugin",
+  "当前引擎 (Antigravity CLI) 暂不支持该 MCP 子命令": "Mesin saat ini (Antigravity CLI) belum mendukung subperintah MCP ini",
+  "MCP 配置不是合法的 JSON": "Konfigurasi MCP bukan JSON yang valid",
+  "共享目录 /sdcard/hachimia": "Folder bersama /sdcard/hachimia",
+  "拒绝写入可能影响下一轮安全性的内容：{what}": "Penulisan konten yang dapat memengaruhi keamanan giliran berikutnya diblokir: {what}",
+  "模型「{model}」设置被 agent 拒绝（{msg}），已按默认跑。": "Pengaturan model \"{model}\" ditolak oleh agen ({msg}); dijalankan dengan model bawaan.",
 };
