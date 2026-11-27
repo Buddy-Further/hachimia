@@ -9,7 +9,7 @@ import path from "node:path";
 import { CFG, log, tz } from "./config.mjs";
 import { isObj, loadState, saveState, stateUnread } from "./statefile.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
-import { PROVIDER, isAgyOnlyMode, providerById } from "./providers.mjs";
+import { PROVIDER, providerById } from "./providers.mjs";
 import { SETTINGS } from "./settings-store.mjs";
 import { cachedModels, effortLevelsOf, normEffort } from "./models.mjs";
 import { projectById, projectDefaults, projectOfDir } from "./projects.mjs";
@@ -64,12 +64,11 @@ onShutdown("会话模型", flushSessModel);   // 退出流程 runShutdown() 会�
  *  暂时性死区（ReferenceError，批量测试里已复现）。所以改成首次读记录时懒迁移——
  *  读记录的调用一定发生在全部模块初始化完成之后。 */
 export function migrateHiddenSessionPins() {
-  if (!isAgyOnlyMode()) return [];
   const moved = [];
   for (const [sid, r] of Object.entries(DB)) {
     const p = r && typeof r.provider === "string" && r.provider ? providerById(r.provider) : null;
-    if (!p || p.group !== "claude") continue;
-    log(`[厂商] 纯 Antigravity 模式：会话 ${sid} 钉在 Claude 预置 ${r.provider} 上，不可用，已自动切回 antigravity`);
+    if (r?.provider !== "local" && (!p || p.group !== "claude")) continue;
+    log(`[厂商] 纯 Antigravity 模式：会话 ${sid} 钉在旧预设 ${r.provider} 上，不可用，已自动切回 antigravity`);
     DB[sid] = { ...r, provider: "antigravity", model: r.model != null ? "" : null };
     moved.push(sid);
   }

@@ -656,7 +656,7 @@
       acForce = false;
       $("ac-val").textContent = acSet
         ? t("已设 {line}（模型窗口未知，按你设的生效）", { line: fmtTok(acSet) })
-        : acAcp ? t("未填（ACP 下无默认压缩线）") : t("未填（按 200k 算）");
+        : t("未填（ACP 下无默认压缩线）");
       $("ac-auto").classList.toggle("hidden", !acSet);
       return;
     }
@@ -777,7 +777,7 @@
 
   function renderCaps() {
     const c = state.caps || {};
-    const eng = c.engine === "claude" ? "Claude Code" : "Antigravity";
+    const eng = "Antigravity";
     const subParts = [c.version ? `${eng} ${c.version}` : eng, c.tier || "", t("当前可用的能力")].filter(Boolean);
     setPageSub("caps", subParts.join(" · "));
     const cmds = c.slashCommands || [];

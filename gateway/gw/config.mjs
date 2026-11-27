@@ -29,7 +29,6 @@ export const CFG = {
 // 前缀布局（hachimia）：工具链是原生 Termux 前缀，claude 是官方原版二进制，
 // 由宿主 App 用环境变量告诉我们位置；没设就按旧布局（runtime/ 下）找。
 export const PREFIX = process.env.CCAPP_PREFIX || "";
-export const NO_BRIDGE = !!PREFIX || process.env.CCAPP_NO_BRIDGE === "1";
 export const PATHS = {
   loader: process.env.CCAPP_LOADER || path.join(CFG.runtime, "glibc", "lib", "ld-linux-aarch64.so.1"),
   glibcLib: process.env.CCAPP_GLIBC_LIB || path.join(CFG.runtime, "glibc", "lib"),
@@ -48,7 +47,6 @@ export const PATHS = {
   nodeLib: path.join(CFG.runtime, "node", "lib"),
   web: path.join(HERE, "web"),
   toolchain: process.env.CCAPP_TOOLCHAIN || path.join(CFG.home, "..", "toolchain"),
-  bridge: path.join(HERE, "localbridge.mjs"),
   config: path.join(CFG.home, "ccapp-config.json"),
   settings: path.join(CFG.home, "ccapp-settings.json"),
   names: path.join(CFG.home, "ccapp-session-names.json"),

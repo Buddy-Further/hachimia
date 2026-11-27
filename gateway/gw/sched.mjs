@@ -21,7 +21,7 @@ import { projectById } from "./projects.mjs";
 import { isLoginMode } from "./models.mjs";
 import { pickProvider } from "./run.mjs";
 import { privCall } from "./usage.mjs";
-import { isAgyOnlyMode, providerById, usdCny } from "./providers.mjs";
+import { providerById, usdCny } from "./providers.mjs";
 
 // node 在安卓上可能没拿到时区（TZ 没设就是 UTC）：「每天 09:00」必须按本地时间算
 // 按系统设置取的就要跟着系统变：出差、手动改时区后，每天 09:00 要按新时区的 09:00（#107 06-012）。tick 里隔几分钟再问一次
@@ -102,12 +102,11 @@ export function clearFollowingTaskModels() {
  *  同样不得在模块顶层跑（循环 import 的暂时性死区，会话迁移已复现过）：首次 tick /
  *  路由 / 开跑时懒迁移。 */
 export function migrateHiddenTaskPins() {
-  if (!isAgyOnlyMode()) return [];
   const moved = [];
   for (const t of DB.tasks) {
     const prov = t && typeof t.provider === "string" && t.provider ? providerById(t.provider) : null;
-    if (!prov || prov.group !== "claude") continue;
-    log(`[厂商] 纯 Antigravity 模式：定时任务「${t.name}」钉在 Claude 预置 ${t.provider} 上，不可用，已自动切回 antigravity`);
+    if (t?.provider !== "local" && (!prov || prov.group !== "claude")) continue;
+    log(`[厂商] 纯 Antigravity 模式：定时任务「${t.name}」钉在旧预设 ${t.provider} 上，不可用，已自动切回 antigravity`);
     if (t.model) t.model = "";
     t.provider = "antigravity";
     moved.push(t.id);

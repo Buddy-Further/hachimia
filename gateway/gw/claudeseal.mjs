@@ -17,7 +17,7 @@ let askRecheck = null;
 
 export const onSealUnknown = (fn) => { askRecheck = fn; };
 
-export const sealStillValid = (bin0 = PATHS.agy || PATHS.claude) => {
+export const sealStillValid = (bin0 = PATHS.agy) => {
   if (!cache.res || cache.res.ok !== true) return true;
   try { return fpFor(fs.realpathSync(bin0)) === cache.fp; } catch { return false; }
 };
@@ -59,7 +59,7 @@ const SEAL_INFLIGHT = new Map();
 /**
  * 返回 { ok: true }（校验通过）/ { ok: false, why }（检测到篡改、清单缺失/损坏或不符）/ { ok: null, why }（开发模式或二进制不存在，放行）。
  */
-export async function claudeSeal(bin0 = PATHS.agy || PATHS.claude, { force = false, home = CFG.home } = {}) {
+export async function claudeSeal(bin0 = PATHS.agy, { force = false, home = CFG.home } = {}) {
   if (!DEPLOYED && !force) return { ok: null, why: "dev" };
   let bin;
   try { bin = fs.realpathSync(bin0); } catch { return { ok: null, why: "missing" }; }

@@ -29,7 +29,7 @@ const LOGIN_DIR = path.join(CFG.home, ".cache", "hachimia-login");
 const SYS_SH = fs.existsSync("/system/bin/sh") ? "/system/bin/sh" : "/bin/sh";
 
 function agyBin() {
-  return PATHS.agy || PATHS.claude;
+  return PATHS.agy;
 }
 
 /** 授权地址：只认 Google 授权端点、oauth 路径、antigravity 的 auth/login 入口。

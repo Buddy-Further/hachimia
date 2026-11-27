@@ -105,3 +105,23 @@ test("Stage 3 纯 ACP 瘦身：streamfix.mjs 已删、run.mjs 无旧版 stream-j
   const runSrc = fs.readFileSync(path.join(ROOT, "gateway/gw/run.mjs"), "utf8");
   assert.doesNotMatch(runSrc, /--output-format.*stream-json|streamfix\.mjs|bridgeSwitching/);
 });
+
+test("Stage 4 纯 agy 收口：项目/任务/会话钉选 local 自动迁回 antigravity，死路径与 UI 旧标签已清", async () => {
+  const cfg = await import("../gw/config.mjs");
+  assert.equal("NO_BRIDGE" in cfg, false, "NO_BRIDGE 应已移除");
+  assert.equal("bridge" in cfg.PATHS, false, "PATHS.bridge 应已移除");
+  assert.equal(typeof cfg.PATHS.projects, "string", "Redline 3: PATHS.projects 历史会话目录须保留");
+
+  const { setSessModel, sessModel, migrateHiddenSessionPins } = await import("../gw/sessmodel.mjs");
+  setSessModel("pure-agy-local-pin", { provider: "local", model: "qwen.gguf" });
+  const moved = migrateHiddenSessionPins();
+  assert.ok(moved.includes("pure-agy-local-pin"));
+  assert.equal(sessModel("pure-agy-local-pin").provider, "antigravity");
+  assert.equal(sessModel("pure-agy-local-pin").model, "");
+
+  const s09 = fs.readFileSync(path.join(ROOT, "gateway/web/app/09-settings.js"), "utf8");
+  assert.doesNotMatch(s09, /Claude（兼容）|Claude \(legacy\)/);
+  assert.match(s09, /r\.migratedFrom/, "Redline 1: 迁移提示 toast 须保留");
+  const s12 = fs.readFileSync(path.join(ROOT, "gateway/web/app/12-model-caps.js"), "utf8");
+  assert.doesNotMatch(s12, /未填（按 200k 算）|c\.engine === "claude"/);
+});

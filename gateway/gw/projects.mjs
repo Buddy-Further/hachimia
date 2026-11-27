@@ -21,7 +21,7 @@ import { pathBlocked, writeNoFollow } from "./files.mjs";
 import { holdsPrivate, isPrivate } from "./pathguard.mjs";
 import { loadState, saveState } from "./statefile.mjs";
 import { syncGitSafe } from "./gitsafe.mjs";
-import { isAgyOnlyMode, providerById } from "./providers.mjs";
+import { providerById } from "./providers.mjs";
 import { closeAcpSession, hasAcpIdleBurst } from "./acp.mjs";
 
 const FILE = path.join(CFG.home, "ccapp-projects.json");
@@ -86,12 +86,11 @@ export function projectDefaults(p) {
  *  暂时性死区（ReferenceError，会话迁移已复现过）。所以改成首次读项目默认时懒迁移——
  *  读默认的调用一定发生在全部模块初始化完成之后。 */
 export function migrateHiddenProjectPins() {
-  if (!isAgyOnlyMode()) return [];
   const moved = [];
   for (const p of PROJECTS) {
     const prov = p && typeof p.provider === "string" && p.provider ? providerById(p.provider) : null;
-    if (!prov || prov.group !== "claude") continue;
-    log(`[厂商] 纯 Antigravity 模式：项目「${p.name}」默认钉在 Claude 预置 ${p.provider} 上，不可用，已自动切回 antigravity`);
+    if (p?.provider !== "local" && (!prov || prov.group !== "claude")) continue;
+    log(`[厂商] 纯 Antigravity 模式：项目「${p.name}」默认钉在旧预设 ${p.provider} 上，不可用，已自动切回 antigravity`);
     if (p.model && !SAME.includes(p.model)) p.model = "";
     p.provider = "antigravity";
     moved.push(p.id);

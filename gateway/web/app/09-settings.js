@@ -10,8 +10,8 @@
   // 状态里的当前接口名：同上规则（旧网关没有 providerLabelEn 就用中文名）
   const provName = (s) => (s && ((provEn() && s.providerLabelEn) || s.providerLabel || s.provider)) || "";
   const pHint = (x) => (provEn() && x.hintEn) || x.hint || "";
-  const GROUP_NAME = provEn() ? { antigravity: "Google Antigravity / Gemini", claude: "Claude (legacy)", third: "Third-party", custom: "Custom endpoints" }
-    : { antigravity: t("Google Antigravity / Gemini"), claude: t("Claude（兼容）"), third: t("第三方接口"), custom: t("自定义接口") };
+  const GROUP_NAME = provEn() ? { antigravity: "Google Antigravity / Gemini", third: "Third-party", custom: "Custom endpoints" }
+    : { antigravity: t("Google Antigravity / Gemini"), third: t("第三方接口"), custom: t("自定义接口") };
   const post = (p, body) => api(p, {
     method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body || {}),
   });
@@ -39,7 +39,7 @@
         const st = p.login ? "" : (p.hasKey ? "" : (provEn() ? " · no key yet" : t(" · 未配 Key")));
         return `<option value="${esc(p.id)}">${tag}${esc(pLabel(p))}${st}</option>`;
       };
-      sel.innerHTML = ["antigravity", "claude", "third", "custom"]
+      sel.innerHTML = ["antigravity", "third", "custom"]
         .filter((g) => g === "custom" || (groups[g] && groups[g].length))
         .map((g) =>
           `<optgroup label="${GROUP_NAME[g]}">` + (groups[g] || []).map(opt).join("") +

@@ -190,7 +190,7 @@ export async function routeCaps(req, res, u, p) {
       app: "hachimia",
       product: PREFIX ? "hachimia" : "Antigravity CLI",   // 界面标题
       pid: process.pid,
-      ready: fs.existsSync(PATHS.agy) || (fs.existsSync(PATHS.claude) && fs.existsSync(PATHS.loader)),
+      ready: fs.existsSync(PATHS.agy),
       // 登录态厂商也算"就绪"：它不用密钥，用的是 claude 自己的 OAuth 登录
       hasKey: !!API_KEY || !!PROVIDER.login,
       keyMode: API_KEY ? "key" : (PROVIDER.login ? "login" : "none"),

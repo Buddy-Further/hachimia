@@ -583,7 +583,7 @@ function loadProviders() {
   for (const [id, raw] of Object.entries(PROVIDERS_RAW.providers)) {
     if (!PRESETS[id] && raw && raw.baseUrl) providers[id] = composeProvider(id, raw);
   }
-  let active = providers[PROVIDERS_RAW.active] ? PROVIDERS_RAW.active : (PREFIX || isAgyOnlyMode() ? "antigravity" : "deepseek");
+  let active = providers[PROVIDERS_RAW.active] ? PROVIDERS_RAW.active : "antigravity";
   // 已下线的端侧小模型：旧配置若仍把 active 指在 "local"，平滑迁回默认并清理占位条目
   if (PROVIDERS_RAW.active === "local" && !providers.local) {
     PROVIDER_MIGRATED_FROM = "local";
@@ -591,9 +591,9 @@ function loadProviders() {
     if (PROVIDERS_RAW.providers.local && !PROVIDERS_RAW.providers.local.baseUrl) delete PROVIDERS_RAW.providers.local;
     log(`[厂商] 端侧小模型已下线，旧配置 active="local" 已自动切回 ${active}`);
   }
-  // MIG-10：agy-only 下 Claude 系预置不可用。旧配置的 active 仍指着它时迁回 antigravity，
+  // MIG-10：纯 agy 下 Claude 系预置不可用。旧配置的 active 仍指着它时迁回 antigravity，
   // 这里只改内存并记 flag，落盘由模块加载后统一做（见 PROVIDERS_CFG 赋值后的那段）。
-  if (isAgyOnlyMode() && active && providers[active] && providers[active].group === "claude") {
+  if (active && providers[active] && providers[active].group === "claude") {
     PROVIDER_MIGRATED_FROM = active;
     PROVIDERS_RAW.active = "antigravity";
     active = "antigravity";
@@ -671,10 +671,9 @@ export function isProviderUsable(p) {
 /** 判断某接口是否应该显示给当前客户端（纯 Antigravity 模式下隐藏无法驱动的 Claude/Anthropic-only 预设） */
 export function isProviderVisible(id, v) {
   if (!v) return false;
-  // MIG-10：agy-only 下 Claude 系预置一律隐藏（不论是否存 key、是否为 active——
+  // MIG-10：纯 agy 下 Claude 系预置一律隐藏（不论是否存 key、是否为 active——
   // active 是 Claude 时由 loadProviders/applyProvider 迁回 antigravity，不留可选项）。
-  if (isAgyOnlyMode() && v.group === "claude") return false;
-  if (!isAgyOnlyMode()) return true;
+  if (v.group === "claude") return false;
   if (id === PROVIDER.id) return true;
   if (v.group === "antigravity" || v.custom) return true;
   if (String(v.apiKey || "").trim()) return true;
