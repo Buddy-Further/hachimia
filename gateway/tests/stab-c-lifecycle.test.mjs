@@ -241,13 +241,18 @@ test("FIND-007：这一轮在别的会话里跑完，权限卡记录也要收掉
   assert.deepEqual(t.calls.permDone, [["p1", "stopped"]]);
 });
 
+function loadPermDone(box) {
+  const helper = cut(src03, "  const permToolLabel =", "\n  function permPreview(");
+  return load(helper + "\n" + cut(src03, "  function permDone(", "  // 卡片里已经勾的"), box, ["permDone"]);
+}
+
 test("FIND-007：切走后卡片已从文档里拿掉，permDone 不再抱着游离 DOM 和表单值", () => {
   const perms = new Map();
   let renders = 0;
   const el = { isConnected: false, classList: { add() {}, remove() {} }, querySelector: () => null, querySelectorAll: () => [] };
   perms.set("p1", { p: { tool: "Bash", input: { command: "ls" } }, runId: "r1", el, done: false });
   const box = { PERMS: perms, TOOL_CARDS: new Map(), t: (s) => s, esc: (s) => s, renderPermBar: () => renders++ };
-  const h = load(cut(src03, "  function permDone(", "  // 卡片里已经勾的"), box, ["permDone"]);
+  const h = loadPermDone(box);
   h.permDone("p1", "stopped");
   assert.equal(perms.has("p1"), false);
   assert.equal(renders, 1);
@@ -263,7 +268,7 @@ test("FIND-007：还在文档里的卡照旧收起成一行（没误删正常记
   };
   perms.set("p1", { p: { tool: "Bash", input: { command: "ls" } }, runId: "r1", el, done: false });
   const box = { PERMS: perms, TOOL_CARDS: new Map(), t: (s) => s, esc: (s) => s, renderPermBar() {} };
-  const h = load(cut(src03, "  function permDone(", "  // 卡片里已经勾的"), box, ["permDone"]);
+  const h = loadPermDone(box);
   h.permDone("p1", "deny");
   assert.equal(perms.get("p1").done, true);
 });

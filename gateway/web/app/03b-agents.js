@@ -89,8 +89,9 @@
     const a = AG.byTool.get(parentTool);
     if (!a) return;
     a.steps++;
-    const s = summarizeTool(name, input);
-    a.now = name + (s ? " " + s : "");
+    const dName = typeof displayToolName === "function" ? displayToolName(name, input) : name;
+    const s = summarizeTool(dName, input);
+    a.now = dName + (s ? " " + s : "");
     agTouch(agCardOf(a));
   }
 

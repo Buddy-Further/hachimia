@@ -449,45 +449,78 @@
 
   function summarizeTool(name, input) {
     if (!input) return "";
+    const n = displayToolName(name, input);
+    const clip = (s) => {
+      const t = String(s || "").replace(/\s+/g, " ").trim();
+      return t.length > 90 ? t.slice(0, 90) + "…" : t;
+    };
     // agy 的 run_command 会带 toolSummary；Bash 带了说明：标题优先用说明
-    if (typeof input.toolSummary === "string" && input.toolSummary.trim()) {
-      const d = input.toolSummary.trim();
-      return d.length > 90 ? d.slice(0, 90) + "…" : d;
+    if (typeof input.toolSummary === "string" && input.toolSummary.trim()) return clip(input.toolSummary);
+    if ((n === "Bash" || n === "PowerShell" || n === "run_command" || n === "run_shell") && typeof input.description === "string" && input.description.trim()) {
+      return clip(input.description);
     }
-    if ((name === "Bash" || name === "PowerShell" || name === "run_command" || name === "run_shell") && typeof input.description === "string" && input.description.trim()) {
-      const d = input.description.trim();
-      return d.length > 90 ? d.slice(0, 90) + "…" : d;
-    }
-    if (name === "read_file" && input.Path) {
+    if (n === "read_file" && (input.Path || input.AbsolutePath || input.file_path || input.TargetFile || input.path)) {
       const rng = input.StartLine || input.EndLine ? `:${input.StartLine || 1}-${input.EndLine || ""}` : "";
-      const s = String(input.Path) + rng;
-      return s.length > 90 ? s.slice(0, 90) + "…" : s;
+      return clip(String(input.Path || input.AbsolutePath || input.file_path || input.TargetFile || input.path) + rng);
     }
-    if (name === "invoke_subagent") {
-      const s = [input.Role || input.TypeName, input.Prompt].filter(Boolean).join(" · ");
-      return s.length > 90 ? s.slice(0, 90) + "…" : s;
+    if (n === "update_steps" && Array.isArray(input.steps)) {
+      const done = input.steps.filter((s) => s && (s.status === "done" || s.status === "completed")).length;
+      return `${done}/${input.steps.length}`;
     }
-    if (name === "send_message") {
-      const s = [input.Recipient ? "→ " + String(input.Recipient).slice(0, 12) : "", input.Message].filter(Boolean).join(" · ");
-      return s.length > 90 ? s.slice(0, 90) + "…" : s;
+    if (n === "invoke_subagent") {
+      return clip([input.Role || input.TypeName, input.Prompt].filter(Boolean).join(" · "));
     }
-    if (name === "manage_task" || name === "manage_subagents") {
-      const s = [input.Action, input.TaskId || (Array.isArray(input.ConversationIds) ? input.ConversationIds.join(",") : "")].filter(Boolean).join(" ");
-      return s.length > 90 ? s.slice(0, 90) + "…" : s;
+    if (n === "send_message") {
+      return clip([input.Recipient ? "→ " + String(input.Recipient).slice(0, 12) : "", input.Message].filter(Boolean).join(" · "));
     }
-    if (name === "schedule") {
+    if (n === "manage_task" || n === "manage_subagents") {
+      return clip([input.Action, input.TaskId || (Array.isArray(input.ConversationIds) ? input.ConversationIds.join(",") : "")].filter(Boolean).join(" "));
+    }
+    if (n === "schedule") {
       const when = input.CronExpression || (input.DurationSeconds ? `${input.DurationSeconds}s` : "");
-      const s = [when, input.Prompt].filter(Boolean).join(" · ");
-      return s.length > 90 ? s.slice(0, 90) + "…" : s;
+      return clip([when, input.Prompt].filter(Boolean).join(" · "));
     }
-    if (name === "ask_question" && Array.isArray(input.questions) && input.questions[0]?.question) {
-      const s = String(input.questions[0].question);
-      return s.length > 90 ? s.slice(0, 90) + "…" : s;
+    if (n === "ask_question" && Array.isArray(input.questions) && input.questions[0]?.question) {
+      return clip(String(input.questions[0].question));
     }
-    const v = input.CommandLine || input.command || input.Path || input.ScriptPath || input.file_path || input.path || input.pattern ||
-              input.query || input.url || input.Description || input.Role || input.Prompt || input.prompt || input.description || input.skill || "";
+    const v = input.CommandLine || input.command || input.Path || input.TargetFile || input.AbsolutePath || input.ScriptPath
+              || input.DirectoryPath || input.SearchPath || input.TargetDirectory || input.file_path || input.path
+              || input.Query || input.query || input.Pattern || input.pattern || input.Url || input.url
+              || input.Description || input.Role || input.Prompt || input.prompt || input.description || input.skill || "";
     const s = typeof v === "string" ? v : JSON.stringify(v);
-    return s.length > 90 ? s.slice(0, 90) + "…" : s;
+    return clip(s);
+  }
+
+  // 兼容历史 jsonl 里已被 agy title 写成整条命令/路径的 tool_use.name：折叠态还原为简短工具名
+  function displayToolName(name, input) {
+    const raw = String(name || "").trim();
+    if (!raw) return "Tool";
+    const runMatch = /^run\s+([a-z0-9_.:-]+)$/i.exec(raw);
+    if (runMatch) return runMatch[1];
+    const inp = input && typeof input === "object" ? input : null;
+    const isShortIdent = !/[\r\n]/.test(raw) && raw.length <= 40 && (!/\s/.test(raw) || /^[a-z0-9_.-]+(?:\s+\([^)]+\))$/i.test(raw))
+      && (!inp || (raw !== inp.CommandLine && raw !== inp.command));
+    if (isShortIdent) return raw;
+    if (inp) {
+      if (typeof inp.CommandLine === "string") return "run_command";
+      if (typeof inp.command === "string") return "Bash";
+      if (typeof inp.TypeName === "string" && typeof inp.Prompt === "string") return "invoke_subagent";
+      if (typeof inp.Script === "string" || typeof inp.ScriptPath === "string") return "run_workflow";
+      if (typeof inp.Recipient === "string" && typeof inp.Message === "string") return "send_message";
+      if (typeof inp.Path === "string" || typeof inp.AbsolutePath === "string" || typeof inp.file_path === "string" || typeof inp.TargetFile === "string" || typeof inp.path === "string") {
+        if (inp.Target !== undefined || inp.Replacement !== undefined || inp.old_string !== undefined || inp.new_string !== undefined || inp.TargetContent !== undefined || inp.ReplacementContent !== undefined || Array.isArray(inp.ReplacementChunks)) return "edit_file";
+        if (inp.Content !== undefined || inp.content !== undefined || inp.CodeContent !== undefined || inp.Overwrite !== undefined) return "write_file";
+        return "read_file";
+      }
+      if (typeof inp.CronExpression === "string" || typeof inp.DurationSeconds === "number") return "schedule";
+      if (Array.isArray(inp.questions)) return "ask_question";
+      if (Array.isArray(inp.steps)) return "update_steps";
+      if (typeof inp.Query === "string" && (typeof inp.SearchPath === "string" || typeof inp.DirectoryPath === "string" || typeof inp.TargetDirectory === "string")) return "grep_search";
+      if (typeof inp.Pattern === "string" && (typeof inp.SearchPath === "string" || typeof inp.DirectoryPath === "string" || typeof inp.TargetDirectory === "string")) return "find_by_name";
+      if (typeof inp.DirectoryPath === "string" && !inp.Pattern && !inp.Query && !inp.query) return "list_dir";
+      if (typeof inp.query === "string" && !inp.url) return "search_web";
+    }
+    return raw.replace(/\s+/g, " ");
   }
 
   const isAgentToolName = (n) => n === "Agent" || n === "Task" || n === "invoke_subagent" || n === "run_workflow" || /^(?:spawn|invoke)\s+(?:sub)?agent/i.test(String(n || ""));
@@ -510,8 +543,9 @@
    *  孙代理的步骤挂在它下面同样记着；结果、汇报、状态都按调用顺序存，展开时原样重放 */
   function LazyCard(id, name, input, live) {
     const calls = [];
-    const c = { kind: "tool", lazy: true, id, name, input, live, calls, disposed: false, isAgent: isAgentToolName(name),
-                state: live ? "run" : "unknown", summary: summarizeTool(name, input), onChange: null };
+    const dName = displayToolName(name, input);
+    const c = { kind: "tool", lazy: true, id, name: dName, input, live, calls, disposed: false, isAgent: isAgentToolName(dName),
+                state: live ? "run" : "unknown", summary: summarizeTool(dName, input), onChange: null };
     for (const k of ["result", "update", "subText", "subProgress", "subDone", "stop", "fail", "finish", "subLazy"]) {
       c[k] = (...a) => {
         if (c.disposed) return;
@@ -519,14 +553,16 @@
         else calls.push([k, a]);
         if (k === "update") {
           const u = a[0] || {};
-          if (u.name) c.name = u.name;
+          if (u.name) name = u.name;
           if (u.input && typeof u.input === "object") { input = u.input; c.input = u.input; }
+          c.name = displayToolName(name, c.input);
+          c.isAgent = isAgentToolName(c.name);
           c.summary = summarizeTool(c.name, c.input);
         }
         if (k === "result") {
           const cancelled = !!a[2];
           c.state = cancelled ? "cancel" : (a[0] ? "ok" : "err"); c.hasResult = true;
-          if (!cancelled && c.isAgent && a[0] && isAsyncAgentResult(name, String(a[1] || "")) && !c.subEnded) {
+          if (!cancelled && c.isAgent && a[0] && isAsyncAgentResult(c.name, String(a[1] || "")) && !c.subEnded) {
             const fin = AG.byTool.get(id)?.status;
             c.state = fin && fin !== "running" ? (fin === "done" ? "ok" : "err") : "run";
           } else if (live && !cancelled && !c.isAgent && a[0] && isBgShellResult(c.name, c.input, String(a[1] || "")) && !c.bgEnded) {
@@ -578,13 +614,14 @@
 
   function ToolBlock(parent, id, name, input, live) {
     let disposed = false;
+    let dName = displayToolName(name, input);
     const card = document.createElement("div");
     card.className = "tool";
     const cmdTitle = input && (typeof input.CommandLine === "string" ? input.CommandLine : typeof input.command === "string" ? input.command : "");
-    const openFile = input && (input.Path || input.ScriptPath || input.file_path || input.notebook_path || "");
+    const openFile = input && (input.Path || input.TargetFile || input.AbsolutePath || input.ScriptPath || input.file_path || input.notebook_path || input.path || "");
     card.innerHTML =
-      `<div class="tool-head"><span class="chev">▶</span><span class="tool-name">${esc(name)}</span>` +
-      `<span class="tool-arg"${cmdTitle ? ` title="${esc(cmdTitle.slice(0, 500))}"` : ""}>${esc(summarizeTool(name, input))}</span>` +
+      `<div class="tool-head"><span class="chev">▶</span><span class="tool-name">${esc(dName)}</span>` +
+      `<span class="tool-arg"${cmdTitle ? ` title="${esc(cmdTitle.slice(0, 500))}"` : ""}>${esc(summarizeTool(dName, input))}</span>` +
       (/^\//.test(openFile) ? `<a class="fpath tool-open" href="#" data-path="${esc(openFile)}" title="${t("在查看器中打开")}">↗</a>` : "") +
       `<span class="tool-state ${live ? "run" : "unknown"}">${live ? t("运行中") : t("状态未知")}</span></div>` +
       `<div class="tool-body"></div>`;
@@ -593,7 +630,7 @@
     const nameEl = card.querySelector(".tool-name"), argEl = card.querySelector(".tool-arg");
     let result = null, liveOut = "", built = false, bgDone = false;
     // 子代理（Agent / Task / agy invoke_subagent / run_workflow）：卡片下面挂一块「子代理过程」，默认收起
-    const isAgent = isAgentToolName(name);
+    let isAgent = isAgentToolName(dName);
     let sub = null;
     const subArea = () => {
       if (sub) return sub;
@@ -661,18 +698,38 @@
       kind: "tool",
       id,
       el: card,
-      name, summary: summarizeTool(name, input), state: live ? "run" : "unknown",
+      name: dName, summary: summarizeTool(dName, input), state: live ? "run" : "unknown",
       onChange: null,
       update(u) {
         if (disposed || !u) return;
-        if (u.name && u.name !== name) { name = u.name; api.name = name; if (nameEl) nameEl.textContent = name; }
+        if (u.name) name = u.name;
+        if (u.input && typeof u.input === "object") input = u.input;
+        const nextName = displayToolName(name, input);
+        if (nextName !== dName) {
+          dName = nextName;
+          api.name = dName;
+          isAgent = isAgentToolName(dName);
+          api.isAgent = isAgent;
+          if (nameEl) nameEl.textContent = dName;
+        }
         if (u.input && typeof u.input === "object") {
-          input = u.input;
-          api.summary = summarizeTool(name, input);
+          api.summary = summarizeTool(dName, input);
           if (argEl) {
             argEl.textContent = api.summary;
             const ct = typeof input.CommandLine === "string" ? input.CommandLine : typeof input.command === "string" ? input.command : "";
-            if (ct) argEl.title = ct.slice(0, 500);
+            argEl.title = ct ? ct.slice(0, 500) : "";
+          }
+          const nextOpen = input.Path || input.TargetFile || input.AbsolutePath || input.ScriptPath || input.file_path || input.notebook_path || input.path || "";
+          if (/^\//.test(nextOpen)) {
+            let openEl = card.querySelector(".tool-open");
+            if (!openEl) {
+              const tmp = document.createElement("div");
+              tmp.innerHTML = `<a class="fpath tool-open" href="#" data-path="${esc(nextOpen)}" title="${t("在查看器中打开")}">↗</a>`;
+              openEl = tmp.firstChild;
+              if (st && openEl) st.before(openEl);
+            } else {
+              openEl.dataset.path = nextOpen;
+            }
           }
         }
         if (typeof u.output === "string" && u.output !== liveOut) liveOut = u.output;
@@ -699,12 +756,12 @@
         if (live && !busReplay) { MO.play(st, "mo-tick", 1400, repeat); if (ok && !isCancel) MO.play(card, "mo-ok", 1400, repeat); }
         // 后台子代理：工具结果只是「已启动」，真正跑完靠 sub_done
         // 状态也记成在跑：不然步骤组的摘要按「完成」算（审查 #48 UI07-03）
-        if (!isCancel && isAgent && ok && isAsyncAgentResult(name, result.text) && !(sub && sub.done)) {
+        if (!isCancel && isAgent && ok && isAsyncAgentResult(dName, result.text) && !(sub && sub.done)) {
           // 联络簿比这张卡先到、已经记着它结束了（翻历史时常见）：直接按终态收，别挂成「后台运行」（#95 01-003）
           const fin = AG.byTool.get(id)?.status;
           if (fin && fin !== "running") api.subDone(fin === "done" ? "completed" : fin);
           else { api.state = "run"; st.className = "tool-state run"; st.textContent = t("后台运行"); }
-        } else if (live && !isCancel && !isAgent && ok && isBgShellResult(name, input, result.text) && !bgDone) {
+        } else if (live && !isCancel && !isAgent && ok && isBgShellResult(dName, input, result.text) && !bgDone) {
           api.state = "run"; st.className = "tool-state run"; st.textContent = t("后台运行");
         }
         if (built) { built = false; build(); }
@@ -774,8 +831,9 @@
         if (disposed) return null;
         const s = subArea();
         s.n++; subLabel();
-        const sum = summarizeTool(sname, sinput);
-        s.now.textContent = sname + (sum ? " " + sum : "");
+        const sd = displayToolName(sname, sinput);
+        const sum = summarizeTool(sd, sinput);
+        s.now.textContent = sd + (sum ? " " + sum : "");
         if (!s.box.classList.contains("open")) {          // 收着：只记数据
           const c = LazyCard(sid, sname, sinput, live);
           c.host = card;                                  // 没有 DOM：记下挂在哪张真卡下面，裁剪历史页时据此一并放掉
@@ -851,7 +909,7 @@
               s.list.prepend(note);
             }
             for (const m of items) {
-              if (m.role === "tool_use") { const k = api.sub(m.id, m.name, m.input); if (mk && isAgentToolName(m.name) && k && k.subLazy) k.subLazy(mk(m.id), mk); }
+              if (m.role === "tool_use") { const k = api.sub(m.id, m.name, m.input); if (mk && k && (k.isAgent || isAgentToolName(m.name)) && k.subLazy) k.subLazy(mk(m.id), mk); }
               else if (m.role === "tool_result") toolResult(m.id, m.ok, m.text, !!m.cancelled);
               else if (m.role === "assistant") api.subText(m.text);
             }
@@ -1034,6 +1092,7 @@
   function toolUpdate(ev) {
     const c = ev && ev.id && TOOL_CARDS.get(ev.id);
     if (c && c.update) c.update(ev);
+    if (typeof noteWrote === "function" && ev?.input) noteWrote(c?.name || displayToolName(ev.name, ev.input), ev.input);
   }
   function toolResult(id, ok, text, cancelled) {
     if (id) rememberResult(id, ok, text, cancelled);   // 卡片现在没有、或以后被裁掉重建，结果都还在（#120-4）

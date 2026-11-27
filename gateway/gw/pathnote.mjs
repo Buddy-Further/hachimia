@@ -4,7 +4,7 @@
 // 下一条用户消息带一段提醒递进去（放用户消息里模型才照做，见建档的经验）。前端另有兜底（01-core.js 的 WROTE）。
 import path from "node:path";
 
-const WRITE_TOOLS = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
+const WRITE_TOOLS = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit", "write_file", "edit_file", "replace_file_content", "multi_replace_file_content"]);
 const NOTES = new Map();          // sessionId → 下一轮要带的提醒
 
 /** 一轮的观察者：feed 喂 claude 的事件，check 在收尾时算有没有偷懒 */
@@ -16,7 +16,7 @@ export function pathWatch() {
       if (ev.type !== "assistant" || ev.parent_tool_use_id || ev.isSidechain || !Array.isArray(ev.message?.content)) return;
       for (const c of ev.message.content) {
         if (c?.type === "tool_use" && WRITE_TOOLS.has(c.name)) {
-          const p = c.input?.file_path || c.input?.notebook_path;
+          const p = c.input?.file_path || c.input?.notebook_path || c.input?.Path || c.input?.TargetFile;
           if (typeof p === "string" && p.startsWith("/")) files.add(p);
         } else if (c?.type === "text" && c.text) text += "\n" + c.text;
       }

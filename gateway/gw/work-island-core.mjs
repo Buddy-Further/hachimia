@@ -16,6 +16,13 @@ const ZH_TOOLS = {
   Task: "子任务", Agent: "子任务", TodoWrite: "整理清单", NotebookEdit: "改笔记",
   TaskCreate: "整理清单", TaskUpdate: "整理清单", TaskList: "整理清单", TaskGet: "整理清单",
   Skill: "调用技能", KillShell: "收尾命令",
+  run_command: "执行命令", run_shell: "执行命令",
+  read_file: "读文件", view_file: "读文件", list_dir: "列目录",
+  write_file: "写文件", edit_file: "改文件", replace_file_content: "改文件", multi_replace_file_content: "改文件",
+  find_by_name: "找文件", grep_search: "搜代码", search_web: "查资料", read_url_content: "读网页",
+  invoke_subagent: "子任务", run_workflow: "子任务", send_message: "发消息",
+  manage_task: "后台任务", manage_subagents: "子任务", schedule: "定时任务",
+  ask_question: "等你回答", update_steps: "整理清单",
 };
 
 const EN_TOOL_NAMES = {
@@ -24,6 +31,13 @@ const EN_TOOL_NAMES = {
   Task: "a subtask", Agent: "a subtask", TodoWrite: "the list",
   TaskCreate: "the list", TaskUpdate: "the list", TaskList: "the list", TaskGet: "the list",
   NotebookEdit: "a notebook", Skill: "a skill", KillShell: "a command",
+  run_command: "a command", run_shell: "a command",
+  read_file: "a file", view_file: "a file", list_dir: "a folder",
+  write_file: "a file", edit_file: "a file", replace_file_content: "a file", multi_replace_file_content: "a file",
+  find_by_name: "files", grep_search: "code", search_web: "the web", read_url_content: "a page",
+  invoke_subagent: "a subtask", run_workflow: "a subtask", send_message: "a message",
+  manage_task: "a task", manage_subagents: "a subtask", schedule: "a schedule",
+  ask_question: "a question", update_steps: "the list",
 };
 
 const EN_TOOL_TITLES = {
@@ -32,6 +46,13 @@ const EN_TOOL_TITLES = {
   Task: "Subtask", Agent: "Subtask", TodoWrite: "Updating list",
   TaskCreate: "Updating list", TaskUpdate: "Updating list", TaskList: "Updating list", TaskGet: "Updating list",
   NotebookEdit: "Editing", Skill: "Skill", KillShell: "Stopping",
+  run_command: "Running", run_shell: "Running",
+  read_file: "Reading", view_file: "Reading", list_dir: "Listing",
+  write_file: "Writing", edit_file: "Editing", replace_file_content: "Editing", multi_replace_file_content: "Editing",
+  find_by_name: "Finding", grep_search: "Searching", search_web: "Searching", read_url_content: "Reading",
+  invoke_subagent: "Subtask", run_workflow: "Subtask", send_message: "Messaging",
+  manage_task: "Managing task", manage_subagents: "Subtask", schedule: "Scheduling",
+  ask_question: "Question", update_steps: "Updating list",
 };
 
 const ZH = {
@@ -108,23 +129,25 @@ function humanDuration(sec, zh) {
   return sec < 60 ? `${sec}s` : `${Math.floor(sec / 60)}m ${sec % 60}s`;
 }
 
-/** TodoWrite 的清单进度：{ title, text }；不是清单工具返回 null */
+/** TodoWrite / update_steps 的清单进度：{ title, text }；不是清单工具返回 null */
 function todoProgress(ev, l) {
-  const todos = ev && ev.input && Array.isArray(ev.input.todos) ? ev.input.todos : null;
+  const todos = ev && ev.input && Array.isArray(ev.input.todos) ? ev.input.todos
+    : (ev && ev.name === "update_steps" && ev.input && Array.isArray(ev.input.steps) ? ev.input.steps : null);
   if (!todos) return null;
   const total = todos.length;
-  const done = todos.filter((t) => t && t.status === "completed").length;
+  const done = todos.filter((t) => t && (t.status === "completed" || t.status === "done")).length;
   return { title: l.todoTitle, text: l.todo(done, total), state: "planning",
     extra: { todoDone: done, todoTotal: total } };
 }
 
 const TOOL_STATE = {
-  Bash: "running", KillShell: "running",
-  Read: "reading", Glob: "reading", Grep: "reading",
-  Write: "writing", Edit: "writing", NotebookEdit: "writing",
-  WebSearch: "searching", WebFetch: "searching",
-  Task: "subtask", Agent: "subtask", Skill: "working",
-  TaskCreate: "planning", TaskUpdate: "planning", TaskList: "planning", TaskGet: "planning",
+  Bash: "running", KillShell: "running", run_command: "running", run_shell: "running", manage_task: "running",
+  Read: "reading", Glob: "reading", Grep: "reading", read_file: "reading", view_file: "reading", list_dir: "reading", find_by_name: "reading", grep_search: "reading",
+  Write: "writing", Edit: "writing", NotebookEdit: "writing", write_file: "writing", edit_file: "writing", replace_file_content: "writing", multi_replace_file_content: "writing",
+  WebSearch: "searching", WebFetch: "searching", search_web: "searching", read_url_content: "searching",
+  Task: "subtask", Agent: "subtask", invoke_subagent: "subtask", run_workflow: "subtask", manage_subagents: "subtask",
+  Skill: "working", send_message: "working", schedule: "planning", ask_question: "waiting",
+  TaskCreate: "planning", TaskUpdate: "planning", TaskList: "planning", TaskGet: "planning", update_steps: "planning",
 };
 const toolState = (name) => TOOL_STATE[name] || "working";
 

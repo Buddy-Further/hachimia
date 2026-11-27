@@ -752,9 +752,9 @@
   // 工具的权限：规则优先（deny > ask > allow，Bash(git:*) 这种带括号的算「按规则」），否则看权限模式；只读的工具默认允许
   const READ_TOOLS = new Set([
     "Read", "Grep", "Glob", "LS", "TodoWrite", "TodoRead", "Task", "Agent", "NotebookRead", "ExitPlanMode", "BashOutput", "KillShell", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet",
-    "read_file", "search_web", "ask_question", "manage_task", "manage_subagents", "define_subagent", "invoke_subagent", "send_message", "schedule", "run_workflow",
+    "read_file", "search_web", "ask_question", "update_steps", "manage_task", "manage_subagents", "define_subagent", "invoke_subagent", "send_message", "schedule", "run_workflow",
   ]);
-  const EDIT_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit", "edit_file", "write_file"]);
+  const EDIT_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit", "edit_file", "write_file", "replace_file_content", "multi_replace_file_content"]);
   function toolPerm(name, mode, rules) {
     // mcp__服务名 这样的规则管这个服务下的全部工具
     const hit = (list) => (list || []).some((r) => r === name || (r.endsWith("*") && name.startsWith(r.slice(0, -1))) || (r.startsWith("mcp__") && !r.slice(5).includes("__") && name.startsWith(r + "__")));

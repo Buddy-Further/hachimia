@@ -33,10 +33,18 @@
     const lines = (s, c) => String(s || "").split("\n").slice(0, 60).map((l) => `<span class="${c}">${c === "del" ? "-" : "+"} ${esc(l)}</span>`).join("\n");
     return `<pre class="perm-diff">${lines(oldS, "del")}\n${lines(newS, "add")}</pre>`;
   }
+  const permToolLabel = (p) => (typeof displayToolName === "function" ? displayToolName(p?.tool, p?.input) : String(p?.tool || ""));
+  function permWhat(pTool, inp) {
+    const i = inp || {};
+    return (pTool === "Bash" || pTool === "run_command" || pTool === "run_shell")
+      ? (i.toolSummary || i.description || i.CommandLine || i.command || "")
+      : (i.Path || i.TargetFile || i.AbsolutePath || i.ScriptPath || i.DirectoryPath || i.SearchPath || i.TargetDirectory || i.file_path || i.path || i.Url || i.url || i.Query || i.query || i.Pattern || i.pattern || "");
+  }
   function permPreview(p) {
     const i = p.input || {};
+    const pTool = permToolLabel(p);
     let h = "";
-    switch (p.tool) {
+    switch (pTool) {
       case "Bash":
       case "run_command":
       case "run_shell":
@@ -44,23 +52,25 @@
         break;
       case "Edit":
       case "edit_file":
-        h = `<div class="perm-path">${esc(i.Path || i.file_path || "")}</div>` + permDiffHtml(i.Target ?? i.old_string, i.Replacement ?? i.new_string);
+      case "replace_file_content":
+        h = `<div class="perm-path">${esc(i.Path || i.TargetFile || i.AbsolutePath || i.file_path || i.path || "")}</div>` + permDiffHtml(i.Target ?? i.TargetContent ?? i.old_string, i.Replacement ?? i.ReplacementContent ?? i.new_string);
         break;
       case "MultiEdit":
-        h = `<div class="perm-path">${esc(i.file_path || "")}</div>` + (i.edits || []).slice(0, 8).map((e) => permDiffHtml(e.old_string, e.new_string)).join("");
+      case "multi_replace_file_content":
+        h = `<div class="perm-path">${esc(i.Path || i.TargetFile || i.AbsolutePath || i.file_path || i.path || "")}</div>` + ((i.edits || i.ReplacementChunks || []).slice(0, 8).map((e) => permDiffHtml(e.old_string ?? e.TargetContent, e.new_string ?? e.ReplacementContent)).join(""));
         break;
       case "Write":
       case "write_file": {
         // 内容很大时网关只发了前一段（inputCut 里是原来的行数，195-B.4）
-        const c = String(i.Content ?? i.content ?? ""), ls = c.split("\n"), n = p.inputCut?.content?.lines || ls.length;
-        h = `<div class="perm-path">${esc(i.Path || i.file_path || "")}</div><pre class="perm-diff">${ls.slice(0, 30).map((l) => `<span class="add">+ ${esc(l)}</span>`).join("\n")}${n > 30 ? "\n" + esc(t("…（共 {n} 行）", { n })) : ""}</pre>`;
+        const c = String(i.Content ?? i.CodeContent ?? i.content ?? ""), ls = c.split("\n"), n = p.inputCut?.Content?.lines || p.inputCut?.CodeContent?.lines || p.inputCut?.content?.lines || ls.length;
+        h = `<div class="perm-path">${esc(i.Path || i.TargetFile || i.AbsolutePath || i.file_path || i.path || "")}</div><pre class="perm-diff">${ls.slice(0, 30).map((l) => `<span class="add">+ ${esc(l)}</span>`).join("\n")}${n > 30 ? "\n" + esc(t("…（共 {n} 行）", { n })) : ""}</pre>`;
         break;
       }
-      case "Read": case "Glob": case "Grep": case "read_file":
-        h = `<div class="perm-path">${esc(i.Path || i.file_path || i.path || "")}</div>` + (i.pattern ? `<pre class="perm-cmd">${esc(i.pattern)}</pre>` : "");
+      case "Read": case "Glob": case "Grep": case "read_file": case "grep_search": case "find_by_name": case "list_dir":
+        h = `<div class="perm-path">${esc(i.Path || i.TargetFile || i.AbsolutePath || i.ScriptPath || i.DirectoryPath || i.SearchPath || i.TargetDirectory || i.file_path || i.path || "")}</div>` + ((i.Pattern || i.pattern || i.Query || i.query) ? `<pre class="perm-cmd">${esc(i.Pattern || i.pattern || i.Query || i.query)}</pre>` : "");
         break;
       case "search_web":
-        h = `<pre class="perm-cmd">${esc(i.query || "")}</pre>`;
+        h = `<pre class="perm-cmd">${esc(i.Query || i.query || "")}</pre>`;
         break;
       case "NotebookEdit":
         h = `<div class="perm-path">${esc(i.notebook_path || "")}</div><pre class="perm-cmd">${esc(String(i.new_source || "").slice(0, 3000))}</pre>`;
@@ -95,7 +105,7 @@
       default:
         h = `<pre class="perm-cmd">${esc(JSON.stringify(i, null, 2).slice(0, 4000))}</pre>`;
     }
-    if (p.blockedPath && !["Edit", "Write", "MultiEdit"].includes(p.tool) && !String(i.command || "").includes(p.blockedPath)) h += `<div class="perm-sub">${t("涉及路径：{p}", { p: esc(p.blockedPath) })}</div>`;
+    if (p.blockedPath && !["Edit", "Write", "MultiEdit", "edit_file", "write_file", "replace_file_content", "multi_replace_file_content"].includes(pTool) && !String(i.CommandLine || i.command || "").includes(p.blockedPath)) h += `<div class="perm-sub">${t("涉及路径：{p}", { p: esc(p.blockedPath) })}</div>`;
     if (p.reason && typeof p.reason === "string") h += `<div class="perm-sub">${t("原因：{r}", { r: esc(p.reason) })}</div>`;
     // 敏感操作再确认（网关的 guard 钩子）：说清楚碰到了什么、为什么要多问一句
     if (p.guard) h = `<div class="perm-guard"><b>${esc(permGuardWhat(p.guard, p.input))}</b><p>${p.guard.cat === "userconf"
@@ -131,7 +141,8 @@
     if (p.guard) return `
       <button class="pa-allow">${p.guard.cat === "userconf" ? t("是我做的，保留") : p.guard.cat === "project" ? t("允许并记住") : t("允许")}</button>
       <button class="pa-more primary">${p.guard.cat === "userconf" ? t("撤销 ▾") : p.guard.cat === "project" ? t("不加载 ▾") : t("拒绝 ▾")}</button>`;
-    if (p.tool === "ExitPlanMode") {
+    const pTool = permToolLabel(p);
+    if (pTool === "ExitPlanMode") {
       // 用户本来就放得比「自动接受编辑」宽（全部放行等）时，批准计划不该顺手把全局模式降下来（群友反馈）
       const cur = runMode(runId), keep = WIDE_MODES.includes(cur);
       return `
@@ -140,7 +151,7 @@
       <button class="pa-allow" data-mode="acceptEdits">${t("批准，自动接受编辑")}</button>
       <button class="pa-more">${t("再改改 ▾")}</button>`;
     }
-    if (p.tool === "AskUserQuestion" || p.tool === "ask_question") return `
+    if (pTool === "AskUserQuestion" || pTool === "ask_question") return `
       <button class="pa-answer primary">${t("提交回答")}</button>
       <button class="pa-more">${t("不回答 ▾")}</button>`;
     const rules = permRules(p);
@@ -155,17 +166,18 @@
     const el = document.createElement("div");
     el.className = p.guard ? "perm guard" : "perm";
     el.dataset.id = p.id;
-    const isAsk = p.tool === "AskUserQuestion" || p.tool === "ask_question";
-    const kind = p.tool === "ExitPlanMode" ? t("计划待批准") : isAsk ? t("Antigravity 想问你") : p.guard ? t("敏感操作") : t("需要确认");
+    const pTool = permToolLabel(p);
+    const isAsk = pTool === "AskUserQuestion" || pTool === "ask_question";
+    const kind = pTool === "ExitPlanMode" ? t("计划待批准") : isAsk ? t("Antigravity 想问你") : p.guard ? t("敏感操作") : t("需要确认");
     el.innerHTML = `
-      <div class="perm-head"><span class="perm-kind">${uiI("pause")}${kind}</span><span class="perm-tool">${esc(p.tool)}</span>${p.agentId ? `<span class="perm-sub">${t("子代理")}</span>` : ""}</div>
+      <div class="perm-head"><span class="perm-kind">${uiI("pause")}${kind}</span><span class="perm-tool">${esc(pTool)}</span>${p.agentId ? `<span class="perm-sub">${t("子代理")}</span>` : ""}</div>
       <div class="perm-body">${permPreview(p)}</div>
       <div class="perm-acts">${permActions(p, runId)}</div>
       <div class="perm-deny hidden">
-        <textarea rows="2" placeholder="${p.tool === "ExitPlanMode" ? t("说说要怎么改（会发回给 Antigravity）") : t("可选：告诉 Antigravity 为什么 / 该怎么做")}"></textarea>
+        <textarea rows="2" placeholder="${pTool === "ExitPlanMode" ? t("说说要怎么改（会发回给 Antigravity）") : t("可选：告诉 Antigravity 为什么 / 该怎么做")}"></textarea>
         <div class="perm-acts">
-          <button class="pa-deny">${p.tool === "ExitPlanMode" ? t("发回意见") : p.tool === "UserConfig" ? t("撤销改动") : t("拒绝")}</button>
-          <button class="pa-stop">${p.tool === "UserConfig" ? t("撤销并停止") : t("拒绝并停止")}</button>
+          <button class="pa-deny">${pTool === "ExitPlanMode" ? t("发回意见") : pTool === "UserConfig" ? t("撤销改动") : t("拒绝")}</button>
+          <button class="pa-stop">${pTool === "UserConfig" ? t("撤销并停止") : t("拒绝并停止")}</button>
         </div>
       </div>`;
     let tc = p.toolUseId && TOOL_CARDS.get(p.toolUseId);
@@ -207,7 +219,7 @@
   // 模式在卡片等着的时候变了（设置里切、别的会话切）：还没答的计划卡按新模式重排按钮，别留着过期的「按当前模式」
   function refreshPlanActs() {
     for (const it of PERMS.values()) {
-      if (it.done || !it.el || it.p.tool !== "ExitPlanMode") continue;
+      if (it.done || !it.el || permToolLabel(it.p) !== "ExitPlanMode") continue;
       const acts = it.el.querySelector(".perm-acts"), html = permActions(it.p, it.runId);
       if (acts && acts.dataset.html !== html) { acts.innerHTML = html; acts.dataset.html = html; }
     }
@@ -238,18 +250,17 @@
     if (!it || it.done) return;
     it.done = true;
     const p = it.p;
-    const isAsk = p.tool === "AskUserQuestion" || p.tool === "ask_question";
-    const what = (p.tool === "Bash" || p.tool === "run_command" || p.tool === "run_shell")
-      ? (p.input.CommandLine || p.input.command || p.input.toolSummary || "")
-      : (p.input.Path || p.input.file_path || p.input.url || p.input.query || "");
-    const label = p.tool === "UserConfig" && behavior === "allow" ? t("✓ 已保留")
-      : p.tool === "UserConfig" && behavior === "deny" ? (o.interrupt ? t("↩ 已撤销并停止") : t("↩ 已撤销"))
+    const pTool = permToolLabel(p);
+    const isAsk = pTool === "AskUserQuestion" || pTool === "ask_question";
+    const what = permWhat(pTool, p.input);
+    const label = pTool === "UserConfig" && behavior === "allow" ? t("✓ 已保留")
+      : pTool === "UserConfig" && behavior === "deny" ? (o.interrupt ? t("↩ 已撤销并停止") : t("↩ 已撤销"))
       : behavior === "allow"
-      ? (p.tool === "ExitPlanMode" ? t("✓ 已批准计划") : isAsk ? t("✓ 已回答") : o.always ? t("✓ 已允许（始终）") : t("✓ 已允许"))
-      : behavior === "deny" ? (o.expired ? t("超时") : o.interrupt ? t("✗ 已拒绝并停止") : p.tool === "ExitPlanMode" ? t("↩ 已退回修改") : t("✗ 已拒绝"))
+      ? (pTool === "ExitPlanMode" ? t("✓ 已批准计划") : isAsk ? t("✓ 已回答") : o.always ? t("✓ 已允许（始终）") : t("✓ 已允许"))
+      : behavior === "deny" ? (o.expired ? t("超时") : o.interrupt ? t("✗ 已拒绝并停止") : pTool === "ExitPlanMode" ? t("↩ 已退回修改") : t("✗ 已拒绝"))
       : behavior === "cancel" ? t("已撤回") : behavior === "stopped" ? t("已停止（这一轮结束了）") : t("已失效");
     const tc = p.toolUseId && TOOL_CARDS.get(p.toolUseId);
-    if (it.el && tc && tc.el && tc.el.isConnected && p.tool !== "ExitPlanMode" && !isAsk) {
+    if (it.el && tc && tc.el && tc.el.isConnected && pTool !== "ExitPlanMode" && !isAsk) {
       const tag = document.createElement("span");
       tag.className = "perm-tag " + (behavior === "allow" ? "ok" : "no");
       tag.textContent = label;
@@ -264,10 +275,10 @@
       it.el.classList.remove("busy");
       it.el.classList.add("done", behavior === "allow" ? "ok" : "no");
       // 收起成一行，留在记录里；计划和问答的正文还有用，留着
-      if (p.tool !== "ExitPlanMode" && !isAsk) it.el.querySelector(".perm-body").remove();
+      if (pTool !== "ExitPlanMode" && !isAsk) it.el.querySelector(".perm-body").remove();
       it.el.querySelectorAll(".perm-acts, .perm-deny").forEach((x) => x.remove());
       it.el.querySelectorAll("input").forEach((x) => { x.disabled = true; });
-      it.el.querySelector(".perm-head").innerHTML = `<span class="perm-res">${label}</span><span class="perm-tool">${esc(p.tool)}</span><span class="tool-arg">${esc(String(what).slice(0, 90))}</span>`;
+      it.el.querySelector(".perm-head").innerHTML = `<span class="perm-res">${label}</span><span class="perm-tool">${esc(pTool)}</span><span class="tool-arg">${esc(String(what).replace(/\s+/g, " ").trim().slice(0, 90))}</span>`;
     }
     renderPermBar();
   }
@@ -496,15 +507,15 @@
     // 敏感卡（guard）不能当成 simple、不进「全部允许」（0.6.9 审计 195-B.3）。但全部放行模式下弹出来的只剩敏感卡，
     // 底部条一个「允许」都没有（用户 11-09）：单个敏感卡带上卡片同一句风险说明再给「允许」；
     // 用户级配置 / 项目配置两种的选项不是允许拒绝（保留撤销、记住），仍只给「查看」
-    const f = list[0].p, simple = (it) => !it.p.guard && it.p.tool !== "ExitPlanMode" && it.p.tool !== "AskUserQuestion" && it.p.tool !== "ask_question";
-    const quick = (it) => simple(it) || (!!it.p.guard && it.p.tool !== "ExitPlanMode" && it.p.tool !== "AskUserQuestion" && it.p.tool !== "ask_question" && it.p.guard.cat !== "userconf" && it.p.guard.cat !== "project");
-    const what = (f.tool === "Bash" || f.tool === "run_command" || f.tool === "run_shell")
-      ? (f.input.CommandLine || f.input.command || f.input.toolSummary || "")
-      : (f.input.Path || f.input.file_path || f.input.url || f.input.query || "");
+    const f = list[0].p, fTool = permToolLabel(f);
+    const isPlanOrAsk = (p) => { const pt = permToolLabel(p); return pt === "ExitPlanMode" || pt === "AskUserQuestion" || pt === "ask_question"; };
+    const simple = (it) => !it.p.guard && !isPlanOrAsk(it.p);
+    const quick = (it) => simple(it) || (!!it.p.guard && !isPlanOrAsk(it.p) && it.p.guard.cat !== "userconf" && it.p.guard.cat !== "project");
+    const what = permWhat(fTool, f.input);
     permBar.innerHTML = `
       <div class="pb-main">
         ${list.length > 1 ? `<span class="pb-n">${t("第 {i}/{n} 个", { i: 1, n: list.length })}</span>` : ""}
-        <span class="pb-txt${f.guard ? " wrap" : ""}">${uiI("pause")}${f.tool === "ExitPlanMode" ? t("计划待批准") : (f.tool === "AskUserQuestion" || f.tool === "ask_question") ? t("Antigravity 想问你") : t("Antigravity 在等你确认") + " · "}${simple(list[0]) ? `<b>${esc(f.tool)}</b> <span class="mono">${esc(String(what || "").slice(0, 80))}</span>`
+        <span class="pb-txt${f.guard ? " wrap" : ""}">${uiI("pause")}${fTool === "ExitPlanMode" ? t("计划待批准") : (fTool === "AskUserQuestion" || fTool === "ask_question") ? t("Antigravity 想问你") : t("Antigravity 在等你确认") + " · "}${simple(list[0]) ? `<b>${esc(fTool)}</b> <span class="mono">${esc(String(what || "").replace(/\s+/g, " ").trim().slice(0, 80))}</span>`
           : quick(list[0]) ? `<b>${t("敏感操作")}</b> ${esc(permGuardWhat(f.guard, f.input))}` : ""}</span>
         ${quick(list[0]) ? `<button class="pb-allow primary" data-id="${esc(String(f.id))}">${t("允许")}</button>` : ""}
         <button class="pb-view">${t("查看")}</button>
@@ -812,7 +823,7 @@
         case "think":   return t("思考中") + sec;
         // 官方接口默认把工具参数攒成大块才下发（不像 DeepSeek 逐字流），字数常常一下跳到底就不动了；
         // 后面跟上这一步的用时，不动的时候也看得出没卡住
-        case "tool":    return t("正在写 {name} 的参数", { name: phEv.name || "?" }) + (phEv.chars ? " · " + fmtChars(phEv.chars) : "") + sec;
+        case "tool":    return t("正在写 {name} 的参数", { name: (typeof displayToolName === "function" ? displayToolName(phEv.name) : phEv.name) || "?" }) + (phEv.chars ? " · " + fmtChars(phEv.chars) : "") + sec;
         case "bg": {
           const cnt = phEv.count > 1 ? " (" + phEv.count + ")" : "";
           const sz = phEv.bytes > 0 ? " · " + fmtSize(phEv.bytes) : "";
@@ -892,7 +903,8 @@
         if (!blocks.length && live) { any = false; if (!dots) { bubble.insertAdjacentHTML("afterbegin", DOTS); dots = bubble.firstChild; } phPlace(); }
       },
       tool(id, name, input) {
-        noteWrote(name, input);            // 回复里只写文件名也能点（见 01-core.js 的 WROTE）
+        const dName = typeof displayToolName === "function" ? displayToolName(name, input) : name;
+        noteWrote(dName, input);            // 回复里只写文件名也能点（见 01-core.js 的 WROTE）
         if (live) { pendTools.add(id); cardTools.add(id); phClear(); }     // 工具卡出来了，参数写完，接下来是工具在跑
         let g = last;
         if (!inGroup()) {

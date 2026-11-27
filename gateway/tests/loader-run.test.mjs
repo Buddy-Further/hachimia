@@ -157,4 +157,69 @@ test("loader-run.c：编译后通过软链运行真实 bash、脚本与环境清
   });
   assert.equal(r3.status, 0, `libccrun.so 回落 bash 失败: stderr=${r3.stderr}`);
   assert.equal(r3.stdout.trim(), "FALLBACK_OK");
+
+  // 4) 3.1：CCAPP_LOADER_RUN 与 CCAPP_LOADER_BIN 均未设置时（如 scripts/test.mjs 清空 CCAPP_* 后）不自递归
+  const dummySrc = path.join(tmpDir, "dummy.c");
+  const dummySo = path.join(tmpDir, "libdummy.so");
+  fs.writeFileSync(dummySrc, "int w0_dummy(void) { return 0; }\n");
+  const compDummy = spawnSync(cc, ["-shared", "-fPIC", "-o", dummySo, dummySrc], { encoding: "utf8" });
+  assert.equal(compDummy.status, 0, compDummy.stderr);
+
+  const lbDir = path.join(tmpDir, "bare-env", "loader-bin");
+  fs.mkdirSync(lbDir, { recursive: true });
+  fs.symlinkSync(binPath, path.join(lbDir, "bash"));
+  const bareEnv = {
+    ...process.env,
+    PATH: `${lbDir}:${realBin}:${path.dirname(realBash)}:/system/bin:/usr/bin:/bin`,
+    LD_PRELOAD: dummySo,
+  };
+  for (const k of Object.keys(bareEnv)) if (/^CCAPP_/.test(k)) delete bareEnv[k];
+  // 在 targetSdk 36 (W^X) 下运行 $PREFIX/bin/bash 仍需 CCAPP_EXEC=loader，但故意不设 CCAPP_LOADER_RUN / CCAPP_LOADER_BIN / CCAPP_BIONIC_PRELOAD
+  const bareLoaderEnv = { ...bareEnv, CCAPP_EXEC: runEnv.CCAPP_EXEC };
+  const r4 = spawnSync(path.join(lbDir, "bash"), ["-c", `printf "BARE|%s" "\${LD_PRELOAD:-NONE}"`], {
+    env: bareLoaderEnv,
+    encoding: "utf8",
+    timeout: 5000,
+  });
+  assert.equal(r4.status, 0, `无 CCAPP_LOADER_RUN/BIN 环境防自递归/清 LD_PRELOAD 失败: stderr=${r4.stderr}`);
+  assert.equal(r4.stdout, "BARE|NONE", "bionic 未设 CCAPP_BIONIC_PRELOAD 时应清掉过时 LD_PRELOAD");
+
+  // 4b) 全清所有 CCAPP_*（含 CCAPP_EXEC）经 sysdir (/system/bin/sh) 也不自递归且清掉 LD_PRELOAD
+  if (fs.existsSync("/system/bin/sh")) {
+    fs.symlinkSync(binPath, path.join(lbDir, "sh"));
+    const r4b = spawnSync(path.join(lbDir, "sh"), ["-c", `printf "SYS|%s" "\${LD_PRELOAD:-NONE}"`], {
+      env: { ...bareEnv, PATH: `${lbDir}:/system/bin:/bin` },
+      encoding: "utf8",
+      timeout: 5000,
+    });
+    assert.equal(r4b.status, 0, `sysdir 全清 CCAPP_* 失败: stderr=${r4b.stderr}`);
+    assert.equal(r4b.stdout, "SYS|NONE", "sysdir 未设 CCAPP_BIONIC_PRELOAD 时应清掉过时 LD_PRELOAD");
+  }
+
+  // 5) 3.1：空 :: PATH 段按 POSIX 语义解析当前目录 '.'
+  const cwdBin = path.join(tmpDir, "cwd-bin");
+  fs.mkdirSync(cwdBin, { recursive: true });
+  fs.writeFileSync(path.join(cwdBin, "cwd-cmd"), `#!${sysSh}\necho CWD_OK\n`, { mode: 0o755 });
+  fs.symlinkSync(binPath, path.join(lbDir, "cwd-cmd"));
+  const r5 = spawnSync(path.join(lbDir, "cwd-cmd"), [], {
+    cwd: cwdBin,
+    env: { ...bareEnv, PATH: `${lbDir}::${realBin}:/system/bin:/usr/bin:/bin` },
+    encoding: "utf8",
+    timeout: 5000,
+  });
+  assert.equal(r5.status, 0, `空 :: PATH 段解析失败: stderr=${r5.stderr}`);
+  assert.equal(r5.stdout.trim(), "CWD_OK");
+
+  // 6) 3.1：5 层 #! 脚本死循环报 ELOOP，不打印误导性的 Success
+  const loopScript = path.join(realBin, "loop-script");
+  fs.writeFileSync(loopScript, `#!${loopScript}\n`, { mode: 0o755 });
+  fs.symlinkSync(binPath, path.join(lbDir, "loop-script"));
+  const r6 = spawnSync(path.join(lbDir, "loop-script"), [], {
+    env: bareEnv,
+    encoding: "utf8",
+    timeout: 5000,
+  });
+  assert.notEqual(r6.status, 0);
+  assert.doesNotMatch(r6.stderr, /\bSuccess\b/);
+  assert.match(r6.stderr, /Too many (?:levels of )?symbolic links/i);
 });

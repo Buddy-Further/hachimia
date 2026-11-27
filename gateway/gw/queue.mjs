@@ -64,7 +64,7 @@ const newRunId = () => `r${BOOT}${(++RUN_N).toString(36)}`;
 // 几次广播就挤掉 32 MB 的回放环，0.6.9 审计 195-B.4）。只截文件内容这几个字段（卡片本来也只显示前几十行），
 // 命令、路径不截：批的是什么必须看全。批准时网关照旧用 claude 发来的原样（run.perms 里存的是全的）
 const PERM_FIELD_MAX = 64 << 10;
-const CUT_FIELDS = ["content", "old_string", "new_string", "new_source"];
+const CUT_FIELDS = ["content", "old_string", "new_string", "new_source", "Content", "CodeContent", "Target", "Replacement", "TargetContent", "ReplacementContent"];
 const cutStr = (s) => (typeof s === "string" && s.length > PERM_FIELD_MAX ? s.slice(0, PERM_FIELD_MAX) : s);
 export function permView(p) {
   const i = p && p.input;
@@ -72,6 +72,7 @@ export function permView(p) {
   const out = { ...i }, cut = {};
   for (const k of CUT_FIELDS) if (typeof out[k] === "string" && out[k].length > PERM_FIELD_MAX) { cut[k] = { chars: out[k].length, lines: out[k].split("\n").length }; out[k] = cutStr(out[k]); }
   if (Array.isArray(out.edits)) out.edits = out.edits.slice(0, 50).map((e) => (e && typeof e === "object" ? { ...e, old_string: cutStr(e.old_string), new_string: cutStr(e.new_string) } : e));
+  if (Array.isArray(out.ReplacementChunks)) out.ReplacementChunks = out.ReplacementChunks.slice(0, 50).map((e) => (e && typeof e === "object" ? { ...e, TargetContent: cutStr(e.TargetContent), ReplacementContent: cutStr(e.ReplacementContent) } : e));
   return { ...p, input: out, ...(Object.keys(cut).length ? { inputCut: cut } : {}) };
 }
 

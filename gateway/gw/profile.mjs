@@ -13,6 +13,7 @@ import { NEXT, readBodyBuf, sendJson } from "./http.mjs";
 import { lineageFile, lineageGraph, lineageRecord, lineageStamp } from "./lineage.mjs";
 import { agentFilesOf } from "./transcript.mjs";
 import { isInjected } from "./integrity.mjs";
+import { resolveAcpToolName } from "./acp.mjs";
 
 const SID = /^[0-9a-f-]{36}$/i;
 const BIG_LINE = 2 << 20;          // 超过这么长的行（大段工具结果）不 JSON.parse，正则摘要点
@@ -70,9 +71,12 @@ function promptOf(e) {
 /** 工具调用的一句话说明：文件路径 / 命令 / 描述，取最像人话的那个 */
 function labelOf(name, input) {
   const x = input || {};
-  const v = x.toolSummary || x.description || x.Description || x.Path || x.file_path || x.path || x.CommandLine || x.command || x.pattern || x.url || x.query || x.Role || x.Prompt || x.prompt || x.skill || x.subject || "";
+  const v = x.toolSummary || x.description || x.Description || x.Path || x.TargetFile || x.AbsolutePath || x.ScriptPath
+    || x.DirectoryPath || x.SearchPath || x.TargetDirectory || x.file_path || x.path || x.CommandLine || x.command
+    || x.Pattern || x.pattern || x.Url || x.url || x.Query || x.query || x.Role || x.Prompt || x.prompt || x.skill || x.subject || "";
   return String(typeof v === "string" ? v : JSON.stringify(v)).replace(/\s+/g, " ").trim().slice(0, 90);
 }
+const toolNameOf = (name, input) => resolveAcpToolName({ title: name }, input);
 const isAgentTool = (n) => n === "Agent" || n === "Task" || n === "invoke_subagent" || n === "run_workflow";
 const one = (q) => q.replace(/\s+/g, " ").trim().slice(0, 140);
 
@@ -132,15 +136,16 @@ export async function chapterProfile(id, n) {
     if (!cur) return;
     if (e.ts) { if (!cur.t0) cur.t0 = e.ts; cur.t1 = Math.max(cur.t1, e.ts); }
     if (e.uuid && kidsAt.has(e.uuid)) cur.kids.push(...kidsAt.get(e.uuid));
-    if (e.big && e.call) { cur.steps++; cur.tools++; cur.top[e.call.name] = (cur.top[e.call.name] || 0) + 1; open.set(e.call.id, cur); return; }
+    if (e.big && e.call) { const tName = toolNameOf(e.call.name, null); cur.steps++; cur.tools++; cur.top[tName] = (cur.top[tName] || 0) + 1; if (isAgentTool(tName)) cur.agents++; open.set(e.call.id, cur); return; }
     if (e.big) { for (const i of e.ids || []) if (e.err && open.get(i) === cur) cur.errs++; return; }
     if (e.type === "assistant") {
       cur.steps++;
       for (const c of content(e)) {
         if (c?.type === "text" && c.text) cur.chars += c.text.length;
         if (c?.type !== "tool_use") continue;
-        cur.tools++; cur.top[c.name] = (cur.top[c.name] || 0) + 1;
-        if (isAgentTool(c.name)) cur.agents++;
+        const tName = toolNameOf(c.name, c.input);
+        cur.tools++; cur.top[tName] = (cur.top[tName] || 0) + 1;
+        if (isAgentTool(tName)) cur.agents++;
         open.set(c.id, cur);
       }
     } else if (e.type === "user") {
@@ -168,14 +173,15 @@ async function readAgent(file, meta) {
     const e = parse(b);
     if (!e) return;
     if (e.ts) { if (!t0) t0 = e.ts; t1 = Math.max(t1, e.ts); }
-    if (e.big && e.call) { tools++; if (steps.length < AGENT_STEPS) { const s = { name: e.call.name, label: "", t0: e.ts, t1: 0, err: false }; steps.push(s); open.set(e.call.id, s); } return; }
+    if (e.big && e.call) { const tName = toolNameOf(e.call.name, null); tools++; if (steps.length < AGENT_STEPS) { const s = { name: tName, label: "", t0: e.ts, t1: 0, err: false }; steps.push(s); open.set(e.call.id, s); } return; }
     if (e.big) { for (const i of e.ids || []) { const s = open.get(i); if (s) { s.t1 = e.ts || s.t0; if (e.err) { s.err = true; errs++; } } } return; }
     for (const c of content(e)) {
       if (e.type === "assistant" && c?.type === "text" && c.text) last = c.text;
       if (e.type === "assistant" && c?.type === "tool_use") {
+        const tName = toolNameOf(c.name, c.input);
         tools++;
-        if (isAgentTool(c.name)) spawned.push(c.id);
-        if (steps.length < AGENT_STEPS) { const s = { name: c.name, label: labelOf(c.name, c.input), t0: e.ts, t1: 0, err: false }; steps.push(s); open.set(c.id, s); }
+        if (isAgentTool(tName)) spawned.push(c.id);
+        if (steps.length < AGENT_STEPS) { const s = { name: tName, label: labelOf(tName, c.input), t0: e.ts, t1: 0, err: false }; steps.push(s); open.set(c.id, s); }
       }
       if (e.type === "user" && c?.type === "tool_result") { const s = open.get(c.tool_use_id); if (s) { s.t1 = e.ts || s.t0; if (c.is_error) { s.err = true; errs++; } } }
     }
@@ -225,13 +231,14 @@ async function turnDetailRead(id, file, from, to, key) {
     if (!e || e.isSidechain || e.isCompactSummary) return;
     if (e.ts) { if (!t0) t0 = e.ts; t1 = Math.max(t1, e.ts); }
     if (!q) q = promptOf(e);
-    if (e.big && e.call) { if (main.length < STEP_MAX) { const s = { name: e.call.name, label: "", t0: e.ts, t1: 0, err: false, agent: null }; main.push(s); open.set(e.call.id, s); } else more++; return; }
+    if (e.big && e.call) { const tName = toolNameOf(e.call.name, null); if (main.length < STEP_MAX) { const s = { name: tName, label: "", t0: e.ts, t1: 0, err: false, agent: null }; main.push(s); open.set(e.call.id, s); } else more++; return; }
     if (e.big) { for (const i of e.ids || []) { const s = open.get(i); if (s) { s.t1 = e.ts || s.t0; if (e.err) s.err = true; } } return; }
     for (const c of content(e)) {
       if (e.type === "assistant" && c?.type === "tool_use") {
-        if (isAgentTool(c.name)) agentCalls.push({ id: c.id, ts: e.ts, bg: !!c.input?.run_in_background, desc: String(c.input?.description || "").slice(0, 80) });
+        const tName = toolNameOf(c.name, c.input);
+        if (isAgentTool(tName)) agentCalls.push({ id: c.id, ts: e.ts, bg: !!c.input?.run_in_background, desc: String(c.input?.description || c.input?.Role || c.input?.Prompt || "").slice(0, 80) });
         if (main.length >= STEP_MAX) { more++; continue; }
-        const s = { name: c.name, label: labelOf(c.name, c.input), t0: e.ts, t1: 0, err: false, agent: isAgentTool(c.name) ? c.id : null };
+        const s = { name: tName, label: labelOf(tName, c.input), t0: e.ts, t1: 0, err: false, agent: isAgentTool(tName) ? c.id : null };
         main.push(s); open.set(c.id, s);
       }
       if (e.type === "user" && c?.type === "tool_result") { const s = open.get(c.tool_use_id); if (s) { s.t1 = e.ts || s.t0; if (c.is_error) s.err = true; } }

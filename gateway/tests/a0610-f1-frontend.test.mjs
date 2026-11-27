@@ -86,8 +86,10 @@ test("权限卡：缺 input 不再卡死；生效模式以网关回的 mode 为�
 
 test("底部确认条：单张敏感卡带风险说明给「允许」，配置类与计划/提问不给，「全部允许」不含敏感卡（用户 11-09）", () => {
   const line = (re) => { const m = src03.match(re); assert.ok(m, String(re)); return m[0]; };
-  const simpleSrc = line(/simple = \(it\) => [^;]+;/), quickSrc = line(/const quick = \(it\) => [^;]+;/);
-  const quick = new Function(`const ${simpleSrc} ${quickSrc} return quick;`)();
+  const permLabelSrc = line(/const permToolLabel = [^\n]+;/);
+  const isPlanOrAskSrc = line(/const isPlanOrAsk = [^\n]+;/);
+  const simpleSrc = line(/const simple = \(it\) => [^;]+;/), quickSrc = line(/const quick = \(it\) => [^;]+;/);
+  const quick = new Function(`${permLabelSrc}\n${isPlanOrAskSrc}\n${simpleSrc}\n${quickSrc}\nreturn quick;`)();
   const P = (tool, guard) => ({ p: { tool, guard, input: {} } });
   assert.equal(quick(P("Bash")), true);
   assert.equal(quick(P("mcp__device__clipboard_read", { cat: "device:clipboard", what: "" })), true);

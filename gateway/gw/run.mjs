@@ -127,7 +127,7 @@ export function collectAddDirs(cwd, item, P) {
 }
 
 // 工具确认进日志只记参数多长，不记原文：命令、路径、网址可能带着用户的业务内容，诊断包里不该有（审查 v0.5.20 08-001）
-const argLen = (inp) => { const v = String(inp?.command || inp?.file_path || inp?.url || ""); return v ? `(${v.length} 字)` : ""; };
+const argLen = (inp) => { const v = String(inp?.CommandLine || inp?.command || inp?.Path || inp?.TargetFile || inp?.file_path || inp?.url || ""); return v ? `(${v.length} 字)` : ""; };
 
 export function pickProvider(item) {
   // 跟的那条被撤销了也照样接上车道上首条跑出来的会话（#120-1），不然会另起一个会话
@@ -1785,7 +1785,7 @@ export async function routeRun(req, res, u, p) {
       return sendJson(res, 200, { ok: true });
     }
     // ACP 常驻池里空闲挂着的后台任务：直接按 sessionId 取消并刷新状态
-    if (!run && b.sessionId && stopAcpBgTask(String(b.sessionId), String(b.taskId || ""))) {
+    if (b.sessionId && stopAcpBgTask(String(b.sessionId), String(b.taskId || ""))) {
       publishState();
       log(`■ 停 ACP 后台任务 ${String(b.taskId || "").slice(0, 12)}`);
       return sendJson(res, 200, { ok: true });

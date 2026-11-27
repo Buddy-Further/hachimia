@@ -1396,9 +1396,9 @@ function firstLineOf(s, max = 80) {
  *  且 run_command 的 title 直接是命令行原文；先剥 "run " 前缀，再按 rawInput 字段兜底识别。 */
 export function classifyAcpTool(rawName, input, output = "") {
   const norm = String(rawName || "").trim().toLowerCase().replace(/^run\s+/, "");
-  if (norm === "invoke_subagent" || norm === "run_workflow" || norm === "send_message"
-    || norm === "manage_subagents" || norm === "run_command" || norm === "manage_task" || norm === "schedule") {
-    return norm;
+  const mKnown = /^(invoke_subagent|run_workflow|send_message|manage_subagents|run_command|manage_task|schedule)(?:\s+|$)/.exec(norm);
+  if (mKnown) {
+    return mKnown[1];
   }
   const inp = input && typeof input === "object" ? input : {};
   if (typeof inp.TypeName === "string" && typeof inp.Prompt === "string") return "invoke_subagent";
@@ -1414,6 +1414,52 @@ export function classifyAcpTool(rawName, input, output = "") {
   if (typeof inp.CronExpression === "string" || typeof inp.DurationSeconds === "number") return "schedule";
   if (/^Tool is running (?:as a background task|in the background)\b/m.test(out)) return "run_command";
   return "";
+}
+
+/** 将 ACP tool_call / tool_call_update 的 title/name/kind/rawInput 归一为简短工具名：
+ *  agy acp 常把完整命令行或 "Run <tool>" 放进 upd.title，保留简短阶段标题，其余归一为规范工具名。 */
+export function resolveAcpToolName(upd, input) {
+  const inp = input && typeof input === "object" ? input : {};
+  const rawName = String(upd?.name || "").trim();
+  if (rawName && !/[\r\n]/.test(rawName) && rawName !== inp.CommandLine && rawName !== inp.command) {
+    return rawName;
+  }
+  const title = String(upd?.title || "").trim();
+  const kind = String(upd?.kind || "").trim();
+  const classified = classifyAcpTool(title, inp);
+  if (classified) {
+    const lower = title.toLowerCase();
+    if (title && !/[\r\n]/.test(title) && title.length <= 48
+      && (lower === classified || (lower.startsWith(classified) && /^\s+\([^)]+\)$/.test(title.slice(classified.length))))) {
+      return title;
+    }
+    return classified;
+  }
+  const runTitle = /^run\s+([A-Za-z0-9_.:-]+)$/i.exec(title);
+  if (runTitle) return runTitle[1];
+  const fileTarget = typeof inp.Path === "string" && inp.Path.trim() ? inp.Path.trim()
+    : (typeof inp.TargetFile === "string" && inp.TargetFile.trim() ? inp.TargetFile.trim() : "");
+  if (fileTarget) {
+    if (inp.Target !== undefined || inp.Replacement !== undefined || inp.TargetContent !== undefined || inp.ReplacementContent !== undefined || Array.isArray(inp.ReplacementChunks)) return "edit_file";
+    if (inp.Content !== undefined || inp.CodeContent !== undefined || inp.Overwrite !== undefined) return "write_file";
+    if (kind === "read" || /^read\b/i.test(title) || !title || /[\r\n]/.test(title) || title.length > 40) return "read_file";
+  }
+  if (typeof inp.query === "string" && !inp.url && (!title || /\s/.test(title) || title.length > 40)) return "search_web";
+  if (Array.isArray(inp.questions) && (!title || /\s/.test(title) || title.length > 40)) return "ask_question";
+  if (Array.isArray(inp.steps) && (!title || /\s/.test(title) || title.length > 40)) return "update_steps";
+  if (title && !/[\r\n]/.test(title) && title.length <= 40 && title !== inp.CommandLine && title !== inp.command) {
+    if (!/\s/.test(title) || /^[a-z0-9_.-]+(?:\s+\([^)]+\))$/i.test(title)) return title;
+  }
+  if (typeof inp.CommandLine === "string") return "run_command";
+  if (typeof inp.command === "string") return "Bash";
+  if (kind) {
+    const k = kind.toLowerCase();
+    if (k === "execute") return "run_command";
+    if (k === "read") return "read_file";
+    if (k === "edit") return "edit_file";
+    return kind;
+  }
+  return title || "Tool";
 }
 
 /** 识别 agy 原生子代理 / 后台任务工具调用并同步发射 `ag` 联络卡与后台任务事件 */
@@ -1630,12 +1676,13 @@ function trackAcpToolSideEffects(phase, tool, state, emit) {
       const tid = mId ? mId[1] : tool.id;
       const mLog = /Task logs are available at:\s*(file:\/\/\S+|\/\S+)/i.exec(header);
       const logPath = mLog ? fileUriToLocalPath(mLog[1]) : (tool.logPath || null);
-      const titleCmd = rawName.replace(/^run\s+/i, "").trim();
-      const desc = String(
+      const titleCmd = String(tool.rawTitle || rawName || "").replace(/^run\s+/i, "").trim();
+      const desc = firstLineOf(
         inp.toolSummary || inp.description || inp.CommandLine
         || (titleCmd && titleCmd.toLowerCase() !== "run_command" ? titleCmd : "")
-        || "后台命令"
-      ).trim().slice(0, 80);
+        || "后台命令",
+        80,
+      );
       const nowAt = Date.now();
       tool.bgTaskId = tid;
       if (logPath) tool.logPath = logPath;
@@ -1717,6 +1764,14 @@ function attachBgTailIfMissing(tool) {
   const cur = String(tool.output || "");
   if (/(?:^|\n)(?:Command|Log) output:\r?\n/.test(cur) || cur.includes(tail)) return;
   tool.output = cur ? `${cur}\n\nCommand output:\n${tail}` : tail;
+}
+
+/** 确保某条 ACP 工具调用在首次识别为有副作用的工具（如延迟补齐 rawInput 后）只发射一次 start 副作用 */
+function ensureAcpToolStarted(tool, state, emit) {
+  if (!tool || tool.sideEffectStarted) return;
+  if (!classifyAcpTool(tool.name, tool.input, tool.output)) return;
+  tool.sideEffectStarted = true;
+  trackAcpToolSideEffects("start", tool, state, emit);
 }
 
 /** 构造发往前端的 tool_result 事件（遵循前端 ok/text 契约，并保留 content/is_error/cancelled 字段） */
@@ -1880,16 +1935,24 @@ export function translateAcpUpdate(params, state, emit) {
     const id = String(upd.toolCallId || upd.id || crypto.randomBytes(6).toString("hex"));
     // 已在历史 jsonl 或前置重放中见过的旧工具 ID：直接丢弃，杜绝历史工具卡重复弹出
     if (state.knownToolIds?.has(id) && !state.tools.has(id)) return;
-    const name = String(upd.title || upd.name || upd.kind || "Tool");
     const input = upd.rawInput && typeof upd.rawInput === "object"
       ? upd.rawInput
       : (upd.input && typeof upd.input === "object" ? upd.input : {});
     const existing = state.tools.get(id);
     if (existing) {
       let changed = false;
-      if ((upd.title || upd.name) && existing.name !== name) { existing.name = name; changed = true; }
+      if (upd.title) existing.rawTitle = String(upd.title);
+      if (upd.name) existing.rawName = String(upd.name);
+      if (upd.kind) existing.kind = String(upd.kind);
       if (Object.keys(input).length) { existing.input = { ...existing.input, ...input }; changed = true; }
+      const nextName = resolveAcpToolName({
+        title: upd.title ?? existing.rawTitle,
+        name: upd.name ?? existing.rawName,
+        kind: upd.kind ?? existing.kind,
+      }, existing.input);
+      if (nextName && existing.name !== nextName) { existing.name = nextName; changed = true; }
       if (upd.status && existing.status !== upd.status) { existing.status = upd.status; changed = true; }
+      if (!existing.done) ensureAcpToolStarted(existing, state, emit);
       if (changed && !existing.done) {
         emit({ type: "tool_update", id, name: existing.name, input: existing.input, status: existing.status });
       }
@@ -1897,10 +1960,11 @@ export function translateAcpUpdate(params, state, emit) {
     }
     state.segText = "";
     state.segThinking = "";
-    const rec = { id, name, rawName: upd.name ? String(upd.name) : "", kind: upd.kind ? String(upd.kind) : "", input, status: upd.status || "pending", output: "", isError: false, cancelled: false, done: false, startedAt: Date.now() };
+    const name = resolveAcpToolName(upd, input);
+    const rec = { id, name, rawTitle: upd.title ? String(upd.title) : "", rawName: upd.name ? String(upd.name) : "", kind: upd.kind ? String(upd.kind) : "", input, status: upd.status || "pending", output: "", isError: false, cancelled: false, done: false, sideEffectStarted: false, startedAt: Date.now() };
     state.tools.set(id, rec);
     emit({ type: "tool_use", id, name, ...(rec.rawName ? { rawName: rec.rawName } : {}), ...(rec.kind ? { kind: rec.kind } : {}), input });
-    trackAcpToolSideEffects("start", rec, state, emit);
+    ensureAcpToolStarted(rec, state, emit);
     // 部分实现会在 tool_call 上直接带终态
     const st0 = String(upd.status || "").toLowerCase();
     if (st0 === "completed" || st0 === "failed" || st0 === "error" || st0 === "cancelled" || st0 === "canceled") {
@@ -1923,25 +1987,32 @@ export function translateAcpUpdate(params, state, emit) {
     if (!prev) {
       state.segText = "";
       state.segThinking = "";
-      const name = String(upd.title || upd.name || upd.kind || "Tool");
       const input = upd.rawInput && typeof upd.rawInput === "object"
         ? upd.rawInput
         : (upd.input && typeof upd.input === "object" ? upd.input : {});
-      prev = { id, name, rawName: upd.name ? String(upd.name) : "", kind: upd.kind ? String(upd.kind) : "", input, status: upd.status || "in_progress", output: "", isError: false, cancelled: false, done: false, startedAt: Date.now() };
+      const name = resolveAcpToolName(upd, input);
+      prev = { id, name, rawTitle: upd.title ? String(upd.title) : "", rawName: upd.name ? String(upd.name) : "", kind: upd.kind ? String(upd.kind) : "", input, status: upd.status || "in_progress", output: "", isError: false, cancelled: false, done: false, sideEffectStarted: false, startedAt: Date.now() };
       state.tools.set(id, prev);
       emit({ type: "tool_use", id, name, ...(prev.rawName ? { rawName: prev.rawName } : {}), ...(prev.kind ? { kind: prev.kind } : {}), input });
-      trackAcpToolSideEffects("start", prev, state, emit);
+      ensureAcpToolStarted(prev, state, emit);
     } else {
-      if (upd.title || upd.name) {
-        const nextName = String(upd.title || upd.name);
-        if (nextName !== prev.name) { prev.name = nextName; changed = true; }
-      }
+      if (upd.title) prev.rawTitle = String(upd.title);
+      if (upd.name) prev.rawName = String(upd.name);
+      if (upd.kind) prev.kind = String(upd.kind);
       if (upd.rawInput && typeof upd.rawInput === "object" && Object.keys(upd.rawInput).length) {
         prev.input = { ...prev.input, ...upd.rawInput };
         changed = true;
       } else if (upd.input && typeof upd.input === "object" && Object.keys(upd.input).length) {
         prev.input = { ...prev.input, ...upd.input };
         changed = true;
+      }
+      if (upd.title || upd.name || changed) {
+        const nextName = resolveAcpToolName({
+          title: upd.title ?? prev.rawTitle,
+          name: upd.name ?? prev.rawName,
+          kind: upd.kind ?? prev.kind,
+        }, prev.input);
+        if (nextName && nextName !== prev.name) { prev.name = nextName; changed = true; }
       }
     }
     if (upd.status && upd.status !== prev.status) { prev.status = upd.status; changed = true; }
@@ -1950,6 +2021,7 @@ export function translateAcpUpdate(params, state, emit) {
       const merged = mergeToolOutput(prev.output, out);
       if (merged !== prev.output) { prev.output = merged; changed = true; }
     }
+    if (!prev.done) ensureAcpToolStarted(prev, state, emit);
     const st = String(upd.status || "").toLowerCase();
     const terminal = st === "completed" || st === "failed" || st === "error" || st === "cancelled" || st === "canceled";
     if (terminal) {
@@ -2589,12 +2661,16 @@ export async function runAcpTurn({
         const allowOpt = pickAcpAllowOption(options);
         const allowAlwaysOpt = options.find(isAcpAllowAlwaysOpt) || null;
         const rejectOpt = options.find(isAcpRejectOpt);
-        const toolTitle = params.toolCall?.title || params.toolCall?.name || params.toolCall?.kind || "Antigravity Tool";
+        const tcInput = params.toolCall?.rawInput || params.toolCall?.input || {};
+        const rawTitle = params.toolCall?.title || params.toolCall?.name || params.toolCall?.kind || "";
+        const toolTitle = rawTitle || Object.keys(tcInput).length ? resolveAcpToolName(params.toolCall, tcInput) : "Antigravity Tool";
         const toolRaw = params.toolCall?.name || "";
         const toolKind = params.toolCall?.kind || "";
 
         // C-06：命中 disallowedTools 一律拒绝（即使 permMode 为 bypassPermissions 也不得自动放行）
-        if (isAcpToolDisallowed(toolTitle, toolKind, disallowedTools) || (toolRaw && isAcpToolDisallowed(toolRaw, toolKind, disallowedTools))) {
+        if (isAcpToolDisallowed(toolTitle, toolKind, disallowedTools)
+          || (rawTitle && rawTitle !== toolTitle && isAcpToolDisallowed(rawTitle, toolKind, disallowedTools))
+          || (toolRaw && isAcpToolDisallowed(toolRaw, toolKind, disallowedTools))) {
           log(`[agy-acp] disallowedTools 拦截工具: ${toolTitle}`);
           if (run) (run.denied ||= []).push(toolTitle);
           return rejectOpt

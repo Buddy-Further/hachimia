@@ -302,9 +302,10 @@ td{color:var(--fg2)}
 .tg-page{display:block;width:100%;text-align:start}
 .tgroup:not(.single) .tg-body{margin-inline-start:12px;padding-inline-start:8px;border-inline-start:1px solid var(--tool-line)}
 .tool-head{display:flex;align-items:center;gap:8px;padding:7px 10px;font-size:12.5px;cursor:pointer;user-select:none}
-.tool-name{color:var(--tool);font-weight:600;font-family:var(--mono);font-size:12px}
+.tool-name{color:var(--tool);font-weight:600;font-family:var(--mono);font-size:12px;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tool-head:has(.tool-arg:not(:empty)) .tool-name{max-width:45%}
 .tool-arg{color:var(--fg3);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--mono);font-size:11.5px}
-.tool-state{font-size:11px;color:var(--fg3);flex:0 0 auto}
+.tool-state{font-size:11px;color:var(--fg3);flex:0 0 auto;white-space:nowrap}
 .tool-state.run{color:var(--warn)} .tool-state.ok{color:var(--ok)} .tool-state.err{color:var(--err)} .tool-state.unknown{color:var(--warn)} .tool-state.cancel{color:var(--fg3)}
 .tool-head .chev{color:var(--fg3);font-size:10px;transition:transform .15s}
 .tool.open .chev{transform:rotate(90deg)}
@@ -314,7 +315,7 @@ td{color:var(--fg2)}
 .tool-sub{border-top:1px solid var(--tool-sep)}
 .ts-head{display:flex;align-items:center;gap:8px;width:100%;padding:5px 10px 5px 18px;background:none;border:0;color:var(--fg2);font-size:12px;text-align:left;cursor:pointer}
 .ts-head .chev{color:var(--fg3);font-size:9px;transition:transform .15s}
-.ts-label{flex:0 0 auto}
+.ts-label{flex:0 0 auto;white-space:nowrap}
 .ts-list{display:none;padding:0 8px 6px 18px}
 .tool-sub.open .ts-list,.tool-sub:has(.perm:not(.done)) .ts-list{display:block}
 .tool-sub.open .ts-head .chev,.tool-sub:has(.perm:not(.done)) .ts-head .chev{transform:rotate(90deg)}
@@ -436,8 +437,10 @@ td{color:var(--fg2)}
 .perm{border:1px solid var(--warn);border-radius:10px;margin:-2px 0 10px;background:var(--bg2);overflow:hidden}
 .perm.busy{opacity:.6;pointer-events:none}
 .perm-head{display:flex;align-items:center;gap:8px;padding:7px 10px;font-size:12.5px}
-.perm-kind{color:var(--warn);font-weight:600}
-.perm-tool{color:var(--tool);font-family:var(--mono);font-size:12px}
+.perm-kind{color:var(--warn);font-weight:600;flex:0 0 auto;white-space:nowrap}
+.perm-res{flex:0 0 auto;white-space:nowrap}
+.perm-tool{color:var(--tool);font-family:var(--mono);font-size:12px;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.perm-head:has(.tool-arg:not(:empty)) .perm-tool{max-width:45%}
 .perm-body{padding:0 10px 4px}
 .perm-cmd,.perm-diff{margin:0 0 6px;max-height:260px;overflow:auto;font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere}
 .perm-diff .del{color:var(--err)} .perm-diff .add{color:var(--ok)}

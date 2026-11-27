@@ -753,9 +753,11 @@ if (/[?&](t|k)=/.test(location.search) || /[#&]k=/.test(location.hash)) history.
   // 网关会提醒它（gw/pathnote.mjs），这里兜底。键是文件名和各级尾部路径；同名不同路径的记 null，不猜
   const WROTE = new Map();
   function noteWrote(name, input) {
-    const p = input && (input.file_path || input.notebook_path || input.Path || input.TargetFile);
+    const raw = typeof displayToolName === "function" ? displayToolName(name, input) : name;
+    const norm = String(raw || "").trim().replace(/^run\s+/i, "");
+    const p = input && (input.file_path || input.notebook_path || input.Path || input.TargetFile || input.AbsolutePath || input.path);
     // 路径是模型给的：带引号、尖括号这类的不登记（正常文件名不会有，登记了还要进 data-path 属性）；兼容 ACP 写/改工具名（C-08.4）
-    if (!/^(Write|Edit|MultiEdit|NotebookEdit|write_file|edit_file|replace_file_content|multi_replace_file_content|write file|edit file|replace file)$/i.test(String(name || "").trim()) || typeof p !== "string" || !/^\//.test(p) || /["'<>&`\u0000-\u001f]/.test(p)) return;
+    if (!/^(Write|Edit|MultiEdit|NotebookEdit|write_file|edit_file|replace_file_content|multi_replace_file_content|write file|edit file|replace file)$/i.test(norm) || typeof p !== "string" || !/^\//.test(p) || /["'<>&`\u0000-\u001f]/.test(p)) return;
     const parts = p.split("/").filter(Boolean);
     for (let i = parts.length - 1; i >= Math.max(1, parts.length - 4); i--) {
       const k = parts.slice(i).join("/");

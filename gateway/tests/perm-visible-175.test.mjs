@@ -33,7 +33,8 @@ test("perm_mode 事件：在跑轮次的模式快照跟着改，并重排等着�
   assert.equal(refreshed, 1);
   // 计划卡按钮按新模式生成：auto 时有「按当前模式执行」
   const b2 = { srv: box.srv, state: { permissionMode: "auto" }, t: T, esc: (s) => s, modeLabel: (m) => m, permRules: () => [], permSuggestsEdits: () => false };
-  vm.runInNewContext(take(src, "  const runMode = ", "  function PermCard(") + "\nglobalThis.f = permActions;", b2);
+  const permHelper = take(src, "  const permToolLabel =", "\n  function permPreview(");
+  vm.runInNewContext(permHelper + "\n" + take(src, "  const runMode = ", "  function PermCard(") + "\nglobalThis.f = permActions;", b2);
   b2.srv.runs[0].id = "r";
   assert.match(b2.f({ tool: "ExitPlanMode" }, "r"), /data-mode="auto" data-keep="1"/);
 });

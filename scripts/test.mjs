@@ -56,13 +56,37 @@ for (const f of [...files].sort((a, b) => (MS[b] || 1000) - (MS[a] || 1000))) {
 const pools = buckets.map((b) => b.files.sort()); // 池内字母序 = 与串行相对顺序一致
 if (poolCount > 1) console.error(`分 ${poolCount} 池并行（CCAPP_TEST_POOLS 可覆盖，=1 串行）`);
 
-const curl = spawnSync("sh", ["-c", "command -v curl"], { encoding: "utf8" }).stdout.trim();
+// 在 hachimia 里跑时环境里有二十几个 CCAPP_* 指着真数据：一个不留全删，再只设测试要的（审查 L18）。
+// 网关给 claude 注入的 CLAUDE_CODE_* / ANTHROPIC_*（上下文窗口、接口地址…）也会漏进被测的 claudeEnv，一并去掉（11-01 独立审查）
+// 沙箱 egress 代理变量（HTTP_PROXY/HTTPS_PROXY/ALL_PROXY 及小写）也会透进测试子进程：claudeEnv 判 viaProxy 为真就跳过
+// streamfix，U.6 因此挂（D 报告 §B：清掉这 6 个变量后 2/2 通过）。只在测试子进程环境里过滤，不动生产代码
+// gateway/gw/ 的 viaProxy 判定本身；NO_PROXY/no_proxy 是放行名单，不影响判定，保留。
+const PROXY_VARS = new Set(["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"]);
+const clean = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(CCAPP_|CLAUDE_CODE_|ANTHROPIC_)/.test(k) && !PROXY_VARS.has(k)));
+const loaderBin = process.env.CCAPP_LOADER_BIN ? path.resolve(process.env.CCAPP_LOADER_BIN) : "";
+if (clean.PATH) {
+  clean.PATH = clean.PATH.split(":").filter((d) => {
+    if (!d) return false;
+    const norm = path.resolve(d);
+    if (loaderBin && norm === loaderBin) return false;
+    if (path.basename(norm) === "loader-bin") return false;
+    return true;
+  }).join(":");
+}
+if (clean.SHELL && ((loaderBin && path.resolve(clean.SHELL).startsWith(loaderBin + path.sep)) || clean.SHELL.includes("/loader-bin/") || clean.SHELL.endsWith("/libccrun.so"))) {
+  const realSh = process.env.CCAPP_SHELL || (process.env.PREFIX && fs.existsSync(path.join(process.env.PREFIX, "bin", "bash")) ? path.join(process.env.PREFIX, "bin", "bash") : "");
+  if (realSh) clean.SHELL = realSh;
+  else delete clean.SHELL;
+}
+
+const curl = spawnSync("sh", ["-c", "command -v curl"], { encoding: "utf8", env: clean }).stdout.trim();
 if (!curl) { console.error("找不到 curl"); process.exit(1); }
 
 // 安卓上 /tmp 应用写不进：没设 TMPDIR 又写不进系统临时目录时，用 ~/.cache
 const writable = (d) => { try { fs.accessSync(d, fs.constants.W_OK); return true; } catch { return false; } };
-const base = process.env.TMPDIR || (writable(os.tmpdir()) ? os.tmpdir() : path.join(os.homedir(), ".cache"));
-fs.mkdirSync(base, { recursive: true });
+const rawBase = process.env.TMPDIR || (writable(os.tmpdir()) ? os.tmpdir() : path.join(os.homedir(), ".cache"));
+fs.mkdirSync(rawBase, { recursive: true });
+const base = fs.realpathSync(rawBase);
 const tmpRoot = fs.mkdtempSync(path.join(base, "hachimia-test-")); // 只放各池日志
 const poolTmps = []; // 每池一个平级 hachimia-test-*（registry-flock fixture 要求 basename 以此开头）
 
@@ -71,14 +95,6 @@ const poolTmps = []; // 每池一个平级 hachimia-test-*（registry-flock fixt
 // 测试里的假脚本（soffice、假 CLI、自检…）就会报「命令找不到」，失败信息还看着像被测代码坏了。
 // 在假前缀里补一份基础命令，造出与真机前缀相近的环境。tar / sh / git / curl / flock 由各测试自己链接，不放这里。
 const BASIC = ["awk","basename","cat","chmod","cp","cut","date","df","dirname","du","env","find","grep","gzip","head","id","ln","ls","mkdir","mktemp","mv","readlink","realpath","rm","sed","seq","sleep","sort","stat","tail","tee","touch","tr","uname","uniq","wc","xargs","zcat"];
-
-// 在 hachimia 里跑时环境里有二十几个 CCAPP_* 指着真数据：一个不留全删，再只设测试要的（审查 L18）。
-// 网关给 claude 注入的 CLAUDE_CODE_* / ANTHROPIC_*（上下文窗口、接口地址…）也会漏进被测的 claudeEnv，一并去掉（11-01 独立审查）
-// 沙箱 egress 代理变量（HTTP_PROXY/HTTPS_PROXY/ALL_PROXY 及小写）也会透进测试子进程：claudeEnv 判 viaProxy 为真就跳过
-// streamfix，U.6 因此挂（D 报告 §B：清掉这 6 个变量后 2/2 通过）。只在测试子进程环境里过滤，不动生产代码
-// gateway/gw/ 的 viaProxy 判定本身；NO_PROXY/no_proxy 是放行名单，不影响判定，保留。
-const PROXY_VARS = new Set(["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"]);
-const clean = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(CCAPP_|CLAUDE_CODE_|ANTHROPIC_)/.test(k) && !PROXY_VARS.has(k)));
 
 function setupEnv(i) {
   const tmp = fs.mkdtempSync(path.join(base, "hachimia-test-"));
@@ -92,7 +108,7 @@ function setupEnv(i) {
   for (const name of BASIC) {
     const dst = path.join(prefix, "bin", name);
     if (fs.existsSync(dst)) continue;
-    const real = spawnSync("sh", ["-c", "command -v " + name], { encoding: "utf8" }).stdout.trim();
+    const real = spawnSync("sh", ["-c", "command -v " + name], { encoding: "utf8", env: clean }).stdout.trim();
     // dash 对 printf / true 这类内建返回的是名字而不是路径，别拿它建软链
     if (path.isAbsolute(real)) fs.symlinkSync(real, dst);
   }

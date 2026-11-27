@@ -9,7 +9,9 @@ import { syncBuiltinESMExports } from "node:module";
 function locations(prefix, home, temporary) {
   assert.ok(temporary && path.basename(temporary).startsWith("hachimia-test-"), "registry-flock fixture requires scripts/test.mjs temporary root");
   assert.equal(prefix, path.join(temporary, "usr")); assert.equal(home, path.join(temporary, "home"));
-  assert.equal(fs.realpathSync(prefix), prefix); assert.equal(fs.realpathSync(home), home);
+  const realTmp = fs.realpathSync(temporary);
+  assert.equal(fs.realpathSync(prefix), path.join(realTmp, "usr"));
+  assert.equal(fs.realpathSync(home), path.join(realTmp, "home"));
   const tool = path.join(prefix, "bin/flock");
   return { tool, controlFile: tool + ".fixture.json", callsFile: tool + ".fixture.calls" };
 }

@@ -106,7 +106,22 @@ static int file_exists_stat(const char *p) {
     return stat(p, &st) == 0;
 }
 
+static int is_ccrun_target(const char *cand) {
+    if (ends_with(cand, "/libccrun.so") || strcmp(cand, "libccrun.so") == 0) return 1;
+    struct stat lst;
+    if (lstat(cand, &lst) == 0 && S_ISLNK(lst.st_mode)) {
+        char target[PATH_MAX];
+        ssize_t n = readlink(cand, target, sizeof target - 1);
+        if (n > 0) {
+            target[n] = 0;
+            if (strcmp(target, "libccrun.so") == 0 || ends_with(target, "/libccrun.so")) return 1;
+        }
+    }
+    return 0;
+}
+
 static int is_exec_candidate(const char *cand, int have_self, const struct stat *self_st) {
+    if (is_ccrun_target(cand)) return 0;
     struct stat st;
     if (stat(cand, &st) != 0) return 0;
     if (!S_ISREG(st.st_mode)) return 0;
@@ -116,17 +131,23 @@ static int is_exec_candidate(const char *cand, int have_self, const struct stat 
 }
 
 static char *strip_loader_bin_from_path(const char *raw_path, const char *loader_bin) {
-    if (!raw_path) return strdup("");
-    size_t cap = strlen(raw_path) + 1;
+    if (!raw_path || !*raw_path) return strdup("");
+    size_t n_colons = 0;
+    for (const char *q = raw_path; *q; q++) if (*q == ':') n_colons++;
+    size_t cap = strlen(raw_path) + n_colons + 2;
     char *out = malloc(cap);
     if (!out) return NULL;
     out[0] = 0;
     size_t out_len = 0;
     const char *p = raw_path;
-    while (*p) {
+    for (;;) {
         const char *sep = strchr(p, ':');
         size_t len = sep ? (size_t)(sep - p) : strlen(p);
-        if (len > 0 && !(loader_bin && *loader_bin && path_eq_norm(p, len, loader_bin))) {
+        if (len == 0) {
+            if (out_len > 0) out[out_len++] = ':';
+            out[out_len++] = '.';
+            out[out_len] = 0;
+        } else if (!(loader_bin && *loader_bin && path_eq_norm(p, len, loader_bin))) {
             if (out_len > 0) out[out_len++] = ':';
             memcpy(out + out_len, p, len);
             out_len += len;
@@ -142,17 +163,17 @@ static int resolve_in_path(const char *clean_path, const char *name, int have_se
                            const struct stat *self_st, char *out, size_t out_cap) {
     if (!clean_path || !*clean_path || !name || !*name) return 0;
     const char *p = clean_path;
-    while (*p) {
+    for (;;) {
         const char *sep = strchr(p, ':');
         size_t len = sep ? (size_t)(sep - p) : strlen(p);
-        if (len > 0) {
-            size_t need = len + 1 + strlen(name) + 1;
-            if (need <= out_cap) {
-                memcpy(out, p, len);
-                out[len] = '/';
-                strcpy(out + len + 1, name);
-                if (is_exec_candidate(out, have_self, self_st)) return 1;
-            }
+        const char *dir = len > 0 ? p : ".";
+        size_t dlen = len > 0 ? len : 1;
+        size_t need = dlen + 1 + strlen(name) + 1;
+        if (need <= out_cap) {
+            memcpy(out, dir, dlen);
+            out[dlen] = '/';
+            strcpy(out + dlen + 1, name);
+            if (is_exec_candidate(out, have_self, self_st)) return 1;
         }
         if (!sep) break;
         p = sep + 1;
@@ -162,12 +183,6 @@ static int resolve_in_path(const char *clean_path, const char *name, int have_se
 
 int main(int argc, char **argv) {
     if (argc < 1 || !argv[0]) return 127;
-
-    struct stat self_st;
-    int have_self = 0;
-    const char *self_env = getenv("CCAPP_LOADER_RUN");
-    if (self_env && *self_env && stat(self_env, &self_st) == 0) have_self = 1;
-    else if (stat("/proc/self/exe", &self_st) == 0) have_self = 1;
 
     const char *orig_argv0 = argv[0];
     const char *slash = strrchr(orig_argv0, '/');
@@ -181,9 +196,27 @@ int main(int argc, char **argv) {
         base = "bash";
     }
 
+    struct stat self_st;
+    int have_self = 0;
+    const char *self_env = getenv("CCAPP_LOADER_RUN");
+    if (self_env && *self_env && stat(self_env, &self_st) == 0) have_self = 1;
+    else if (slash && stat(orig_argv0, &self_st) == 0) have_self = 1;
+    else if (stat("/proc/self/exe", &self_st) == 0) have_self = 1;
+
     /* clean_path 仅用于本进程内部跳过 loader-bin 查找真实目标；不修改子进程 PATH 环境变量，
      * 确保 bash 拉起的二级 Go 程序（如 gh → git / xdg-open）在裸 SYS_execve 时仍能命中 loader-bin 跳板 */
     const char *loader_bin = getenv("CCAPP_LOADER_BIN");
+    char inferred_lb[PATH_MAX];
+    if ((!loader_bin || !*loader_bin) && slash && slash > orig_argv0) {
+        size_t dir_len = (size_t)(slash - orig_argv0);
+        if (dir_len < sizeof inferred_lb &&
+            ((dir_len == 10 && memcmp(orig_argv0, "loader-bin", 10) == 0) ||
+             (dir_len >= 11 && memcmp(orig_argv0 + dir_len - 11, "/loader-bin", 11) == 0))) {
+            memcpy(inferred_lb, orig_argv0, dir_len);
+            inferred_lb[dir_len] = 0;
+            loader_bin = inferred_lb;
+        }
+    }
     char *clean_path = strip_loader_bin_from_path(getenv("PATH"), loader_bin);
 
     const char *ccapp_ld = getenv("CCAPP_LD");
@@ -247,7 +280,8 @@ int main(int argc, char **argv) {
     const char *glibc_preload = getenv("CCAPP_GLIBC_PRELOAD");
     const char *prefix = getenv("PREFIX");
 
-    for (int depth = 0; depth < 5; depth++) {
+    int depth = 0;
+    for (; depth < 5; depth++) {
         char *cur = av[s];
         if (ccapp_ld && *ccapp_ld && strcmp(cur, ccapp_ld) == 0) {
             unsetenv("LD_PRELOAD");
@@ -257,6 +291,7 @@ int main(int argc, char **argv) {
         }
         if (is_sysdir(cur)) {
             if (bionic_preload && *bionic_preload) setenv("LD_PRELOAD", bionic_preload, 1);
+            else unsetenv("LD_PRELOAD");
             execv(cur, av + s);
             break;
         }
@@ -277,7 +312,7 @@ int main(int argc, char **argv) {
                     while (t > q && (t[-1] == ' ' || t[-1] == '\t' || t[-1] == '\r')) *--t = 0;
                 }
             }
-            if (!*ip || s < 10) break;
+            if (!*ip || s < 10) { errno = ELOOP; break; }
             char mapped[PATH_MAX];
             const char *nm = starts_with(ip, "/usr/bin/") ? ip + 9 : starts_with(ip, "/bin/") ? ip + 5 : NULL;
             if (nm && prefix && *prefix && !file_exists_stat(ip)) {
@@ -286,13 +321,14 @@ int main(int argc, char **argv) {
             }
             char *ip_copy = strdup(ip);
             char *opt_copy = opt ? strdup(opt) : NULL;
-            if (!ip_copy || (opt && !opt_copy)) break;
+            if (!ip_copy || (opt && !opt_copy)) { errno = ENOMEM; break; }
             if (opt_copy) av[--s] = opt_copy;
             av[--s] = ip_copy;
             continue;
         }
         if (k == K_BIONIC) {
             if (bionic_preload && *bionic_preload) setenv("LD_PRELOAD", bionic_preload, 1);
+            else unsetenv("LD_PRELOAD");
             if (use_loader) {
                 setenv("TERMUX_EXEC__PROC_SELF_EXE", cur, 1);
                 av[--s] = "/system/bin/linker64";
@@ -346,6 +382,7 @@ int main(int argc, char **argv) {
         break;
     }
 
+    if (depth == 5) errno = ELOOP;
     fprintf(stderr, "libccrun: exec %s: %s\n", av[s], strerror(errno));
     return 127;
 }
