@@ -588,8 +588,10 @@ function loadProviders() {
   if (PROVIDERS_RAW.active === "local" && !providers.local) {
     PROVIDER_MIGRATED_FROM = "local";
     PROVIDERS_RAW.active = active;
-    if (PROVIDERS_RAW.providers.local && !PROVIDERS_RAW.providers.local.baseUrl) delete PROVIDERS_RAW.providers.local;
     log(`[厂商] 端侧小模型已下线，旧配置 active="local" 已自动切回 ${active}`);
+  }
+  if (PROVIDERS_RAW.providers.local && !PROVIDERS_RAW.providers.local.baseUrl && !providers.local) {
+    delete PROVIDERS_RAW.providers.local;
   }
   // MIG-10：纯 agy 下 Claude 系预置不可用。旧配置的 active 仍指着它时迁回 antigravity，
   // 这里只改内存并记 flag，落盘由模块加载后统一做（见 PROVIDERS_CFG 赋值后的那段）。
@@ -1326,21 +1328,23 @@ export function keyOf(p) {
  *  模型清单缓存无需在此清除 —— 缓存按接口配置指纹存取（models.mjs 的 sigOf），
  *  换厂商自然对不上。 */
 export function applyProvider() {
-  // 已下线的端侧小模型：老设置若仍选中 provider="local"，清空 provider 与旧 .gguf 模型名，平滑切回默认厂商
-  if (SETTINGS.provider === "local" && !PROVIDERS_CFG.providers.local) {
+  // 已下线的端侧小模型：老设置若仍选中 provider="local" 或仅由 active="local" 迁出但残存 .gguf 模型名，清空并平滑切回默认厂商
+  if ((SETTINGS.provider === "local" && !PROVIDERS_CFG.providers.local)
+    || (PROVIDER_MIGRATED_FROM === "local" && !SETTINGS.provider && /\.gguf$/i.test(String(SETTINGS.model || "")))) {
     PROVIDER_MIGRATED_FROM = "local";
-    log("[厂商] 端侧小模型已下线，旧设置 provider=\"local\" 已自动切回默认接口");
-    SETTINGS.provider = null;
+    log("[厂商] 端侧小模型已下线，旧设置已自动切回默认接口");
+    if (SETTINGS.provider === "local") SETTINGS.provider = null;
     SETTINGS.model = null;
     try { saveSettings(); } catch (e) { log(`[厂商] 清掉旧 local 设置失败：${e.message}`); }
   }
-  // MIG-10：设置里的 provider 仍指着 Claude 预置时（旧配置/分享导入），同样迁回 antigravity 并落盘
-  if (isAgyOnlyMode() && SETTINGS.provider) {
+  // MIG-10：设置里的 provider 仍指着 Claude 预置时（旧配置/分享导入），同样迁回 antigravity、清空旧模型名并落盘
+  if (SETTINGS.provider) {
     const want = PROVIDERS_CFG.providers[SETTINGS.provider];
     if (want && want.group === "claude") {
       PROVIDER_MIGRATED_FROM = SETTINGS.provider;
       log(`[厂商] 纯 Antigravity 模式：${PROVIDER_MIGRATED_FROM} 是 Claude 预置，不可用，已自动切回 antigravity`);
       SETTINGS.provider = null;
+      SETTINGS.model = null;
       try { saveSettings(); } catch (e) { log(`[厂商] 清掉 Claude 预置选择失败：${e.message}`); }
     }
   }

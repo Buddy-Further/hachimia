@@ -23,10 +23,13 @@
       if (!ok()) return;
       state.providers = r.providers || [];
       state.providerActive = r.active;
-      // MIG-10：网关把旧配置的 Claude 预置迁回 antigravity 时，提示一次用户（每页只提示一次）
+      const cur = state.providers.find((p) => p.id === r.active) || {};
+      // MIG-10 / Stage 1：网关把旧配置的 local 或 Claude 预置迁回默认接口时，按来源提示一次用户（每页只提示一次）
       if (r.migratedFrom && state.migratedFromShown !== r.migratedFrom) {
         state.migratedFromShown = r.migratedFrom;
-        toast(t("检测到旧配置仍在用 Claude 预设，已自动切回 Google Antigravity 订阅登录。"));
+        toast(r.migratedFrom === "local"
+          ? t("端侧小模型已下线，已自动切回 {name}。", { name: pLabel(cur) || r.active })
+          : t("检测到旧配置仍在用 Claude 预设，已自动切回 Google Antigravity 订阅登录。"));
       }
       if (!state.provView || (state.provView !== "__new__" && !state.providers.some((p) => p.id === state.provView))) {
         state.provView = r.active;
@@ -46,7 +49,6 @@
           (g === "custom" ? `<option value="__new__">${provEn() ? "+ Add a custom endpoint…" : t("＋ 新增自定义接口…")}</option>` : "") + `</optgroup>`).join("");
       sel.value = state.provView;
       $("provider-count").textContent = t("{n} 个", { n: state.providers.length });
-      const cur = state.providers.find((p) => p.id === r.active) || {};
       $("provider-info").textContent = t("当前在用：{name}", { name: pLabel(cur) || r.active });
       $("provider-info").title = cur.baseUrl || "";
       if (setOpen) renderProvCard();

@@ -103,6 +103,7 @@ export function sessModel(sid) {
 }
 /** 这个会话钉过一家、那家后来删掉了：返回那家的 id（旧记录没记 provider 的不算），否则 "" */
 export function sessLostProvider(sid) {
+  ensureMigrated();
   const r = sid && DB[sid];
   return r && r.model != null && typeof r.provider === "string" && r.provider && !providerById(r.provider) ? r.provider : "";
 }

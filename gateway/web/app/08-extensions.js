@@ -1534,7 +1534,7 @@
   // 状态对账：组件 / 模块 / 包清单 / 自定义组件的记录和磁盘对一遍（网关启动后自动核过一次，这里看结果或再核）
   // 能自动修的条目带「修补」，顶部「全部修补」：网关按顺序重装组件 / 模块、等做完，工具包和 Antigravity CLI 交给应用，最后自动再核（用户 11-09）
   const fixWhat = (a) => ({ comp: t("重新安装这个组件（会重新下载）"), mod: t("重新安装这个工具包模块（会重新下载）"),
-    devkit: t("修复开发工具包：重新下载当前这一版并重装，装的时候暂停服务 1–2 分钟"), agy: t("重新安装 Antigravity CLI (agy)") }[a] || "");
+    devkit: t("修复开发工具包：重新下载当前这一版并重装，装的时候暂停服务 1–2 分钟"), agy: t("重新安装 Antigravity CLI (agy)"), claude: t("重新安装 Antigravity CLI (agy)") }[a] || "");
   let fixTimer = 0;
   function paintReconcile(r, always) {
     const box = $("reconcile-box"), bad = (r.findings || []).filter((f) => f.level !== "info");

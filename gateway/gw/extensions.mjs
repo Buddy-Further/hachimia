@@ -59,10 +59,11 @@ function agyExtCmd(args) {
       let def;
       try { def = JSON.parse(rawJson || "{}"); } catch { return { error: tz("MCP 配置不是合法的 JSON") }; }
       const flags = [];
-      if (def.url || def.type === "http" || def.type === "sse") {
+      const remoteUrl = def.url || def.serverUrl;
+      if (remoteUrl || def.type === "http" || def.type === "sse") {
         flags.push("--type", def.type === "sse" ? "http" : (def.type || "http"));
         for (const [k, v] of Object.entries(def.headers || {})) flags.push("--header", `${k}: ${v}`);
-        return { args: ["mcp", "add", ...flags, name, String(def.url || "")] };
+        return { args: ["mcp", "add", ...flags, name, String(remoteUrl || "")] };
       }
       flags.push("--type", "stdio");
       for (const [k, v] of Object.entries(def.env || {})) flags.push("-e", `${k}=${v}`);
@@ -103,7 +104,7 @@ function extExecRaw(args, timeoutMs = 180000) {
   const writes = ["plugin", "mcp"].includes(args[0]) && !args.includes("list") && !args.includes("get");
   const appWrote = (ucb) => {
     if (!writes) return;
-    ucAppWrote([".gemini/antigravity-cli/settings.json", ".gemini/antigravity-cli/plugins/", ".claude.json", ".claude/settings.json", ".claude/plugins/"], ucb,
+    ucAppWrote([".gemini/config/mcp_config.json", ".gemini/antigravity-cli/settings.json", ".gemini/antigravity-cli/plugins/", ".claude.json", ".claude/settings.json", ".claude/plugins/"], ucb,
       { ".claude/settings.json": ["enabledPlugins", "extraKnownMarketplaces"] });
   };
   return Promise.resolve().then(() => claudeBlocked()).then((blocked) => blocked ? { code: -1, out: "", err: blocked } : new Promise((resolve) => {
@@ -149,7 +150,7 @@ async function pluginState(withAvailable) {
     const j = lastJson(r.out);
     if (!j) {
       if (r.code === 0) return [];
-      throw new Error(cliMsg(r) || "agy plugin list 没有输出");
+      throw new Error(cliMsg(r) || tz("agy plugin list 没有输出"));
     }
     const installed = Array.isArray(j) ? j : j.installed || j.plugins || [];
     if (!Array.isArray(j) && j.available) PLUGIN_CATALOG = { at: Date.now(), list: j.available };
@@ -215,11 +216,20 @@ async function marketplaceOp() {
   return { ok: false, message: tz("当前引擎 (Antigravity CLI) 暂不支持插件市场管理") };
 }
 
-/** claude mcp list 只有给人看的文本：「名字: 目标 - ✔ Connected」。顺带做了连通检查，所以慢几秒 */
+/** 解析 agy mcp list 表格输出（NAME TYPE STATUS COMMAND/URL），同时兼容「名字: 目标 - ✓ Connected」格式 */
 async function listMcp() {
   const r = await extRun(["mcp", "list"], 90000);
   const out = [];
-  for (const line of r.out.replace(/\x1b\[[0-9;]*m/g, "").split("\n")) {
+  for (const rawLine of r.out.replace(/\x1b\[[0-9;]*m/g, "").split("\n")) {
+    const line = rawLine.trim();
+    if (!line || /^NAME\s+TYPE\s+STATUS\b/i.test(line) || /^[-─=\s]+$/.test(line)) continue;
+    const tbl = line.match(/^(\S+)\s+(stdio|http|sse)\s+(enabled|disabled)\s+(.+)$/i);
+    if (tbl) {
+      const name = tbl[1].trim(), st = tbl[3].toLowerCase(), target = tbl[4].trim();
+      const def = userMcpDef(name);
+      out.push({ name, target, ok: st === "enabled", status: st, cloud: false, user: !!def, hdr: headerNames(def) });
+      continue;
+    }
     const m = line.match(/^(.+?): (.+) - ([✔✓✗⚠!]|[^\s]+)\s*(.*)$/u);
     if (!m) continue;
     const name = m[1].trim();
@@ -332,7 +342,7 @@ export function editMcp(b) {
     if (transport !== "stdio") {
       // 前端已拦 KEY=值，这里不再赘述；重建后 env 键不该存在（claude 对远程条目不写 env）
       nd = { ...def, type: transport, url: target, headers: merged(def.headers, dropHdr, hdrs, ":") };
-      delete nd.command; delete nd.args; delete nd.env;
+      delete nd.serverUrl; delete nd.command; delete nd.args; delete nd.env;
       if (!Object.keys(nd.headers).length) delete nd.headers;
     } else {
       const parts = parseStdioTarget(target);
@@ -340,7 +350,7 @@ export function editMcp(b) {
       // claude 对 stdio 条目不存 headers（实测 add-json 静默剥掉）：这里显式删，
       // 别让「保存成功」之后令牌悄悄没了（前端在切 transport 时会先弹确认）
       nd = { ...def, type: "stdio", command: parts[0], args: parts.slice(1), env: merged(def.env, dropEnv, envs, "=") };
-      delete nd.url; delete nd.headers;
+      delete nd.url; delete nd.serverUrl; delete nd.headers;
       if (!Object.keys(nd.env).length) delete nd.env;
     }
     // 停用中的条目没连 claude：只改停用名单，启用时按新定义加回，不碰 .claude.json
@@ -642,13 +652,20 @@ async function setSkillMode(dir, mode) {
   return { ok: true };
 }
 
-/** 用户级 MCP 定义（~/.claude.json 或 ~/.gemini/antigravity-cli/settings.json 顶层 mcpServers，只读）；项目级、账户连接器不归这里管 */
+/** 用户级 MCP 定义（优先读 agy 原生 ~/.gemini/config/mcp_config.json，兼容 settings.json 与 ~/.claude.json，只读） */
 function userMcpDef(name) {
-  for (const fp of [path.join(CFG.home, ".claude.json"), path.join(CFG.home, ".gemini", "antigravity-cli", "settings.json")]) {
+  for (const fp of [
+    path.join(CFG.home, ".gemini", "config", "mcp_config.json"),
+    path.join(CFG.home, ".gemini", "antigravity-cli", "settings.json"),
+    path.join(CFG.home, ".claude.json"),
+  ]) {
     try {
       const j = JSON.parse(readSmallFile(fp, 32 << 20) || "{}");
       const d = j && j.mcpServers && j.mcpServers[name];
-      if (d && typeof d === "object" && !Array.isArray(d)) return d;
+      if (d && typeof d === "object" && !Array.isArray(d)) {
+        if (d.serverUrl && !d.url) return { ...d, type: d.type || "http", url: d.serverUrl };
+        return d;
+      }
     } catch {}
   }
   return null;

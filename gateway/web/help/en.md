@@ -1,11 +1,11 @@
 # hachimia help
 
-hachimia runs **Antigravity CLI (agy)** on your phone, wraps it in a graphical interface and ships a full developer toolchain. It can read and write files, run commands and start local servers, just as it would in a terminal on a computer. Pick a Claude-compatible provider under Settings → Provider & model and it can run Claude Code instead.
+hachimia runs **Antigravity CLI (agy)** on your phone, wraps it in a graphical interface and ships a full developer toolchain. It can read and write files, run commands and start local servers, just as it would in a terminal on a computer.
 
 ## Getting started
 
 1. **Install the toolkit**: on first launch, tick the modules you want. The default set is about 330 MB and resumes if interrupted.
-2. **Sign in or add a key**: authorize your Antigravity account once in the browser, or enter a Gemini API key, or a key for Anthropic, DeepSeek, Qwen or another compatible endpoint.
+2. **Sign in or add a key**: authorize your Antigravity account once in the browser, or enter a Gemini API key or a custom Gemini-compatible endpoint.
 3. **Start a conversation**: tap ＋ in the top bar, or New chat in the sidebar.
 4. **Put it to work**: It asks before editing files or running commands; switch the permission mode under the input bar.
 
@@ -24,7 +24,7 @@ The right end of the top bar normally shows just ⋯. Tap it and the shortcuts y
 
 The menu button at the top left opens the sidebar: places to go at the top (Chats, Projects, Scheduled tasks, with Extensions, Capabilities, Usage and Help under More), recent chats in the middle, and the account row at the bottom, which opens Settings.
 
-The thin line under the top bar shows **context usage**; the further right, the fuller. Its second half shows what is left on the current provider: the share of your quota used when you sign in with a subscription, or the balance for DeepSeek, Kimi and similar key-based providers. If a provider doesn't report its context window, fill in **Context window** for that custom provider under **Provider & model** in Settings, and the compaction line and scale follow it; without one the bar shows "capacity unknown". Tap the line for details; every provider’s quota and spending, plus low-quota reminders, are under **Quota and spending** at the top of the Usage page. In the input area, ＋ attaches files and opens common actions. The row below shows the model, thinking effort and permission mode; tap any of them to change it. The model picker only lists providers you can use: a subscription account that isn’t signed in, or an on-device model with nothing downloaded, is left out. To hide a provider you’ve set up, pick it under **Provider & model** in Settings and turn off **Show in the model picker** (its settings are kept, and the one in use is always listed).
+The thin line under the top bar shows **context usage**; the further right, the fuller. Its second half shows what is left on the current provider: the share of your quota used when you sign in with a subscription, or the balance for DeepSeek, Kimi and similar key-based providers. If a provider doesn't report its context window, fill in **Context window** for that custom provider under **Provider & model** in Settings, and the compaction line and scale follow it; without one the bar shows "capacity unknown". Tap the line for details; every provider’s quota and spending, plus low-quota reminders, are under **Quota and spending** at the top of the Usage page. In the input area, ＋ attaches files and opens common actions. The row below shows the model, thinking effort and permission mode; tap any of them to change it. The model picker only lists providers you can use: a subscription account that isn’t signed in is left out. To hide a provider you’ve set up, pick it under **Provider & model** in Settings and turn off **Show in the model picker** (its settings are kept, and the one in use is always listed).
 
 ## Make it yours
 

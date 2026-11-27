@@ -15,13 +15,21 @@ const { readSmallFile } = await import("../gw/saferead.mjs");
 
 const q = (s) => "'" + String(s).replace(/'/g, "'\\''") + "'";
 const argv = process.argv.slice(2);
-const cwd = argv[0] || process.cwd();
-const i1 = argv.indexOf("--", 1), i2 = argv.indexOf("--", i1 + 1);
-if (i1 < 0 || i2 < 0) { process.stderr.write("cc-seal: bad arguments\n"); process.exit(2); }
-const ours = argv.slice(i1 + 1, i2), user = argv.slice(i2 + 1);
+const verifyOnly = argv[0] === "--verify-only";
+let cwd = process.cwd(), ours = [], user = [];
+if (!verifyOnly) {
+  cwd = argv[0] || process.cwd();
+  const i1 = argv.indexOf("--", 1), i2 = argv.indexOf("--", i1 + 1);
+  if (i1 < 0 || i2 < 0) { process.stderr.write("cc-seal: bad arguments\n"); process.exit(2); }
+  ours = argv.slice(i1 + 1, i2);
+  user = argv.slice(i2 + 1);
+}
 
 // 开发版：原样交回
-if (!sealed()) { process.stdout.write([...ours, ...user].map(q).join(" ") + "\n"); process.exit(0); }
+if (!sealed()) {
+  if (!verifyOnly) process.stdout.write([...ours, ...user].map(q).join(" ") + "\n");
+  process.exit(0);
+}
 
 // agy 程序本身：和网关起的一样（gw/claudeseal.mjs），没有本地清单或和清单对不上就不起；管理子命令也一样，跑的是同一个程序。
 {
@@ -31,6 +39,17 @@ if (!sealed()) { process.stdout.write([...ours, ...user].map(q).join(" ") + "\n"
   const home = process.env.HOME || "/nonexistent";
   const agyDef = path.join(home, ".local", "share", "hachimia", "agy", "current", "agy");
   const BIN = fs.existsSync(agyDef) ? agyDef : (PATHS.agy && fs.existsSync(PATHS.agy) ? PATHS.agy : agyDef);
+  const reqBin = verifyOnly && argv[1] ? argv[1] : "";
+  if (reqBin) {
+    let realReq = "", realDef = "";
+    try { realReq = fs.realpathSync(reqBin); } catch {}
+    try { realDef = fs.realpathSync(BIN); } catch {}
+    if (!realReq || !realDef || realReq !== realDef) {
+      const m = tz("Antigravity CLI 程序核验没过，这次没有运行：{why}", { why: "untrusted binary path override" });
+      process.stderr.write("hachimia: " + m + "\nhachimia: " + tr("en", m) + "\n");
+      process.exit(4);
+    }
+  }
   const check = () => claudeSeal(BIN, { home }).catch((e) => ({ ok: false, why: e.message }));
   const cs = await check();
   // 核验未过时直接 fail-closed 拒停（不再联网补核或执行外部脚本，0.6.9 审计 195-M.4 / Wave 4）
@@ -39,6 +58,7 @@ if (!sealed()) { process.stdout.write([...ours, ...user].map(q).join(" ") + "\n"
     process.stderr.write("hachimia: " + m + "\nhachimia: " + tr("en", m) + "\n");
     process.exit(4);
   }
+  if (verifyOnly) process.exit(0);
 }
 
 // 能往上下文 / 配置里塞东西的旗标：发行版终端不认（用户的 --settings 能挂 SessionStart 钩子注入，--system-prompt 能整个换掉系统提示）

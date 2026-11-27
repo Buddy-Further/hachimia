@@ -784,7 +784,7 @@
         (files.length > 8 ? `<li>${esc(t("还有 {n} 个", { n: files.length - 8 }))}</li>` : "");
       const what = files.length
         ? `<p>${esc(t("会撤销 Claude 在这之后对 {n} 个文件的修改", { n: files.length }))} <span class="rw-stat">+${+d.insertions || 0} −${+d.deletions || 0}</span></p><ul class="rw-files">${list}</ul>`
-        : `<p>${esc(d.canRewind ? t("这之后 Claude 没有用编辑工具改过文件。") : t("这之后的文件改动没有留底（这个版本之前的消息不支持），只能回退对话。"))}</p>`;
+        : `<p>${esc(d.canRewind ? t("这之后 Claude 没有用编辑工具改过文件。") : (d.reason || t("这之后的文件改动没有留底（这个版本之前的消息不支持），只能回退对话。")))}</p>`;
       ov.innerHTML = `<div class="rw-dlg" role="dialog" aria-modal="true" aria-labelledby="rw-title">
         <h3 id="rw-title">${esc(t("回退到这条消息之前"))}</h3>${what}
         <p class="rw-note">${esc(t("只撤销编辑工具（Edit / Write）做的修改；用命令改的文件、装的包不会还原。"))}</p>

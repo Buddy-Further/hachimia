@@ -2198,7 +2198,7 @@ window.I18N_DICT["fr"] = {
   "不自动起名": "Désactivé",
   "在模型选单里显示": "Afficher dans le sélecteur de modèle",
   "正在用的接口总会列在选单里": "Le fournisseur utilisé est toujours affiché",
-  "这一家还没就绪（没登录或没下模型），先到设置里配好": "Ce fournisseur n’est pas encore prêt (pas connecté, ou aucun modèle téléchargé). Configurez-le d’abord dans les Réglages.",
+  "这一家还没就绪（未登录或未配置），先到设置里配好": "Ce fournisseur n'est pas encore prêt (non connecté ou non configuré) — configurez-le d'abord dans Réglages",
   "上下文窗口（可选）": "Fenêtre de contexte (facultatif)",
   "上下文窗口": "Fenêtre de contexte",
   "上下文窗口填 1024 到 16777216 之间的整数，也可以写 256k、1m": "La fenêtre de contexte doit être un entier entre 1024 et 16777216, ou 256k / 1m",
@@ -3094,4 +3094,9 @@ window.I18N_DICT["fr"] = {
   "MCP 配置不是合法的 JSON": "La configuration MCP n’est pas un JSON valide",
   "共享目录 /sdcard/hachimia": "Dossier partagé /sdcard/hachimia",
   "模型「{model}」设置被 agent 拒绝（{msg}），已按默认跑。": "Le modèle « {model} » a été refusé par l’agent ({msg}) ; poursuite avec le modèle par défaut.",
+  "端侧小模型已下线，已自动切回 {name}。": "Les modèles locaux sur l'appareil ont été retirés ; retour automatique à {name}.",
+  "agy plugin list 没有输出": "agy plugin list n'a renvoyé aucune sortie",
+  "这个版本的 Antigravity CLI 还没有官方签名清单，这一轮没有启动。正在联网补核，过一两分钟再发送；一直不行就到 设置 → 更新 里重新安装。": "Cette version d'Antigravity CLI n'a pas encore de manifeste signé officiel ; ce tour n'a pas démarré. Revérification en ligne — réessayez dans une ou deux minutes, ou réinstallez dans Réglages → Mises à jour.",
+  "Antigravity CLI 程序和官方签名清单对不上，可能被改过，这一轮没有启动。到 设置 → 更新 里重新安装后再试。": "Le binaire Antigravity CLI ne correspond pas au manifeste officiel signé et a peut-être été modifié ; ce tour n'a pas démarré. Réinstallez-le dans Réglages → Mises à jour puis réessayez.",
+  "这个项目带有会自动运行的配置，尚未信任，这一轮没有启动。": "Ce projet contient une configuration d'exécution automatique non encore approuvée ; ce tour n'a pas démarré.",
 };

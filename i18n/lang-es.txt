@@ -2195,7 +2195,7 @@
 2195	Desactivado
 2196	Mostrar en el selector de modelos
 2197	El proveedor en uso siempre aparece
-2198	Este proveedor aún no está listo (sin sesión iniciada o sin modelo descargado). Configúralo primero en Ajustes.
+2198	Este proveedor aún no está listo (sin iniciar sesión ni configurar) — configúralo primero en Ajustes
 2199	Ventana de contexto (opcional)
 2200	Ventana de contexto
 2201	La ventana de contexto debe ser un entero entre 1024 y 16777216, o 256k / 1m
@@ -3091,3 +3091,8 @@
 3091	La configuración de MCP no es un JSON válido
 3092	Carpeta compartida /sdcard/hachimia
 3093	El agente rechazó el modelo «{model}» ({msg}); se continuará con el modelo predeterminado.
+3094	Los modelos locales en el dispositivo se retiraron; se cambió automáticamente a {name}.
+3095	agy plugin list no devolvió salida
+3096	Esta versión de Antigravity CLI aún no tiene un manifiesto oficial firmado, así que este turno no se inició. Comprobando en línea — inténtalo en uno o dos minutos o reinstala en Ajustes → Actualizaciones.
+3097	El binario de Antigravity CLI no coincide con el manifiesto oficial firmado y puede haber sido modificado, así que este turno no se inició. Reinstálalo en Ajustes → Actualizaciones e inténtalo de nuevo.
+3098	Este proyecto contiene configuración de ejecución automática que aún no es de confianza, así que este turno no se inició.

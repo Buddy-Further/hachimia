@@ -117,15 +117,18 @@ export function collectAddDirs(cwd, item, P) {
   return out;
 }
 
+const isLegacyHiddenProvider = (id) => typeof id === "string" && !!id && (id === "local" || providerById(id)?.group === "claude");
+
 export function pickProvider(item) {
   // 跟的那条被撤销了也照样接上车道上首条跑出来的会话（#120-1），不然会另起一个会话
   const sid0 = sidForItem(item);
   const pdef0 = projectDefaults(item.projectId ? projectById(item.projectId) : projectOfDir(cwdPath(cwdOf(item, sid0))));
   const rec0 = sessModel(sid0);
-  return { sid0, pdef0, P: (item.provider && providerById(item.provider))
-    || (item.pin && item.pin.provider && providerById(item.pin.provider))
+  const resolveItemProv = (id) => (isLegacyHiddenProvider(id) ? providerById("antigravity") : (id && providerById(id)));
+  return { sid0, pdef0, P: resolveItemProv(item.provider)
+    || resolveItemProv(item.pin && item.pin.provider)
     || (rec0 && rec0.model != null ? sessProvider(sid0) : null)
-    || (pdef0.provider && providerById(pdef0.provider))
+    || resolveItemProv(pdef0.provider)
     || sessProvider(sid0) };
 }
 
@@ -288,7 +291,7 @@ export function promptLogLine(message, isCmd) {
  *  pickProvider 找不到指定的那家会一路退到全局默认——全局可能是订阅账户，会话内容、交给它的材料就换了一家发出去。
  *  顺序同 pickProvider：定时任务指定的 → 新会话首条带来的 → 会话钉的 → 项目默认 */
 export function lostProvider(item, sid0, pdef0) {
-  const gone = (id) => typeof id === "string" && id && !providerById(id);
+  const gone = (id) => typeof id === "string" && id && !isLegacyHiddenProvider(id) && !providerById(id);
   if (item.provider) return gone(item.provider) ? tz("指定的接口「{id}」不存在，这一轮没有发出去。", { id: item.provider }) : "";
   if (item.pin && item.pin.provider) return gone(item.pin.provider) ? tz("指定的接口「{id}」不存在，这一轮没有发出去。", { id: item.pin.provider }) : "";
   const s = sessLostProvider(sid0);
@@ -529,8 +532,8 @@ export async function startRun(item) {
     const seal = await claudeSeal(cliBin);
     if (seal.ok === false) {
       const msg = tr(LAST_LANG, seal.pending
-        ? "这个版本的 Antigravity CLI 还没有官方签名清单，这一轮没有启动。正在联网补核，过一两分钟再发送；一直不行就到 设置 → 更新 里重新安装。"
-        : "Antigravity CLI 程序和官方签名清单对不上，可能被改过，这一轮没有启动。到 设置 → 更新 里重新安装后再试。");
+        ? tz("这个版本的 Antigravity CLI 还没有官方签名清单，这一轮没有启动。正在联网补核，过一两分钟再发送；一直不行就到 设置 → 更新 里重新安装。")
+        : tz("Antigravity CLI 程序和官方签名清单对不上，可能被改过，这一轮没有启动。到 设置 → 更新 里重新安装后再试。"));
       emit({ type: "error", message: msg });
       return endRun(run, { failed: true, finalText: msg });
     }
@@ -546,7 +549,7 @@ export async function startRun(item) {
       trustProject(cwd, proj.fp);
     } else {
       log(`⚠️ [ACP] 项目级自动配置未获信任（${run.unattended || run.auto ? "无人值守" : "用户未同意"}，${proj.risks.length} 项），拦截本轮`);
-      const msg = tr(LAST_LANG, "这个项目带有会自动运行的配置，尚未信任，这一轮没有启动。");
+      const msg = tr(LAST_LANG, tz("这个项目带有会自动运行的配置，尚未信任，这一轮没有启动。"));
       emit({ type: "error", message: msg });
       return endRun(run, { failed: true, finalText: msg });
     }
@@ -663,7 +666,7 @@ export async function startRun(item) {
     run.giveNotesBack?.();
     log(`${runTag(run)} ⚠️ [Antigravity CLI 核验] 核过之后程序文件又变了，停掉这一轮`);
     tamperRecord("agy", ["agy: changed right after it was verified"]);
-    const msg = tr(LAST_LANG, "Antigravity CLI 程序和官方签名清单对不上，可能被改过，这一轮没有启动。到 设置 → 更新 里重新安装后再试。");
+    const msg = tr(LAST_LANG, tz("Antigravity CLI 程序和官方签名清单对不上，可能被改过，这一轮没有启动。到 设置 → 更新 里重新安装后再试。"));
     emit({ type: "error", message: msg });
     return endRun(run, { failed: true, finalText: msg });
   }

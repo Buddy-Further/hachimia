@@ -40,4 +40,17 @@ if [ "$CCAPP_EXEC" = "loader" ] && [ -n "$CCAPP_LOADER_BIN" ] && [ -n "$CCAPP_LO
     *) export PATH="$CCAPP_LOADER_BIN:$PATH" ;;
   esac
 fi
+# 发行版应用内终端同样走 cc-seal.mjs 核验 agy 二进制 sha256 与官方路径（fail-closed）
+SEAL_SCRIPT="$(dirname "$0")/../guard/cc-seal.mjs"
+if [ -f "$SEAL_SCRIPT" ]; then
+  SEAL_NODE=""
+  if [ "$CCAPP_EXEC" = "loader" ] && [ -n "$CCAPP_LOADER_BIN" ] && [ -e "$CCAPP_LOADER_BIN/node" ]; then
+    SEAL_NODE="$CCAPP_LOADER_BIN/node"
+  elif [ -n "$PREFIX" ] && [ -x "$PREFIX/bin/node" ]; then
+    SEAL_NODE="$PREFIX/bin/node"
+  fi
+  if [ -n "$SEAL_NODE" ]; then
+    "$SEAL_NODE" "$SEAL_SCRIPT" --verify-only "$AGY_BIN" || exit $?
+  fi
+fi
 exec "$AGY_BIN" "$@"

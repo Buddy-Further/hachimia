@@ -1,10 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFile } from "node:child_process";
-import { CFG, PATHS, PREFIX } from "./config.mjs";
+import { CFG, PATHS, PREFIX, tz } from "./config.mjs";
 import { SETTINGS } from "./settings-store.mjs";
 import { API_KEY, PROVIDER, providerBrief } from "./providers.mjs";
-import { agyEnv, runClaude, safeMode } from "./claude.mjs";
+import { agyEnv, claudeBlocked, safeMode } from "./claude.mjs";
 import { AUTH_CACHE } from "./login.mjs";
 import { LAST_SESSION, RUNS } from "./runs.mjs";
 import { NEXT, sendJson, uiTag } from "./http.mjs";
@@ -65,12 +65,22 @@ function scanAgyLocal() {
   readDirs(path.join(base, "skills"), skills);
   readDirs(path.join(base, "builtin", "plugins"), plugins);
   readDirs(path.join(base, "plugins"), plugins);
-  try {
-    const j = JSON.parse(fs.readFileSync(path.join(base, "settings.json"), "utf8"));
-    if (j && j.mcpServers && typeof j.mcpServers === "object") {
-      for (const name of Object.keys(j.mcpServers)) mcp.push({ name, status: "configured" });
-    }
-  } catch {}
+  const mcpSeen = new Set();
+  for (const fp of [
+    path.join(process.env.HOME || CFG.home, ".gemini", "config", "mcp_config.json"),
+    path.join(base, "settings.json"),
+  ]) {
+    try {
+      const j = JSON.parse(fs.readFileSync(fp, "utf8"));
+      if (j && j.mcpServers && typeof j.mcpServers === "object") {
+        for (const name of Object.keys(j.mcpServers)) {
+          if (mcpSeen.has(name)) continue;
+          mcpSeen.add(name);
+          mcp.push({ name, status: "configured" });
+        }
+      }
+    } catch {}
+  }
   return { skills: [...skills].sort(), plugins: [...plugins].sort(), mcp };
 }
 
@@ -82,11 +92,13 @@ function stripAgyGlog(s) {
     .trim();
 }
 
-function runAgySub(args, timeoutMs = 20000) {
+async function runAgySub(args, timeoutMs = 20000) {
   const bin = PATHS.agy;
+  if (!bin || !fs.existsSync(bin)) return { out: "", err: tz("Antigravity CLI (agy) 未安装。到 设置 → 更新 里点「安装」即可。"), code: 127, signal: null, timeout: false };
+  const blocked = await claudeBlocked();
+  if (blocked) return { out: "", err: blocked, code: -1, signal: null, timeout: false };
   return new Promise((resolve) => {
-    if (!bin || !fs.existsSync(bin)) return resolve({ out: "", err: "agy not installed", code: 127 });
-    execFile(bin, args, { cwd: CFG.workspace || CFG.home, env: agyEnv(), encoding: "utf8", timeout: timeoutMs, maxBuffer: 2 << 20 }, (err, stdout, stderr) => {
+    execFile(bin, args, { cwd: CFG.workspace || CFG.home, env: agyEnv({ sync: false }), encoding: "utf8", timeout: timeoutMs, maxBuffer: 2 << 20 }, (err, stdout, stderr) => {
       resolve({
         out: stripAgyGlog(stdout),
         err: stripAgyGlog(stderr || (err && !stdout ? err.message : "")),
@@ -156,7 +168,7 @@ export function buildCapabilities() {
   const mcpServers = Array.isArray(init.mcp_servers) && init.mcp_servers.length ? init.mcp_servers : localAgy.mcp;
   return {
     ready: !!LAST_INIT || hasAgy,
-    engine: hasAgy ? "antigravity" : "claude",
+    engine: "antigravity",
     model: SETTINGS.model,
     permissionMode: SETTINGS.permissionMode,
     tools,
@@ -263,7 +275,7 @@ export async function routeCaps(req, res, u, p) {
         r = await runAgySub(map[sub] || sub.split(/\s+/), 25000);
       }
     } else {
-      r = await runClaude(sub.split(/\s+/), { timeoutMs: 45000 });
+      r = { out: "", err: tz("Antigravity CLI (agy) 未安装。到 设置 → 更新 里点「安装」即可。"), code: 127, signal: null, timeout: false };
     }
     return sendJson(res, 200, {
       cmd: sub,

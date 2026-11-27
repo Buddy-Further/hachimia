@@ -2195,7 +2195,7 @@
 2195	Nonaktif
 2196	Tampilkan di pemilih model
 2197	Penyedia yang sedang digunakan selalu tercantum di pemilih
-2198	Penyedia ini belum siap (belum masuk atau belum mengunduh model). Atur dulu di Pengaturan.
+2198	Penyedia ini belum siap (belum masuk atau belum dikonfigurasi) — atur dulu di Pengaturan
 2199	Jendela konteks (opsional)
 2200	Jendela konteks
 2201	Jendela konteks harus berupa bilangan bulat antara 1024 dan 16777216, atau bisa juga 256k, 1m
@@ -3091,3 +3091,8 @@
 3091	Konfigurasi MCP bukan JSON yang valid
 3092	Folder bersama /sdcard/hachimia
 3093	Pengaturan model "{model}" ditolak oleh agen ({msg}); dijalankan dengan model bawaan.
+3094	Model lokal di perangkat telah dihapus; otomatis beralih kembali ke {name}.
+3095	agy plugin list tidak menghasilkan keluaran
+3096	Versi Antigravity CLI ini belum memiliki manifes resmi bertanda tangan, sehingga giliran ini tidak dimulai. Memeriksa ulang secara daring — coba lagi dalam 1–2 menit, atau pasang ulang di Pengaturan → Pembaruan.
+3097	Biner Antigravity CLI tidak cocok dengan manifes resmi bertanda tangan dan mungkin telah diubah, sehingga giliran ini tidak dimulai. Pasang ulang di Pengaturan → Pembaruan lalu coba lagi.
+3098	Proyek ini berisi konfigurasi jalan otomatis yang belum dipercaya, sehingga giliran ini tidak dimulai.

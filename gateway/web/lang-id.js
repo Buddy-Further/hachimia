@@ -2198,7 +2198,7 @@ window.I18N_DICT["id"] = {
   "不自动起名": "Nonaktif",
   "在模型选单里显示": "Tampilkan di pemilih model",
   "正在用的接口总会列在选单里": "Penyedia yang sedang digunakan selalu tercantum di pemilih",
-  "这一家还没就绪（没登录或没下模型），先到设置里配好": "Penyedia ini belum siap (belum masuk atau belum mengunduh model). Atur dulu di Pengaturan.",
+  "这一家还没就绪（未登录或未配置），先到设置里配好": "Penyedia ini belum siap (belum masuk atau belum dikonfigurasi) — atur dulu di Pengaturan",
   "上下文窗口（可选）": "Jendela konteks (opsional)",
   "上下文窗口": "Jendela konteks",
   "上下文窗口填 1024 到 16777216 之间的整数，也可以写 256k、1m": "Jendela konteks harus berupa bilangan bulat antara 1024 dan 16777216, atau bisa juga 256k, 1m",
@@ -3094,4 +3094,9 @@ window.I18N_DICT["id"] = {
   "MCP 配置不是合法的 JSON": "Konfigurasi MCP bukan JSON yang valid",
   "共享目录 /sdcard/hachimia": "Folder bersama /sdcard/hachimia",
   "模型「{model}」设置被 agent 拒绝（{msg}），已按默认跑。": "Pengaturan model \"{model}\" ditolak oleh agen ({msg}); dijalankan dengan model bawaan.",
+  "端侧小模型已下线，已自动切回 {name}。": "Model lokal di perangkat telah dihapus; otomatis beralih kembali ke {name}.",
+  "agy plugin list 没有输出": "agy plugin list tidak menghasilkan keluaran",
+  "这个版本的 Antigravity CLI 还没有官方签名清单，这一轮没有启动。正在联网补核，过一两分钟再发送；一直不行就到 设置 → 更新 里重新安装。": "Versi Antigravity CLI ini belum memiliki manifes resmi bertanda tangan, sehingga giliran ini tidak dimulai. Memeriksa ulang secara daring — coba lagi dalam 1–2 menit, atau pasang ulang di Pengaturan → Pembaruan.",
+  "Antigravity CLI 程序和官方签名清单对不上，可能被改过，这一轮没有启动。到 设置 → 更新 里重新安装后再试。": "Biner Antigravity CLI tidak cocok dengan manifes resmi bertanda tangan dan mungkin telah diubah, sehingga giliran ini tidak dimulai. Pasang ulang di Pengaturan → Pembaruan lalu coba lagi.",
+  "这个项目带有会自动运行的配置，尚未信任，这一轮没有启动。": "Proyek ini berisi konfigurasi jalan otomatis yang belum dipercaya, sehingga giliran ini tidak dimulai.",
 };
