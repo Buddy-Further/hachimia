@@ -128,12 +128,12 @@ test("启动时文件缺失：也要请求重启还原，不能静默跳过", as
 
 test("guard 源码只认核过的：快照里的照用；启动时就对不上的不回退读盘，挂一律拦下的钩子并要求重启（200-14-05）", async () => {
   const { guardSource, guardHooks } = await import("../gw/claude.mjs");
-  const files = { "guard/cc-guard.mjs": "#!/usr/bin/env node\nfunction runHook() {}\n", "gw/breach.mjs": "export const X = 1;\n" };
+  const files = { "guard/cc-guard.mjs": "#!/usr/bin/env node\nconst GUARD_MARK = 1;\nfunction runHook() {}\n" };
   let root = mkRoot("apf-guard", files);
   let g = appGuard(root);
   fs.writeFileSync(path.join(root, "guard/cc-guard.mjs"), "function runHook() { /* 换过的 */ }\n");
   const src = guardSource(g);
-  assert.match(src, /const X = 1;/);
+  assert.match(src, /const GUARD_MARK = 1;/);
   assert.doesNotMatch(src, /换过的/, "快照里有：用内存那份");
   root = mkRoot("apf-guard2", files);
   fs.writeFileSync(path.join(root, "guard/cc-guard.mjs"), "function runHook() { /* 换过的 */ }\n");   // 核完到读进来这一下被换

@@ -315,7 +315,9 @@ test("孤立 Bug 2: mkdict.mjs 普通 \\n 转为换行、字面 \\\\n 保持为 
     const jaBox = { window: {} };
     vm.runInNewContext(fs.readFileSync(jaOut, "utf8"), jaBox);
     const ja = jaBox.window.I18N_DICT.ja;
-    assert.equal(Object.keys(ja).length, 3182);
+    const enBox = { window: {} };
+    vm.runInNewContext(fs.readFileSync(path.join(ROOT, "gateway/web/lang-en.js"), "utf8"), enBox);
+    assert.equal(Object.keys(ja).length, Object.keys(enBox.window.I18N_DICT.en).length);
     const bigRefKey = "\\[附件：(\\/[^\\n]+?) · [^\\n·，\\]]+，文件较大没有直接读入，需要时按路径读取\\]";
     assert.equal(ja[bigRefKey], "\\[Attachment: (\\/[^\\n]+?) · [^\\n·,\\]]+, file is large and was not read directly, read by path when needed\\]");
   } finally {

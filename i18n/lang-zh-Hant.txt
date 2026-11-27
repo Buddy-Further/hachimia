@@ -2429,754 +2429,752 @@
 2429	專案預設的接口「{id}」已經刪掉了，這一輪沒有發出去。到專案設定裡重新選個接口。
 2430	任務指定的接口已經刪掉了：編輯任務重新選個接口
 2431	「{n}」指定的接口已經刪掉了：編輯任務重新選個接口
-2432	鉤子（{ev}）注入的文字命中破甲特徵，這一輪已中止；注入原文摺疊在上方。
-2433	回覆完成
-2434	回覆出錯
-2435	已移進回收筒 {n} 個，{m} 個失敗：{msg}
-2436	已附加 {n} 個，{m} 個失敗：{msg}
-2437	搜尋失敗：{msg}
-2438	檔案清單沒讀到：{msg}
-2439	檔案太大，伺服器沒有收
-2440	伺服器沒有認出上傳的檔案
-2441	伺服器傳回 {status}
-2442	正在讀取會話…
-2443	沒有刪成：{msg}
-2444	還有 {n} 個檔案正在上傳，傳完再傳送。
-2445	內建腳本沒裝上：{msg}
-2446	內建腳本沒裝上：{msg}，規則沒有儲存
-2447	取不到更新狀態：{msg}
-2448	只顯示了前 1000 項
-2449	合併還沒提交：要麼把全部改動一起提交，要麼先撤銷不想提交的改動。
-2450	複製失敗，請長按選取文字再複製
-2451	已刪除的專案（{id}）
-2452	已複製最後 3000 行
-2453	已設 {line}（模型視窗未知，按你設的生效）
-2454	外掛市集讀取失敗：{msg}
-2455	檔名太長（最多 255 位元組，中文一個字算 3 個）
-2456	檔案還不存在
-2457	檢查更新失敗
-2458	沒有權限存取這個位置（共享儲存需要在系統設定裡允許「所有檔案存取」）
-2459	沒有權限存取這個資料夾（共享儲存需要在系統設定裡允許「所有檔案存取」）
-2460	沒有讀取這個位置的權限（共享儲存需要在系統設定裡允許「所有檔案存取」）
-2461	清除失敗：{msg}
-2462	終端程序已經結束，輸入沒有送出
-2463	自訂元件清單讀取失敗：{msg}
-2464	讀不出提交歷史
-2465	讀不出這個檔案的狀態
-2466	讀不出這次提交的檔案清單
-2467	還有沒解決的衝突，先處理完再提交。
-2468	這一頁沒畫出來
-2469	這個位置不能讀
-2470	這個資料夾已經不是 git 版本庫了
-2471	這個資料夾裡沒有 SKILL.md（可能是以前匯入到一半失敗留下的），可以刪掉。
-2472	這個試算表檔案內部展開後太大，不能安全開啟。
-2473	這張表的範圍資訊壞了，讀不出來
-2474	這類系統偽檔案不能這樣讀
-2475	專案指令還沒儲存，返回會丟掉這次修改。確定返回？
-2476	預覽服務沒有回傳網址
-2477	幫助載入失敗：{msg}
-2478	更新日誌載入失敗：{msg}
-2479	技能包超過 64 MB，請解壓後逐個匯入
-2480	cron 的欄位值不對：{f}
-2481	cron 的欄位值超出範圍：{f}
-2482	cron 的步長不對：{f}
-2483	cron 表示式要填五段：分 時 日 月 週
-2484	「{n}」所在的專案目錄已經不在了：編輯工作重新選個專案或目錄
-2485	書籤沒有存上：儲存空間滿了或沒有權限
-2486	工作所在的專案目錄已經不在了：編輯工作重新選個專案或目錄
-2487	分叉的會話沒能寫入磁碟：{err}
-2488	只跑一次要填一個日期
-2489	開始時間要填 0–23 時、0–59 分
-2490	日期格式是 YYYY-MM-DD
-2491	時間要填 0–23 時、0–59 分
-2492	星期要選 1–7 之間的整數值，至少一天
-2493	每月幾號要填 1–31 或「最後一天」
-2494	每隔幾小時要填 1–24 的整數
-2495	沒保存上：儲存空間滿了或沒有權限
-2496	結束時間要填 0–23 時、0–59 分
-2497	（正文太長，只顯示前 {n} 字）
-2498	安全模式下不問人的幾檔不生效，現在是「逐項確認」
-2499	設定沒儲存上，重新啟動後會回到原來的權限模式
-2500	原訊息太長，只恢復了前 6.5 萬字
-2501	暫時取不到安全通知
-2502	正在取得安全通知…
-2503	換了主機，舊 Key 已清掉，請重新填
-2504	已過重置時間，下一輪對話後刷新
-2505	專案已建立；目錄裡已有 CLAUDE.md，填的指令沒寫進去
-2506	官方登入態 · 已登入
-2507	官方登入態 · 未登入
-2508	官方登入態 · 問不出登入狀態
-2509	官方登入態 · 上次問到時已登入
-2510	官方登入態 · 上次問到時未登入
-2511	需要登入帳戶
-2512	登入還在進行，拿到授權位址後會自動開啟。
-2513	刪掉模型「{id}」？檔案會從模型目錄裡刪除。
-2514	已刪除模型「{id}」
-2515	已匯入 {n} 個，後面的失敗：{msg}
-2516	工具包更新過，暫無適配版本
-2517	工具包更新過，組件庫裡暫時沒有適配目前工具包的版本；先更新工具包，或點「檢查更新」重新拉一次清單。
-2518	壓縮線最小 100k，已按 100k 存
-2519	安裝記錄寫不進去（儲存空間滿了或沒有權限），這次安裝沒有繼續
-2520	檔案已放進去了，但安裝記錄沒寫成（儲存空間滿了或沒有權限），請重裝或卸載
-2521	元件記錄寫不進去（儲存空間滿了或沒有權限），這次安裝沒有完成
-2522	位址回了 {s}，但不是預期的格式，沒法確認金鑰有效：{what}
-2523	（空）
-2524	上游在回答結尾報了錯（{msg}），已按說完處理；如果回答不完整，傳一句「繼續」
-2525	{name} 原來選的線路「{ep}」已經不在了。請到設定裡重選線路，並重新填這條線路的金鑰。
-2526	這個位址是明文 http，金鑰和對話內容會不加密地傳到對方機器上；能用 https 就換成 https。
-2527	排程任務要單獨跑一輪：移到最前，這一輪結束後馬上發出
-2528	超了就停，記成失敗；只對官方介面生效
-2529	換了線路，舊 Key 已清掉，請重新填
-2530	讀取歷史失敗：{msg} 
-2531	安裝期間有 {n} 個共用檔案被解除安裝刪掉了，請重新安裝
-2532	會話釘住的端側模型 {model} 已經不在了，請在模型面板重新選一個
-2533	正在核對端側模型檔案…
-2534	端側模型檔案被改過（校驗不符），為安全起見不載入：{file}
-2535	端側模型檔案不是 GGUF（可能被改過），不載入：{file}
-2536	登入逾時（15 分鐘）
-2537	登入還在進行，拿到授權位址後會開啟
-2538	這個模組的下載資訊不完整，先更新一次工具包
-2539	模組套件裡缺檔案清單（MANIFEST），為安全起見不安裝
-2540	模組套件的檔案清單裡有不合法的路徑：{file}
-2541	模組「{name}」的首次設定沒跑完（{err}），再裝一次會重試
-2542	專案清單沒儲存上（儲存空間滿了或不可寫），重新啟動後這次改動會丟
-2543	有 {n} 個對話沒能移進回收站，目錄沒刪：{why}
-2544	元件「{id}」依賴的 {n} 個共用檔案被刪了
-2545	閘道被系統結束，這一輪沒跑完
-2546	逾時了
-2547	沒有輸出
-2548	正在自檢…（要一兩分鐘）
-2549	上次 {time}：通過 {pass} 項，失敗 {fail} 項
-2550	工具包或應用更新前測的
-2551	還沒有自檢結果
-2552	上次沒跑出結果：{why}
-2553	失敗項
-2554	系統不允許本應用啟動工作島服務，所以沒有顯示。
-2555	沒偵測到「工作島」應用：裝好後點重試。
-2556	本機自檢
-2557	重新自檢
-2558	每週 · {model}
-2559	時長
-2560	1 小時
-2561	4 小時
-2562	1 天
-2563	3 天
-2564	7 天
-2565	原來的會話記錄刪不掉，會話留在原處：{err}
-2566	這一輪沒跑完：App 更新時閘道重新啟動了（{when} 開始的）。
-2567	這一輪沒跑完：閘道被關閉或重新啟動了（{when} 開始的）。
-2568	工作目錄 {dir} 不在了（被刪、改名或儲存卡拔出了），這一輪沒有執行。把目錄放回去，或者到專案設定裡改路徑後再發。
-2569	這一輪還沒開始就被結束了（{when} 發的）。
-2570	對話太長，超過了模型的上下文上限。打 /compact 壓縮一下再繼續，或者開個新對話。
-2571	介面拒絕了金鑰：到 設定 → 介面 檢查 API Key 填得對不對、有沒有過期或被停用。
-2572	帳戶餘額不足或額度用完了：到介面那邊的控制台儲值或查看額度。
-2573	請求太頻繁，或者用量到了上限：稍等一會兒再試。
-2574	介面找不到這個模型或位址：檢查模型名和介面位址。
-2575	介面那邊出錯或者忙不過來：稍後再試。一直這樣就換個模型或介面。
-2576	連不上介面：檢查網路，或者介面位址是不是寫錯了。
-2577	壓縮檔裡的檔案太多（{n} 個，最多 {max} 個），沒有匯入
-2578	只列出前 {n} 項，用篩選找
-2579	解壓選取（{n}）
-2580	壓縮（{n}）
-2581	壓縮檔：點「開啟壓縮檔」瀏覽裡面的檔案，或直接解壓
-2582	開啟壓縮檔
-2583	解壓…
-2584	停用後 Claude 看不到它，命令檔案還在，隨時可以啟用。
-2585	只露名字
-2586	只能你呼叫
-2587	技能模式
-2588	下一輪對話起生效
-2589	已停用：Claude 不會連它，定義存著，點啟用就加回來。
-2590	停用 MCP 伺服器 {name}？它的設定會先存起來，隨時能啟用。
-2591	啟用 MCP 伺服器 {name}？會加回這條：{target}
-2592	刪掉停用中的 MCP 伺服器 {name}？刪了就不能一鍵啟用了。
-2593	~/.claude/settings.json 不是合法的 JSON，先修好它
-2594	只能停用你自己加的（使用者層級）MCP 伺服器
-2595	停用名單寫不進去
-2596	停用名單裡沒有它
-2597	沒裝這個元件
-2598	這個模組不能停用
-2599	壓縮…
-2600	檔名編碼
-2601	檔名亂碼就換一個編碼
-2602	{n} 個項目
-2603	已加密
-2604	全部解壓…
-2605	離開壓縮檔
-2606	返回壓縮檔
-2607	這個版本沒帶 7-Zip，打不開這種壓縮檔
-2608	打不開壓縮檔：{msg}
-2609	壓縮後 {size}
-2610	符號連結（不解出）
-2611	解出中…
-2612	密碼不對
-2613	檔案太大，沒法直接預覽，請解壓出來再看
-2614	儲存空間不夠
-2615	解出失敗：{msg}
-2616	輸入密碼
-2617	密碼不對，再試一次
-2618	確定
-2619	選取的 {n} 項
-2620	解壓 {what}
-2621	解壓到
-2622	目前目錄
-2623	密碼（沒加密就留空）
-2624	目標裡已有同名的檔案不會被覆蓋，新解出來的會改名為「名字 (2)」。符號連結不解出。
-2625	解壓
-2626	要寫完整路徑（以 / 開頭）
-2627	壓縮「{name}」
-2628	壓縮 {n} 項
-2629	壓縮檔名稱
-2630	格式
-2631	壓縮等級
-2632	僅儲存
-2633	最快
-2634	標準
-2635	最小體積（慢）
-2636	密碼（可選，zip / 7z）
-2637	連檔名一起加密（7z）
-2638	zip 加密用 AES-256；舊的解壓軟體可能打不開，要通用就別設密碼。.ssh 這類憑證目錄不會打進去。
-2639	壓縮
-2640	不能解壓或壓縮到這個位置
-2641	這個版本沒帶 7-Zip
-2642	壓縮檔不能放進要壓縮的資料夾裡
-2643	解壓中
-2644	壓縮中
-2645	已解壓到 {path}
-2646	已壓縮為 {path}
-2647	多選
-2648	系統提示沒寫成檔案，這一輪沒有啟動：{msg}
-2649	恢復初始設定
-2650	沒彈出確認框
-2651	重新安裝這個元件（會重新下載）
-2652	重新安裝這個工具包模組（會重新下載）
-2653	修復開發工具包：重新下載目前這一版並重裝，安裝時服務會暫停 1–2 分鐘
-2654	全部修補
-2655	修補
-2656	等待
-2657	進行中…
-2658	已交給應用
-2659	正在修補，關掉這一頁也不影響，做完會自動再核對：
-2660	修補結束：
-2661	交給應用的那幾步在「設定 → 更新」裡看進度，做完後再點「核對記錄」。
-2662	修補結束，有 {n} 步沒成功
-2663	修補結束
-2664	按下面的順序修補，做完自動再核對一次：
-2665	修補這一項：
-2666	重裝要連網下載；你自己的檔案、對話和設定不受影響。繼續？
-2667	索引沒有通過驗簽，不能安裝元件
-2668	索引裡的版本（{v}）比已裝的（{now}）舊，已拒絕降級
-2669	正在修補或核對，等它結束再試
-2670	沒有能自動修補的問題
-2671	還有步驟在應用裡進行：
-2672	交給應用的步驟還在進行，做完後再點「核對記錄」
-2673	內建瀏覽器
-2674	pkg 下載的安裝包
-2675	脈絡索引
-2676	正在掃描…
-2677	本應用共佔 {app}，裝置還剩 {free}
-2678	上次掃描：{when}
-2679	還沒掃描過
-2680	按你設的 {n} 天
-2681	永久保留
-2682	上次自動清理：{when}，騰出 {size}
-2683	還沒自動清理過
-2684	快取
-2685	共 {size}，刪了會自動重新下載或重建
-2686	正在用
-2687	會話在跑
-2688	7 天沒動過
-2689	最後改動：{when}
-2690	刪除勾選的
-2691	暫存檔案
-2692	共 {size}，其中 7 天沒動過的 {old}。包括背景命令的輸出、測試和編譯留下的暫存目錄
-2693	最大的 {n} 項
-2694	清理 7 天前的
-2695	除錯日誌、shell 快照、MCP 日誌、.claude.json 的備份，共 {size}；可清的 {n} 項 {auto}（30 天前的，備份留最新 5 份）
-2696	{n} 個，共 {size}。會話永不自動刪除；要刪請在會話列表裡刪，刪了先進回收站
-2697	元件的執行資料（~/.cccodroid）
-2698	pkg 裝的 {name}
-2699	共享目錄 /sdcard/cccodroid
-2700	程式和你的檔案
-2701	只顯示大小，這裡不刪
-2702	會話回收站
-2703	{n} 個，{size}；放滿 30 天自動清掉
-2704	舊工具包留下的程式
-2705	去處理
-2706	卸掉的元件 {id} 留下的執行資料
-2707	用量統計
-2708	其他清理入口
-2709	✓ 刪了 {n} 項，騰出 {size}
-2710	{n} 項沒刪（正在用或不在允許的範圍裡）
-2711	沒有勾選
-2712	刪除勾選的 {n} 項暫存檔案？刪了找不回來。
-2713	刪掉 {id} 留下的執行資料？以後再裝要重新下載。
-2714	✓ 已刪除
-2715	儲存空間
-2716	佔用空間
-2717	掃描
-2718	會話保留
-2719	自動清理
-2720	API 清單
-2721	新增 API
-2722	{n} 個模型
-2723	刪除（{n}）
-2724	永久刪除{what}？刪除後無法復原。
-2725	資料夾會連同裡面的內容一起刪除。
-2726	已刪除 {n} 項
-2727	這個資料夾裝著應用程式自己的目錄或工作區，不能刪除
-2728	（上一轮沒有正常結束，上面的回覆可能不完整）
-2729	會話已匯入，但自訂標題沒儲存上（儲存空間可能滿了或沒有權限），重新啟動後會顯示原來的標題
-2730	會話列表讀不出來（{msg}），不是沒有會話；檢查儲存權限後再重新整理。
-2731	請求逾時：閘道沒有回應（{n} 秒）
-2732	閘道離線：{msg} · 點這裡重試
-2733	上一輪在背景失敗：{msg}
-2734	位址回了 {s}，但回應內容太大（超過 8 MB），沒法確認金鑰有效
-2735	上一輪已答完，接著的這一輪沒有等到結果（已中斷）
-2736	目錄不存在：{dir}，已改用 {cwd}
-2737	介面報錯，不是正常回覆：
-2738	壓縮線最大 1M，已按 1M 存
-2739	榮耀 / 華為等系統會凍住背景的 Shizuku、拖慢啟用：到系統應用管理 → Shizuku 裡開啟「忽略電池最佳化」防凍。
-2740	首次記錄：{time}
-2741	時間未知
-2742	環境變數，選填，用逗號分隔（KEY=值）
-2743	請求標頭，選填，用逗號分隔（Header: 值），例如 Authorization: Bearer 你的令牌
-2744	請求標頭
-2745	遠端 MCP 要填請求標頭：把 {bad} 改成冒號寫法，例如 Authorization: Bearer 你的令牌
-2746	遠端 MCP 不支援環境變數：請求標頭要寫成 Header: 值，例如 Authorization: Bearer 你的令牌
-2747	從設定裡刪掉
-2748	現有請求標頭
-2749	現有環境變數
-2750	已儲存 {name} 的修改
-2751	編輯失敗：{msg}
-2752	儲存失敗：{msg}，舊設定已原樣恢復
-2753	儲存失敗：{msg}，而且舊設定沒能恢復，請手動檢查
-2754	打不開編輯：{msg}
-2755	正在編輯 {name}：留空 = 保留原值，點 × 刪掉，填新的替換
-2756	找不到這條 MCP 設定（帳戶連接器不能編輯）
-2757	已經有叫這個名字的 MCP 伺服器了
-2758	stdio 不保存請求標頭：{names} 會被丟掉，繼續嗎？
-2759	伺服器在本機就填 http://127.0.0.1:埠 最穩；區域網路 IP 會隨網路切換而變，導致斷連
-2760	這像是一個區域網路位址：伺服器在本機的話，請改成 http://127.0.0.1:埠，區域網路 IP 一變就斷連
-2761	合併 PDF
-2762	擷取頁面
-2763	拆成單頁
-2764	旋轉頁面
-2765	壓縮 PDF
-2766	PDF 轉圖片
-2767	頁碼不正確，請使用 1-3,5 這樣的格式，並檢查總頁數。
-2768	PDF 處理失敗：{code}
-2769	選取的檔案不是 PDF
-2770	上移
-2771	下移
-2772	先在檔案面板選取 PDF，或點擊「選擇 PDF…」。
-2773	缺少 PDF 工具：{tools}。請在擴充 → 選用元件安裝「PDF 工具箱」。
-2774	正在匯入 PDF…
-2775	正在處理 PDF…
-2776	處理完成
-2777	壓縮後沒有變小，原始檔案仍保留。
-2778	前往結果資料夾
-2779	連線中斷，正在重試…
-2780	PDF 工具箱
-2781	檔案僅在本機處理，不會覆寫原始檔案。
-2782	操作
-2783	開啟選用元件
-2784	從檔案面板新增
-2785	選擇 PDF…
-2786	一次最多合併 20 份 PDF，其他操作只選一份。
-2787	頁碼
-2788	頁碼格式：1-3,5；留空選擇全部。
-2789	旋轉角度
-2790	壓縮品質
-2791	電子書（ebook）
-2792	小檔案（screen）
-2793	列印（printer）
-2794	圖片格式
-2795	解析度
-2796	低（72 DPI）
-2797	清晰（150 DPI）
-2798	每次最多轉 100 頁，圖片長邊最多 2048 像素。
-2799	輸出資料夾（新建）
-2800	開始處理
-2801	請選擇 PDF，最多 20 份、合計 256 MB。
-2802	PDF 總頁數不能超過 1000 頁。
-2803	PDF 無法處理，請確認檔案未損壞且沒有密碼。
-2804	處理逾時，請減少頁數後重試。
-2805	已有 PDF 工作正在處理，請稍後再試。
-2806	先安裝 PDF 工具箱元件，再重新開啟工具箱。
-2807	請填寫可寫入位置下尚不存在的輸出資料夾。
-2808	結果超過 512 MB，請減少頁數或解析度。
-2809	個檔案
-2810	上次安裝的備份還沒恢復，請重試；不行就先解除安裝再重裝。
-2811	[cc] Error in a script injected by the shell (details hidden by WebView)
-2812	\\[Attachment: (\\/[^\\n]+?) · [^\\n·,\\]]+, file is large and was not read directly, read by path when needed\\]
-2813	Antigravity is requesting tool authorization: {w}
-2814	Antigravity wants to ask you
-2815	Say how it should change (sent back to Antigravity)
-2816	Optional: tell Antigravity why / what to do
-2817	Scheduled
-2818	Antigravity is waiting for your confirmation
-2819	Let Antigravity decide which actions need confirmation
-2820	Ask nothing. Antigravity can delete files and run any command without asking you
-2821	Switch to “Allow everything”?\n\nAntigravity will stop asking and can edit or delete files, run any command and access the network. Only use it when you trust the task and can live with the consequences.
-2822	Sign in with a Google Antigravity account
-2823	Use a personal Google account (Free / Pro / Ultra) or an enterprise account: authorize once in the browser, no key needed.
-2824	Enter a Gemini API Key
-2825	Use a Gemini API Key from Google AI Studio or a custom compatible endpoint, billed by usage.
-2826	Context has reached the auto-compact line; compacting history…
-2827	Background task finished, reported automatically:
-2828	[Attachment: 
-2829	, file is large and was not read directly, read by path when needed]
-2830	Starting Google Antigravity sign-in…
-2831	Google account signed in
-2832	Open the address below in your browser to complete Google authorization, then paste the authorization code under Settings → Providers to submit:
-2833	You can also run {cmd} in the in-app terminal to sign in.
-2834	Interruption sent — it will be seen once the current step finishes
-2835	Antigravity CLI (agy) itself
-2836	The system or hachimia already has a command with this name; pick another one
-2837	hachimia checks these skills before handing them to Antigravity; when calling one with a slash, prefix the name with user:, e.g. /user:{name}.
-2838	This build does not run the hooks configured here: hooks can execute arbitrary commands and put arbitrary content into the conversation, and hachimia cannot check them. The rules stay in the file and will not be deleted.
-2839	Reinstall Antigravity CLI (agy)
-2840	Claude (compatible)
-2841	Third-party provider
-2842	Sign in to a Google Antigravity account
-2843	Google Cloud / enterprise account
-2844	Billed by your Google Antigravity account subscription tier; on-device token stats are on the “Usage” page
-2845	Sign out of the Google Antigravity account on this device?
-2846	The key is stored only in this app's private directory on this device, and is passed to Antigravity CLI only as needed to connect to the matching endpoint.
-2847	AGY blue
-2848	Antigravity's replies
-2849	Shizuku is running but has not been authorized for hachimia
-2850	vivo / iQOO: Settings → Battery → Background power consumption → allow hachimia <b>high background power usage</b>; in iManager allow <b>auto-start</b> (common path)
-2851	Huawei / Honor: Settings → App launch → turn off “Manage automatically” for hachimia, then manually allow <b>auto-start</b> and <b>background activity</b> (common path)
-2852	hachimia has been frozen in the background by the system {n} times (most recent: about {sec} seconds, {at}).
-2853	In system settings, allow hachimia to run in the background, turn off battery optimization, and allow auto-start (each vendor names these differently).
-2854	Authorize for hachimia
-2855	hachimia's wireless debugging pairing has been removed: it still works now, but it cannot auto-activate after a reboot.
-2856	Shizuku was not activated by hachimia: hachimia cannot auto-activate it after a reboot. Pair it once and you're set.
-2857	The system did not notify hachimia at this boot (blocked by the system's “auto-start” management), so it could not auto-activate; opening hachimia will catch up.
-2858	To activate at boot: allow hachimia auto-start / background start in the app details; takes effect at the next boot.
-2859	Antigravity CLI (agy) version
-2860	Uninstall Antigravity CLI (agy)?\n\nThis deletes the downloaded agy program; it will not be reinstalled automatically. Tap “Install” here to download it again when you need it.\n\nSign-in, sessions and settings are kept; sending a message while it is not installed will prompt you to install it first.
-2861	Install the devkit from a local file?\n\nPick a devkit-ha.chi.mia.tar.gz (or .tar), downloadable from the GitHub releases page or hachimia.net. It is checked against the published release before installing; the service pauses for 1–2 minutes during installation.\nThings you installed into the devkit with pip / npm -g are kept.
-2862	Shizuku is not activated yet, so the app cannot toggle accessibility itself: turn on hachimia manually in the system accessibility settings. From Android 13, sideloaded apps must first allow restricted settings via App info → menu in the top-right corner.
-2863	This build has no native layer and only records CPU time (battery, screen-on and foreground time come from hachimia).
-2864	Name (e.g. self-hosted Gemini proxy)
-2865	Auth: x-goog-api-key (Gemini / Antigravity)
-2866	Auth: Authorization: Bearer
-2867	Auth: x-api-key
-2868	Default model name (required, e.g. gemini-3.8-flash)
-2869	Model list URL (optional; Gemini endpoints auto-probe /v1beta/models)
-2870	Context window (optional, in tokens, e.g. 1m; leave empty for the default)
-2871	More models (optional, one per line; you may put the window after the name, separated by a space, e.g. gemini-4-neon 1m)
-2872	Send images with the message (compat): check this when the model cannot read attached images; attachments are then sent directly as multimodal blocks with the message.
-2873	Choosing <b>Gemini / Antigravity</b> auth drives the official <code>agy</code> CLI via <code>GOOGLE_GEMINI_BASE_URL</code> + <code>GEMINI_API_KEY</code>.
-2874	Running Antigravity diagnostics…
-2875	Currently available capabilities
-2876	Fixed
-2877	Workaround
-2878	(Merged from 
-2879	Direct (not needed)
-2880	(Decided by Antigravity)
-2881	Antigravity CLI failed: {msg}
-2882	The Antigravity CLI user-level config has unconfirmed changes. Send a message first, confirm in the card that pops up, then try again.
-2883	Could not fetch the Antigravity CLI version list
-2884	agy install script not found ({p})
-2885	The dev side only manages Antigravity CLI (agy) (you build and install the app itself on this device)
-2886	Updating Antigravity CLI (agy)…
-2887	Could not fetch the Antigravity CLI version list: {err}
-2888	The gateway's own runtime was modified; Antigravity CLI was not started this round. The gateway will restart when idle and restore itself from the install package; send again shortly.
-2889	Antigravity CLI (agy) is not installed. Install it under Settings → Updates first.
-2890	Antigravity CLI (agy) not found
-2891	Settings → Updates: reinstall Antigravity CLI (agy)
-2892	Antigravity CLI (agy) is not installed. Tap “Install” under Settings → Updates.
-2893	The Antigravity CLI user-level config has unconfirmed changes, or an earlier session left background processes behind, so this run did not start. Open hachimia, send a message, and confirm in the card that pops up, then try again.
-2894	Antigravity CLI (agy) is not installed. Install it under Settings → Updates first, then come back to sign in.
-2895	Enterprise sign-in: in the agy sign-in screen, choose “Use a Google Cloud project” → “Continue with Google Cloud” and authorize with your enterprise account.
-2896	Personal sign-in: in the agy sign-in screen, choose “Google OAuth” and authorize with your personal Google account.
-2897	The slash commands, tools, skills and extensions currently available to Antigravity. Tap a slash command to insert it into the input box; a tool's “Allow / Ask / Deny” follows the permission mode and rules.
-2898	For things not in the marketplace, import a Linux arm64 program yourself: a single binary, or a .tar.gz / .zip archive. Missing libraries are filled in automatically and a command is generated, ready to use in Antigravity and in the terminal.
-2899	Save a long prompt you send often as a command and pick it with / in the input box. Text after /command fills $ARGUMENTS in the body, expanded automatically by the gateway when sent to Antigravity.
-2900	Antigravity behavior
-2901	Default color pick (AGY Monet palette); switchable to native, Qiusuo, Zhuyue or Construct
-2902	Font for Antigravity's reply text
-2903	Thinking level (thought_level)
-2904	Levels vary by model (low / medium / high / xhigh). You can also type <code>/effort &lt;level&gt;</code> in the input box.
-2905	Let Antigravity decide
-2906	Empty = let Antigravity decide by window
-2907	Confirm each item by default, same as official agy: it asks in the conversation before editing files or running commands. Allow everything means Antigravity can delete files and run any command without asking. You can also switch anytime via the permission tag under the input box.
-2908	Only clears caches, temp files untouched for 7 days, and expired logs; sessions, your files and programs are never auto-deleted
-2909	When on, run <code>priv 'command'</code> in the terminal as shell (pm / am / settings / dumpsys / logcat / screencap…); Antigravity uses it too. Without Shizuku, basic dev features work as usual — only these debugging abilities are unavailable.
-2910	Auto-activate again after a reboot (needs Wi-Fi; starts the hachimia background service at boot)
-2911	Let Antigravity use device tools (notifications, clipboard, opening links / calendar / alarms, sharing files…)
-2912	Off by default. Turn it on when you want Antigravity to test an app you built, or send files it generated to other apps; while on, each round carries an extra one or two thousand tokens of tool descriptions.
-2913	Antigravity CLI channel
-2914	Plan first
-2915	Interview to align the plan
-2916	Long-term goal
-2917	Multi-agent teamwork
-2918	Deep orchestration
-2919	Capabilities & tools
-2920	切換權限模式失敗（agent 拒絕了 {mode}）：{msg}
-2921	舊會話無法恢復（Agent 不支援恢復或恢復失敗），已新建會話繼續。本輪寫進了新會話，舊會話的歷史仍保留在本地記錄中。
-2922	壓縮未確認：上下文沒有下降（壓縮前 {pre}，壓縮後 {post}），請重試 /compact 或換新會話。
-2923	企業登入：請在瀏覽器裡用公司 Google 帳號完成登入
-2924	授權碼沒能寫進 agy（stdin 已關閉），請重新發起登入。
-2925	授權碼沒能寫進 agy（登入程序的 stdin 已關閉），請重新發起登入。
-2926	登入類廠商不用填 API Key，登入走官方流程；這次填的金鑰沒有儲存。
-2927	已在排隊，跳過這次重複執行
-2928	請在應用裡打開
-2929	要 npx（hachimia 的工具包裡有）
-2930	這個版本沒有原生層，只記 CPU 時間（電量、亮屏要 hachimia）。
-2931	Antigravity CLI 程式被改過，已拒絕啟動；
-2932	Antigravity CLI 雜物
-2933	這些 Claude Code 設定裡有越權指令的特徵（要模型無視規則、冒充系統訊息這一類），hachimia 不載入它們，這一輪沒有執行。改掉或刪掉下面的內容後再發：\n{list}
-2934	命令 {c} 是系統或 hachimia 自帶的，換個名字
-2935	不是 hachimia 會話包
-2936	{p}：{n}
-2937	「{n}」{w}
-2938	API Key
-2939	Google Antigravity / Gemini
-2940	查看或切換模型
-2941	上下文
-2942	壓縮對話歷史，釋出上下文空間
-2943	遇到了什麼
-2944	做了什麼、想要什麼結果、實際怎樣。截圖可以直接拖進來。
-2945	怎麼重現
-2946	執行狀態沒能儲存（儲存空間可能滿了或沒有權限）：App 被系統結束時，這一輪可能沒法恢復或繼續。
-2947	上次的執行狀態沒能恢復（記錄讀不了或格式不對），中斷的回合和排隊的訊息不會出現；原檔案已留底。
-2948	名字只能用字母、數字、- 和 _，不超過 40 個字元
-2949	和內建的命令重名了，換個名字
-2950	指令內容不能是空的
-2951	指令內容太長了（上限 64 KB）
-2952	已經有同名的指令了
-2953	最多匯入 10 個字體，先刪掉一個再匯入
-2954	這是字體集合（.ttc），瀏覽器用不了；請換成單個的 ttf / otf
-2955	不是能用的字體檔案，只支援 ttf、otf、woff、woff2
-2956	This model doesn't support thinking level "{effort}"; running with the default instead.
-2957	The agent rejected thinking level "{effort}" ({msg}); running with the default instead.
-2958	Not supported under Antigravity
-2959	Not supported under Antigravity: the Antigravity CLI has no generic third-party API key channel. Declare protocol:"gemini" (the endpoint must speak the Gemini protocol), or switch to a Gemini / sign-in provider.
-2960	On-device models need Claude Code; this device only has the Antigravity CLI, so they're unavailable for now.
-2961	Not set (no default compaction line under ACP)
-2962	No Google Cloud ADC credentials found (Application Default Credentials). Run `gcloud auth application-default login` in a terminal first, then come back and pick ADC.
-2963	Application Default Credentials found.
-2964	The old configuration was still using a Claude preset, which doesn't work in Antigravity-only mode; it has been switched back to Google Antigravity sign-in.
-2965	Protocol: not declared
-2966	Protocol: Gemini (endpoint speaks the Gemini protocol)
-2967	Checking ADC credentials…
-2968	新建會話失敗：Agent 沒有返回會話號，請重試
-2969	輸出（執行中）
-2970	AI Credits 剩餘：{n}
-2971	正在同步 Google Antigravity 訂閱額度，此處先顯示本機 token 用量（點右上角「重新整理」可立即查詢）。
-2972	無法還原原工作階段（{why}），已保留目前工作階段未新建，請重試或手動開啟新對話
-2973	判斷不了是不是在充電
-2974	判斷不了目前電量
-2975	索引
-2976	記憶檔案名稱不合法
-2977	記憶不存在
-2978	只允許查看一般記憶檔案
-2979	記憶檔案太大了（超過 1 MB）
-2980	記憶為唯讀，無法在這裡修改
-2981	等待背景任務
-2982	靜默 {d}
-2983	剩 {d}
-2984	接收維護公告
-2985	GitHub 第三方代理兜底（gh-proxy.com）
-2986	首次檢查：以下全域設定每輪都會生效，請確認是否由你本人新增（撤銷會移入 ~/.ccapp-userconf/quarantine 備份）。
-2987	非本人改動請選「撤銷」（還原設定並結束殘留行程，新檔案移入隔離目錄）；本人改動選「保留」。
-2988	安全檢查異常，若不確定操作內容建議拒絕。
-2989	專案設定將直接執行本機程式；來源不明請選「不載入」（不影響正常對話），允許後變更時再詢問。
-2990	若非你主動要求，可能是網頁或檔案中的注入指令，建議拒絕。允許後本輪同類操作不再詢問。
-2991	偵測到未確認的使用者級設定改動
-2992	安全檢查異常，請手動確認
-2993	即將修改提示詞或安全規則檔案：{w}
-2994	即將存取金鑰或登入憑證：{w}
-2995	連線中斷，重連中…（背景繼續生成）
-2996	閒置將滿 1 小時，自動壓縮上下文以節省後續消耗（可在設定關閉）。
-2997	歷史待確認
-2998	新增變動
-2999	設定檔被外部修改，已還原為目前設定：
-3000	執行檔案被外部修改，已觸發恢復保護：
-3001	有新對話待確認 · 見側欄「未儲存的新對話」
-3002	就緒 · {n} 個背景任務執行中
-3003	就緒 · 背景任務收尾中
-3004	中斷時有 {n} 項操作狀態未知（{list}），繼續前請先核對結果。
-3005	確認逾時（{n} 分鐘未回應），本輪未啟動（{when}）。
-3006	已完成進度已保留，點「繼續」從斷點接著執行。
-3007	訊息已送達，無需重發
-3008	發送結果未確認：{msg}
-3009	儲存空間不足，草稿未儲存，請先複製或發送
-3010	存放在 /sdcard/cccodroid/models（Q4_K_M 量化），下載後在「設定 → 模型服務」啟用。本機記憶體 {ram} GB，建議選 1–4B。
-3011	解除安裝組件 {name}？（你自己的檔案不受影響）
-3012	同時清理 {name} 殘留的 {size} 執行快取（{path}）？
-3013	匯出診斷包並呼叫系統分享？\n\n包含：版本與機型、工具包與自檢狀態、近期去識別化日誌、修復帳本、網路連通結果。\n不含：金鑰、憑證、信箱、訊息正文與會話記錄。
-3014	端側預設僅開啟純聊天。如需自訂工具與參數，可編輯 {file}，或切到雲端模型發送以下指令自動產生：
-3015	（快取狀態，本次重新整理失敗：{msg}）
-3016	請在瀏覽器完成授權，並將授權碼貼到下方。
-3017	也可在內建終端直接執行登入命令：
-3018	原線路已下線，請重選線路並重填 Key。
-3019	建議在服務商後台設定額度上限；若懷疑洩漏請及時輪換 Key。
-3020	本月使用概覽
-3021	範例範本（請替換為實際服務位址）
-3022	第三方呼叫由你自行設定，對方可見 Key、程式碼與對話，請僅使用可信服務。
-3023	未儲存的新對話
-3024	立即補跑
-3025	到點在指定目錄自動執行，結果存為會話；無人值守期間需確認的操作自動拒絕，錯過任務按各任務策略處理。
-3026	達上限後跳過當日剩餘任務（僅統計官方介面費用，第三方呼叫不計入）。
-3027	個人訂閱預設停用排程任務；開啟前請確認符合上游服務條款（API Key 不受限）。
-3028	已忽略本次
-3029	目前使用第三方呼叫：不計入費用上限，僅受單次時長上限約束。
-3030	目前為個人訂閱登入：高頻排程執行易觸發上游風控，建議改用 API Key。
-3031	日常交流歡迎進群；提交 Bug 建議走「設定 → 到 GitHub 回饋」（自動附帶機型與自檢資訊）。
-3032	歡迎參與翻譯、測試、文件與開發，詳見倉庫貢獻指南。
-3033	外部瀏覽器不受沙箱保護，網頁指令碼可讀取同目錄檔案並存取本機服務。僅對可信網頁繼續。
-3034	二進位檔案，不支援按文字開啟。
-3035	允許此網頁聯網？\n\n聯網後指令碼可將上層（最多三層）鄰近目錄檔案外發，僅對可信網頁開啟。
-3036	檔案太大（{size}），請切換「原版式」轉 PDF 預覽，或用外部應用開啟。
-3037	正在背景安裝 LibreOffice…
-3038	[行程已結束]
-3039	[發送失敗，閘道重連中]
-3040	查看每輪耗時與工具呼叫時間線
-3041	首次使用可點右上角「怎麼看」了解用法
-3042	後方有相同訊息尚未落盤，請等目前輪次結束後再加書籤
-3043	暫無書籤。點擊訊息下方的書籤圖示即可新增。
-3044	互動式網頁（HTML）
-3045	正在重載介面…
-3046	目前應用版本不支援自動恢復，請更新應用或重啟閘道
-3047	捲動卡住時，長按頂欄標題約 0.6 秒可恢復
-3048	自動恢復已停止，修改配置不會解除；請先在下方診斷並重設恢復次數。
-3049	協定橋校驗失敗，自動恢復已停止（儲存配置不會解除）；請先診斷修復。
-3050	協定橋已停用（儲存配置不會解除），請先在擴充功能頁啟用組件。
-3051	協定橋組件暫不可用，請檢查安裝狀態（不會自動重設恢復次數）。
-3052	協定橋需更新組件版本後方可使用。
-3053	協定橋未就緒，請查看下方診斷（目前工作階段不變，儲存配置不會重設恢復次數）。
-3054	協定橋正忙，請稍後重試。
-3055	設定一致性檢查未通過，請按下方說明處理，勿直接刪目錄。
-3056	讀取協定橋設定失敗，請返回擴充功能頁重試。
-3057	請使用不含帳號、參數與片段的 HTTPS API 位址。
-3058	此處需填寫 Chat Completions 位址，暫不支援 Responses API。
-3059	路徑無法自動補全，請填寫完整的 /chat/completions 位址。
-3060	支援設定多個 OpenAI 相容介面，儲存後生效。
-3061	僅讀取本機狀態，不改動設定、不請求上游。
-3062	遷移或重裝前可備份橋配置（僅含介面位址、金鑰與模型清單，不含聊天記錄）。
-3063	含金鑰的設定檔請勿公開分享。
-3064	填寫服務商 API 位址（非網頁登入位址）。
-3065	自動拉取模型列表（需向所填服務發送 API Key）
-3066	重試拉取
-3067	搜尋或手填模型名稱
-3068	新增後可分別設定上下文視窗與預設模型。
-3069	預設採用介面回傳的視窗，缺省為 200,000 token，可手動修改。
-3070	對話、工具結果與圖片將發往所填服務。
-3071	未測試對話推理
-3072	已同步至「設定 → 介面與型號」。
-3073	其他會話可在輸入欄下方的模型標籤中切換選用。
-3074	檢查本機設定差異並產生同步方案（檢查本身不改設定）。
-3075	僅同步模型清單、預設模型與認證方式；不啟停服務，不改金鑰、執行檔案、恢復鎖或目前工作階段（60 秒內有效）。
-3076	確認同步介面記錄
-3077	確認應用與組件均為配套最新版；若有會話在執行，等結束後再檢查。
-3078	自動恢復停止或校驗失敗時，同步介面記錄不會解除恢復鎖；請先查診斷，按需回擴充功能頁更新或重裝組件，勿直接刪目錄。
-3079	回饋問題時請附版本號與診斷碼，切勿附帶金鑰或完整設定。
-3080	重新檢查將清空本頁未儲存的輸入，繼續？
-3081	新增多個介面需先更新協定橋組件；現有單介面設定仍可使用。
-3082	每次編輯一個介面，點擊「儲存設定」後統一生效。
-3083	勾選後自動拉取列表，也可直接手填。
-3084	移除介面「{name}」及其模型？（點擊儲存設定後生效）
-3085	協定橋正忙，請稍後再試。
-3086	修復方案已過期或狀態已變更，請重新檢查。
-3087	未發現可同步的設定差異；若仍異常請展開下方說明。
-3088	目前狀態無法自動同步，請按下方說明排查，勿直接刪目錄。
-3089	正在檢查可同步項…
-3090	可同步 {n} 個模型及認證方式。
-3091	同步方案已就緒，確認後寫入。
-3092	確認同步協定橋的介面記錄？\n\n僅更新模型列表、預設模型與認證方式，位址與金鑰不變。
-3093	正在同步介面記錄…
-3094	同步結果未確認，請重新檢查狀態，勿重複提交。
-3095	介面已寫入，但映射未完成，請重新檢查狀態。
-3096	介面記錄已同步。
-3097	介面位址、認證方式或本機連線記錄與協定橋不一致。
-3098	已儲存的模型列表格式或內容不一致。
-3099	協定橋介面映射記錄讀取或格式校驗未通過。
-3100	本機服務註冊與連線記錄不一致。
-3101	預設執行目錄的歸屬標記不匹配，請核對舊設定或目錄狀態。
-3102	組件安全自檢未通過（未回傳具體項）。
-3103	設定衝突（舊版組件未回傳具體項，可能涉及執行檔案、歸屬標記或介面記錄）。
-3104	組件暫不可用
-3105	協定橋正忙
-3106	無法讀取協定橋狀態
-3107	設定已寫入，但後續步驟未完成，請先重新檢查狀態。
-3108	儲存未完成，請按上方提示排查。
-3109	請先核對應用與組件版本，勿直接刪改執行目錄。
-3110	服務位址已變更，請重新填寫 API Key（舊金鑰不會發往新位址）。
-3111	已儲存金鑰不回顯；留空保持不變，輸入新值即替換。
-3112	正在儲存設定…
-3113	儲存不呼叫遠端模型、不切換目前工作階段（已讀取模型清單，未測試對話推理）。
-3114	請填 1024～16777216 的整數（支援 256k、1m），留空使用預設值。
-3115	請填寫有效的模型名稱（不含逗號或換行）。
-3116	填寫有效 API Key 後自動拉取列表。
-3117	拉取已取消，可重試或手填。
-3118	準備拉取模型列表…
-3119	請重新填寫 API Key 後重試。
-3120	模型列表為空，請手填名稱或重試。
-3121	已讀取 {count} 個模型（上限 500），可搜尋或手填。
-3122	儲存中…
-3123	已讀取模型列表，未測試對話推理
-3124	本機已就緒
-3125	自動恢復已停止
-3126	協定橋校驗失敗
-3127	協定橋已停用
-3128	設定已儲存，協定橋未就緒
-3129	模型 ID 衝突、超長（>200 字元）或總數超 100，請調整後再儲存。
-3130	確認儲存全部介面設定？\n\n對話、工具結果與圖片將按模型發往：\n{origins}
-3131	確認儲存此介面設定？\n\n對話、工具結果與圖片將發往 {origin}。\n（{verification}）
-3132	API 位址未通過校驗，請核對後重試。
-3133	請重新填寫 API Key（更換位址不能沿用舊金鑰）。
-3134	儲存未完成，請檢查本機狀態後重試。
-3135	切換新會話介面失敗，請重試。
-3136	背景命令已結束，引擎逾 {d} 未回應；可點停止或直接發新訊息。
-3137	協定橋設定未完成，請檢查欄位或組件狀態後重試。
-3138	發送狀態衝突，請重發。
-3139	上游連線提前斷開，回覆可能不完整，可發「繼續」接著生成
-3140	該介面在 Antigravity 下暫不支援：需設定 protocol:"gemini"（Gemini 協定端點），或改用 Google 登入。
-3141	純 Antigravity 模式不支援 Claude 預設（{id}），請改用 Google 登入或 Gemini 介面。
-3142	插話（追加到目前輪次）
-3143	↩ 恢復剛清空的草稿
-3144	修改自下條訊息生效。
-3145	公共註冊表（未經官方審核）；npm 套件將在本機執行，安裝前請核實來源。
-3146	在特定時機（呼叫工具前後、發訊息、回覆結束等）自動執行命令，可攔截操作、補充上下文或執行格式化。
-3147	按鈕、連結與選中項顏色（隨深淺色自動適配對比度）
-3148	可設為常駐、收進「⋯」或隱藏，拖動左側把手排序
-3149	支援 ttf / otf / woff / woff2（≤ 40 MB，最多 10 個），匯入後在上方「自選…」啟用
-3150	關閉後從輸入欄模型選單隱藏，保留設定與金鑰
-3151	首輪回覆後自動產生會話標題（消耗少量 token，可指定輕量模型）
-3152	讀取憑證（.env / SSH / API Key）、讀屏點按、讀剪貼簿或外部分享時強制彈窗確認（「全部放行」下亦生效），防範提示詞注入。
-3153	超 20 萬 token 的長會話閒置約 54 分鐘自動壓縮，減少續聊延遲與 token 消耗。
-3154	需安裝「工作島」應用，在 ColorOS 16 流體雲 / 靈動島即時展示進度與待確認項（完成後 8 秒收起）。
-3155	透過 additionalDirectories 允許讀寫工作區外的目錄，同時作為檔案瀏覽器快捷入口。
-3156	臨時跳過自訂規則、技能、外掛、Hooks 與 MCP，不改本機檔案，關閉即恢復。
-3157	不同會話可並行執行（每個約佔數百 MB 記憶體；設為 1 則串行）。
-3158	攔截 Android 停用的新系統呼叫並回退相容路徑，避免 Go 等靜態編譯工具崩潰（下條訊息生效）。
-3159	自動按安裝包選擇：targetSdk 28 預設直接執行，targetSdk 36 經系統載入器執行（重啟閘道生效）。
-3160	允許停止非白名單背景應用（需 Shizuku）
-3161	執行重負載命令（<code>cc-mem run -- 命令</code>）前清理背景應用；保留前景、分割畫面、常駐通知應用（代理/音樂）、桌面、輸入法、無障礙、VPN、Shizuku 與白名單。
-3162	預設永久保留本機會話，僅手動刪除時移入回收站。
-3163	特權命令不再逐條確認（風險自負）：限期內免彈窗直接執行 Shizuku 命令；涉及本應用與 Shizuku 自身仍盡量攔截，但無法攔住所有繞過寫法。單工作階段放行可在確認框勾選
-3164	預設 targetSdk 28 相容性最佳；新機型拒裝時自動切換 targetSdk 36，覆蓋安裝不丟資料。
-3165	Antigravity CLI 靜默更新；新版應用下載後提示安裝（有 Shizuku 時空閒自動裝）；工具包僅在 Wi‑Fi 預下載，下次啟動安裝。
-3166	每 3 小時拉取簽章維護提示（純靜態請求，不含本機資訊）；關閉後不再請求。
-3167	預設關閉：僅當官方源與鏡像均不可達時經第三方代理下載（代理可見公網 IP；安裝包仍強制校驗雜湊與簽章）。
-3168	匯出去識別化日誌與環境狀態（不含金鑰、信箱與對話內容），便於排查或附入 Issue。
-3169	匯出診斷包
-3170	開啟新建 Issue 頁面並預填機型、系統版本與自檢結果（不含日誌與對話）。
-3171	重置使用者級設定、應用設定與 shell 啟動檔案，原檔案備份至 ~/.ccapp-reset；會話、工作區與工具包保留（金鑰預設保留）。
-3172	偵測編譯器、Python、Node、git 等可用狀態並同步給 Antigravity（更新後自動重測）。
-3173	介面載入失敗，點此重試
-3174	儲存不呼叫遠端模型，也不切換目前工作階段。
-3175	Antigravity CLI 程式核驗沒過，這次沒有執行：{why}
-3176	目前引擎 (Antigravity CLI) 暫不支援檔案檢查點回退
-3177	目前引擎 (Antigravity CLI) 暫不支援外掛市集管理
-3178	目前引擎 (Antigravity CLI) 暫不支援此 MCP 子命令
-3179	MCP 設定不是合法的 JSON
-3180	共享目錄 /sdcard/hachimia
-3181	拒絕寫入可能影響下一輪安全性的內容：{what}
-3182	模型「{model}」設定被 agent 拒絕（{msg}），已按預設執行。
+2432	回覆完成
+2433	回覆出錯
+2434	已移進回收筒 {n} 個，{m} 個失敗：{msg}
+2435	已附加 {n} 個，{m} 個失敗：{msg}
+2436	搜尋失敗：{msg}
+2437	檔案清單沒讀到：{msg}
+2438	檔案太大，伺服器沒有收
+2439	伺服器沒有認出上傳的檔案
+2440	伺服器傳回 {status}
+2441	正在讀取會話…
+2442	沒有刪成：{msg}
+2443	還有 {n} 個檔案正在上傳，傳完再傳送。
+2444	內建腳本沒裝上：{msg}
+2445	內建腳本沒裝上：{msg}，規則沒有儲存
+2446	取不到更新狀態：{msg}
+2447	只顯示了前 1000 項
+2448	合併還沒提交：要麼把全部改動一起提交，要麼先撤銷不想提交的改動。
+2449	複製失敗，請長按選取文字再複製
+2450	已刪除的專案（{id}）
+2451	已複製最後 3000 行
+2452	已設 {line}（模型視窗未知，按你設的生效）
+2453	外掛市集讀取失敗：{msg}
+2454	檔名太長（最多 255 位元組，中文一個字算 3 個）
+2455	檔案還不存在
+2456	檢查更新失敗
+2457	沒有權限存取這個位置（共享儲存需要在系統設定裡允許「所有檔案存取」）
+2458	沒有權限存取這個資料夾（共享儲存需要在系統設定裡允許「所有檔案存取」）
+2459	沒有讀取這個位置的權限（共享儲存需要在系統設定裡允許「所有檔案存取」）
+2460	清除失敗：{msg}
+2461	終端程序已經結束，輸入沒有送出
+2462	自訂元件清單讀取失敗：{msg}
+2463	讀不出提交歷史
+2464	讀不出這個檔案的狀態
+2465	讀不出這次提交的檔案清單
+2466	還有沒解決的衝突，先處理完再提交。
+2467	這一頁沒畫出來
+2468	這個位置不能讀
+2469	這個資料夾已經不是 git 版本庫了
+2470	這個資料夾裡沒有 SKILL.md（可能是以前匯入到一半失敗留下的），可以刪掉。
+2471	這個試算表檔案內部展開後太大，不能安全開啟。
+2472	這張表的範圍資訊壞了，讀不出來
+2473	這類系統偽檔案不能這樣讀
+2474	專案指令還沒儲存，返回會丟掉這次修改。確定返回？
+2475	預覽服務沒有回傳網址
+2476	幫助載入失敗：{msg}
+2477	更新日誌載入失敗：{msg}
+2478	技能包超過 64 MB，請解壓後逐個匯入
+2479	cron 的欄位值不對：{f}
+2480	cron 的欄位值超出範圍：{f}
+2481	cron 的步長不對：{f}
+2482	cron 表示式要填五段：分 時 日 月 週
+2483	「{n}」所在的專案目錄已經不在了：編輯工作重新選個專案或目錄
+2484	書籤沒有存上：儲存空間滿了或沒有權限
+2485	工作所在的專案目錄已經不在了：編輯工作重新選個專案或目錄
+2486	分叉的會話沒能寫入磁碟：{err}
+2487	只跑一次要填一個日期
+2488	開始時間要填 0–23 時、0–59 分
+2489	日期格式是 YYYY-MM-DD
+2490	時間要填 0–23 時、0–59 分
+2491	星期要選 1–7 之間的整數值，至少一天
+2492	每月幾號要填 1–31 或「最後一天」
+2493	每隔幾小時要填 1–24 的整數
+2494	沒保存上：儲存空間滿了或沒有權限
+2495	結束時間要填 0–23 時、0–59 分
+2496	（正文太長，只顯示前 {n} 字）
+2497	安全模式下不問人的幾檔不生效，現在是「逐項確認」
+2498	設定沒儲存上，重新啟動後會回到原來的權限模式
+2499	原訊息太長，只恢復了前 6.5 萬字
+2500	暫時取不到安全通知
+2501	正在取得安全通知…
+2502	換了主機，舊 Key 已清掉，請重新填
+2503	已過重置時間，下一輪對話後刷新
+2504	專案已建立；目錄裡已有 CLAUDE.md，填的指令沒寫進去
+2505	官方登入態 · 已登入
+2506	官方登入態 · 未登入
+2507	官方登入態 · 問不出登入狀態
+2508	官方登入態 · 上次問到時已登入
+2509	官方登入態 · 上次問到時未登入
+2510	需要登入帳戶
+2511	登入還在進行，拿到授權位址後會自動開啟。
+2512	刪掉模型「{id}」？檔案會從模型目錄裡刪除。
+2513	已刪除模型「{id}」
+2514	已匯入 {n} 個，後面的失敗：{msg}
+2515	工具包更新過，暫無適配版本
+2516	工具包更新過，組件庫裡暫時沒有適配目前工具包的版本；先更新工具包，或點「檢查更新」重新拉一次清單。
+2517	壓縮線最小 100k，已按 100k 存
+2518	安裝記錄寫不進去（儲存空間滿了或沒有權限），這次安裝沒有繼續
+2519	檔案已放進去了，但安裝記錄沒寫成（儲存空間滿了或沒有權限），請重裝或卸載
+2520	元件記錄寫不進去（儲存空間滿了或沒有權限），這次安裝沒有完成
+2521	位址回了 {s}，但不是預期的格式，沒法確認金鑰有效：{what}
+2522	（空）
+2523	上游在回答結尾報了錯（{msg}），已按說完處理；如果回答不完整，傳一句「繼續」
+2524	{name} 原來選的線路「{ep}」已經不在了。請到設定裡重選線路，並重新填這條線路的金鑰。
+2525	這個位址是明文 http，金鑰和對話內容會不加密地傳到對方機器上；能用 https 就換成 https。
+2526	排程任務要單獨跑一輪：移到最前，這一輪結束後馬上發出
+2527	超了就停，記成失敗；只對官方介面生效
+2528	換了線路，舊 Key 已清掉，請重新填
+2529	讀取歷史失敗：{msg} 
+2530	安裝期間有 {n} 個共用檔案被解除安裝刪掉了，請重新安裝
+2531	會話釘住的端側模型 {model} 已經不在了，請在模型面板重新選一個
+2532	正在核對端側模型檔案…
+2533	端側模型檔案被改過（校驗不符），為安全起見不載入：{file}
+2534	端側模型檔案不是 GGUF（可能被改過），不載入：{file}
+2535	登入逾時（15 分鐘）
+2536	登入還在進行，拿到授權位址後會開啟
+2537	這個模組的下載資訊不完整，先更新一次工具包
+2538	模組套件裡缺檔案清單（MANIFEST），為安全起見不安裝
+2539	模組套件的檔案清單裡有不合法的路徑：{file}
+2540	模組「{name}」的首次設定沒跑完（{err}），再裝一次會重試
+2541	專案清單沒儲存上（儲存空間滿了或不可寫），重新啟動後這次改動會丟
+2542	有 {n} 個對話沒能移進回收站，目錄沒刪：{why}
+2543	元件「{id}」依賴的 {n} 個共用檔案被刪了
+2544	閘道被系統結束，這一輪沒跑完
+2545	逾時了
+2546	沒有輸出
+2547	正在自檢…（要一兩分鐘）
+2548	上次 {time}：通過 {pass} 項，失敗 {fail} 項
+2549	工具包或應用更新前測的
+2550	還沒有自檢結果
+2551	上次沒跑出結果：{why}
+2552	失敗項
+2553	系統不允許本應用啟動工作島服務，所以沒有顯示。
+2554	沒偵測到「工作島」應用：裝好後點重試。
+2555	本機自檢
+2556	重新自檢
+2557	每週 · {model}
+2558	時長
+2559	1 小時
+2560	4 小時
+2561	1 天
+2562	3 天
+2563	7 天
+2564	原來的會話記錄刪不掉，會話留在原處：{err}
+2565	這一輪沒跑完：App 更新時閘道重新啟動了（{when} 開始的）。
+2566	這一輪沒跑完：閘道被關閉或重新啟動了（{when} 開始的）。
+2567	工作目錄 {dir} 不在了（被刪、改名或儲存卡拔出了），這一輪沒有執行。把目錄放回去，或者到專案設定裡改路徑後再發。
+2568	這一輪還沒開始就被結束了（{when} 發的）。
+2569	對話太長，超過了模型的上下文上限。打 /compact 壓縮一下再繼續，或者開個新對話。
+2570	介面拒絕了金鑰：到 設定 → 介面 檢查 API Key 填得對不對、有沒有過期或被停用。
+2571	帳戶餘額不足或額度用完了：到介面那邊的控制台儲值或查看額度。
+2572	請求太頻繁，或者用量到了上限：稍等一會兒再試。
+2573	介面找不到這個模型或位址：檢查模型名和介面位址。
+2574	介面那邊出錯或者忙不過來：稍後再試。一直這樣就換個模型或介面。
+2575	連不上介面：檢查網路，或者介面位址是不是寫錯了。
+2576	壓縮檔裡的檔案太多（{n} 個，最多 {max} 個），沒有匯入
+2577	只列出前 {n} 項，用篩選找
+2578	解壓選取（{n}）
+2579	壓縮（{n}）
+2580	壓縮檔：點「開啟壓縮檔」瀏覽裡面的檔案，或直接解壓
+2581	開啟壓縮檔
+2582	解壓…
+2583	停用後 Claude 看不到它，命令檔案還在，隨時可以啟用。
+2584	只露名字
+2585	只能你呼叫
+2586	技能模式
+2587	下一輪對話起生效
+2588	已停用：Claude 不會連它，定義存著，點啟用就加回來。
+2589	停用 MCP 伺服器 {name}？它的設定會先存起來，隨時能啟用。
+2590	啟用 MCP 伺服器 {name}？會加回這條：{target}
+2591	刪掉停用中的 MCP 伺服器 {name}？刪了就不能一鍵啟用了。
+2592	~/.claude/settings.json 不是合法的 JSON，先修好它
+2593	只能停用你自己加的（使用者層級）MCP 伺服器
+2594	停用名單寫不進去
+2595	停用名單裡沒有它
+2596	沒裝這個元件
+2597	這個模組不能停用
+2598	壓縮…
+2599	檔名編碼
+2600	檔名亂碼就換一個編碼
+2601	{n} 個項目
+2602	已加密
+2603	全部解壓…
+2604	離開壓縮檔
+2605	返回壓縮檔
+2606	這個版本沒帶 7-Zip，打不開這種壓縮檔
+2607	打不開壓縮檔：{msg}
+2608	壓縮後 {size}
+2609	符號連結（不解出）
+2610	解出中…
+2611	密碼不對
+2612	檔案太大，沒法直接預覽，請解壓出來再看
+2613	儲存空間不夠
+2614	解出失敗：{msg}
+2615	輸入密碼
+2616	密碼不對，再試一次
+2617	確定
+2618	選取的 {n} 項
+2619	解壓 {what}
+2620	解壓到
+2621	目前目錄
+2622	密碼（沒加密就留空）
+2623	目標裡已有同名的檔案不會被覆蓋，新解出來的會改名為「名字 (2)」。符號連結不解出。
+2624	解壓
+2625	要寫完整路徑（以 / 開頭）
+2626	壓縮「{name}」
+2627	壓縮 {n} 項
+2628	壓縮檔名稱
+2629	格式
+2630	壓縮等級
+2631	僅儲存
+2632	最快
+2633	標準
+2634	最小體積（慢）
+2635	密碼（可選，zip / 7z）
+2636	連檔名一起加密（7z）
+2637	zip 加密用 AES-256；舊的解壓軟體可能打不開，要通用就別設密碼。.ssh 這類憑證目錄不會打進去。
+2638	壓縮
+2639	不能解壓或壓縮到這個位置
+2640	這個版本沒帶 7-Zip
+2641	壓縮檔不能放進要壓縮的資料夾裡
+2642	解壓中
+2643	壓縮中
+2644	已解壓到 {path}
+2645	已壓縮為 {path}
+2646	多選
+2647	系統提示沒寫成檔案，這一輪沒有啟動：{msg}
+2648	恢復初始設定
+2649	沒彈出確認框
+2650	重新安裝這個元件（會重新下載）
+2651	重新安裝這個工具包模組（會重新下載）
+2652	修復開發工具包：重新下載目前這一版並重裝，安裝時服務會暫停 1–2 分鐘
+2653	全部修補
+2654	修補
+2655	等待
+2656	進行中…
+2657	已交給應用
+2658	正在修補，關掉這一頁也不影響，做完會自動再核對：
+2659	修補結束：
+2660	交給應用的那幾步在「設定 → 更新」裡看進度，做完後再點「核對記錄」。
+2661	修補結束，有 {n} 步沒成功
+2662	修補結束
+2663	按下面的順序修補，做完自動再核對一次：
+2664	修補這一項：
+2665	重裝要連網下載；你自己的檔案、對話和設定不受影響。繼續？
+2666	索引沒有通過驗簽，不能安裝元件
+2667	索引裡的版本（{v}）比已裝的（{now}）舊，已拒絕降級
+2668	正在修補或核對，等它結束再試
+2669	沒有能自動修補的問題
+2670	還有步驟在應用裡進行：
+2671	交給應用的步驟還在進行，做完後再點「核對記錄」
+2672	內建瀏覽器
+2673	pkg 下載的安裝包
+2674	脈絡索引
+2675	正在掃描…
+2676	本應用共佔 {app}，裝置還剩 {free}
+2677	上次掃描：{when}
+2678	還沒掃描過
+2679	按你設的 {n} 天
+2680	永久保留
+2681	上次自動清理：{when}，騰出 {size}
+2682	還沒自動清理過
+2683	快取
+2684	共 {size}，刪了會自動重新下載或重建
+2685	正在用
+2686	會話在跑
+2687	7 天沒動過
+2688	最後改動：{when}
+2689	刪除勾選的
+2690	暫存檔案
+2691	共 {size}，其中 7 天沒動過的 {old}。包括背景命令的輸出、測試和編譯留下的暫存目錄
+2692	最大的 {n} 項
+2693	清理 7 天前的
+2694	除錯日誌、shell 快照、MCP 日誌、.claude.json 的備份，共 {size}；可清的 {n} 項 {auto}（30 天前的，備份留最新 5 份）
+2695	{n} 個，共 {size}。會話永不自動刪除；要刪請在會話列表裡刪，刪了先進回收站
+2696	元件的執行資料（~/.cccodroid）
+2697	pkg 裝的 {name}
+2698	共享目錄 /sdcard/cccodroid
+2699	程式和你的檔案
+2700	只顯示大小，這裡不刪
+2701	會話回收站
+2702	{n} 個，{size}；放滿 30 天自動清掉
+2703	舊工具包留下的程式
+2704	去處理
+2705	卸掉的元件 {id} 留下的執行資料
+2706	用量統計
+2707	其他清理入口
+2708	✓ 刪了 {n} 項，騰出 {size}
+2709	{n} 項沒刪（正在用或不在允許的範圍裡）
+2710	沒有勾選
+2711	刪除勾選的 {n} 項暫存檔案？刪了找不回來。
+2712	刪掉 {id} 留下的執行資料？以後再裝要重新下載。
+2713	✓ 已刪除
+2714	儲存空間
+2715	佔用空間
+2716	掃描
+2717	會話保留
+2718	自動清理
+2719	API 清單
+2720	新增 API
+2721	{n} 個模型
+2722	刪除（{n}）
+2723	永久刪除{what}？刪除後無法復原。
+2724	資料夾會連同裡面的內容一起刪除。
+2725	已刪除 {n} 項
+2726	這個資料夾裝著應用程式自己的目錄或工作區，不能刪除
+2727	（上一轮沒有正常結束，上面的回覆可能不完整）
+2728	會話已匯入，但自訂標題沒儲存上（儲存空間可能滿了或沒有權限），重新啟動後會顯示原來的標題
+2729	會話列表讀不出來（{msg}），不是沒有會話；檢查儲存權限後再重新整理。
+2730	請求逾時：閘道沒有回應（{n} 秒）
+2731	閘道離線：{msg} · 點這裡重試
+2732	上一輪在背景失敗：{msg}
+2733	位址回了 {s}，但回應內容太大（超過 8 MB），沒法確認金鑰有效
+2734	上一輪已答完，接著的這一輪沒有等到結果（已中斷）
+2735	目錄不存在：{dir}，已改用 {cwd}
+2736	介面報錯，不是正常回覆：
+2737	壓縮線最大 1M，已按 1M 存
+2738	榮耀 / 華為等系統會凍住背景的 Shizuku、拖慢啟用：到系統應用管理 → Shizuku 裡開啟「忽略電池最佳化」防凍。
+2739	首次記錄：{time}
+2740	時間未知
+2741	環境變數，選填，用逗號分隔（KEY=值）
+2742	請求標頭，選填，用逗號分隔（Header: 值），例如 Authorization: Bearer 你的令牌
+2743	請求標頭
+2744	遠端 MCP 要填請求標頭：把 {bad} 改成冒號寫法，例如 Authorization: Bearer 你的令牌
+2745	遠端 MCP 不支援環境變數：請求標頭要寫成 Header: 值，例如 Authorization: Bearer 你的令牌
+2746	從設定裡刪掉
+2747	現有請求標頭
+2748	現有環境變數
+2749	已儲存 {name} 的修改
+2750	編輯失敗：{msg}
+2751	儲存失敗：{msg}，舊設定已原樣恢復
+2752	儲存失敗：{msg}，而且舊設定沒能恢復，請手動檢查
+2753	打不開編輯：{msg}
+2754	正在編輯 {name}：留空 = 保留原值，點 × 刪掉，填新的替換
+2755	找不到這條 MCP 設定（帳戶連接器不能編輯）
+2756	已經有叫這個名字的 MCP 伺服器了
+2757	stdio 不保存請求標頭：{names} 會被丟掉，繼續嗎？
+2758	伺服器在本機就填 http://127.0.0.1:埠 最穩；區域網路 IP 會隨網路切換而變，導致斷連
+2759	這像是一個區域網路位址：伺服器在本機的話，請改成 http://127.0.0.1:埠，區域網路 IP 一變就斷連
+2760	合併 PDF
+2761	擷取頁面
+2762	拆成單頁
+2763	旋轉頁面
+2764	壓縮 PDF
+2765	PDF 轉圖片
+2766	頁碼不正確，請使用 1-3,5 這樣的格式，並檢查總頁數。
+2767	PDF 處理失敗：{code}
+2768	選取的檔案不是 PDF
+2769	上移
+2770	下移
+2771	先在檔案面板選取 PDF，或點擊「選擇 PDF…」。
+2772	缺少 PDF 工具：{tools}。請在擴充 → 選用元件安裝「PDF 工具箱」。
+2773	正在匯入 PDF…
+2774	正在處理 PDF…
+2775	處理完成
+2776	壓縮後沒有變小，原始檔案仍保留。
+2777	前往結果資料夾
+2778	連線中斷，正在重試…
+2779	PDF 工具箱
+2780	檔案僅在本機處理，不會覆寫原始檔案。
+2781	操作
+2782	開啟選用元件
+2783	從檔案面板新增
+2784	選擇 PDF…
+2785	一次最多合併 20 份 PDF，其他操作只選一份。
+2786	頁碼
+2787	頁碼格式：1-3,5；留空選擇全部。
+2788	旋轉角度
+2789	壓縮品質
+2790	電子書（ebook）
+2791	小檔案（screen）
+2792	列印（printer）
+2793	圖片格式
+2794	解析度
+2795	低（72 DPI）
+2796	清晰（150 DPI）
+2797	每次最多轉 100 頁，圖片長邊最多 2048 像素。
+2798	輸出資料夾（新建）
+2799	開始處理
+2800	請選擇 PDF，最多 20 份、合計 256 MB。
+2801	PDF 總頁數不能超過 1000 頁。
+2802	PDF 無法處理，請確認檔案未損壞且沒有密碼。
+2803	處理逾時，請減少頁數後重試。
+2804	已有 PDF 工作正在處理，請稍後再試。
+2805	先安裝 PDF 工具箱元件，再重新開啟工具箱。
+2806	請填寫可寫入位置下尚不存在的輸出資料夾。
+2807	結果超過 512 MB，請減少頁數或解析度。
+2808	個檔案
+2809	上次安裝的備份還沒恢復，請重試；不行就先解除安裝再重裝。
+2810	[cc] Error in a script injected by the shell (details hidden by WebView)
+2811	\\[Attachment: (\\/[^\\n]+?) · [^\\n·,\\]]+, file is large and was not read directly, read by path when needed\\]
+2812	Antigravity is requesting tool authorization: {w}
+2813	Antigravity wants to ask you
+2814	Say how it should change (sent back to Antigravity)
+2815	Optional: tell Antigravity why / what to do
+2816	Scheduled
+2817	Antigravity is waiting for your confirmation
+2818	Let Antigravity decide which actions need confirmation
+2819	Ask nothing. Antigravity can delete files and run any command without asking you
+2820	Switch to “Allow everything”?\n\nAntigravity will stop asking and can edit or delete files, run any command and access the network. Only use it when you trust the task and can live with the consequences.
+2821	Sign in with a Google Antigravity account
+2822	Use a personal Google account (Free / Pro / Ultra) or an enterprise account: authorize once in the browser, no key needed.
+2823	Enter a Gemini API Key
+2824	Use a Gemini API Key from Google AI Studio or a custom compatible endpoint, billed by usage.
+2825	Context has reached the auto-compact line; compacting history…
+2826	Background task finished, reported automatically:
+2827	[Attachment: 
+2828	, file is large and was not read directly, read by path when needed]
+2829	Starting Google Antigravity sign-in…
+2830	Google account signed in
+2831	Open the address below in your browser to complete Google authorization, then paste the authorization code under Settings → Providers to submit:
+2832	You can also run {cmd} in the in-app terminal to sign in.
+2833	Interruption sent — it will be seen once the current step finishes
+2834	Antigravity CLI (agy) itself
+2835	The system or hachimia already has a command with this name; pick another one
+2836	hachimia checks these skills before handing them to Antigravity; when calling one with a slash, prefix the name with user:, e.g. /user:{name}.
+2837	This build does not run the hooks configured here: hooks can execute arbitrary commands and put arbitrary content into the conversation, and hachimia cannot check them. The rules stay in the file and will not be deleted.
+2838	Reinstall Antigravity CLI (agy)
+2839	Claude (compatible)
+2840	Third-party provider
+2841	Sign in to a Google Antigravity account
+2842	Google Cloud / enterprise account
+2843	Billed by your Google Antigravity account subscription tier; on-device token stats are on the “Usage” page
+2844	Sign out of the Google Antigravity account on this device?
+2845	The key is stored only in this app's private directory on this device, and is passed to Antigravity CLI only as needed to connect to the matching endpoint.
+2846	AGY blue
+2847	Antigravity's replies
+2848	Shizuku is running but has not been authorized for hachimia
+2849	vivo / iQOO: Settings → Battery → Background power consumption → allow hachimia <b>high background power usage</b>; in iManager allow <b>auto-start</b> (common path)
+2850	Huawei / Honor: Settings → App launch → turn off “Manage automatically” for hachimia, then manually allow <b>auto-start</b> and <b>background activity</b> (common path)
+2851	hachimia has been frozen in the background by the system {n} times (most recent: about {sec} seconds, {at}).
+2852	In system settings, allow hachimia to run in the background, turn off battery optimization, and allow auto-start (each vendor names these differently).
+2853	Authorize for hachimia
+2854	hachimia's wireless debugging pairing has been removed: it still works now, but it cannot auto-activate after a reboot.
+2855	Shizuku was not activated by hachimia: hachimia cannot auto-activate it after a reboot. Pair it once and you're set.
+2856	The system did not notify hachimia at this boot (blocked by the system's “auto-start” management), so it could not auto-activate; opening hachimia will catch up.
+2857	To activate at boot: allow hachimia auto-start / background start in the app details; takes effect at the next boot.
+2858	Antigravity CLI (agy) version
+2859	Uninstall Antigravity CLI (agy)?\n\nThis deletes the downloaded agy program; it will not be reinstalled automatically. Tap “Install” here to download it again when you need it.\n\nSign-in, sessions and settings are kept; sending a message while it is not installed will prompt you to install it first.
+2860	Install the devkit from a local file?\n\nPick a devkit-ha.chi.mia.tar.gz (or .tar), downloadable from the GitHub releases page or hachimia.net. It is checked against the published release before installing; the service pauses for 1–2 minutes during installation.\nThings you installed into the devkit with pip / npm -g are kept.
+2861	Shizuku is not activated yet, so the app cannot toggle accessibility itself: turn on hachimia manually in the system accessibility settings. From Android 13, sideloaded apps must first allow restricted settings via App info → menu in the top-right corner.
+2862	This build has no native layer and only records CPU time (battery, screen-on and foreground time come from hachimia).
+2863	Name (e.g. self-hosted Gemini proxy)
+2864	Auth: x-goog-api-key (Gemini / Antigravity)
+2865	Auth: Authorization: Bearer
+2866	Auth: x-api-key
+2867	Default model name (required, e.g. gemini-3.8-flash)
+2868	Model list URL (optional; Gemini endpoints auto-probe /v1beta/models)
+2869	Context window (optional, in tokens, e.g. 1m; leave empty for the default)
+2870	More models (optional, one per line; you may put the window after the name, separated by a space, e.g. gemini-4-neon 1m)
+2871	Send images with the message (compat): check this when the model cannot read attached images; attachments are then sent directly as multimodal blocks with the message.
+2872	Choosing <b>Gemini / Antigravity</b> auth drives the official <code>agy</code> CLI via <code>GOOGLE_GEMINI_BASE_URL</code> + <code>GEMINI_API_KEY</code>.
+2873	Running Antigravity diagnostics…
+2874	Currently available capabilities
+2875	Fixed
+2876	Workaround
+2877	(Merged from 
+2878	Direct (not needed)
+2879	(Decided by Antigravity)
+2880	Antigravity CLI failed: {msg}
+2881	The Antigravity CLI user-level config has unconfirmed changes. Send a message first, confirm in the card that pops up, then try again.
+2882	Could not fetch the Antigravity CLI version list
+2883	agy install script not found ({p})
+2884	The dev side only manages Antigravity CLI (agy) (you build and install the app itself on this device)
+2885	Updating Antigravity CLI (agy)…
+2886	Could not fetch the Antigravity CLI version list: {err}
+2887	The gateway's own runtime was modified; Antigravity CLI was not started this round. The gateway will restart when idle and restore itself from the install package; send again shortly.
+2888	Antigravity CLI (agy) is not installed. Install it under Settings → Updates first.
+2889	Antigravity CLI (agy) not found
+2890	Settings → Updates: reinstall Antigravity CLI (agy)
+2891	Antigravity CLI (agy) is not installed. Tap “Install” under Settings → Updates.
+2892	The Antigravity CLI user-level config has unconfirmed changes, or an earlier session left background processes behind, so this run did not start. Open hachimia, send a message, and confirm in the card that pops up, then try again.
+2893	Antigravity CLI (agy) is not installed. Install it under Settings → Updates first, then come back to sign in.
+2894	Enterprise sign-in: in the agy sign-in screen, choose “Use a Google Cloud project” → “Continue with Google Cloud” and authorize with your enterprise account.
+2895	Personal sign-in: in the agy sign-in screen, choose “Google OAuth” and authorize with your personal Google account.
+2896	The slash commands, tools, skills and extensions currently available to Antigravity. Tap a slash command to insert it into the input box; a tool's “Allow / Ask / Deny” follows the permission mode and rules.
+2897	For things not in the marketplace, import a Linux arm64 program yourself: a single binary, or a .tar.gz / .zip archive. Missing libraries are filled in automatically and a command is generated, ready to use in Antigravity and in the terminal.
+2898	Save a long prompt you send often as a command and pick it with / in the input box. Text after /command fills $ARGUMENTS in the body, expanded automatically by the gateway when sent to Antigravity.
+2899	Antigravity behavior
+2900	Default color pick (AGY Monet palette); switchable to native, Qiusuo, Zhuyue or Construct
+2901	Font for Antigravity's reply text
+2902	Thinking level (thought_level)
+2903	Levels vary by model (low / medium / high / xhigh). You can also type <code>/effort &lt;level&gt;</code> in the input box.
+2904	Let Antigravity decide
+2905	Empty = let Antigravity decide by window
+2906	Confirm each item by default, same as official agy: it asks in the conversation before editing files or running commands. Allow everything means Antigravity can delete files and run any command without asking. You can also switch anytime via the permission tag under the input box.
+2907	Only clears caches, temp files untouched for 7 days, and expired logs; sessions, your files and programs are never auto-deleted
+2908	When on, run <code>priv 'command'</code> in the terminal as shell (pm / am / settings / dumpsys / logcat / screencap…); Antigravity uses it too. Without Shizuku, basic dev features work as usual — only these debugging abilities are unavailable.
+2909	Auto-activate again after a reboot (needs Wi-Fi; starts the hachimia background service at boot)
+2910	Let Antigravity use device tools (notifications, clipboard, opening links / calendar / alarms, sharing files…)
+2911	Off by default. Turn it on when you want Antigravity to test an app you built, or send files it generated to other apps; while on, each round carries an extra one or two thousand tokens of tool descriptions.
+2912	Antigravity CLI channel
+2913	Plan first
+2914	Interview to align the plan
+2915	Long-term goal
+2916	Multi-agent teamwork
+2917	Deep orchestration
+2918	Capabilities & tools
+2919	切換權限模式失敗（agent 拒絕了 {mode}）：{msg}
+2920	舊會話無法恢復（Agent 不支援恢復或恢復失敗），已新建會話繼續。本輪寫進了新會話，舊會話的歷史仍保留在本地記錄中。
+2921	壓縮未確認：上下文沒有下降（壓縮前 {pre}，壓縮後 {post}），請重試 /compact 或換新會話。
+2922	企業登入：請在瀏覽器裡用公司 Google 帳號完成登入
+2923	授權碼沒能寫進 agy（stdin 已關閉），請重新發起登入。
+2924	授權碼沒能寫進 agy（登入程序的 stdin 已關閉），請重新發起登入。
+2925	登入類廠商不用填 API Key，登入走官方流程；這次填的金鑰沒有儲存。
+2926	已在排隊，跳過這次重複執行
+2927	請在應用裡打開
+2928	要 npx（hachimia 的工具包裡有）
+2929	這個版本沒有原生層，只記 CPU 時間（電量、亮屏要 hachimia）。
+2930	Antigravity CLI 程式被改過，已拒絕啟動；
+2931	Antigravity CLI 雜物
+2932	這些 Claude Code 設定裡有越權指令的特徵（要模型無視規則、冒充系統訊息這一類），hachimia 不載入它們，這一輪沒有執行。改掉或刪掉下面的內容後再發：\n{list}
+2933	命令 {c} 是系統或 hachimia 自帶的，換個名字
+2934	不是 hachimia 會話包
+2935	{p}：{n}
+2936	「{n}」{w}
+2937	API Key
+2938	Google Antigravity / Gemini
+2939	查看或切換模型
+2940	上下文
+2941	壓縮對話歷史，釋出上下文空間
+2942	遇到了什麼
+2943	做了什麼、想要什麼結果、實際怎樣。截圖可以直接拖進來。
+2944	怎麼重現
+2945	執行狀態沒能儲存（儲存空間可能滿了或沒有權限）：App 被系統結束時，這一輪可能沒法恢復或繼續。
+2946	上次的執行狀態沒能恢復（記錄讀不了或格式不對），中斷的回合和排隊的訊息不會出現；原檔案已留底。
+2947	名字只能用字母、數字、- 和 _，不超過 40 個字元
+2948	和內建的命令重名了，換個名字
+2949	指令內容不能是空的
+2950	指令內容太長了（上限 64 KB）
+2951	已經有同名的指令了
+2952	最多匯入 10 個字體，先刪掉一個再匯入
+2953	這是字體集合（.ttc），瀏覽器用不了；請換成單個的 ttf / otf
+2954	不是能用的字體檔案，只支援 ttf、otf、woff、woff2
+2955	This model doesn't support thinking level "{effort}"; running with the default instead.
+2956	The agent rejected thinking level "{effort}" ({msg}); running with the default instead.
+2957	Not supported under Antigravity
+2958	Not supported under Antigravity: the Antigravity CLI has no generic third-party API key channel. Declare protocol:"gemini" (the endpoint must speak the Gemini protocol), or switch to a Gemini / sign-in provider.
+2959	On-device models need Claude Code; this device only has the Antigravity CLI, so they're unavailable for now.
+2960	Not set (no default compaction line under ACP)
+2961	No Google Cloud ADC credentials found (Application Default Credentials). Run `gcloud auth application-default login` in a terminal first, then come back and pick ADC.
+2962	Application Default Credentials found.
+2963	The old configuration was still using a Claude preset, which doesn't work in Antigravity-only mode; it has been switched back to Google Antigravity sign-in.
+2964	Protocol: not declared
+2965	Protocol: Gemini (endpoint speaks the Gemini protocol)
+2966	Checking ADC credentials…
+2967	新建會話失敗：Agent 沒有返回會話號，請重試
+2968	輸出（執行中）
+2969	AI Credits 剩餘：{n}
+2970	正在同步 Google Antigravity 訂閱額度，此處先顯示本機 token 用量（點右上角「重新整理」可立即查詢）。
+2971	無法還原原工作階段（{why}），已保留目前工作階段未新建，請重試或手動開啟新對話
+2972	判斷不了是不是在充電
+2973	判斷不了目前電量
+2974	索引
+2975	記憶檔案名稱不合法
+2976	記憶不存在
+2977	只允許查看一般記憶檔案
+2978	記憶檔案太大了（超過 1 MB）
+2979	記憶為唯讀，無法在這裡修改
+2980	等待背景任務
+2981	靜默 {d}
+2982	剩 {d}
+2983	接收維護公告
+2984	GitHub 第三方代理兜底（gh-proxy.com）
+2985	首次檢查：以下全域設定每輪都會生效，請確認是否由你本人新增（撤銷會移入 ~/.ccapp-userconf/quarantine 備份）。
+2986	非本人改動請選「撤銷」（還原設定並結束殘留行程，新檔案移入隔離目錄）；本人改動選「保留」。
+2987	安全檢查異常，若不確定操作內容建議拒絕。
+2988	專案設定將直接執行本機程式；來源不明請選「不載入」（不影響正常對話），允許後變更時再詢問。
+2989	若非你主動要求，可能是網頁或檔案中的注入指令，建議拒絕。允許後本輪同類操作不再詢問。
+2990	偵測到未確認的使用者級設定改動
+2991	安全檢查異常，請手動確認
+2992	即將修改提示詞或安全規則檔案：{w}
+2993	即將存取金鑰或登入憑證：{w}
+2994	連線中斷，重連中…（背景繼續生成）
+2995	閒置將滿 1 小時，自動壓縮上下文以節省後續消耗（可在設定關閉）。
+2996	歷史待確認
+2997	新增變動
+2998	設定檔被外部修改，已還原為目前設定：
+2999	執行檔案被外部修改，已觸發恢復保護：
+3000	有新對話待確認 · 見側欄「未儲存的新對話」
+3001	就緒 · {n} 個背景任務執行中
+3002	就緒 · 背景任務收尾中
+3003	中斷時有 {n} 項操作狀態未知（{list}），繼續前請先核對結果。
+3004	確認逾時（{n} 分鐘未回應），本輪未啟動（{when}）。
+3005	已完成進度已保留，點「繼續」從斷點接著執行。
+3006	訊息已送達，無需重發
+3007	發送結果未確認：{msg}
+3008	儲存空間不足，草稿未儲存，請先複製或發送
+3009	存放在 /sdcard/cccodroid/models（Q4_K_M 量化），下載後在「設定 → 模型服務」啟用。本機記憶體 {ram} GB，建議選 1–4B。
+3010	解除安裝組件 {name}？（你自己的檔案不受影響）
+3011	同時清理 {name} 殘留的 {size} 執行快取（{path}）？
+3012	匯出診斷包並呼叫系統分享？\n\n包含：版本與機型、工具包與自檢狀態、近期去識別化日誌、修復帳本、網路連通結果。\n不含：金鑰、憑證、信箱、訊息正文與會話記錄。
+3013	端側預設僅開啟純聊天。如需自訂工具與參數，可編輯 {file}，或切到雲端模型發送以下指令自動產生：
+3014	（快取狀態，本次重新整理失敗：{msg}）
+3015	請在瀏覽器完成授權，並將授權碼貼到下方。
+3016	也可在內建終端直接執行登入命令：
+3017	原線路已下線，請重選線路並重填 Key。
+3018	建議在服務商後台設定額度上限；若懷疑洩漏請及時輪換 Key。
+3019	本月使用概覽
+3020	範例範本（請替換為實際服務位址）
+3021	第三方呼叫由你自行設定，對方可見 Key、程式碼與對話，請僅使用可信服務。
+3022	未儲存的新對話
+3023	立即補跑
+3024	到點在指定目錄自動執行，結果存為會話；無人值守期間需確認的操作自動拒絕，錯過任務按各任務策略處理。
+3025	達上限後跳過當日剩餘任務（僅統計官方介面費用，第三方呼叫不計入）。
+3026	個人訂閱預設停用排程任務；開啟前請確認符合上游服務條款（API Key 不受限）。
+3027	已忽略本次
+3028	目前使用第三方呼叫：不計入費用上限，僅受單次時長上限約束。
+3029	目前為個人訂閱登入：高頻排程執行易觸發上游風控，建議改用 API Key。
+3030	日常交流歡迎進群；提交 Bug 建議走「設定 → 到 GitHub 回饋」（自動附帶機型與自檢資訊）。
+3031	歡迎參與翻譯、測試、文件與開發，詳見倉庫貢獻指南。
+3032	外部瀏覽器不受沙箱保護，網頁指令碼可讀取同目錄檔案並存取本機服務。僅對可信網頁繼續。
+3033	二進位檔案，不支援按文字開啟。
+3034	允許此網頁聯網？\n\n聯網後指令碼可將上層（最多三層）鄰近目錄檔案外發，僅對可信網頁開啟。
+3035	檔案太大（{size}），請切換「原版式」轉 PDF 預覽，或用外部應用開啟。
+3036	正在背景安裝 LibreOffice…
+3037	[行程已結束]
+3038	[發送失敗，閘道重連中]
+3039	查看每輪耗時與工具呼叫時間線
+3040	首次使用可點右上角「怎麼看」了解用法
+3041	後方有相同訊息尚未落盤，請等目前輪次結束後再加書籤
+3042	暫無書籤。點擊訊息下方的書籤圖示即可新增。
+3043	互動式網頁（HTML）
+3044	正在重載介面…
+3045	目前應用版本不支援自動恢復，請更新應用或重啟閘道
+3046	捲動卡住時，長按頂欄標題約 0.6 秒可恢復
+3047	自動恢復已停止，修改配置不會解除；請先在下方診斷並重設恢復次數。
+3048	協定橋校驗失敗，自動恢復已停止（儲存配置不會解除）；請先診斷修復。
+3049	協定橋已停用（儲存配置不會解除），請先在擴充功能頁啟用組件。
+3050	協定橋組件暫不可用，請檢查安裝狀態（不會自動重設恢復次數）。
+3051	協定橋需更新組件版本後方可使用。
+3052	協定橋未就緒，請查看下方診斷（目前工作階段不變，儲存配置不會重設恢復次數）。
+3053	協定橋正忙，請稍後重試。
+3054	設定一致性檢查未通過，請按下方說明處理，勿直接刪目錄。
+3055	讀取協定橋設定失敗，請返回擴充功能頁重試。
+3056	請使用不含帳號、參數與片段的 HTTPS API 位址。
+3057	此處需填寫 Chat Completions 位址，暫不支援 Responses API。
+3058	路徑無法自動補全，請填寫完整的 /chat/completions 位址。
+3059	支援設定多個 OpenAI 相容介面，儲存後生效。
+3060	僅讀取本機狀態，不改動設定、不請求上游。
+3061	遷移或重裝前可備份橋配置（僅含介面位址、金鑰與模型清單，不含聊天記錄）。
+3062	含金鑰的設定檔請勿公開分享。
+3063	填寫服務商 API 位址（非網頁登入位址）。
+3064	自動拉取模型列表（需向所填服務發送 API Key）
+3065	重試拉取
+3066	搜尋或手填模型名稱
+3067	新增後可分別設定上下文視窗與預設模型。
+3068	預設採用介面回傳的視窗，缺省為 200,000 token，可手動修改。
+3069	對話、工具結果與圖片將發往所填服務。
+3070	未測試對話推理
+3071	已同步至「設定 → 介面與型號」。
+3072	其他會話可在輸入欄下方的模型標籤中切換選用。
+3073	檢查本機設定差異並產生同步方案（檢查本身不改設定）。
+3074	僅同步模型清單、預設模型與認證方式；不啟停服務，不改金鑰、執行檔案、恢復鎖或目前工作階段（60 秒內有效）。
+3075	確認同步介面記錄
+3076	確認應用與組件均為配套最新版；若有會話在執行，等結束後再檢查。
+3077	自動恢復停止或校驗失敗時，同步介面記錄不會解除恢復鎖；請先查診斷，按需回擴充功能頁更新或重裝組件，勿直接刪目錄。
+3078	回饋問題時請附版本號與診斷碼，切勿附帶金鑰或完整設定。
+3079	重新檢查將清空本頁未儲存的輸入，繼續？
+3080	新增多個介面需先更新協定橋組件；現有單介面設定仍可使用。
+3081	每次編輯一個介面，點擊「儲存設定」後統一生效。
+3082	勾選後自動拉取列表，也可直接手填。
+3083	移除介面「{name}」及其模型？（點擊儲存設定後生效）
+3084	協定橋正忙，請稍後再試。
+3085	修復方案已過期或狀態已變更，請重新檢查。
+3086	未發現可同步的設定差異；若仍異常請展開下方說明。
+3087	目前狀態無法自動同步，請按下方說明排查，勿直接刪目錄。
+3088	正在檢查可同步項…
+3089	可同步 {n} 個模型及認證方式。
+3090	同步方案已就緒，確認後寫入。
+3091	確認同步協定橋的介面記錄？\n\n僅更新模型列表、預設模型與認證方式，位址與金鑰不變。
+3092	正在同步介面記錄…
+3093	同步結果未確認，請重新檢查狀態，勿重複提交。
+3094	介面已寫入，但映射未完成，請重新檢查狀態。
+3095	介面記錄已同步。
+3096	介面位址、認證方式或本機連線記錄與協定橋不一致。
+3097	已儲存的模型列表格式或內容不一致。
+3098	協定橋介面映射記錄讀取或格式校驗未通過。
+3099	本機服務註冊與連線記錄不一致。
+3100	預設執行目錄的歸屬標記不匹配，請核對舊設定或目錄狀態。
+3101	組件安全自檢未通過（未回傳具體項）。
+3102	設定衝突（舊版組件未回傳具體項，可能涉及執行檔案、歸屬標記或介面記錄）。
+3103	組件暫不可用
+3104	協定橋正忙
+3105	無法讀取協定橋狀態
+3106	設定已寫入，但後續步驟未完成，請先重新檢查狀態。
+3107	儲存未完成，請按上方提示排查。
+3108	請先核對應用與組件版本，勿直接刪改執行目錄。
+3109	服務位址已變更，請重新填寫 API Key（舊金鑰不會發往新位址）。
+3110	已儲存金鑰不回顯；留空保持不變，輸入新值即替換。
+3111	正在儲存設定…
+3112	儲存不呼叫遠端模型、不切換目前工作階段（已讀取模型清單，未測試對話推理）。
+3113	請填 1024～16777216 的整數（支援 256k、1m），留空使用預設值。
+3114	請填寫有效的模型名稱（不含逗號或換行）。
+3115	填寫有效 API Key 後自動拉取列表。
+3116	拉取已取消，可重試或手填。
+3117	準備拉取模型列表…
+3118	請重新填寫 API Key 後重試。
+3119	模型列表為空，請手填名稱或重試。
+3120	已讀取 {count} 個模型（上限 500），可搜尋或手填。
+3121	儲存中…
+3122	已讀取模型列表，未測試對話推理
+3123	本機已就緒
+3124	自動恢復已停止
+3125	協定橋校驗失敗
+3126	協定橋已停用
+3127	設定已儲存，協定橋未就緒
+3128	模型 ID 衝突、超長（>200 字元）或總數超 100，請調整後再儲存。
+3129	確認儲存全部介面設定？\n\n對話、工具結果與圖片將按模型發往：\n{origins}
+3130	確認儲存此介面設定？\n\n對話、工具結果與圖片將發往 {origin}。\n（{verification}）
+3131	API 位址未通過校驗，請核對後重試。
+3132	請重新填寫 API Key（更換位址不能沿用舊金鑰）。
+3133	儲存未完成，請檢查本機狀態後重試。
+3134	切換新會話介面失敗，請重試。
+3135	背景命令已結束，引擎逾 {d} 未回應；可點停止或直接發新訊息。
+3136	協定橋設定未完成，請檢查欄位或組件狀態後重試。
+3137	發送狀態衝突，請重發。
+3138	上游連線提前斷開，回覆可能不完整，可發「繼續」接著生成
+3139	該介面在 Antigravity 下暫不支援：需設定 protocol:"gemini"（Gemini 協定端點），或改用 Google 登入。
+3140	純 Antigravity 模式不支援 Claude 預設（{id}），請改用 Google 登入或 Gemini 介面。
+3141	插話（追加到目前輪次）
+3142	↩ 恢復剛清空的草稿
+3143	修改自下條訊息生效。
+3144	公共註冊表（未經官方審核）；npm 套件將在本機執行，安裝前請核實來源。
+3145	在特定時機（呼叫工具前後、發訊息、回覆結束等）自動執行命令，可攔截操作、補充上下文或執行格式化。
+3146	按鈕、連結與選中項顏色（隨深淺色自動適配對比度）
+3147	可設為常駐、收進「⋯」或隱藏，拖動左側把手排序
+3148	支援 ttf / otf / woff / woff2（≤ 40 MB，最多 10 個），匯入後在上方「自選…」啟用
+3149	關閉後從輸入欄模型選單隱藏，保留設定與金鑰
+3150	首輪回覆後自動產生會話標題（消耗少量 token，可指定輕量模型）
+3151	讀取憑證（.env / SSH / API Key）、讀屏點按、讀剪貼簿或外部分享時強制彈窗確認（「全部放行」下亦生效），防範提示詞注入。
+3152	超 20 萬 token 的長會話閒置約 54 分鐘自動壓縮，減少續聊延遲與 token 消耗。
+3153	需安裝「工作島」應用，在 ColorOS 16 流體雲 / 靈動島即時展示進度與待確認項（完成後 8 秒收起）。
+3154	透過 additionalDirectories 允許讀寫工作區外的目錄，同時作為檔案瀏覽器快捷入口。
+3155	臨時跳過自訂規則、技能、外掛、Hooks 與 MCP，不改本機檔案，關閉即恢復。
+3156	不同會話可並行執行（每個約佔數百 MB 記憶體；設為 1 則串行）。
+3157	攔截 Android 停用的新系統呼叫並回退相容路徑，避免 Go 等靜態編譯工具崩潰（下條訊息生效）。
+3158	自動按安裝包選擇：targetSdk 28 預設直接執行，targetSdk 36 經系統載入器執行（重啟閘道生效）。
+3159	允許停止非白名單背景應用（需 Shizuku）
+3160	執行重負載命令（<code>cc-mem run -- 命令</code>）前清理背景應用；保留前景、分割畫面、常駐通知應用（代理/音樂）、桌面、輸入法、無障礙、VPN、Shizuku 與白名單。
+3161	預設永久保留本機會話，僅手動刪除時移入回收站。
+3162	特權命令不再逐條確認（風險自負）：限期內免彈窗直接執行 Shizuku 命令；涉及本應用與 Shizuku 自身仍盡量攔截，但無法攔住所有繞過寫法。單工作階段放行可在確認框勾選
+3163	預設 targetSdk 28 相容性最佳；新機型拒裝時自動切換 targetSdk 36，覆蓋安裝不丟資料。
+3164	Antigravity CLI 靜默更新；新版應用下載後提示安裝（有 Shizuku 時空閒自動裝）；工具包僅在 Wi‑Fi 預下載，下次啟動安裝。
+3165	每 3 小時拉取簽章維護提示（純靜態請求，不含本機資訊）；關閉後不再請求。
+3166	預設關閉：僅當官方源與鏡像均不可達時經第三方代理下載（代理可見公網 IP；安裝包仍強制校驗雜湊與簽章）。
+3167	匯出去識別化日誌與環境狀態（不含金鑰、信箱與對話內容），便於排查或附入 Issue。
+3168	匯出診斷包
+3169	開啟新建 Issue 頁面並預填機型、系統版本與自檢結果（不含日誌與對話）。
+3170	重置使用者級設定、應用設定與 shell 啟動檔案，原檔案備份至 ~/.ccapp-reset；會話、工作區與工具包保留（金鑰預設保留）。
+3171	偵測編譯器、Python、Node、git 等可用狀態並同步給 Antigravity（更新後自動重測）。
+3172	介面載入失敗，點此重試
+3173	儲存不呼叫遠端模型，也不切換目前工作階段。
+3174	Antigravity CLI 程式核驗沒過，這次沒有執行：{why}
+3175	目前引擎 (Antigravity CLI) 暫不支援檔案檢查點回退
+3176	目前引擎 (Antigravity CLI) 暫不支援外掛市集管理
+3177	目前引擎 (Antigravity CLI) 暫不支援此 MCP 子命令
+3178	MCP 設定不是合法的 JSON
+3179	共享目錄 /sdcard/hachimia
+3180	模型「{model}」設定被 agent 拒絕（{msg}），已按預設執行。

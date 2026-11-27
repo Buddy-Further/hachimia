@@ -114,8 +114,7 @@ test("R-08 cc-seal.mjs 终端前缀写 hachimia，不写 cccodroid", () => {
   assert.match(s, /hachimia: \$\{flag\} 在发行版里不能用/);
 });
 
-test("R-08 guard 协议前缀与 run.mjs 同步改成 hachimia-guard，拒写句同步", () => {
-  assert.match(read("gateway/guard/cc-guard.mjs"), /hachimia-guard\|\$\{b\.cat\}\|\$\{b\.what\}\. hachimia refuses to write this/);
+test("R-08 guard 协议前缀与 run.mjs 同步改成 hachimia-guard", () => {
   assert.match(read("gateway/guard/cc-guard.mjs"), /hachimia-guard\|\$\{r\.cat\}\|\$\{r\.what\}/);
   assert.doesNotMatch(read("gateway/guard/cc-guard.mjs"), /cccodroid-guard/);
   assert.doesNotMatch(read("gateway/guard/cc-guard.mjs"), /cccodroid refuses to write this/);

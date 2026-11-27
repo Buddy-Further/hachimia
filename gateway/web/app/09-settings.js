@@ -118,6 +118,7 @@
   // ── 端侧小模型卡：llama.cpp 装没装、有没有 GPU、模型目录里有哪些、聊天 / 自定义模式、服务状态 ──
   let localCardSeq = 0;
   async function renderLocalCard(box, p) {
+    if (state.provView !== p.id) return;
     const seq = ++localCardSeq;
     box.innerHTML = `<div class="sub">${esc(pLabel(p))}</div><div class="tiny">${t("读取中…")}</div>`;
     let j;
@@ -172,18 +173,27 @@
         const j = await post("/api/local/model", { op: "remove", id }).catch((e2) => ({ ok: false, message: e2.message }));
         if (j && j.ok === false) return toast(t("删除失败：{msg}", { msg: j.message || "?" }), true);
         toast(t("已删除模型「{id}」", { id }));
+        if (state.provView !== p.id || seq !== localCardSeq) return;
         return renderLocalCard(box, p);
       }
       const act = e.target.dataset && e.target.dataset.act;
       if (act === "use") return useProvider(p);
       if (act === "refresh") return renderLocalCard(box, p);
-      if (act === "stop") { await post("/api/local", { stop: true }).catch((e2) => toast(e2.message, true)); return renderLocalCard(box, p); }
+      if (act === "stop") {
+        await post("/api/local", { stop: true }).catch((e2) => toast(e2.message, true));
+        if (state.provView !== p.id || seq !== localCardSeq) return;
+        return renderLocalCard(box, p);
+      }
       if (act === "copy") { copyText(cmdText); return toast(t("已复制")); }
     };
     box.querySelectorAll('input[name="lm"]').forEach((r) => r.addEventListener("change", async () => {
       // 失败只报错，单选按网关的真实状态重画；不能接着说「已切换」（#177-8）
       const j = await post("/api/local", { mode: r.value }).catch((e2) => ({ ok: false, message: e2.message }));
-      if (j && j.ok === false) { toast(j.message || t("保存失败"), true); return renderLocalCard(box, p); }
+      if (j && j.ok === false) {
+        toast(j.message || t("保存失败"), true);
+        if (state.provView === p.id && seq === localCardSeq) renderLocalCard(box, p);
+        return;
+      }
       toast(t("已切换（下一条消息生效）"));
     }));
   }
@@ -390,15 +400,21 @@
     };
   }
   async function startLogin(p, method) {
-    const mine = $("login-state"), live = () => mine.isConnected && state.provView === p.id;   // 同 renderLoginCard（审查 #52 D-06）
+    const mine = $("login-state"), live = () => mine && mine.isConnected && state.provView === p.id;   // 同 renderLoginCard（审查 #52 D-06）
+    if (!live()) return;
     mine.className = "prov-state";
     mine.textContent = t("正在启动登录…");
     state.loginMethod = method;   // 重进卡片时 paintLoginFlow 要用（终端的入口按它区分 personal/enterprise）
     let r;
-    try { r = await post("/api/login/start", { method }); } catch (e) { return toast(e.message, true); }
+    try { r = await post("/api/login/start", { method }); }
+    catch (e) {
+      toast(e.message, true);
+      if (live()) { mine.className = "prov-state err"; mine.textContent = "✗ " + (e.message || t("启动失败")); paintLoginFlow("", method); }
+      return;
+    }
     if (!r.ok) {
       // 起不来 / 拿不到地址：给原因，也给终端登录入口，别让用户只剩重试（0.6.9 审计 195-G.4）
-      if (live()) { mine.textContent = "✗ " + (r.message || t("启动失败")); paintLoginFlow("", method); }
+      if (live()) { mine.className = "prov-state err"; mine.textContent = "✗ " + (r.message || t("启动失败")); paintLoginFlow("", method); }
       return;
     }
     // 20 秒没拿到地址时后端回 pending（不是失败）：界面继续轮询，晚到的地址补开（0.6.9 审计 195-G.4）
@@ -451,7 +467,7 @@
     try {
       const r = await post("/api/login/logout").catch((e) => ({ ok: false, output: e.message }));
       toast(r.ok ? t("已退出登录") : t("退出失败：{msg}", { msg: r.output || r.message || "" }), !r.ok);
-      renderProvCard();
+      if (state.provView === p.id) renderProvCard();
       // 退出成功后顶栏 / 用量页的额度要跟着撤掉，不能留着上一个账户的数（195-O.9）
       if (r.ok) { refreshStatus(); qbLoad(); loadQuota().catch(() => {}); }
     } finally { logout._busy = false; }

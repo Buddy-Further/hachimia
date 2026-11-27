@@ -94,6 +94,8 @@
     if (!fsHere() && !fsPending()) { $("fs-search").value = state.fs.q; return; }
     fsTypedSeq++;
     state.fs.q = v;
+    // 目录切换加载在途时，state.fs.path/qRemote 仍指向旧目录：只记录新搜索词，等新目录落定后再过滤，避免拿旧路径重发 fsLoad 顶掉新目录
+    if (fsPending() && !fsHere()) return;
     if (!v) {
       if (state.fs.qRemote) return fsLoad(state.fs.path, { keepSel: true, keepQ: true });
       return renderFs();

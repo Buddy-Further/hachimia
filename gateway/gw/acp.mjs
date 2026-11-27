@@ -25,7 +25,8 @@ import { noteAuthTier } from "./login.mjs";
 import { acpAgentSpawn, acpAgentDone, acpAgentMsg, acpAgentMsgOk } from "./agents.mjs";
 import { parseGoalPrompt, applyGoalCommand } from "./goal.mjs";
 import { nowTicks, procStart } from "./leftover.mjs";
-import { breachWrite, judge } from "../guard/cc-guard.mjs";
+import { checkSession, sealSession, sessionAnchor } from "./integrity.mjs";
+import { judge } from "../guard/cc-guard.mjs";
 
 export const ACP_PROTOCOL_VERSION = 1;
 const ACP_IDLE_TTL_MS = Number(process.env.CCAPP_ACP_IDLE_MS) > 0 ? Number(process.env.CCAPP_ACP_IDLE_MS) : 30 * 60e3;
@@ -1488,11 +1489,16 @@ export function resolveAcpToolName(upd, input) {
   const runTitle = /^run\s+([A-Za-z0-9_.:-]+)$/i.exec(title);
   if (runTitle) return runTitle[1];
   const fileTarget = typeof inp.Path === "string" && inp.Path.trim() ? inp.Path.trim()
-    : (typeof inp.TargetFile === "string" && inp.TargetFile.trim() ? inp.TargetFile.trim() : "");
+    : (typeof inp.TargetFile === "string" && inp.TargetFile.trim() ? inp.TargetFile.trim()
+      : (typeof inp.file_path === "string" && inp.file_path.trim() ? inp.file_path.trim() : ""));
   if (fileTarget) {
-    if (inp.Target !== undefined || inp.Replacement !== undefined || inp.TargetContent !== undefined || inp.ReplacementContent !== undefined || Array.isArray(inp.ReplacementChunks)) return "edit_file";
-    if (inp.Content !== undefined || inp.CodeContent !== undefined || inp.Overwrite !== undefined) return "write_file";
-    if (kind === "read" || /^read\b/i.test(title) || !title || /[\r\n]/.test(title) || title.length > 40) return "read_file";
+    if (Array.isArray(inp.ReplacementChunks) || Array.isArray(inp.edits)) return "multi_replace_file_content";
+    if (inp.Target !== undefined || inp.Replacement !== undefined || inp.TargetContent !== undefined || inp.ReplacementContent !== undefined || inp.old_string !== undefined || inp.new_string !== undefined) return "edit_file";
+    if (inp.Content !== undefined || inp.CodeContent !== undefined || inp.content !== undefined || inp.Overwrite !== undefined) return "write_file";
+    const lk = kind.toLowerCase();
+    if (lk === "write") return "write_file";
+    if (lk === "edit") return "edit_file";
+    if (lk === "read" || /^read\b/i.test(title) || !title || /[\r\n]/.test(title) || title.length > 40) return "read_file";
   }
   if (typeof inp.query === "string" && !inp.url && (!title || /\s/.test(title) || title.length > 40)) return "search_web";
   if (Array.isArray(inp.questions) && (!title || /\s/.test(title) || title.length > 40)) return "ask_question";
@@ -2490,7 +2496,7 @@ function isAcpHumanTool(...names) {
   return false;
 }
 
-/** 将 ACP 工具名与 rawInput 适配为 cc-guard（breachWrite / judge）期望的 Claude 工具形状（2.1） */
+/** 将 ACP 工具名与 rawInput 适配为 cc-guard（judge）期望的 Claude 工具形状（2.1） */
 export function acpToGuardInput(toolTitle, tcInput, { toolRaw = "", toolKind = "" } = {}) {
   const inp = tcInput && typeof tcInput === "object" ? tcInput : {};
   const rawStr = String(toolRaw || "").trim();
@@ -2504,13 +2510,12 @@ export function acpToGuardInput(toolTitle, tcInput, { toolRaw = "", toolKind = "
   const filePath = inp.file_path ?? inp.TargetFile ?? inp.Path ?? inp.AbsolutePath ?? inp.path ?? "";
   const searchPath = inp.SearchPath ?? inp.SearchDirectory ?? inp.DirectoryPath ?? inp.path ?? inp.Path ?? inp.file_path ?? "";
 
-  if (ACP_TOOL_EXEC.has(n) || /^run\s+(?:command|shell)/i.test(n) || k === "execute") {
+  if (ACP_TOOL_EXEC.has(n) || /^run\s+(?:command|shell)/i.test(n) || k === "execute"
+    || typeof inp.CommandLine === "string" || typeof inp.command === "string" || typeof inp.cmd === "string") {
     return { tool: "Bash", input: { command: inp.CommandLine ?? inp.command ?? inp.cmd ?? "" } };
   }
-  if (n === "write_file" || n === "write file" || n === "write" || n === "write_to_file") {
-    return { tool: "Write", input: { file_path: filePath, content: inp.CodeContent ?? inp.Content ?? inp.content ?? "" } };
-  }
-  if (n === "multi_replace_file_content" || n === "multiedit") {
+  // 优先按真实载荷结构判定写/改工具，避免展示用 toolTitle 丢弃 ReplacementChunks/edits 或把长标题写入降级为 Read
+  if (Array.isArray(inp.edits) || Array.isArray(inp.ReplacementChunks) || n === "multi_replace_file_content" || n === "multiedit") {
     const edits = Array.isArray(inp.edits)
       ? inp.edits
       : (Array.isArray(inp.ReplacementChunks)
@@ -2521,16 +2526,6 @@ export function acpToGuardInput(toolTitle, tcInput, { toolRaw = "", toolKind = "
         : []);
     return { tool: "MultiEdit", input: { file_path: filePath, edits } };
   }
-  if (n === "edit_file" || n === "replace_file_content" || n === "edit file" || n === "replace file" || n === "edit") {
-    return {
-      tool: "Edit",
-      input: {
-        file_path: filePath,
-        old_string: inp.TargetContent ?? inp.Target ?? inp.old_string ?? "",
-        new_string: inp.ReplacementContent ?? inp.Replacement ?? inp.new_string ?? "",
-      },
-    };
-  }
   if (n === "notebookedit") {
     return {
       tool: "NotebookEdit",
@@ -2540,6 +2535,25 @@ export function acpToGuardInput(toolTitle, tcInput, { toolRaw = "", toolKind = "
       },
     };
   }
+  if (inp.ReplacementContent !== undefined || inp.Replacement !== undefined || inp.new_string !== undefined
+    || inp.TargetContent !== undefined || inp.Target !== undefined || inp.old_string !== undefined
+    || n === "edit_file" || n === "replace_file_content" || n === "edit file" || n === "replace file" || n === "edit") {
+    return {
+      tool: "Edit",
+      input: {
+        file_path: filePath,
+        old_string: inp.TargetContent ?? inp.Target ?? inp.old_string ?? "",
+        new_string: inp.ReplacementContent ?? inp.Replacement ?? inp.new_string ?? "",
+      },
+    };
+  }
+  if (inp.CodeContent !== undefined || inp.Content !== undefined || inp.content !== undefined
+    || n === "write_file" || n === "write file" || n === "write" || n === "write_to_file" || k === "write") {
+    return { tool: "Write", input: { file_path: filePath, content: inp.CodeContent ?? inp.Content ?? inp.content ?? "" } };
+  }
+  if (k === "edit") {
+    return { tool: "Edit", input: { file_path: filePath, old_string: "", new_string: "" } };
+  }
   if (n === "read_file" || n === "read file" || n === "read" || n === "view_file" || n === "view_file_outline" || n === "view_code_item" || /^read\b/i.test(n)) {
     return { tool: "Read", input: { file_path: filePath } };
   }
@@ -2548,23 +2562,6 @@ export function acpToGuardInput(toolTitle, tcInput, { toolRaw = "", toolKind = "
   }
   if (n === "find_by_name" || n === "list_dir" || n === "glob") {
     return { tool: "Glob", input: { path: searchPath, pattern: inp.Pattern ?? inp.pattern ?? "", glob: inp.glob ?? "" } };
-  }
-
-  // 字段兜底：遇到描述性标题（如 "Write ~/.claude/..."）按入参形状与 kind 兜底映射
-  if (typeof inp.CommandLine === "string" || typeof inp.command === "string" || typeof inp.cmd === "string") {
-    return { tool: "Bash", input: { command: inp.CommandLine ?? inp.command ?? inp.cmd ?? "" } };
-  }
-  if (Array.isArray(inp.edits) || Array.isArray(inp.ReplacementChunks)) {
-    const edits = Array.isArray(inp.edits)
-      ? inp.edits
-      : inp.ReplacementChunks.map((c) => ({ old_string: c?.TargetContent ?? c?.Target ?? "", new_string: c?.ReplacementContent ?? c?.Replacement ?? "" }));
-    return { tool: "MultiEdit", input: { file_path: filePath, edits } };
-  }
-  if (inp.ReplacementContent !== undefined || inp.Replacement !== undefined || inp.new_string !== undefined || inp.TargetContent !== undefined || inp.Target !== undefined) {
-    return { tool: "Edit", input: { file_path: filePath, old_string: inp.TargetContent ?? inp.Target ?? inp.old_string ?? "", new_string: inp.ReplacementContent ?? inp.Replacement ?? inp.new_string ?? "" } };
-  }
-  if (inp.CodeContent !== undefined || inp.Content !== undefined || inp.content !== undefined || k === "write" || k === "edit") {
-    return { tool: "Write", input: { file_path: filePath, content: inp.CodeContent ?? inp.Content ?? inp.content ?? "" } };
   }
   return {
     tool: "Read",
@@ -2824,17 +2821,8 @@ export async function runAcpTurn({
             : { outcome: { outcome: "cancelled" } };
         }
 
-        // 2.1：复用 cc-guard 审查破甲写入（breachWrite 直接拒绝）与敏感操作 / 人工问题（bypassPermissions 下也不得自动放行）
+        // 2.1：复用 cc-guard 审查敏感操作与人工问题（bypassPermissions 下也不得自动放行）
         const guardPair = acpToGuardInput(toolTitle, tcInput, { toolRaw, toolKind });
-        const breachHit = breachWrite(guardPair.tool, guardPair.input);
-        if (breachHit) {
-          log(`[agy-acp] cc-guard breachWrite 拦截工具: ${toolTitle} (${breachHit.what})`);
-          if (run) (run.denied ||= []).push(toolTitle);
-          emit?.({ type: "note", key: "acp-guard-breach", text: tz("拒绝写入可能影响下一轮安全性的内容：{what}", { what: breachHit.what }) });
-          return rejectOpt
-            ? { outcome: { outcome: "selected", optionId: rejectOpt.optionId } }
-            : { outcome: { outcome: "cancelled" } };
-        }
         const guardHit = judge(guardPair.tool, guardPair.input);
         const isHumanTool = isAcpHumanTool(toolTitle, toolRaw, rawTitle);
 
@@ -4007,6 +3995,12 @@ export async function runAcpTurn({
           }
           entry.knownToolIds.add(tool.id);
         }
+        const hasIdleData = !!(activeSessionId && (b.state.text || b.state.thinking || b.state.tools.size));
+        const idleFile = hasIdleData ? acpSessionFile(entry.cwd, activeSessionId) : null;
+        if (idleFile) {
+          try { checkSession(activeSessionId, idleFile); } catch {}
+        }
+        const idleAnchor = idleFile ? sessionAnchor(idleFile) : null;
         persistAcpAssistantOnly({
           cwd: entry.cwd,
           sessionId: activeSessionId,
@@ -4016,6 +4010,9 @@ export async function runAcpTurn({
           model: entry.model,
           usage: b.state.usage,
         });
+        if (idleFile) {
+          try { sealSession(activeSessionId, idleFile, { base: idleAnchor }); } catch (e) { log(`[agy-acp] 空闲落盘封签失败: ${e.message}`); }
+        }
         if (b.state.usage) {
           entry.lastUsage = b.state.usage;
           if (Number(b.state.usage.context_tokens) > 0) entry.lastContextTokens = Number(b.state.usage.context_tokens);
@@ -4343,7 +4340,7 @@ export async function runAcpTurn({
                 : { outcome: { outcome: "cancelled" } };
             }
             const gPair = acpToGuardInput(toolTitle, tcInput, { toolRaw, toolKind });
-            if (breachWrite(gPair.tool, gPair.input) || judge(gPair.tool, gPair.input) || isAcpHumanTool(toolTitle, toolRaw, rawTitle)) {
+            if (judge(gPair.tool, gPair.input) || isAcpHumanTool(toolTitle, toolRaw, rawTitle)) {
               return rejectOpt
                 ? { outcome: { outcome: "selected", optionId: rejectOpt.optionId } }
                 : { outcome: { outcome: "cancelled" } };
@@ -4412,6 +4409,7 @@ export async function runAcpTurn({
         if (prev && prev !== entry) closeAcpSession(activeSessionId);
         armIdleGc();
         ACP_POOL.set(activeSessionId, entry);
+        if (run) run.acpPooledPid = entry.client?.child?.pid || 0;
         armBgShellWatch();
         // 最多保留 6 个空闲常驻会话，超出先清最久未用且无后台任务的，尽量不误杀后台子代理
         if (ACP_POOL.size > 6) {

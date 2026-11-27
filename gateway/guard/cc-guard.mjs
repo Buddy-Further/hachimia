@@ -31,7 +31,8 @@ const SECRETS = [
   [/\.git-credentials\b/, "git credentials"],
   [/(?:^|[\/\s"'=~@<>:])\.netrc\b/, ".netrc credentials"],
   [/\.claude\/\.credentials\.json\b/, "Claude login credentials"],
-  [/\.gemini\/antigravity-cli\/(?:\.?credentials|oauth_creds|google_accounts|plugin-secrets|mcp-oauth-tokens|auth)[\w.-]*\.json\b/, "Antigravity CLI credentials"],
+  [/\.gemini\/antigravity-cli\/(?:(?:\.?credentials|oauth_creds|google_accounts|plugin-secrets|mcp-oauth-tokens|auth|session)[\w.-]*\.json\b|accounts(?:\/|\b))/, "Antigravity CLI credentials"],
+  [/(?:^|[\/\s"'=~@<>:])(?:\.config\/antigravity|\.antigravity)(?:\/|\b)/, "Antigravity CLI credentials"],
   [/\.(?:keystore|jks|p12|pfx)\b/, "signing keystore"],
   [/[\w-]\.(?:pem|key)(?=$|[\s"'\/;|&)])/, "private key file"],
   [/(?:^|[\/\s"'=~@<>:])\.(?:npmrc|pypirc)\b/, "package registry token"],
@@ -96,33 +97,7 @@ const DEVICE = {
   clipboard_read: "device:clipboard", share_file: "device:share",
 };
 
-// 破甲特征（gw/breach.mjs）：网关挂钩子时把核过的那份源码拼在本文件前面（见 gw/claude.mjs guardSource）；单独跑本文件时现加载
-let scanTextFn = typeof scanText === "function" ? scanText : null;   // eslint-disable-line no-undef
-if (!scanTextFn) try { ({ scanText: scanTextFn } = await import(new URL("../gw/breach.mjs", import.meta.url))); } catch {}
-
-// 会进下一轮上下文的文字：CLAUDE.md、GEMINI.md、.claude/.gemini 底下的说明 / skill / 命令 / 记忆。往里写破甲内容当场拒绝（不是问）：
-// 发行版下一轮起进程前也会查到、整轮不跑，这里提前挡住，别让模型把自己下一轮堵死（见 gw/seal.mjs）
-const CONTEXT_PATH = /(?:^|[\/\s"'=>])(?:CLAUDE|GEMINI)(?:\.local)?\.md\b|\.claude\/|\.gemini\/antigravity-cli\/|\/memory\/[^\s"']*\.md\b/;
-function written(tool, inp) {
-  if (!inp || typeof inp !== "object") return [];
-  if (tool === "Write") return [inp.content];
-  if (tool === "Edit") return [inp.new_string];
-  if (tool === "MultiEdit") return Array.isArray(inp.edits) ? inp.edits.map((e) => e && e.new_string) : [];
-  if (tool === "NotebookEdit") return [inp.new_source];
-  if (tool === "Bash") return [inp.command];
-  return [];
-}
-export function breachWrite(tool, inp) {
-  if (!scanTextFn || !WRITERS.has(tool) || !inp || typeof inp !== "object") return null;
-  const target = tool === "Bash" ? inp.command : (inp.file_path || inp.notebook_path);
-  if (typeof target !== "string" || !CONTEXT_PATH.test(target)) return null;
-  for (const t of written(tool, inp)) {
-    if (typeof t !== "string" || !t) continue;
-    const r = scanTextFn(t);
-    if (r.blocked) { const h = r.hits.find((x) => x.strong) || r.hits[0]; return { cat: "breach", what: "jailbreak-style text into Claude Code config or memory: " + (h ? h.excerpt.slice(0, 60) : "") }; }
-  }
-  return null;
-}
+// 注：已移除破甲文本正则检查（breach.mjs），保留凭据、敏感配置与设备操作确认规则。
 
 function strings(tool, inp) {
   if (!inp || typeof inp !== "object") return [];
@@ -192,12 +167,6 @@ export function runHook() {
   try {
     const ev = JSON.parse(fs.readFileSync(0, "utf8"));
     if (!ev || typeof ev !== "object") throw new Error("not an object");
-    const b = breachWrite(ev.tool_name, ev.tool_input);
-    if (b) {
-      process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny",
-        permissionDecisionReason: `hachimia-guard|${b.cat}|${b.what}. hachimia refuses to write this; it would block the next run.` } }));
-      process.exit(0);
-    }
     r = judge(ev.tool_name, ev.tool_input);
   } catch (e) { r = { cat: "error", what: "guard error: " + String(e && e.message || e).slice(0, 80) }; }
   try { if (r) ask(r); } catch {}

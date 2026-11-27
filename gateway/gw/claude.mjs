@@ -16,13 +16,13 @@ import { sealArgv, sealEnv, sealed } from "./edition.mjs";
 import { claudeSeal } from "./claudeseal.mjs";
 import { gwRuntimeBlocked } from "./gwpin.mjs";
 import { sessionRetention } from "./retention.mjs";
+import { ucAppBegin, ucAppWrote } from "./userconf.mjs";
 
 // 敏感操作再确认：PreToolUse 钩子（guard/cc-guard.mjs），碰密钥 / 读屏点按 / 往外分享时让 claude 停下来问，全部放行也一样。
 // 不设全局关闭开关：整层关掉就等于没有；旧设置里存过 guard:false 也不再认。要放行就在确认卡片上逐次「允许」。
 // 钩子不读盘上的文件：部署出来的网关用启动时核过、存在内存里的那份源码（appfiles.mjs），整段经 node -e 跑，
 // 跑着的时候盘上那份被改了也换不掉正在挂的这一层。开发时（没有 FILES）照旧现读仓库里的。
 const GUARD_CLI = fileURLToPath(new URL("../guard/cc-guard.mjs", import.meta.url));
-const BREACH_SRC = fileURLToPath(new URL("./breach.mjs", import.meta.url));
 // 部署出来的（有 APP）只认核过的：快照里没有（启动时就对不上）就按清单现读现核，对不上返回 BAD，不回退读盘
 // （0.6.9 审计 200-14-05：以前快照缺了就读盘，核完到加载前被换的那份照样挂上）
 const BAD = Symbol("bad");
@@ -34,10 +34,7 @@ export function guardSource(app = APP) {
   const src = appText(app, "guard/cc-guard.mjs", GUARD_CLI);
   if (src === BAD) return BAD;
   if (src == null) return null;
-  // 破甲特征检查拼在前面（guard 拦往配置 / 记忆里写破甲内容，见 cc-guard.mjs breachWrite）。同样用核过的那份；去掉 export 才能当脚本跑
-  const br = appText(app, "gw/breach.mjs", BREACH_SRC);
-  if (br === BAD) return BAD;
-  return (br || "").replace(/^export /gm, "") + "\n" + src.replace(/^#!.*\n/, "") + "\nrunHook();\n";
+  return src.replace(/^#!.*\n/, "") + "\nrunHook();\n";
 }
 /** 构造 guardHooks() 所用的 Node 命令前缀：
  *  优先锁定受 GwRuntime 核验的 files/gw/node 与 LD_LIBRARY_PATH=files/gw（兼容 targetSdk 28 直跑与
@@ -74,8 +71,8 @@ export function guardHooks(app = APP, env = process.env) {
   const matcher = "Bash|Read|Edit|Write|MultiEdit|NotebookEdit|Grep|Glob|mcp__device__.*";
   if (src === BAD) {
     // 核不过：这一层不能换成别的，也不能整层不挂。挂一个一律拦下的（PreToolUse 退出码 2 = 不许用），等空闲重启按安装包还原
-    log("⚠️ [应用文件] guard / breach.mjs 和安装包对不上，敏感工具这一轮一律拦下");
-    app?.restart("guard/cc-guard.mjs 或 gw/breach.mjs（和安装包对不上）");
+    log("⚠️ [应用文件] guard/cc-guard.mjs 和安装包对不上，敏感工具这一轮一律拦下");
+    app?.restart("guard/cc-guard.mjs（和安装包对不上）");
     const deny = "process.stderr.write('hachimia: the safety check could not be verified against the installed package; this tool is blocked until the app restores it.');process.exit(2)";
     return [{ matcher, hooks: [{ type: "command", command: nodeCmd + " -e " + q(deny), timeout: 10 }] }];
   }
@@ -848,6 +845,7 @@ export function syncAgySettings(p = PROVIDER, key = keyOf(p)) {
     if ("customModelsConfig" in obj) { delete obj.customModelsConfig; changed = true; }
   }
   if (changed) {
+    const ucb = ucAppBegin();
     try {
       fs.mkdirSync(dir, { recursive: true });
       // A14：原子写——先写同目录临时文件（随机名、0600、独占创建），fsync 后 rename。
@@ -860,6 +858,9 @@ export function syncAgySettings(p = PROVIDER, key = keyOf(p)) {
         fs.fsyncSync(fd);
       } finally { fs.closeSync(fd); }
       try { fs.renameSync(tmp, file); } catch (e) { try { fs.rmSync(tmp, { force: true }); } catch {} throw e; }
+      ucAppWrote([".gemini/antigravity-cli/settings.json"], ucb, {
+        ".gemini/antigravity-cli/settings.json": ["modelProvider", "customModelsConfig"],
+      });
     } catch (e) {
       log(`[agy] 写入 settings.json 失败: ${e.message}`);
       return { file, isApiKey, error: `写入 settings.json 失败：${e.message}` };

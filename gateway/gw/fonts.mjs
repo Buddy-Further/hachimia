@@ -193,8 +193,9 @@ export async function routeFonts(req, res, u, p) {
     const list = load(), i = list.findIndex((f) => f.id === b.id);
     if (i < 0) return sendJson(res, 404, { error: "not found" });
     const [f] = list.splice(i, 1);
+    try { save(list); }
+    catch (e) { return sendJson(res, 500, { ok: false, error: "write_failed", message: e.message }); }
     try { fs.unlinkSync(fileOf(f)); } catch {}
-    save(list);
     log(`[fonts] 删除 ${f.file}（${f.id}）`);
     return sendJson(res, 200, { ok: true });
   }

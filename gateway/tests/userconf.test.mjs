@@ -18,7 +18,7 @@ import { SETTINGS, outputStyles, saveSettings, settingsDiskCheck } from "../gw/s
 const H = (rel) => path.join(CFG.home, rel);
 const put = (rel, s) => { fs.mkdirSync(path.dirname(H(rel)), { recursive: true }); fs.writeFileSync(H(rel), s); };
 function fresh() {
-  for (const r of [".claude", ".claude.json", ".ccapp-userconf", "ccapp-userconf.json"]) fs.rmSync(H(r), { recursive: true, force: true });
+  for (const r of [".claude", ".claude.json", ".gemini", ".ccapp-userconf", "ccapp-userconf.json"]) fs.rmSync(H(r), { recursive: true, force: true });
   _ucReset();
 }
 

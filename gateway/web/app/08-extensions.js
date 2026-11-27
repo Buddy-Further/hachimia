@@ -1381,7 +1381,7 @@
   syncMcpIpTip();
   // ── MCP 编辑模式：mcpEdit = null 是添加；有值 = 正在编辑这条（名字和点掉的键存这里，表单字段直接读）──
   // 值（令牌等）不回到表单：留空 = 保留原值，要换就填新的；点掉 chip 的键会从配置里删掉。
-  let mcpEdit = null;
+  let mcpEdit = null, mcpSaving = false, mcpEditSeq = 0;
   const endMcpEdit = () => {
     mcpEdit = null;
     ["ext-mcp-name", "ext-mcp-target", "ext-mcp-env"].forEach((id) => ($(id).value = ""));
@@ -1405,8 +1405,11 @@
     box.classList.toggle("hidden", !env.length && !hdr.length);
   };
   const openMcpEdit = async (name) => {
+    if (mcpSaving) return;
     if (mcpEdit) endMcpEdit();
+    const seq = ++mcpEditSeq;
     const r = await api(`/api/ext/mcp/get?name=${encodeURIComponent(name)}`).catch((e) => ({ ok: false, message: e.message }));
+    if (seq !== mcpEditSeq || mcpSaving) return;
     if (!r.ok) return toast(t("打不开编辑：{msg}", { msg: r.message || "" }), true);
     mcpEdit = { name: r.name, fullEnv: r.envNames || [], fullHdr: r.headerNames || [], dropEnv: new Set(), dropHdr: new Set() };
     $("ext-mcp-addbox").open = true;
@@ -1436,9 +1439,11 @@
     const it = mcpEditTarget(e);
     if (it) openMcpEdit(it.dataset.mcp);
   });
-  $("ext-mcp-cancel").addEventListener("click", endMcpEdit);
+  $("ext-mcp-cancel").addEventListener("click", () => { if (mcpSaving) return; mcpEditSeq++; endMcpEdit(); });
   $("ext-mcp-save").addEventListener("click", async () => {
-    if (!mcpEdit) return;
+    if (!mcpEdit || mcpSaving) return;
+    const btn = $("ext-mcp-save");
+    if (btn.disabled) return;
     const transport = $("ext-mcp-tr").value;
     // 请求头的值本身可能带英文逗号：有换行就按行分（一行一条），没换行才退回逗号（195-J.11）
     const raw = $("ext-mcp-env").value;
@@ -1457,14 +1462,22 @@
       const keep = mcpEdit.fullHdr.filter((k) => !mcpEdit.dropHdr.has(k));
       if (keep.length && !confirm(t("stdio 不保存请求头：{names} 会被丢掉，继续吗？", { names: keep.join("、") }))) return;
     }
-    const body = { name: mcpEdit.name, newName: $("ext-mcp-name").value.trim(), transport, target: $("ext-mcp-target").value.trim(),
-      env: envLike, headers: hdrLike, dropEnv: [...mcpEdit.dropEnv], dropHeaders: [...mcpEdit.dropHdr] };
-    const btn = $("ext-mcp-save");
+    const editing = mcpEdit;
+    const body = { name: editing.name, newName: $("ext-mcp-name").value.trim(), transport, target: $("ext-mcp-target").value.trim(),
+      env: envLike, headers: hdrLike, dropEnv: [...editing.dropEnv], dropHeaders: [...editing.dropHdr] };
+    mcpSaving = true;
     btn.disabled = true;
-    const r = await post("/api/ext/mcp/edit", body).catch((e) => ({ ok: false, message: e.message }));
-    btn.disabled = false;
-    toast(r.ok ? t("已保存修改 {name}", { name: body.newName }) : t("编辑失败：{msg}", { msg: r.message || "" }), !r.ok);
-    if (r.ok) { endMcpEdit(); loadExtMcp(); }
+    try {
+      const r = await post("/api/ext/mcp/edit", body).catch((e) => ({ ok: false, message: e.message }));
+      toast(r.ok ? t("已保存修改 {name}", { name: body.newName }) : t("编辑失败：{msg}", { msg: r.message || "" }), !r.ok);
+      if (r.ok) {
+        if (mcpEdit === editing) endMcpEdit();
+        loadExtMcp();
+      }
+    } finally {
+      mcpSaving = false;
+      btn.disabled = false;
+    }
   });
   $("ext-mcp-add").addEventListener("click", async () => {
     const btn = $("ext-mcp-add");
@@ -1564,11 +1577,12 @@
     const x = b.dataset.x, id = b.dataset.id;
     if (x === "install") return installPlugin(id, b);
     if (x === "mcp-edit") {
+      if (mcpSaving) return;
       await openMcpEdit(id);
       return;
     }
     if (x === "mcp-drop") {
-      if (!mcpEdit) return;
+      if (!mcpEdit || mcpSaving) return;
       (b.dataset.which === "env" ? mcpEdit.dropEnv : mcpEdit.dropHdr).add(b.dataset.k);
       return renderMcpCur();
     }
@@ -1786,7 +1800,7 @@
 
 
   // ── 常用指令（0.4.20）：commands 目录里的 <名字>.md，两个范围（所有项目 / 本项目），和 Hooks 那节一样用小标签切 ──
-  const UC = { data: null, scope: localStorage.getItem("cc.cmdScope") || "user", edit: null };
+  const UC = { data: null, scope: localStorage.getItem("cc.cmdScope") || "user", edit: null, saving: false };
   const ucScope = () => UC.data && UC.data.scopes.find((s) => s.scope === UC.scope);
   async function loadExtCmds() {
     const ok = extLatest("ext-cmds");
@@ -1841,43 +1855,45 @@
     q(c ? "body" : "name").focus({ preventScroll: true });
   }
   function ucClose() { UC.edit = null; const f = $("cmd-form"); MO.leave(f, "mo-out-fade", 170, () => { f.classList.add("hidden"); f.innerHTML = ""; }); }
-  $("ext-c-new").addEventListener("click", () => ucForm(null));
+  $("ext-c-new").addEventListener("click", () => { if (UC.saving) return; ucForm(null); });
   $("ext-cmd-sec").addEventListener("click", async (e) => {
     const chip = e.target.closest("[data-cscope]");
-    if (chip) { UC.scope = chip.dataset.cscope; localStorage.setItem("cc.cmdScope", UC.scope); if (UC.edit != null) ucClose(); return renderCmds(); }
+    if (chip) { if (UC.saving) return; UC.scope = chip.dataset.cscope; localStorage.setItem("cc.cmdScope", UC.scope); if (UC.edit != null) ucClose(); return renderCmds(); }
     const b = e.target.closest("[data-uc]"); if (!b) return;
     const sc = ucScope(), it = b.closest(".uc-item"), c = it && sc ? sc.items[+it.dataset.i] : null;
     const act = b.dataset.uc;
     // 发行版把指令经合成插件交给 Claude，实际名字是 /user:<名字>；插入裸名会展开不了（195-J.6）
     // 插到光标处，别把还没发的草稿整个盖掉（196 输入框域；insertAtCursor 是输入框统一入口）
     if (act === "use" && c) { closePage(); insertAtCursor((UC.data.sealed ? "/user:" : "/") + c.name); inputEl.focus(); return; }
-    if (act === "edit" && c) return ucForm(c);
+    if (act === "edit" && c) { if (UC.saving) return; return ucForm(c); }
     if (act === "del" && c) {
-      if (b.disabled) return;
+      if (UC.saving || b.disabled) return;
       if (!confirm(t("删除指令 /{name}？", { name: c.name }))) return;
-      b.disabled = true;
+      UC.saving = true; b.disabled = true;
       try {
         const r = await post("/api/commands/del", { scope: UC.scope, dir: UC.data.workspace, name: c.name }).catch((err) => ({ ok: false, message: err.message }));
         if (!r.ok) return toast(r.message, true);
         if (MO.on() && it.animate) await it.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: `translateX(${MO.rtl() ? 24 : -24}px)` }], { duration: 155, easing: "cubic-bezier(.4,0,1,1)", fill: "forwards" }).finished.catch(() => {});
         await loadExtCmds(); loadCaps();
-      } finally { b.disabled = false; }
+      } finally { UC.saving = false; b.disabled = false; }
       return;
     }
-    if (act === "f-cancel") return ucClose();
+    if (act === "f-cancel") { if (UC.saving) return; return ucClose(); }
     if (act === "f-save") {
-      if (b.disabled) return;
+      if (UC.saving || b.disabled) return;
       const f = $("cmd-form"), q = (k) => f.querySelector(`[data-f="${k}"]`).value;
-      const body = { scope: UC.scope, dir: UC.data.workspace, name: q("name").trim().replace(/^\//, ""), description: q("description"), hint: q("hint"), body: q("body") };
-      if (UC.edit) { if (UC.edit !== body.name) body.oldName = UC.edit; } else body.fresh = true;
-      b.disabled = true;
+      const saveScope = UC.scope, saveEdit = UC.edit;
+      const body = { scope: saveScope, dir: UC.data.workspace, name: q("name").trim().replace(/^\//, ""), description: q("description"), hint: q("hint"), body: q("body") };
+      if (saveEdit) { if (saveEdit !== body.name) body.oldName = saveEdit; } else body.fresh = true;
+      UC.saving = true; b.disabled = true;
       try {
         const r = await post("/api/commands/save", body).catch((err) => ({ ok: false, message: err.message }));
         if (!r.ok) return toast(t("保存失败：{msg}", { msg: t(r.message || "") }), true);
         toast(t("已保存 /{name}，输入框里打 / 就能用", { name: r.name }));
-        ucClose(); await loadExtCmds(); loadCaps();
+        if (UC.scope === saveScope && UC.edit === saveEdit) ucClose();
+        await loadExtCmds(); loadCaps();
         const row = [...document.querySelectorAll("#ext-cmds .uc-item .mono")].find((x) => x.textContent === "/" + r.name);
         if (row) MO.play(row.closest(".uc-item"), "mo-in-rise", 1400);
-      } finally { b.disabled = false; }
+      } finally { UC.saving = false; b.disabled = false; }
     }
   });

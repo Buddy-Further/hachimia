@@ -34,15 +34,21 @@
     return `<pre class="perm-diff">${lines(oldS, "del")}\n${lines(newS, "add")}</pre>`;
   }
   const permToolLabel = (p) => (typeof displayToolName === "function" ? displayToolName(p?.tool, p?.input) : String(p?.tool || ""));
+  const permToolBase = (p) => (typeof baseToolName === "function"
+    ? baseToolName(p?.tool, p?.input)
+    : permToolLabel(p).replace(/^run\s+/i, "").replace(/\s*\([^)]+\)$/, "").trim());
+  const isPlanTool = (bt) => bt === "ExitPlanMode" || bt === "exit_plan_mode";
+  const isAskTool = (bt) => bt === "AskUserQuestion" || bt === "ask_question";
   function permWhat(pTool, inp) {
     const i = inp || {};
-    return (pTool === "Bash" || pTool === "run_command" || pTool === "run_shell")
+    const bt = typeof baseToolName === "function" ? baseToolName(pTool) : String(pTool || "").replace(/^run\s+/i, "").replace(/\s*\([^)]+\)$/, "").trim();
+    return (bt === "Bash" || bt === "run_command" || bt === "run_shell")
       ? (i.toolSummary || i.description || i.CommandLine || i.command || "")
       : (i.Path || i.TargetFile || i.AbsolutePath || i.ScriptPath || i.DirectoryPath || i.SearchPath || i.TargetDirectory || i.file_path || i.path || i.Url || i.url || i.Query || i.query || i.Pattern || i.pattern || "");
   }
   function permPreview(p) {
     const i = p.input || {};
-    const pTool = permToolLabel(p);
+    const pTool = permToolBase(p);
     let h = "";
     switch (pTool) {
       case "Bash":
@@ -53,11 +59,15 @@
       case "Edit":
       case "edit_file":
       case "replace_file_content":
-        h = `<div class="perm-path">${esc(i.Path || i.TargetFile || i.AbsolutePath || i.file_path || i.path || "")}</div>` + permDiffHtml(i.Target ?? i.TargetContent ?? i.old_string, i.Replacement ?? i.ReplacementContent ?? i.new_string);
+        if (Array.isArray(i.edits) || Array.isArray(i.ReplacementChunks)) {
+          h = `<div class="perm-path">${esc(i.Path || i.TargetFile || i.AbsolutePath || i.file_path || i.path || "")}</div>` + ((i.edits || i.ReplacementChunks || []).slice(0, 8).map((e) => permDiffHtml(e.old_string ?? e.TargetContent ?? e.Target, e.new_string ?? e.ReplacementContent ?? e.Replacement)).join(""));
+        } else {
+          h = `<div class="perm-path">${esc(i.Path || i.TargetFile || i.AbsolutePath || i.file_path || i.path || "")}</div>` + permDiffHtml(i.Target ?? i.TargetContent ?? i.old_string, i.Replacement ?? i.ReplacementContent ?? i.new_string);
+        }
         break;
       case "MultiEdit":
       case "multi_replace_file_content":
-        h = `<div class="perm-path">${esc(i.Path || i.TargetFile || i.AbsolutePath || i.file_path || i.path || "")}</div>` + ((i.edits || i.ReplacementChunks || []).slice(0, 8).map((e) => permDiffHtml(e.old_string ?? e.TargetContent, e.new_string ?? e.ReplacementContent)).join(""));
+        h = `<div class="perm-path">${esc(i.Path || i.TargetFile || i.AbsolutePath || i.file_path || i.path || "")}</div>` + ((i.edits || i.ReplacementChunks || []).slice(0, 8).map((e) => permDiffHtml(e.old_string ?? e.TargetContent ?? e.Target, e.new_string ?? e.ReplacementContent ?? e.Replacement)).join(""));
         break;
       case "Write":
       case "write_file": {
@@ -75,7 +85,11 @@
       case "NotebookEdit":
         h = `<div class="perm-path">${esc(i.notebook_path || "")}</div><pre class="perm-cmd">${esc(String(i.new_source || "").slice(0, 3000))}</pre>`;
         break;
-      case "WebFetch": h = `<pre class="perm-cmd">${esc(i.url || "")}</pre>` + (i.prompt ? `<div class="perm-sub">${esc(i.prompt)}</div>` : ""); break;
+      case "WebFetch":
+      case "web_fetch":
+      case "read_url_content":
+        h = `<pre class="perm-cmd">${esc(i.Url || i.url || "")}</pre>` + (i.prompt || i.Prompt ? `<div class="perm-sub">${esc(i.prompt || i.Prompt)}</div>` : "");
+        break;
       case "UserConfig": {
         // 用户级配置的改动 + 之前的对话留下的后台进程（网关 userconf.mjs / leftover.mjs）
         const kindL = (k) => ({ added: t("新增"), changed: t("改动"), removed: t("删除"), transient: t("改过又改回") }[k] || "");
@@ -86,7 +100,10 @@
       }
       case "ProjectConfig": h = `<div class="perm-path">${esc(i.dir || "")}</div><pre class="perm-cmd">${esc((i.risks || []).join("\n"))}</pre>`; break;
       case "WebSearch": h = `<pre class="perm-cmd">${esc(i.query || "")}</pre>`; break;
-      case "ExitPlanMode": h = `<div class="perm-plan">${renderMd(String(i.plan || ""))}</div>`; break;
+      case "ExitPlanMode":
+      case "exit_plan_mode":
+        h = `<div class="perm-plan">${renderMd(String(i.plan || i.Plan || ""))}</div>`;
+        break;
       case "AskUserQuestion":
       case "ask_question":
         h = (i.questions || []).map((q, qi) => `
@@ -141,8 +158,8 @@
     if (p.guard) return `
       <button class="pa-allow">${p.guard.cat === "userconf" ? t("是我做的，保留") : p.guard.cat === "project" ? t("允许并记住") : t("允许")}</button>
       <button class="pa-more primary">${p.guard.cat === "userconf" ? t("撤销 ▾") : p.guard.cat === "project" ? t("不加载 ▾") : t("拒绝 ▾")}</button>`;
-    const pTool = permToolLabel(p);
-    if (pTool === "ExitPlanMode") {
+    const pTool = permToolBase(p);
+    if (isPlanTool(pTool)) {
       // 用户本来就放得比「自动接受编辑」宽（全部放行等）时，批准计划不该顺手把全局模式降下来（群友反馈）
       const cur = runMode(runId), keep = WIDE_MODES.includes(cur);
       return `
@@ -151,7 +168,7 @@
       <button class="pa-allow" data-mode="acceptEdits">${t("批准，自动接受编辑")}</button>
       <button class="pa-more">${t("再改改 ▾")}</button>`;
     }
-    if (pTool === "AskUserQuestion" || pTool === "ask_question") return `
+    if (isAskTool(pTool)) return `
       <button class="pa-answer primary">${t("提交回答")}</button>
       <button class="pa-more">${t("不回答 ▾")}</button>`;
     const rules = permRules(p);
@@ -166,17 +183,17 @@
     const el = document.createElement("div");
     el.className = p.guard ? "perm guard" : "perm";
     el.dataset.id = p.id;
-    const pTool = permToolLabel(p);
-    const isAsk = pTool === "AskUserQuestion" || pTool === "ask_question";
-    const kind = pTool === "ExitPlanMode" ? t("计划待批准") : isAsk ? t("Antigravity 想问你") : p.guard ? t("敏感操作") : t("需要确认");
+    const pLabel = permToolLabel(p), pTool = permToolBase(p);
+    const isAsk = isAskTool(pTool), isPlan = isPlanTool(pTool);
+    const kind = isPlan ? t("计划待批准") : isAsk ? t("Antigravity 想问你") : p.guard ? t("敏感操作") : t("需要确认");
     el.innerHTML = `
-      <div class="perm-head"><span class="perm-kind">${uiI("pause")}${kind}</span><span class="perm-tool">${esc(pTool)}</span>${p.agentId ? `<span class="perm-sub">${t("子代理")}</span>` : ""}</div>
+      <div class="perm-head"><span class="perm-kind">${uiI("pause")}${kind}</span><span class="perm-tool">${esc(pLabel)}</span>${p.agentId ? `<span class="perm-sub">${t("子代理")}</span>` : ""}</div>
       <div class="perm-body">${permPreview(p)}</div>
       <div class="perm-acts">${permActions(p, runId)}</div>
       <div class="perm-deny hidden">
-        <textarea rows="2" placeholder="${pTool === "ExitPlanMode" ? t("说说要怎么改（会发回给 Antigravity）") : t("可选：告诉 Antigravity 为什么 / 该怎么做")}"></textarea>
+        <textarea rows="2" placeholder="${isPlan ? t("说说要怎么改（会发回给 Antigravity）") : t("可选：告诉 Antigravity 为什么 / 该怎么做")}"></textarea>
         <div class="perm-acts">
-          <button class="pa-deny">${pTool === "ExitPlanMode" ? t("发回意见") : pTool === "UserConfig" ? t("撤销改动") : t("拒绝")}</button>
+          <button class="pa-deny">${isPlan ? t("发回意见") : pTool === "UserConfig" ? t("撤销改动") : t("拒绝")}</button>
           <button class="pa-stop">${pTool === "UserConfig" ? t("撤销并停止") : t("拒绝并停止")}</button>
         </div>
       </div>`;
@@ -219,7 +236,7 @@
   // 模式在卡片等着的时候变了（设置里切、别的会话切）：还没答的计划卡按新模式重排按钮，别留着过期的「按当前模式」
   function refreshPlanActs() {
     for (const it of PERMS.values()) {
-      if (it.done || !it.el || permToolLabel(it.p) !== "ExitPlanMode") continue;
+      if (it.done || !it.el || !isPlanTool(permToolBase(it.p))) continue;
       const acts = it.el.querySelector(".perm-acts"), html = permActions(it.p, it.runId);
       if (acts && acts.dataset.html !== html) { acts.innerHTML = html; acts.dataset.html = html; }
     }
@@ -250,17 +267,17 @@
     if (!it || it.done) return;
     it.done = true;
     const p = it.p;
-    const pTool = permToolLabel(p);
-    const isAsk = pTool === "AskUserQuestion" || pTool === "ask_question";
+    const pTool = permToolBase(p);
+    const isAsk = isAskTool(pTool), isPlan = isPlanTool(pTool);
     const what = permWhat(pTool, p.input);
     const label = pTool === "UserConfig" && behavior === "allow" ? t("✓ 已保留")
       : pTool === "UserConfig" && behavior === "deny" ? (o.interrupt ? t("↩ 已撤销并停止") : t("↩ 已撤销"))
       : behavior === "allow"
-      ? (pTool === "ExitPlanMode" ? t("✓ 已批准计划") : isAsk ? t("✓ 已回答") : o.always ? t("✓ 已允许（始终）") : t("✓ 已允许"))
-      : behavior === "deny" ? (o.expired ? t("超时") : o.interrupt ? t("✗ 已拒绝并停止") : pTool === "ExitPlanMode" ? t("↩ 已退回修改") : t("✗ 已拒绝"))
+      ? (isPlan ? t("✓ 已批准计划") : isAsk ? t("✓ 已回答") : o.always ? t("✓ 已允许（始终）") : t("✓ 已允许"))
+      : behavior === "deny" ? (o.expired ? t("超时") : o.interrupt ? t("✗ 已拒绝并停止") : isPlan ? t("↩ 已退回修改") : t("✗ 已拒绝"))
       : behavior === "cancel" ? t("已撤回") : behavior === "stopped" ? t("已停止（这一轮结束了）") : t("已失效");
     const tc = p.toolUseId && TOOL_CARDS.get(p.toolUseId);
-    if (it.el && tc && tc.el && tc.el.isConnected && pTool !== "ExitPlanMode" && !isAsk) {
+    if (it.el && tc && tc.el && tc.el.isConnected && !isPlan && !isAsk) {
       const tag = document.createElement("span");
       tag.className = "perm-tag " + (behavior === "allow" ? "ok" : "no");
       tag.textContent = label;
@@ -275,7 +292,7 @@
       it.el.classList.remove("busy");
       it.el.classList.add("done", behavior === "allow" ? "ok" : "no");
       // 收起成一行，留在记录里；计划和问答的正文还有用，留着
-      if (pTool !== "ExitPlanMode" && !isAsk) it.el.querySelector(".perm-body").remove();
+      if (!isPlan && !isAsk) it.el.querySelector(".perm-body").remove();
       it.el.querySelectorAll(".perm-acts, .perm-deny").forEach((x) => x.remove());
       it.el.querySelectorAll("input").forEach((x) => { x.disabled = true; });
       it.el.querySelector(".perm-head").innerHTML = `<span class="perm-res">${label}</span><span class="perm-tool">${esc(pTool)}</span><span class="tool-arg">${esc(String(what).replace(/\s+/g, " ").trim().slice(0, 90))}</span>`;
@@ -507,15 +524,15 @@
     // 敏感卡（guard）不能当成 simple、不进「全部允许」（0.6.9 审计 195-B.3）。但全部放行模式下弹出来的只剩敏感卡，
     // 底部条一个「允许」都没有（用户 11-09）：单个敏感卡带上卡片同一句风险说明再给「允许」；
     // 用户级配置 / 项目配置两种的选项不是允许拒绝（保留撤销、记住），仍只给「查看」
-    const f = list[0].p, fTool = permToolLabel(f);
-    const isPlanOrAsk = (p) => { const pt = permToolLabel(p); return pt === "ExitPlanMode" || pt === "AskUserQuestion" || pt === "ask_question"; };
+    const f = list[0].p, fTool = permToolLabel(f), fBase = permToolBase(f);
+    const isPlanOrAsk = (p) => { const pt = permToolLabel(p).replace(/^run\s+/i, "").replace(/\s*\([^)]+\)$/, "").trim(); return pt === "ExitPlanMode" || pt === "exit_plan_mode" || pt === "AskUserQuestion" || pt === "ask_question"; };
     const simple = (it) => !it.p.guard && !isPlanOrAsk(it.p);
     const quick = (it) => simple(it) || (!!it.p.guard && !isPlanOrAsk(it.p) && it.p.guard.cat !== "userconf" && it.p.guard.cat !== "project");
-    const what = permWhat(fTool, f.input);
+    const what = permWhat(fBase, f.input);
     permBar.innerHTML = `
       <div class="pb-main">
         ${list.length > 1 ? `<span class="pb-n">${t("第 {i}/{n} 个", { i: 1, n: list.length })}</span>` : ""}
-        <span class="pb-txt${f.guard ? " wrap" : ""}">${uiI("pause")}${fTool === "ExitPlanMode" ? t("计划待批准") : (fTool === "AskUserQuestion" || fTool === "ask_question") ? t("Antigravity 想问你") : t("Antigravity 在等你确认") + " · "}${simple(list[0]) ? `<b>${esc(fTool)}</b> <span class="mono">${esc(String(what || "").replace(/\s+/g, " ").trim().slice(0, 80))}</span>`
+        <span class="pb-txt${f.guard ? " wrap" : ""}">${uiI("pause")}${isPlanTool(fBase) ? t("计划待批准") : isAskTool(fBase) ? t("Antigravity 想问你") : t("Antigravity 在等你确认") + " · "}${simple(list[0]) ? `<b>${esc(fTool)}</b> <span class="mono">${esc(String(what || "").replace(/\s+/g, " ").trim().slice(0, 80))}</span>`
           : quick(list[0]) ? `<b>${t("敏感操作")}</b> ${esc(permGuardWhat(f.guard, f.input))}` : ""}</span>
         ${quick(list[0]) ? `<button class="pb-allow primary" data-id="${esc(String(f.id))}">${t("允许")}</button>` : ""}
         <button class="pb-view">${t("查看")}</button>

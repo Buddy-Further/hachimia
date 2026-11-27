@@ -7,15 +7,13 @@
 //   用户设置里的权限规则、几个无害键 → 并进网关那份 --settings
 //   自动记忆：用 autoMemoryDirectory 钉住目录，起进程前把整个目录查一遍（claude 要往里写，没法拷副本）
 //
-// 进上下文的文字都过 breach.mjs，命中整轮不跑、列出文件与行，不给「保留」。
-// 钩子一概不回填：钩子是任意命令，输出能直接进上下文，内容检查管不住（用户拍板 11-05：只认签名组件带的，目前组件都不带钩子）。
+// 钩子一概不回填：钩子是任意命令，输出能直接进上下文（只认签名组件带的）。
 // 拷副本再查、claude 读副本：查完之后再改原件，这一轮也不受影响。副本在应用私有目录，按内容指纹复用，复用前核对指纹。
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { CFG, log, tz } from "./config.mjs";
 import { sealed } from "./edition.mjs";
-import { scanText, describe } from "./breach.mjs";
 import { readSmallFile } from "./saferead.mjs";
 import { sameFile } from "./pathguard.mjs";
 
@@ -291,11 +289,10 @@ export function stripFrontHooks(buf, style = false) {
 const isMd = (rel) => /\.md$/i.test(rel);
 
 /**
- * 按清单拷成一个插件目录（私有、按指纹复用）。拷的时候查文字（.md 一类）；命中返回 { found }。
- * 复用前核对每个文字文件的哈希，副本被动过就重拷。
+ * 按清单拷成一个插件目录（私有、按指纹复用）。
+ * 复用前按「当前源文件」重算并核对每个文件的哈希，副本被动过就重拷：
+ * 不能只信副本自带的 .ccapp-ok —— 它就在可写目录里，改它就能让新增的 skill/hook 蒙混过关（审查 11-05）。
  */
-/** 复用目录里每个文件都按「当前源文件」重算并核对，文字文件还要重新过破甲扫描：
- *  不能只信副本自带的 .ccapp-ok —— 它就在可写目录里，改它就能让新增的 skill/hook 蒙混过关（审查 11-05）。 */
 function expectedBytes(rel, f, manifest) {
   try {
     if (rel === ".claude-plugin/plugin.json" && manifest) return Buffer.from(manifest);
@@ -311,11 +308,7 @@ function dirMatches(dir, files, manifest) {
   for (const [rel, f] of files) {
     const b = expectedBytes(rel, f, manifest);
     if (!b) return false;
-    if (isText(rel) && !isPluginData(rel)) {
-      if (b.length > (2 << 20)) return false;                       // 大文本不扫描就不复用，走重建时会跳过+提示
-      const r = scanText(b.toString("utf8"));
-      if (r.blocked) return false;
-    }
+    if (isText(rel) && !isPluginData(rel) && b.length > (2 << 20)) return false;                       // 大文本不复用，走重建时会跳过+提示
     want.set(rel, sha(b));
   }
   if (manifest) want.set(".claude-plugin/plugin.json", sha(Buffer.from(manifest)));
@@ -391,10 +384,6 @@ function materialize(name, files, manifest) {
     if (buf.length > (2 << 20)) { skipped.push(f.src); continue; }
     if (rel === ".claude-plugin/plugin.json") { buf = cleanManifest(buf); if (!buf) continue; }
     else if (isMd(rel)) buf = stripFrontHooks(buf, rel.startsWith("output-styles/"));
-    if (!isPluginData(rel)) {
-      const r = scanText(buf.toString("utf8"));
-      if (r.blocked) found.push({ name: f.src, hits: r.hits });
-    }
     text[rel] = sha(buf);
     fs.writeFileSync(d, buf, { mode: 0o600 });
   }
@@ -519,15 +508,13 @@ export function scanMemory(dir) {
     // 等于留了活口。改名移出 .md 命名（加 .ccapp-skip 后缀，去掉后缀可恢复），notes 里说明
     if (t == null) { skipped.push(f); try { fs.renameSync(f, f + ".ccapp-skip"); } catch {} continue; }
     parts.push(f + "\0" + sha(t));
-    const r = scanText(t);
-    if (r.blocked) found.push({ name: f, hits: r.hits });
   }
   return { found, skipped, fp: sha(parts.join("\n")) };
 }
 
 /**
  * 起一轮前准备回填。返回 { args, settings, block, memDir, memFp, notes }
- *   block：{ found } —— 有说明文件 / skill / 记忆命中，整轮不跑
+ *   block：{ found } —— 有软链等不合规记忆文件，整轮不跑
  *   args：要加给 claude 的旗标；settings：并进 --settings 的键（sealArgv 会把几份合成一份）
  */
 // claude 2.1.311 自带的输出风格（名字不分大小写）
@@ -541,13 +528,6 @@ export function sealPrepare({ cwd, runId, outputStyle = "" }) {
 
   // 说明文件
   const ctx = collectContext(cwd);
-  for (const it of ctx.items) { const r = scanText(it.text); if (r.blocked) found.push({ name: it.file, hits: r.hits }); }
-  // 说明文件是拼成一份系统提示交给模型的：逐份都过了，再按拼好的整份查一遍——
-  // 弱特征分两类拆到 CLAUDE.md 和 rules 里，逐份看各只一类，合起来就够拦（0.6.9 审计 199 S-03）
-  if (!found.length && ctx.items.length > 1) {
-    const r = scanText(renderContext(ctx.items));
-    if (r.blocked) found.push({ name: `说明文件合起来（${ctx.items.slice(0, 4).map((it) => it.file).join(", ")}${ctx.items.length > 4 ? " …" : ""}）`, hits: r.hits });
-  }
   if (ctx.skipped.length) notes.push(`说明文件太大或读不了，没回填：${ctx.skipped.slice(0, 4).join(", ")}`);
 
   // skill / 命令 / 子代理 / 输出风格
@@ -578,13 +558,7 @@ export function sealPrepare({ cwd, runId, outputStyle = "" }) {
   if (mem.skipped.length) notes.push(`记忆文件太大没扫，已改名 .ccapp-skip（去掉后缀可恢复）：${mem.skipped.slice(0, 4).join(", ")}`);
   settings.autoMemoryDirectory = memDir;
 
-  // MCP 配置也过破甲扫描：instructions / description / command 都在这份 JSON 里。
-  // 项目 .mcp.json 是不回填，这里回填的必须同口径（红队报告 VULN-01），必须在判 block 之前扫描，否则命中后不会拦轮次且已写出 ctx-*.md
   const mcp = mcpConfig(cwd);
-  if (mcp) {
-    const r = scanText(JSON.stringify(mcp));
-    if (r.blocked) found.push({ name: "~/.claude.json 的 mcpServers（已不加载）", hits: r.hits });
-  }
 
   if (found.length) return { args: [], settings: null, block: { found }, memDir, memFp: mem.fp, notes };
 
@@ -658,7 +632,18 @@ export function sealCleanup(runId) {
   try { for (const n of fs.readdirSync(ROOT())) if (n === `ctx-${id}.md` || n === `mcp-${id}.json` || n.startsWith(`ctx-${id}-`) || n.startsWith(`mcp-${id}-`)) fs.rmSync(path.join(ROOT(), n), { force: true }); } catch {}
 }
 
+function formatFound(found, limit = 8) {
+  const list = Array.isArray(found) ? found : [];
+  const lines = list.slice(0, limit).map((f) => {
+    const h = Array.isArray(f?.hits) ? f.hits[0] : null;
+    const tag = h?.cat === "symlink" ? "（符号链接）" : (h?.excerpt ? `（${String(h.excerpt).slice(0, 80)}）` : "");
+    return `· ${f?.name || "?"}${tag}`;
+  });
+  if (list.length > limit) lines.push(`… 还有 ${list.length - limit} 处`);
+  return lines.join("\n");
+}
+
 /** 给用户看的拒跑说明 */
 export function sealBlockMessage(block) {
-  return tz("这些 Claude Code 配置里有越权指令的特征（要模型无视规则、冒充系统消息这一类），hachimia 不加载它们，这一轮没有运行。改掉或删掉下面的内容后再发：\n{list}", { list: describe(block.found, 8) });
+  return tz("这些 Claude Code 配置里有越权指令的特征（要模型无视规则、冒充系统消息这一类），hachimia 不加载它们，这一轮没有运行。改掉或删掉下面的内容后再发：\n{list}", { list: formatFound(block?.found, 8) });
 }

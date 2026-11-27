@@ -2429,754 +2429,752 @@
 2429	프로젝트 기본 엔드포인트 「{id}」가 삭제되어 이번 턴은 보내지 않았습니다. 프로젝트 설정에서 엔드포인트를 다시 고르세요.
 2430	작업에 지정한 엔드포인트가 삭제되었습니다. 작업을 편집해 다시 고르세요
 2431	「{n}」에 지정한 엔드포인트가 삭제되었습니다. 작업을 편집해 다시 고르세요
-2432	훅({ev})이 주입한 텍스트가 탈옥 패턴과 일치해 이번 턴을 중단했습니다. 주입된 원문은 위에 접혀 있습니다.
-2433	답변이 완료되었습니다
-2434	답변 중 오류가 발생했습니다
-2435	{n}개를 휴지통으로 옮겼습니다. {m}개 실패: {msg}
-2436	{n}개 첨부됨, {m}개 실패: {msg}
-2437	검색 실패: {msg}
-2438	파일 목록을 읽지 못했습니다: {msg}
-2439	파일이 너무 커서 서버가 받지 않았습니다
-2440	서버가 업로드된 파일을 인식하지 못했습니다
-2441	서버가 {status}을(를) 반환했습니다
-2442	대화를 불러오는 중…
-2443	삭제하지 못했습니다: {msg}
-2444	아직 {n}개 파일을 업로드 중입니다. 완료 후 보내세요.
-2445	내장 스크립트를 설치하지 못했습니다: {msg}
-2446	내장 스크립트를 설치하지 못했습니다: {msg}. 규칙은 저장되지 않았습니다
-2447	업데이트 상태를 가져오지 못했습니다: {msg}
-2448	처음 1000개 항목만 표시됩니다
-2449	병합이 아직 커밋되지 않았습니다. 모든 변경을 함께 커밋하거나, 커밋하지 않을 변경을 먼저 취소하세요.
-2450	복사하지 못했습니다. 길게 눌러 텍스트를 선택한 뒤 복사하세요
-2451	삭제된 프로젝트 ({id})
-2452	마지막 3000줄을 복사했습니다
-2453	{line}(으)로 설정됨 (모델 창을 알 수 없어 설정값이 적용됩니다)
-2454	플러그인 마켓을 읽지 못했습니다: {msg}
-2455	파일 이름이 너무 깁니다 (최대 255바이트, 한중일 문자 1자는 3바이트)
-2456	파일이 아직 없습니다
-2457	업데이트 확인 실패
-2458	이 위치에 접근할 권한이 없습니다 (공유 저장소는 시스템 설정에서 '모든 파일 접근'이 필요합니다)
-2459	이 폴더에 접근할 권한이 없습니다 (공유 저장소는 시스템 설정에서 '모든 파일 접근'이 필요합니다)
-2460	이 위치를 읽을 권한이 없습니다 (공유 저장소는 시스템 설정에서 '모든 파일 접근'이 필요합니다)
-2461	지우기 실패: {msg}
-2462	터미널 프로세스가 종료되어 입력이 전송되지 않았습니다
-2463	사용자 정의 컴포넌트 목록을 읽지 못했습니다: {msg}
-2464	커밋 기록을 읽지 못했습니다
-2465	이 파일의 상태를 읽지 못했습니다
-2466	이 커밋의 파일 목록을 읽지 못했습니다
-2467	해결되지 않은 충돌이 있습니다. 먼저 해결한 뒤 커밋하세요.
-2468	이 페이지를 그리지 못했습니다
-2469	이 위치는 읽을 수 없습니다
-2470	이 폴더는 더 이상 git 저장소가 아닙니다
-2471	이 폴더에는 SKILL.md가 없습니다 (이전 가져오기가 중간에 실패한 흔적일 수 있음). 삭제할 수 있습니다.
-2472	이 스프레드시트는 내부 압축을 풀면 너무 커져서 안전하게 열 수 없습니다.
-2473	이 시트의 범위 정보가 손상되어 읽을 수 없습니다
-2474	이런 시스템 의사 파일은 이 방식으로 읽을 수 없습니다
-2475	프로젝트 지시사항이 저장되지 않았습니다. 돌아가면 이번 변경이 사라집니다. 돌아갈까요?
-2476	미리보기 서비스가 주소를 반환하지 않았습니다
-2477	도움말을 불러오지 못했습니다: {msg}
-2478	변경 로그를 불러오지 못했습니다: {msg}
-2479	스킬 패키지가 64MB를 초과합니다. 압축을 풀고 하나씩 가져오세요
-2480	cron 필드 값이 올바르지 않습니다: {f}
-2481	cron 필드 값이 범위를 벗어났습니다: {f}
-2482	cron 간격 값이 올바르지 않습니다: {f}
-2483	cron 식은 다섯 개 필드(분 시 일 월 요일)가 필요합니다
-2484	「{n}」의 프로젝트 폴더가 더 이상 없습니다. 작업을 편집해 다른 프로젝트나 폴더를 선택하세요
-2485	북마크를 저장하지 못했습니다: 저장 공간이 가득 찼거나 권한이 없습니다
-2486	작업의 프로젝트 폴더가 더 이상 없습니다. 작업을 편집해 다른 프로젝트나 폴더를 선택하세요
-2487	분기한 세션을 디스크에 쓰지 못했습니다: {err}
-2488	한 번만 실행하려면 날짜를 입력하세요
-2489	시작 시간은 0–23시, 0–59분으로 입력하세요
-2490	날짜는 YYYY-MM-DD 형식으로 입력하세요
-2491	시간은 0–23시, 0–59분으로 입력하세요
-2492	요일을 1–7 사이 정수로 하루 이상 선택하세요
-2493	매월 며칠은 1–31 또는 「마지막 날」로 입력하세요
-2494	간격은 1–24 사이 정수로 입력하세요
-2495	저장하지 못했습니다: 저장 공간이 가득 찼거나 권한이 없습니다
-2496	종료 시간은 0–23시, 0–59분으로 입력하세요
-2497	(본문이 너무 길어 앞 {n}자만 표시합니다)
-2498	안전 모드에서는 묻지 않는 모드는 적용되지 않으며, 현재는 '매번 확인'입니다
-2499	설정이 저장되지 않았습니다. 다시 시작하면 이전 권한 모드로 돌아갑니다
-2500	원본 메시지가 너무 길어 앞부분 6.5만 자만 복원했습니다
-2501	지금은 보안 알림을 가져올 수 없습니다
-2502	보안 알림을 가져오는 중…
-2503	호스트가 바뀌어 이전 키를 지웠습니다. 다시 입력해 주세요
-2504	재설정 시간이 지났습니다. 다음 대화 후에 갱신됩니다
-2505	프로젝트를 만들었습니다. 폴더에 이미 CLAUDE.md가 있어 입력한 지침은 기록되지 않았습니다
-2506	공식 로그인 · 로그인됨
-2507	공식 로그인 · 로그인 안 됨
-2508	공식 로그인 · 로그인 상태를 확인할 수 없음
-2509	공식 로그인 · 마지막 확인 시 로그인됨
-2510	공식 로그인 · 마지막 확인 시 로그인 안 됨
-2511	계정에 로그인하세요
-2512	로그인이 진행 중입니다. 인증 주소가 오면 자동으로 엽니다.
-2513	모델 '{id}'을(를) 삭제할까요? 모델 폴더에서 파일이 삭제됩니다.
-2514	모델 '{id}'을(를) 삭제했습니다
-2515	{n}개를 가져왔지만 그다음 실패했습니다: {msg}
-2516	툴킷이 업데이트되었지만 아직 호환되는 버전이 없습니다
-2517	툴킷이 업데이트되었지만 구성 요소 목록에 현재 툴킷에 맞는 빌드가 아직 없습니다. 먼저 툴킷을 업데이트하거나 '업데이트 확인'을 눌러 목록을 다시 가져오세요.
-2518	압축 기준선은 최소 100k입니다. 100k로 저장했습니다
-2519	설치 기록을 쓰지 못했습니다(저장 공간이 가득 찼거나 권한이 없습니다). 이번 설치를 계속하지 않았습니다
-2520	파일은 배치되었지만 설치 기록을 쓰지 못했습니다(저장 공간이 가득 찼거나 권한이 없습니다). 다시 설치하거나 제거하세요
-2521	컴포넌트 기록을 쓰지 못했습니다(저장 공간이 가득 찼거나 권한이 없습니다). 이번 설치가 완료되지 않았습니다
-2522	엔드포인트가 {s}을(를) 반환했지만 예상한 형식이 아니어서 키가 유효한지 확인할 수 없습니다: {what}
-2523	(비어 있음)
-2524	업스트림이 답변 끝에서 오류를 보냈습니다({msg}). 완료로 처리했습니다. 답변이 불완전하면 「계속」이라고 보내세요
-2525	{name}에서 선택했던 경로 「{ep}」이(가) 더 이상 없습니다. 설정에서 경로를 다시 고르고 그 경로의 키를 다시 입력하세요.
-2526	이 주소는 암호화되지 않은 http입니다. 키와 대화 내용이 암호화 없이 상대 기기로 전송됩니다. 가능하면 https로 바꾸세요.
-2527	예약 작업은 별도의 턴으로 실행됩니다: 맨 앞으로 옮기고 현재 턴이 끝나는 즉시 시작합니다
-2528	초과하면 중지하고 실패로 기록합니다. 공식 API에만 적용
-2529	경로가 바뀌어 이전 키를 지웠습니다. 다시 입력하세요
-2530	기록을 불러오지 못했습니다: {msg} 
-2531	설치 중에 공유 파일 {n}개가 제거 작업으로 삭제되었습니다. 다시 설치하세요
-2532	이 세션에 고정한 온디바이스 모델 {model}이(가) 없어졌습니다. 모델 패널에서 다시 고르세요
-2533	온디바이스 모델 파일을 확인하는 중…
-2534	온디바이스 모델 파일이 변경되어(체크섬 불일치) 안전을 위해 불러오지 않습니다: {file}
-2535	온디바이스 모델 파일이 GGUF가 아닙니다(변경되었을 수 있음). 불러오지 않습니다: {file}
-2536	로그인 시간이 초과되었습니다(15분)
-2537	로그인이 아직 진행 중입니다. 인증 주소를 받으면 열립니다
-2538	이 모듈의 다운로드 정보가 불완전합니다. 먼저 개발 키트를 업데이트하세요
-2539	모듈 패키지에 파일 목록(MANIFEST)이 없어 안전을 위해 설치하지 않습니다
-2540	모듈 패키지의 파일 목록에 잘못된 경로가 있습니다: {file}
-2541	모듈 "{name}"의 초기 설정이 끝나지 않았습니다({err}). 다시 설치하면 재시도합니다
-2542	프로젝트 목록을 저장하지 못했습니다(저장 공간 부족 또는 쓰기 불가). 다시 시작하면 이번 변경이 사라집니다
-2543	대화 {n}개를 휴지통으로 옮기지 못해 폴더를 삭제하지 않았습니다: {why}
-2544	구성 요소 "{id}"이(가) 의존하는 공유 파일 {n}개가 삭제되었습니다
-2545	게이트웨이가 시스템에 의해 종료되어 이번 실행이 끝나지 않았습니다
-2546	시간 초과
-2547	출력 없음
-2548	자체 점검 중…(1~2분 걸립니다)
-2549	지난번 {time}: 통과 {pass}개, 실패 {fail}개
-2550	개발 키트나 앱 업데이트 전에 측정한 결과
-2551	아직 자체 점검 결과가 없습니다
-2552	지난번에는 결과가 나오지 않았습니다: {why}
-2553	실패한 항목
-2554	시스템이 이 앱에서 워크 아일랜드 서비스를 시작하도록 허용하지 않아 표시되지 않습니다.
-2555	"워크 아일랜드" 앱이 감지되지 않았습니다. 설치한 뒤 다시 시도를 누르세요.
-2556	기기 자체 점검
-2557	자체 점검 다시 실행
-2558	주간 · {model}
-2559	기간
-2560	1시간
-2561	4시간
-2562	1일
-2563	3일
-2564	7일
-2565	원래 세션 기록을 삭제할 수 없어 세션을 원래 위치에 그대로 두었습니다: {err}
-2566	이 턴은 끝나지 않았습니다: 앱 업데이트 중 게이트웨이가 다시 시작되었습니다({when} 시작).
-2567	이 턴은 끝나지 않았습니다: 게이트웨이가 중지되거나 다시 시작되었습니다({when} 시작).
-2568	작업 폴더 {dir}이(가) 없습니다(삭제·이름 변경 또는 저장 카드 제거). 이번 턴은 실행하지 않았습니다. 폴더를 되돌리거나 프로젝트 설정에서 경로를 바꾼 뒤 다시 보내세요.
-2569	이 턴은 시작하기 전에 종료되었습니다({when} 전송).
-2570	대화가 모델의 컨텍스트 한도를 넘었습니다. /compact로 압축한 뒤 계속하거나 새 대화를 시작하세요.
-2571	엔드포인트가 키를 거부했습니다: 설정 → 엔드포인트에서 API 키가 올바른지, 만료되거나 비활성화되지 않았는지 확인하세요.
-2572	계정 잔액이 부족하거나 한도를 다 썼습니다: 제공업체 콘솔에서 충전하거나 한도를 확인하세요.
-2573	요청이 너무 많거나 사용량 한도에 도달했습니다: 잠시 후 다시 시도하세요.
-2574	엔드포인트가 이 모델이나 주소를 찾지 못했습니다: 모델 이름과 엔드포인트 주소를 확인하세요.
-2575	제공업체 쪽 오류이거나 과부하입니다: 잠시 후 다시 시도하세요. 계속되면 다른 모델이나 엔드포인트로 바꾸세요.
-2576	엔드포인트에 연결할 수 없습니다: 네트워크나 엔드포인트 주소가 잘못되지 않았는지 확인하세요.
-2577	압축 파일의 파일이 너무 많습니다({n}개, 최대 {max}개). 가져오지 않았습니다
-2578	처음 {n}개만 표시합니다. 필터로 찾으세요
-2579	선택 항목 압축 해제({n})
-2580	압축({n})
-2581	압축 파일: ‘압축 파일 열기’로 안의 파일을 보거나 바로 압축을 풀 수 있습니다
-2582	압축 파일 열기
-2583	압축 해제…
-2584	비활성화하면 Claude에게 보이지 않습니다. 명령 파일은 남아 있고 언제든 다시 켤 수 있습니다.
-2585	이름만
-2586	직접 호출할 때만
-2587	스킬 모드
-2588	다음 턴부터 적용
-2589	비활성화됨: Claude가 연결하지 않습니다. 설정은 보관되어 있어 사용을 누르면 다시 추가됩니다.
-2590	MCP 서버 {name}을(를) 비활성화할까요? 설정을 먼저 저장하므로 언제든 다시 켤 수 있습니다.
-2591	MCP 서버 {name}을(를) 사용할까요? 다음 내용으로 다시 추가합니다: {target}
-2592	비활성화된 MCP 서버 {name}을(를) 삭제할까요? 한 번에 다시 켤 수 없게 됩니다.
-2593	~/.claude/settings.json이 올바른 JSON이 아닙니다. 먼저 고쳐 주세요
-2594	직접 추가한(사용자 범위) MCP 서버만 비활성화할 수 있습니다
-2595	비활성 목록을 쓸 수 없습니다
-2596	비활성 목록에 없습니다
-2597	이 구성 요소는 설치되어 있지 않습니다
-2598	이 모듈은 비활성화할 수 없습니다
-2599	압축…
-2600	파일 이름 인코딩
-2601	이름이 깨져 보이면 다른 인코딩을 선택하세요
-2602	항목 {n}개
-2603	암호화됨
-2604	모두 압축 해제…
-2605	압축 파일 닫기
-2606	압축 파일로 돌아가기
-2607	이 버전에는 7-Zip이 없어 이 형식의 압축 파일을 열 수 없습니다
-2608	압축 파일을 열 수 없습니다: {msg}
-2609	압축 후 {size}
-2610	심볼릭 링크(풀지 않음)
-2611	푸는 중…
-2612	비밀번호가 틀렸습니다
-2613	너무 커서 미리 볼 수 없습니다. 먼저 압축을 푸세요
-2614	저장 공간이 부족합니다
-2615	압축 해제 실패: {msg}
-2616	비밀번호 입력
-2617	비밀번호가 틀렸습니다. 다시 시도하세요
-2618	확인
-2619	선택한 항목 {n}개
-2620	{what} 압축 해제
-2621	압축 해제 위치
-2622	현재 폴더
-2623	비밀번호(암호화되지 않았으면 비워 두세요)
-2624	같은 이름의 기존 파일은 덮어쓰지 않고, 새로 푼 파일 이름을 ‘이름 (2)’로 바꿉니다. 심볼릭 링크는 풀지 않습니다.
-2625	압축 해제
-2626	전체 경로를 입력하세요(/로 시작)
-2627	‘{name}’ 압축
-2628	항목 {n}개 압축
-2629	압축 파일 이름
-2630	형식
-2631	압축 수준
-2632	저장만
-2633	가장 빠르게
-2634	보통
-2635	가장 작게(느림)
-2636	비밀번호(선택, zip / 7z)
-2637	파일 이름도 암호화(7z)
-2638	zip 암호화는 AES-256을 사용합니다. 오래된 압축 프로그램은 못 열 수 있으니 호환성이 중요하면 비밀번호를 설정하지 마세요. .ssh 같은 자격 증명 폴더는 넣지 않습니다.
-2639	압축
-2640	이 위치로는 압축하거나 풀 수 없습니다
-2641	이 버전에는 7-Zip이 없습니다
-2642	압축할 폴더 안에는 압축 파일을 둘 수 없습니다
-2643	압축 해제 중
-2644	압축 중
-2645	{path}에 압축을 풀었습니다
-2646	{path}(으)로 압축했습니다
-2647	여러 개 선택
-2648	시스템 프롬프트를 파일로 쓰지 못해 이번 턴을 시작하지 않았습니다: {msg}
-2649	초기 설정으로 되돌리기
-2650	확인 창이 뜨지 않았습니다
-2651	이 구성 요소 다시 설치(다시 다운로드)
-2652	이 도구 키트 모듈 다시 설치(다시 다운로드)
-2653	개발 도구 키트 복구: 현재 버전을 다시 받아 재설치합니다. 설치하는 동안 1–2분 서비스가 멈춥니다
-2654	모두 복구
-2655	복구
-2656	대기 중
-2657	진행 중…
-2658	앱에 넘김
-2659	복구 중입니다. 이 페이지를 닫아도 멈추지 않으며, 끝나면 자동으로 다시 확인합니다:
-2660	복구 완료:
-2661	앱에 넘긴 단계는 「설정 → 업데이트」에서 진행 상황을 볼 수 있습니다. 끝나면 「기록 확인」을 다시 누르세요.
-2662	복구 완료, {n}개 단계 실패
-2663	복구 완료
-2664	아래 순서로 복구한 뒤 자동으로 다시 확인합니다:
-2665	이 항목 복구:
-2666	재설치는 인터넷에서 내려받습니다. 내 파일, 대화, 설정에는 영향이 없습니다. 계속할까요?
-2667	색인이 서명 검증을 통과하지 못해 구성 요소를 설치할 수 없습니다
-2668	색인의 버전({v})이 설치된 버전({now})보다 오래되어 다운그레이드를 거부했습니다
-2669	복구 또는 확인이 이미 진행 중입니다. 끝난 뒤 다시 시도하세요
-2670	자동으로 복구할 수 있는 문제가 없습니다
-2671	앱에서 아직 진행 중인 단계가 있습니다:
-2672	앱에 넘긴 단계가 아직 진행 중입니다. 끝나면 「기록 확인」을 누르세요
-2673	내장 브라우저
-2674	pkg가 내려받은 패키지
-2675	계보 인덱스
-2676	스캔 중…
-2677	이 앱 사용량 {app}, 기기 남은 공간 {free}
-2678	마지막 스캔: {when}
-2679	아직 스캔하지 않았습니다
-2680	설정한 대로 {n}일
-2681	영구 보관
-2682	마지막 자동 정리: {when}, {size} 확보
-2683	아직 자동 정리한 적이 없습니다
-2684	캐시
-2685	총 {size}. 지워도 필요할 때 자동으로 다시 받거나 다시 만듭니다
-2686	사용 중
-2687	세션 실행 중
-2688	7일 동안 변경 없음
-2689	마지막 변경: {when}
-2690	선택한 항목 삭제
-2691	임시 파일
-2692	총 {size}, 그중 7일 동안 변경 없는 것 {old}. 백그라운드 명령 출력과 테스트·빌드가 남긴 임시 폴더를 포함합니다
-2693	가장 큰 {n}개
-2694	7일 지난 것 정리
-2695	디버그 로그, shell 스냅샷, MCP 로그, .claude.json 백업: 총 {size}. 정리 가능 {n}개 {auto}(30일 지난 것, 백업은 최신 5개 유지)
-2696	{n}개, 총 {size}. 세션은 절대 자동으로 삭제되지 않습니다. 세션 목록에서 삭제하면 먼저 휴지통으로 갑니다
-2697	구성 요소 실행 데이터(~/.cccodroid)
-2698	pkg로 설치한 {name}
-2699	공유 폴더 /sdcard/cccodroid
-2700	프로그램과 내 파일
-2701	크기만 표시하며 여기서는 삭제하지 않습니다
-2702	세션 휴지통
-2703	{n}개, {size}. 30일이 지나면 자동으로 비웁니다
-2704	이전 도구 키트가 남긴 프로그램
-2705	처리하기
-2706	제거한 구성 요소 {id}가 남긴 실행 데이터
-2707	사용량 통계
-2708	기타 정리 위치
-2709	✓ {n}개 삭제, {size} 확보
-2710	{n}개는 삭제하지 않았습니다(사용 중이거나 허용된 폴더 밖)
-2711	선택한 항목이 없습니다
-2712	선택한 임시 항목 {n}개를 삭제할까요? 되돌릴 수 없습니다.
-2713	{id}가 남긴 실행 데이터를 삭제할까요? 다시 설치하면 새로 내려받습니다.
-2714	✓ 삭제됨
-2715	저장 공간
-2716	사용 공간
-2717	스캔
-2718	세션 보관
-2719	자동 정리
-2720	API 목록
-2721	API 추가
-2722	모델 {n}개
-2723	삭제 ({n})
-2724	{what}을(를) 영구 삭제할까요? 되돌릴 수 없습니다.
-2725	폴더는 안의 내용과 함께 삭제됩니다.
-2726	{n}개 항목을 삭제했습니다
-2727	이 폴더에는 앱 자체 디렉터리나 작업 공간이 들어 있어 삭제할 수 없습니다
-2728	(이전 턴이 정상적으로 끝나지 않았습니다. 위의 답변이 불완전할 수 있습니다)
-2729	세션은 가져왔지만 사용자 지정 제목을 저장하지 못했습니다(저장 공간이 가득 찼거나 권한이 없습니다). 다시 시작하면 원래 제목이 표시됩니다
-2730	세션 목록을 읽을 수 없습니다({msg}). 세션이 없다는 뜻은 아닙니다. 저장 공간 권한을 확인한 후 새로 고치세요.
-2731	요청 시간 초과: 게이트웨이가 응답하지 않습니다({n}초)
-2732	게이트웨이 오프라인: {msg} · 눌러서 다시 시도
-2733	이전 턴이 백그라운드에서 실패했습니다: {msg}
-2734	주소가 {s}을(를) 반환했지만 응답 본문이 너무 커서(8MB 초과) 키가 유효한지 확인할 수 없습니다
-2735	이전 턴은 끝났지만 이어진 턴은 결과를 받지 못했습니다(중단됨)
-2736	디렉터리가 없습니다: {dir}. 대신 {cwd}을(를) 사용합니다
-2737	API가 정상 답변이 아닌 오류를 반환했습니다:
-2738	압축선 최댓값은 1M입니다. 1M로 저장했습니다
-2739	HONOR / Huawei 등의 시스템은 백그라운드 Shizuku를 동결시켜 활성화를 늦춥니다. 시스템 앱 관리 → Shizuku에서 '배터리 최적화 무시'를 켜서 동결을 방지하세요.
-2740	최초 기록: {time}
-2741	시간 알 수 없음
-2742	환경 변수, 선택, 쉼표로 구분(KEY=값)
-2743	헤더, 선택, 쉼표로 구분(Header: 값), 예: Authorization: Bearer 토큰
-2744	헤더
-2745	원격 MCP는 헤더를 씁니다: {bad}를 콜론으로 적으세요(예: Authorization: Bearer 토큰)
-2746	원격 MCP는 환경 변수를 지원하지 않습니다: 헤더를 Header: 값 형식으로 적으세요(예: Authorization: Bearer 토큰)
-2747	설정에서 제거
-2748	현재 헤더
-2749	현재 환경 변수
-2750	{name} 변경 사항을 저장했습니다
-2751	편집 실패: {msg}
-2752	저장 실패: {msg}, 이전 설정을 그대로 복원했습니다
-2753	저장 실패: {msg}, 이전 설정도 복원하지 못했습니다. 직접 확인해 주세요
-2754	편집기를 열 수 없습니다: {msg}
-2755	{name} 편집 중: 비워 두면 값 유지, × 누르면 삭제, 입력하면 교체
-2756	이 MCP 서버를 찾을 수 없습니다(계정 커넥터는 편집할 수 없습니다)
-2757	이 이름의 MCP 서버가 이미 있습니다
-2758	stdio는 헤더를 저장하지 않습니다: {names}이(가) 제거됩니다. 계속할까요?
-2759	서버가 이 기기에 있으면 http://127.0.0.1:포트 를 쓰세요. LAN IP는 네트워크가 바뀌면 달라져 연결이 끊깁니다
-2760	LAN 주소로 보입니다: 서버가 이 기기에 있으면 http://127.0.0.1:포트 로 바꾸세요. LAN IP가 바뀌면 연결이 끊깁니다
-2761	PDF 병합
-2762	페이지 추출
-2763	한 페이지씩 분할
-2764	페이지 회전
-2765	PDF 압축
-2766	PDF를 이미지로 변환
-2767	페이지 번호가 잘못되었습니다. 1-3,5 형식으로 입력하고 총 페이지 수를 확인하세요.
-2768	PDF 처리 실패: {code}
-2769	선택한 파일은 PDF가 아닙니다
-2770	위로 이동
-2771	아래로 이동
-2772	파일 패널에서 PDF를 선택하거나 “PDF 선택…”을 누르세요.
-2773	PDF 도구 누락: {tools}. 확장 → 선택 구성 요소에서 “PDF 도구 모음”을 설치하세요.
-2774	PDF 가져오는 중…
-2775	PDF 처리 중…
-2776	처리 완료
-2777	압축 후 크기가 줄지 않았습니다. 원본은 보존됩니다.
-2778	결과 폴더 열기
-2779	연결이 끊겼습니다. 다시 시도 중…
-2780	PDF 도구 모음
-2781	파일은 이 기기에서만 처리되며 원본을 덮어쓰지 않습니다.
-2782	작업
-2783	선택 구성 요소 열기
-2784	파일 패널에서 추가
-2785	PDF 선택…
-2786	병합은 최대 20개, 다른 작업은 PDF 하나만 선택하세요.
-2787	페이지
-2788	1-3,5 형식으로 입력하세요. 비워 두면 전체 페이지입니다.
-2789	회전 각도
-2790	압축 품질
-2791	전자책 (ebook)
-2792	작은 파일 (screen)
-2793	인쇄 (printer)
-2794	이미지 형식
-2795	해상도
-2796	낮음 (72 DPI)
-2797	높음 (150 DPI)
-2798	한 번에 최대 100페이지, 이미지 긴 변은 최대 2048픽셀입니다.
-2799	출력 폴더 (새 폴더)
-2800	처리 시작
-2801	PDF를 최대 20개, 합계 256MB까지 선택하세요.
-2802	PDF 총 페이지 수는 1000페이지를 넘을 수 없습니다.
-2803	PDF를 처리할 수 없습니다. 파일 손상이나 암호 설정 여부를 확인하세요.
-2804	처리 시간이 초과되었습니다. 페이지 수를 줄여 다시 시도하세요.
-2805	이미 PDF 작업이 진행 중입니다. 잠시 후 다시 시도하세요.
-2806	PDF 도구 모음 구성 요소를 설치한 후 다시 여세요.
-2807	쓰기 가능한 위치에 아직 없는 출력 폴더를 입력하세요.
-2808	결과가 512MB를 초과했습니다. 페이지 수나 해상도를 줄이세요.
-2809	파일
-2810	지난 설치의 백업이 아직 복구되지 않았습니다. 다시 시도하거나 제거 후 다시 설치하세요.
-2811	[cc] Error in a script injected by the shell (details hidden by WebView)
-2812	\\[Attachment: (\\/[^\\n]+?) · [^\\n·,\\]]+, file is large and was not read directly, read by path when needed\\]
-2813	Antigravity is requesting tool authorization: {w}
-2814	Antigravity wants to ask you
-2815	Say how it should change (sent back to Antigravity)
-2816	Optional: tell Antigravity why / what to do
-2817	Scheduled
-2818	Antigravity is waiting for your confirmation
-2819	Let Antigravity decide which actions need confirmation
-2820	Ask nothing. Antigravity can delete files and run any command without asking you
-2821	Switch to “Allow everything”?\n\nAntigravity will stop asking and can edit or delete files, run any command and access the network. Only use it when you trust the task and can live with the consequences.
-2822	Sign in with a Google Antigravity account
-2823	Use a personal Google account (Free / Pro / Ultra) or an enterprise account: authorize once in the browser, no key needed.
-2824	Enter a Gemini API Key
-2825	Use a Gemini API Key from Google AI Studio or a custom compatible endpoint, billed by usage.
-2826	Context has reached the auto-compact line; compacting history…
-2827	Background task finished, reported automatically:
-2828	[Attachment: 
-2829	, file is large and was not read directly, read by path when needed]
-2830	Starting Google Antigravity sign-in…
-2831	Google account signed in
-2832	Open the address below in your browser to complete Google authorization, then paste the authorization code under Settings → Providers to submit:
-2833	You can also run {cmd} in the in-app terminal to sign in.
-2834	Interruption sent — it will be seen once the current step finishes
-2835	Antigravity CLI (agy) itself
-2836	The system or hachimia already has a command with this name; pick another one
-2837	hachimia checks these skills before handing them to Antigravity; when calling one with a slash, prefix the name with user:, e.g. /user:{name}.
-2838	This build does not run the hooks configured here: hooks can execute arbitrary commands and put arbitrary content into the conversation, and hachimia cannot check them. The rules stay in the file and will not be deleted.
-2839	Reinstall Antigravity CLI (agy)
-2840	Claude (compatible)
-2841	Third-party provider
-2842	Sign in to a Google Antigravity account
-2843	Google Cloud / enterprise account
-2844	Billed by your Google Antigravity account subscription tier; on-device token stats are on the “Usage” page
-2845	Sign out of the Google Antigravity account on this device?
-2846	The key is stored only in this app's private directory on this device, and is passed to Antigravity CLI only as needed to connect to the matching endpoint.
-2847	AGY blue
-2848	Antigravity's replies
-2849	Shizuku is running but has not been authorized for hachimia
-2850	vivo / iQOO: Settings → Battery → Background power consumption → allow hachimia <b>high background power usage</b>; in iManager allow <b>auto-start</b> (common path)
-2851	Huawei / Honor: Settings → App launch → turn off “Manage automatically” for hachimia, then manually allow <b>auto-start</b> and <b>background activity</b> (common path)
-2852	hachimia has been frozen in the background by the system {n} times (most recent: about {sec} seconds, {at}).
-2853	In system settings, allow hachimia to run in the background, turn off battery optimization, and allow auto-start (each vendor names these differently).
-2854	Authorize for hachimia
-2855	hachimia's wireless debugging pairing has been removed: it still works now, but it cannot auto-activate after a reboot.
-2856	Shizuku was not activated by hachimia: hachimia cannot auto-activate it after a reboot. Pair it once and you're set.
-2857	The system did not notify hachimia at this boot (blocked by the system's “auto-start” management), so it could not auto-activate; opening hachimia will catch up.
-2858	To activate at boot: allow hachimia auto-start / background start in the app details; takes effect at the next boot.
-2859	Antigravity CLI (agy) version
-2860	Uninstall Antigravity CLI (agy)?\n\nThis deletes the downloaded agy program; it will not be reinstalled automatically. Tap “Install” here to download it again when you need it.\n\nSign-in, sessions and settings are kept; sending a message while it is not installed will prompt you to install it first.
-2861	Install the devkit from a local file?\n\nPick a devkit-ha.chi.mia.tar.gz (or .tar), downloadable from the GitHub releases page or hachimia.net. It is checked against the published release before installing; the service pauses for 1–2 minutes during installation.\nThings you installed into the devkit with pip / npm -g are kept.
-2862	Shizuku is not activated yet, so the app cannot toggle accessibility itself: turn on hachimia manually in the system accessibility settings. From Android 13, sideloaded apps must first allow restricted settings via App info → menu in the top-right corner.
-2863	This build has no native layer and only records CPU time (battery, screen-on and foreground time come from hachimia).
-2864	Name (e.g. self-hosted Gemini proxy)
-2865	Auth: x-goog-api-key (Gemini / Antigravity)
-2866	Auth: Authorization: Bearer
-2867	Auth: x-api-key
-2868	Default model name (required, e.g. gemini-3.8-flash)
-2869	Model list URL (optional; Gemini endpoints auto-probe /v1beta/models)
-2870	Context window (optional, in tokens, e.g. 1m; leave empty for the default)
-2871	More models (optional, one per line; you may put the window after the name, separated by a space, e.g. gemini-4-neon 1m)
-2872	Send images with the message (compat): check this when the model cannot read attached images; attachments are then sent directly as multimodal blocks with the message.
-2873	Choosing <b>Gemini / Antigravity</b> auth drives the official <code>agy</code> CLI via <code>GOOGLE_GEMINI_BASE_URL</code> + <code>GEMINI_API_KEY</code>.
-2874	Running Antigravity diagnostics…
-2875	Currently available capabilities
-2876	Fixed
-2877	Workaround
-2878	(Merged from 
-2879	Direct (not needed)
-2880	(Decided by Antigravity)
-2881	Antigravity CLI failed: {msg}
-2882	The Antigravity CLI user-level config has unconfirmed changes. Send a message first, confirm in the card that pops up, then try again.
-2883	Could not fetch the Antigravity CLI version list
-2884	agy install script not found ({p})
-2885	The dev side only manages Antigravity CLI (agy) (you build and install the app itself on this device)
-2886	Updating Antigravity CLI (agy)…
-2887	Could not fetch the Antigravity CLI version list: {err}
-2888	The gateway's own runtime was modified; Antigravity CLI was not started this round. The gateway will restart when idle and restore itself from the install package; send again shortly.
-2889	Antigravity CLI (agy) is not installed. Install it under Settings → Updates first.
-2890	Antigravity CLI (agy) not found
-2891	Settings → Updates: reinstall Antigravity CLI (agy)
-2892	Antigravity CLI (agy) is not installed. Tap “Install” under Settings → Updates.
-2893	The Antigravity CLI user-level config has unconfirmed changes, or an earlier session left background processes behind, so this run did not start. Open hachimia, send a message, and confirm in the card that pops up, then try again.
-2894	Antigravity CLI (agy) is not installed. Install it under Settings → Updates first, then come back to sign in.
-2895	Enterprise sign-in: in the agy sign-in screen, choose “Use a Google Cloud project” → “Continue with Google Cloud” and authorize with your enterprise account.
-2896	Personal sign-in: in the agy sign-in screen, choose “Google OAuth” and authorize with your personal Google account.
-2897	The slash commands, tools, skills and extensions currently available to Antigravity. Tap a slash command to insert it into the input box; a tool's “Allow / Ask / Deny” follows the permission mode and rules.
-2898	For things not in the marketplace, import a Linux arm64 program yourself: a single binary, or a .tar.gz / .zip archive. Missing libraries are filled in automatically and a command is generated, ready to use in Antigravity and in the terminal.
-2899	Save a long prompt you send often as a command and pick it with / in the input box. Text after /command fills $ARGUMENTS in the body, expanded automatically by the gateway when sent to Antigravity.
-2900	Antigravity behavior
-2901	Default color pick (AGY Monet palette); switchable to native, Qiusuo, Zhuyue or Construct
-2902	Font for Antigravity's reply text
-2903	Thinking level (thought_level)
-2904	Levels vary by model (low / medium / high / xhigh). You can also type <code>/effort &lt;level&gt;</code> in the input box.
-2905	Let Antigravity decide
-2906	Empty = let Antigravity decide by window
-2907	Confirm each item by default, same as official agy: it asks in the conversation before editing files or running commands. Allow everything means Antigravity can delete files and run any command without asking. You can also switch anytime via the permission tag under the input box.
-2908	Only clears caches, temp files untouched for 7 days, and expired logs; sessions, your files and programs are never auto-deleted
-2909	When on, run <code>priv 'command'</code> in the terminal as shell (pm / am / settings / dumpsys / logcat / screencap…); Antigravity uses it too. Without Shizuku, basic dev features work as usual — only these debugging abilities are unavailable.
-2910	Auto-activate again after a reboot (needs Wi-Fi; starts the hachimia background service at boot)
-2911	Let Antigravity use device tools (notifications, clipboard, opening links / calendar / alarms, sharing files…)
-2912	Off by default. Turn it on when you want Antigravity to test an app you built, or send files it generated to other apps; while on, each round carries an extra one or two thousand tokens of tool descriptions.
-2913	Antigravity CLI channel
-2914	Plan first
-2915	Interview to align the plan
-2916	Long-term goal
-2917	Multi-agent teamwork
-2918	Deep orchestration
-2919	Capabilities & tools
-2920	Failed to switch permission mode (agent rejected {mode}): {msg}
-2921	Could not restore the previous session (the agent doesn't support resume, or resume failed), so a new session was started. This turn was written to the new session; the old session's history is still kept in local records.
-2922	Compaction not confirmed: context did not shrink (before {pre}, after {post}). Please retry /compact or start a new session.
-2923	Enterprise login: please sign in with your company Google account in the browser
-2924	The authorization code could not be written to agy (stdin is closed). Please start login again.
-2925	The authorization code could not be written to agy (the login process's stdin is closed). Please start login again.
-2926	Login-based providers don't need an API key; sign in through the official flow. The key you entered was not saved.
-2927	Already queued; skipping this duplicate run
-2928	Open this in the app
-2929	Needs npx (included in the hachimia toolkit)
-2930	This build has no native layer, so only CPU time is recorded (battery and screen-on need hachimia).
-2931	The Antigravity CLI program was modified and was not started; 
-2932	Antigravity CLI housekeeping files
-2933	These Claude Code config files contain override-style instructions (telling the model to ignore its rules, posing as system messages and the like). hachimia won't load them, so this turn did not run. Edit or remove the following, then send again:\n{list}
-2934	The command {c} is built into the system or hachimia. Pick another name
-2935	Not a hachimia session archive
-2936	{p}: {n}
-2937	「{n}」 {w}
-2938	API Key
-2939	Google Antigravity / Gemini
-2940	모델 보기 또는 전환
-2941	컨텍스트
-2942	대화 기록을 압축해 컨텍스트 확보
-2943	무슨 일이 있었나요
-2944	무엇을 했는지, 기대한 결과, 실제 결과. 스크린샷은 여기로 끌어다 놓을 수 있습니다.
-2945	재현 방법
-2946	실행 상태를 저장하지 못했습니다(저장 공간이 가득 찼거나 권한이 없음). 시스템이 앱을 종료하면 이 턴을 복구하지 못할 수 있습니다.
-2947	이전 실행 상태를 복구하지 못했습니다(기록을 읽을 수 없거나 형식이 잘못됨). 중단된 턴과 대기 중인 메시지는 표시되지 않습니다. 원본 파일은 보관했습니다.
-2948	이름에는 영문, 숫자, - 와 _ 만 쓸 수 있고 40자 이하여야 합니다
-2949	기본 명령과 이름이 같습니다. 다른 이름을 쓰세요
-2950	지시 내용이 비어 있습니다
-2951	지시 내용이 너무 깁니다(최대 64 KB)
-2952	같은 이름의 지시가 이미 있습니다
-2953	글꼴은 최대 10개까지입니다. 먼저 하나를 삭제하세요
-2954	글꼴 모음(.ttc)은 웹뷰에서 쓸 수 없습니다. 단일 ttf / otf를 사용하세요
-2955	사용할 수 있는 글꼴 파일이 아닙니다. ttf, otf, woff, woff2만 지원합니다
-2956	This model doesn't support thinking level "{effort}"; running with the default instead.
-2957	The agent rejected thinking level "{effort}" ({msg}); running with the default instead.
-2958	Not supported under Antigravity
-2959	Not supported under Antigravity: the Antigravity CLI has no generic third-party API key channel. Declare protocol:"gemini" (the endpoint must speak the Gemini protocol), or switch to a Gemini / sign-in provider.
-2960	On-device models need Claude Code; this device only has the Antigravity CLI, so they're unavailable for now.
-2961	Not set (no default compaction line under ACP)
-2962	No Google Cloud ADC credentials found (Application Default Credentials). Run `gcloud auth application-default login` in a terminal first, then come back and pick ADC.
-2963	Application Default Credentials found.
-2964	The old configuration was still using a Claude preset, which doesn't work in Antigravity-only mode; it has been switched back to Google Antigravity sign-in.
-2965	Protocol: not declared
-2966	Protocol: Gemini (endpoint speaks the Gemini protocol)
-2967	Checking ADC credentials…
-2968	Failed to create a session: the agent returned no session ID. Please try again.
-2969	출력(실행 중)
-2970	남은 AI Credits: {n}
-2971	Google Antigravity 구독 할당량을 동기화하는 중입니다. 현재는 로컬 토큰 사용량을 표시합니다(오른쪽 위 새로고침을 눌러 즉시 조회할 수 있습니다).
-2972	이전 세션을 복원할 수 없습니다({why}). 새 세션을 만들지 않고 현재 세션을 유지했습니다. 다시 시도하거나 수동으로 새 대화를 시작하세요.
-2973	충전 중인지 확인할 수 없습니다
-2974	현재 배터리 잔량을 확인할 수 없습니다
-2975	색인
-2976	잘못된 메모리 파일 이름입니다
-2977	메모리를 찾을 수 없습니다
-2978	일반 메모리 파일만 볼 수 있습니다
-2979	메모리 파일이 너무 큽니다(1 MB 초과)
-2980	메모리는 읽기 전용이므로 여기서 수정할 수 없습니다
-2981	백그라운드 작업 대기 중
-2982	무응답 {d}
-2983	{d} 남음
-2984	유지보수 공지 받기
-2985	GitHub 서드파티 프록시 대체 경로 (gh-proxy.com)
-2986	첫 확인: 아래 전역 설정은 매 턴 적용됩니다. 직접 추가한 항목인지 확인하세요(되돌리면 ~/.ccapp-userconf/quarantine에 백업됨).
-2987	본인이 변경하지 않았다면 ‘되돌리기’(설정 복원 및 잔여 프로세스 종료, 새 파일 격리)를, 직접 변경했다면 ‘유지’를 선택하세요.
-2988	보안 검사 오류가 발생했습니다. 확실하지 않은 작업은 거부하세요.
-2989	프로젝트 설정은 로컬 프로그램을 직접 실행합니다. 출처가 불분명하면 ‘로드 안 함’을 선택하세요(대화는 정상 작동). 허용 후에는 변경될 때만 다시 묻습니다.
-2990	직접 요청하지 않았다면 웹페이지나 파일의 프롬프트 인젝션일 수 있으니 거부하세요. 허용하면 이번 턴에서 같은 유형은 다시 묻지 않습니다.
-2991	확인되지 않은 사용자 설정 변경 감지됨
-2992	보안 검사 오류 — 수동으로 확인하세요
-2993	프롬프트 또는 보안 규칙 파일 수정 예정: {w}
-2994	키 또는 로그인 자격 증명 접근 예정: {w}
-2995	연결 끊김, 재연결 중… (백그라운드 생성 계속됨)
-2996	약 1시간 유휴 상태로 후속 소모를 줄이기 위해 컨텍스트를 자동 압축합니다(설정에서 해제 가능).
-2997	이전 미확인 항목
-2998	새 변경 사항
-2999	설정 파일이 외부에서 수정되어 현재 설정으로 복원됨: 
-3000	실행 파일이 외부에서 수정되어 복구 보호 작동됨: 
-3001	확인 대기 중인 새 대화 · 사이드바 ‘저장되지 않은 대화’ 확인
-3002	준비됨 · 백그라운드 작업 {n}개 실행 중
-3003	준비됨 · 백그라운드 작업 마무리 중
-3004	중단 시 작업 {n}개의 상태를 알 수 없습니다({list}). 계속하기 전에 결과를 확인하세요.
-3005	확인 시간 초과({n}분 무응답)로 이번 턴이 시작되지 않았습니다({when}).
-3006	완료된 진행 내용은 저장되었습니다. ‘계속’을 눌러 중단 지점부터 이어갑니다.
-3007	메시지가 전달되었습니다(재전송 불필요)
-3008	전송 결과 미확인: {msg}
-3009	저장 공간 부족으로 초안이 저장되지 않았습니다. 복사하거나 바로 전송하세요.
-3010	/sdcard/cccodroid/models에 저장(Q4_K_M 양자화), 다운로드 후 ‘설정 → 모델 서비스’에서 활성화. 기기 RAM {ram} GB, 1–4B 권장.
-3011	구성 요소 {name}을(를) 제거할까요? (내 파일에는 영향을 주지 않습니다)
-3012	{name}의 남은 실행 캐시 {size}({path})도 함께 정리할까요?
-3013	진단 패키지를 내보내고 공유할까요?\n\n포함: 버전·기기 정보, 툴킷·자체 점검 상태, 마스킹된 최근 로그, 복구 원장, 네트워크 연결 결과.\n제외: 키, 자격 증명, 이메일, 메시지 본문 및 대화 기록.
-3014	온디바이스 모드는 기본적으로 채팅 전용입니다. 도구와 매개변수를 지정하려면 {file}을 편집하거나 클라우드 모델로 전환해 아래 명령을 보내세요:
-3015	(캐시된 상태, 새로고침 실패: {msg})
-3016	브라우저에서 인증을 완료한 뒤 인증 코드를 아래에 붙여넣으세요.
-3017	내장 터미널에서 직접 로그인 명령을 실행할 수도 있습니다:
-3018	기존 엔드포인트가 종료되었습니다. 새 경로를 선택하고 Key를 다시 입력하세요.
-3019	제공자 콘솔에서 한도를 설정하고, 유출이 의심되면 즉시 Key를 교체하세요.
-3020	이번 달 사용 개요
-3021	예시 템플릿(실제 서비스 주소로 변경하세요)
-3022	타사 호출은 사용자가 직접 설정하며, 상대방이 Key·코드·대화를 볼 수 있습니다. 신뢰할 수 있는 서비스만 사용하세요.
-3023	저장되지 않은 대화
-3024	지금 실행
-3025	지정된 시간에 대상 폴더에서 자동 실행하고 결과를 세션으로 저장합니다. 무인 실행 중 확인 요청은 자동 거부되며, 누락된 작업은 개별 정책에 따릅니다.
-3026	한도 도달 시 당일 남은 작업을 건너뜁니다(공식 API 비용만 집계, 타사 호출 제외).
-3027	개인 구독은 예약 작업이 기본 비활성화됩니다. 켜기 전에 상위 서비스 약관을 확인하세요(API Key는 제한 없음).
-3028	이번 실행 건너뜀
-3029	타사 호출 사용 중: 비용 한도에 집계되지 않으며 1회 실행 시간 제한만 적용됩니다.
-3030	개인 구독 로그인 중: 잦은 자동 실행은 상위 서비스 제재를 유발할 수 있으므로 API Key 사용을 권장합니다.
-3031	일상 소통은 그룹을 이용하고, 버그 제보는 기기·자체 점검 정보가 자동 첨부되는 ‘설정 → GitHub 피드백’을 권장합니다.
-3032	번역, 테스트, 문서, 개발 참여를 환영합니다. 자세한 내용은 저장소의 기여 가이드를 참고하세요.
-3033	외부 브라우저는 샌드박스 보호가 적용되지 않아 스크립트가 같은 폴더 파일 및 로컬 서비스에 접근할 수 있습니다. 신뢰하는 웹페이지만 계속하세요.
-3034	바이너리 파일은 텍스트로 열 수 없습니다.
-3035	이 웹페이지의 인터넷 연결을 허용할까요?\n\n연결 시 스크립트가 상위(최대 3단계) 주변 폴더 파일을 외부로 전송할 수 있습니다. 신뢰하는 페이지만 허용하세요.
-3036	파일이 너무 큽니다({size}). ‘원본 레이아웃’으로 PDF 미리보기를 하거나 외부 앱으로 여세요.
-3037	백그라운드에서 LibreOffice 설치 중…
-3038	[프로세스 종료됨]
-3039	[전송 실패, 게이트웨이 재연결 중]
-3040	턴별 소요 시간 및 도구 호출 타임라인 보기
-3041	처음이라면 오른쪽 위 ‘보는 법’을 눌러 사용법을 확인하세요
-3042	뒤에 아직 저장되지 않은 동일한 메시지가 있습니다. 현재 턴이 끝난 뒤 북마크하세요
-3043	북마크가 없습니다. 메시지 아래의 북마크 아이콘을 눌러 추가하세요.
-3044	인터랙티브 웹페이지(HTML)
-3045	화면 다시 불러오는 중…
-3046	현재 앱 버전은 자동 복구를 지원하지 않습니다. 앱을 업데이트하거나 게이트웨이를 재시작하세요
-3047	스크롤이 멈추면 상단 제목 표시줄을 약 0.6초 길게 눌러 복구하세요
-3048	자동 복구가 중지되었습니다(설정 변경으로 해제되지 않음). 아래에서 진단 후 복구 횟수를 초기화하세요.
-3049	브리지 검증 실패로 자동 복구가 중지되었습니다(설정 저장으로 해제되지 않음). 먼저 진단 및 복구하세요.
-3050	브리지가 비활성화되었습니다(설정 저장으로 해제되지 않음). 먼저 확장 페이지에서 구성 요소를 활성화하세요.
-3051	브리지 구성 요소를 사용할 수 없습니다. 설치 상태를 확인하세요(복구 횟수는 자동 초기화되지 않음).
-3052	브리지 구성 요소를 업데이트한 뒤 사용할 수 있습니다.
-3053	브리지가 준비되지 않았습니다. 아래 진단을 확인하세요(현재 세션 유지, 설정 저장으로 복구 횟수 초기화 안 됨).
-3054	브리지가 사용 중입니다. 잠시 후 다시 시도하세요.
-3055	설정 일관성 검사를 통과하지 못했습니다. 아래 안내에 따라 처리하고 폴더를 직접 삭제하지 마세요.
-3056	브리지 설정을 읽지 못했습니다. 확장 페이지로 돌아가 다시 시도하세요.
-3057	계정 정보, 쿼리 매개변수, 해시 조각이 없는 HTTPS API 주소를 사용하세요.
-3058	Chat Completions 주소를 입력하세요(Responses API는 아직 미지원).
-3059	경로를 자동 완성할 수 없습니다. 전체 /chat/completions 주소를 입력하세요.
-3060	여러 OpenAI 호환 인터페이스를 설정할 수 있으며 저장 후 적용됩니다.
-3061	기기 상태만 읽으며 설정 변경이나 상위 서버 요청을 하지 않습니다.
-3062	이전이나 재설치 전에 브리지 설정을 백업하세요(엔드포인트·키·모델 목록만 포함, 채팅 기록 제외).
-3063	키가 포함된 설정 파일은 공개적으로 공유하지 마세요.
-3064	서비스 제공자의 API 주소를 입력하세요(웹 로그인 페이지 아님).
-3065	모델 목록 자동 가져오기(입력한 서버로 API Key 전송)
-3066	다시 가져오기
-3067	모델 이름 검색 또는 직접 입력
-3068	추가 후 모델별 컨텍스트 창과 기본 모델을 지정할 수 있습니다.
-3069	인터페이스가 반환한 창 크기를 우선 적용하며, 없을 시 기본값은 200,000 토큰입니다(수동 수정 가능).
-3070	대화, 도구 결과 및 이미지가 입력한 서비스로 전송됩니다.
-3071	대화 추론 미확인
-3072	‘설정 → 인터페이스 및 모델’에 동기화되었습니다.
-3073	다른 세션에서도 입력창 아래 모델 칩을 눌러 전환할 수 있습니다.
-3074	로컬 설정 차이를 점검하고 동기화 방안을 생성합니다(점검만으로는 설정이 변경되지 않음).
-3075	모델 목록·기본 모델·인증 방식만 동기화하며, 서비스 시작/중지나 키·런타임 파일·복구 잠금·현재 세션은 변경하지 않습니다(60초 유효).
-3076	인터페이스 기록 동기화 확인
-3077	앱과 구성 요소가 모두 최신 버전인지 확인하고, 실행 중인 세션이 끝나면 다시 점검하세요.
-3078	자동 복구 중지나 검증 실패 시 기록 동기화로는 복구 잠금이 해제되지 않습니다. 먼저 진단을 확인하고 필요 시 확장 페이지에서 업데이트·재설치하세요(디렉터리 직접 삭제 금지).
-3079	문제 제보 시 버전과 진단 코드만 첨부하고, 키나 전체 설정은 절대 포함하지 마세요.
-3080	다시 점검하면 저장하지 않은 입력 내용이 지워집니다. 계속할까요?
-3081	여러 인터페이스를 추가하려면 브리지 구성 요소를 업데이트해야 합니다(기존 단일 설정은 계속 사용 가능).
-3082	한 번에 하나의 인터페이스를 편집하며 ‘설정 저장’을 누르면 일괄 적용됩니다.
-3083	체크하면 목록을 자동으로 가져오며 직접 입력할 수도 있습니다.
-3084	인터페이스 ‘{name}’ 및 해당 모델을 제거할까요?(설정 저장 후 적용)
-3085	브리지가 사용 중입니다. 잠시 후 다시 시도하세요.
-3086	복구 방안이 만료되었거나 상태가 변경되었습니다. 다시 점검하세요.
-3087	동기화할 설정 차이가 없습니다. 문제가 계속되면 아래 안내를 펼쳐 보세요.
-3088	현재 상태에서는 자동 동기화할 수 없습니다. 아래 안내에 따라 점검하고 폴더를 직접 삭제하지 마세요.
-3089	동기화 가능 항목 확인 중…
-3090	모델 {n}개 및 인증 방식을 동기화할 수 있습니다.
-3091	동기화 방안이 준비되었습니다. 확인 시 적용됩니다.
-3092	브리지의 인터페이스 기록을 동기화할까요?\n\n모델 목록·기본 모델·인증 방식만 갱신하며 주소와 키는 변경되지 않습니다.
-3093	인터페이스 기록 동기화 중…
-3094	동기화 결과가 확인되지 않았습니다. 반복 제출하지 말고 상태를 다시 점검하세요.
-3095	인터페이스는 기록되었으나 매핑이 완료되지 않았습니다. 상태를 다시 점검하세요.
-3096	인터페이스 기록이 동기화되었습니다.
-3097	인터페이스 주소, 인증 방식 또는 로컬 연결 기록이 브리지와 일치하지 않습니다.
-3098	저장된 모델 목록의 형식이나 내용이 일치하지 않습니다.
-3099	브리지 인터페이스 매핑 기록 읽기 또는 형식 검증에 실패했습니다.
-3100	로컬 서비스 등록과 연결 기록이 일치하지 않습니다.
-3101	기본 실행 폴더의 소유 표시가 일치하지 않습니다. 이전 설정이나 폴더 상태를 확인하세요.
-3102	구성 요소 안전 자체 점검 실패(구체 항목 없음).
-3103	설정 충돌(구버전 구성 요소가 세부 항목을 반환하지 않음. 실행 파일·소유 표시·인터페이스 기록 관련 가능성).
-3104	구성 요소 사용 불가
-3105	브리지 사용 중
-3106	브리지 상태를 읽을 수 없음
-3107	설정이 기록되었으나 후속 단계가 완료되지 않았습니다. 먼저 상태를 다시 점검하세요.
-3108	저장이 완료되지 않았습니다. 위 안내를 확인하세요.
-3109	먼저 앱과 구성 요소 버전을 확인하고 실행 폴더를 직접 삭제·수정하지 마세요.
-3110	서비스 주소가 변경되었습니다. API Key를 다시 입력하세요(기존 키는 새 주소로 전송되지 않음).
-3111	저장된 키는 표시되지 않습니다. 비워 두면 유지되고 새 값을 입력하면 교체됩니다.
-3112	설정 저장 중…
-3113	저장 시 원격 모델을 호출하거나 현재 세션을 전환하지 않습니다(모델 목록 읽음, 대화 추론 미테스트).
-3114	1024~16777216 사이의 정수(256k, 1m 지원)를 입력하거나 비워 두어 기본값을 사용하세요.
-3115	올바른 모델 이름을 입력하세요(쉼표·줄바꿈 제외).
-3116	유효한 API Key를 입력하면 목록을 자동으로 가져옵니다.
-3117	가져오기가 취소되었습니다. 재시도하거나 직접 입력하세요.
-3118	모델 목록 가져오기 준비 중…
-3119	API Key를 다시 입력한 뒤 재시도하세요.
-3120	모델 목록이 비어 있습니다. 직접 입력하거나 다시 시도하세요.
-3121	모델 {count}개 읽음(최대 500개), 검색하거나 직접 입력하세요.
-3122	저장 중…
-3123	모델 목록 읽음, 대화 추론 미확인
-3124	로컬 준비 완료
-3125	자동 복구 중지됨
-3126	브리지 검증 실패
-3127	브리지 비활성화됨
-3128	설정 저장됨, 브리지 미준비
-3129	모델 ID 충돌, 200자 초과 또는 총 100개 초과입니다. 조정 후 저장하세요.
-3130	모든 인터페이스 설정을 저장할까요?\n\n대화, 도구 결과 및 이미지가 모델에 따라 다음 서버로 전송됩니다:\n{origins}
-3131	이 인터페이스 설정을 저장할까요?\n\n대화, 도구 결과 및 이미지가 {origin}(으)로 전송됩니다.\n({verification})
-3132	API 주소 검증에 실패했습니다. 확인 후 다시 시도하세요.
-3133	API Key를 다시 입력하세요(주소 변경 시 기존 키 재사용 불가).
-3134	저장이 완료되지 않았습니다. 기기 상태를 확인한 뒤 다시 시도하세요.
-3135	새 세션 인터페이스 전환에 실패했습니다. 다시 시도하세요.
-3136	백그라운드 명령이 종료되었으나 엔진이 {d} 넘게 응답하지 않습니다. 중지를 누르거나 새 메시지를 보내세요.
-3137	브리지 설정이 완료되지 않았습니다. 입력 항목이나 구성 요소 상태를 확인하고 다시 시도하세요.
-3138	전송 상태 충돌이 발생했습니다. 다시 보내세요.
-3139	상위 연결이 일찍 끊겨 응답이 불완전할 수 있습니다. ‘계속’을 보내 이어서 생성하세요
-3140	이 인터페이스는 Antigravity에서 지원되지 않습니다. protocol:"gemini"(Gemini 호환 엔드포인트)를 설정하거나 Google 로그인을 사용하세요.
-3141	순수 Antigravity 모드에서는 Claude 프리셋({id})을 사용할 수 없습니다. Google 로그인 또는 Gemini 인터페이스를 선택하세요.
-3142	끼어들기(현재 턴에 추가)
-3143	↩ 방금 지운 초안 복원
-3144	변경 사항은 다음 메시지부터 적용됩니다.
-3145	공개 레지스트리(공식 검수 없음). npm 패키지는 기기에서 직접 실행되므로 설치 전 출처를 확인하세요.
-3146	특정 시점(도구 호출 전후, 메시지 전송, 응답 완료 등)에 명령을 자동 실행해 작업을 차단하거나 컨텍스트 추가·포맷팅을 수행합니다.
-3147	버튼·링크·선택 항목 강조 색상(라이트/다크 모드에 맞춰 대비 자동 조정)
-3148	상단 고정, ‘⋯’에 숨김 또는 표시 안 함으로 설정하고 왼쪽 핸들을 끌어 순서 변경
-3149	ttf / otf / woff / woff2 지원(40MB 이하, 최대 10개), 가져온 뒤 위 ‘사용자 지정…’에서 활성화
-3150	끄면 입력창 모델 선택 메뉴에서 숨기며 설정과 키는 유지됩니다
-3151	첫 응답 후 대화 제목 자동 생성(소량의 토큰 소모, 경량 모델 지정 가능)
-3152	자격 증명(.env / SSH / API Key) 읽기, 화면 읽기·터치, 클립보드 읽기, 외부 공유 시 ‘모두 허용’ 모드에서도 항상 확인 창을 띄워 프롬프트 인젝션을 방지합니다.
-3153	20만 토큰 초과 세션이 약 54분 유휴 상태일 때 자동 압축해 재개 지연과 토큰 소모를 줄입니다.
-3154	‘Work Island’ 앱 필요: ColorOS 16 플루이드 클라우드/아일랜드에 진행 상태와 확인 대기를 실시간 표시합니다(완료 8초 후 닫힘).
-3155	additionalDirectories를 통해 작업 공간 외부 폴더 읽기·쓰기를 허용하며 파일 브라우저 바로가기로도 추가됩니다.
-3156	로컬 파일을 변경하지 않고 사용자 규칙, 스킬, 플러그인, Hooks, MCP를 일시 건너뜁니다(끄면 복구).
-3157	서로 다른 세션 병렬 실행 수(각 수백 MB 메모리 사용, 1 = 순차 실행).
-3158	Android에서 차단된 새 시스템 콜을 가로채 호환 경로로 폴백하여 Go 등 정적 바이너리 충돌을 방지합니다(다음 메시지부터 적용).
-3159	설치 패키지에 따라 자동 선택: targetSdk 28은 직접 실행, targetSdk 36은 시스템 로더 경유(게이트웨이 재시작 후 적용).
-3160	허용 목록 외 백그라운드 앱 중지 허용(Shizuku 필요)
-3161	고부하 명령(<code>cc-mem run -- 명령</code>) 실행 전 백그라운드 앱을 정리합니다. 포그라운드·분할 화면·상시 알림 앱(프록시/음악)·런처·입력기·접근성·VPN·Shizuku·화이트리스트는 유지됩니다.
-3162	로컬 세션을 기본 영구 보관하며 수동 삭제 시에만 휴지통으로 이동합니다.
-3163	특권 명령 개별 확인 생략(본인 책임): 기한 내 팝업 없이 Shizuku 명령을 실행합니다. 본 앱과 Shizuku 관련 명령은 최대한 차단하지만 모든 우회 표기를 막을 수는 없습니다. 단일 세션 허용은 확인 창에서 체크하세요
-3164	기본 targetSdk 28이 호환성이 가장 좋으며, 최신 기기에서 설치 거부 시 targetSdk 36으로 자동 전환됩니다(덮어쓰기 시 데이터 유지).
-3165	Antigravity CLI는 자동 업데이트, 앱 새 버전은 다운로드 후 알림(Shizuku 사용 시 유휴 상태에서 자동 설치), 툴킷은 Wi‑Fi에서만 미리 받아 다음 실행 시 설치합니다.
-3166	3시간마다 서명된 유지보수 공지를 가져옵니다(기기 정보 없는 정적 요청). 끄면 요청하지 않습니다.
-3167	기본 꺼짐: 공식 서버와 미러 모두 연결 불가일 때만 타사 프록시로 다운로드합니다(공인 IP가 노출될 수 있으나 해시·서명 검증은 강제 적용).
-3168	마스킹된 로그와 환경 상태(키, 이메일, 대화 내용 제외)를 내보내 문제 해결이나 Issue 첨부에 활용합니다.
-3169	진단 패키지 내보내기
-3170	기기 모델, OS 버전, 자체 점검 결과가 미리 채워진 새 Issue 페이지를 엽니다(로그·대화 제외).
-3171	사용자 설정, 앱 설정, 셸 시작 파일을 초기화하고 원본은 ~/.ccapp-reset에 백업합니다. 세션·작업 공간·툴킷·키는 기본 유지됩니다.
-3172	컴파일러, Python, Node, git 등의 사용 가능 여부를 점검해 Antigravity에 전달합니다(업데이트 후 자동 재검사).
-3173	화면을 불러오지 못했습니다(탭하여 재시도)
-3174	저장 시 원격 모델을 호출하거나 현재 세션을 전환하지 않습니다.
-3175	Antigravity CLI 무결성 검사를 통과하지 못해 실행하지 않았습니다: {why}
-3176	현재 엔진(Antigravity CLI)은 파일 체크포인트 되돌리기를 아직 지원하지 않습니다
-3177	현재 엔진(Antigravity CLI)은 플러그인 마켓플레이스 관리를 아직 지원하지 않습니다
-3178	현재 엔진(Antigravity CLI)은 이 MCP 하위 명령을 아직 지원하지 않습니다
-3179	MCP 설정이 올바른 JSON 형식이 아닙니다
-3180	공유 폴더 /sdcard/hachimia
-3181	다음 턴의 보안에 영향을 줄 수 있는 내용 쓰기를 차단했습니다: {what}
-3182	모델 "{model}" 설정이 에이전트에 의해 거부되어({msg}) 기본 모델로 실행합니다.
+2432	답변이 완료되었습니다
+2433	답변 중 오류가 발생했습니다
+2434	{n}개를 휴지통으로 옮겼습니다. {m}개 실패: {msg}
+2435	{n}개 첨부됨, {m}개 실패: {msg}
+2436	검색 실패: {msg}
+2437	파일 목록을 읽지 못했습니다: {msg}
+2438	파일이 너무 커서 서버가 받지 않았습니다
+2439	서버가 업로드된 파일을 인식하지 못했습니다
+2440	서버가 {status}을(를) 반환했습니다
+2441	대화를 불러오는 중…
+2442	삭제하지 못했습니다: {msg}
+2443	아직 {n}개 파일을 업로드 중입니다. 완료 후 보내세요.
+2444	내장 스크립트를 설치하지 못했습니다: {msg}
+2445	내장 스크립트를 설치하지 못했습니다: {msg}. 규칙은 저장되지 않았습니다
+2446	업데이트 상태를 가져오지 못했습니다: {msg}
+2447	처음 1000개 항목만 표시됩니다
+2448	병합이 아직 커밋되지 않았습니다. 모든 변경을 함께 커밋하거나, 커밋하지 않을 변경을 먼저 취소하세요.
+2449	복사하지 못했습니다. 길게 눌러 텍스트를 선택한 뒤 복사하세요
+2450	삭제된 프로젝트 ({id})
+2451	마지막 3000줄을 복사했습니다
+2452	{line}(으)로 설정됨 (모델 창을 알 수 없어 설정값이 적용됩니다)
+2453	플러그인 마켓을 읽지 못했습니다: {msg}
+2454	파일 이름이 너무 깁니다 (최대 255바이트, 한중일 문자 1자는 3바이트)
+2455	파일이 아직 없습니다
+2456	업데이트 확인 실패
+2457	이 위치에 접근할 권한이 없습니다 (공유 저장소는 시스템 설정에서 '모든 파일 접근'이 필요합니다)
+2458	이 폴더에 접근할 권한이 없습니다 (공유 저장소는 시스템 설정에서 '모든 파일 접근'이 필요합니다)
+2459	이 위치를 읽을 권한이 없습니다 (공유 저장소는 시스템 설정에서 '모든 파일 접근'이 필요합니다)
+2460	지우기 실패: {msg}
+2461	터미널 프로세스가 종료되어 입력이 전송되지 않았습니다
+2462	사용자 정의 컴포넌트 목록을 읽지 못했습니다: {msg}
+2463	커밋 기록을 읽지 못했습니다
+2464	이 파일의 상태를 읽지 못했습니다
+2465	이 커밋의 파일 목록을 읽지 못했습니다
+2466	해결되지 않은 충돌이 있습니다. 먼저 해결한 뒤 커밋하세요.
+2467	이 페이지를 그리지 못했습니다
+2468	이 위치는 읽을 수 없습니다
+2469	이 폴더는 더 이상 git 저장소가 아닙니다
+2470	이 폴더에는 SKILL.md가 없습니다 (이전 가져오기가 중간에 실패한 흔적일 수 있음). 삭제할 수 있습니다.
+2471	이 스프레드시트는 내부 압축을 풀면 너무 커져서 안전하게 열 수 없습니다.
+2472	이 시트의 범위 정보가 손상되어 읽을 수 없습니다
+2473	이런 시스템 의사 파일은 이 방식으로 읽을 수 없습니다
+2474	프로젝트 지시사항이 저장되지 않았습니다. 돌아가면 이번 변경이 사라집니다. 돌아갈까요?
+2475	미리보기 서비스가 주소를 반환하지 않았습니다
+2476	도움말을 불러오지 못했습니다: {msg}
+2477	변경 로그를 불러오지 못했습니다: {msg}
+2478	스킬 패키지가 64MB를 초과합니다. 압축을 풀고 하나씩 가져오세요
+2479	cron 필드 값이 올바르지 않습니다: {f}
+2480	cron 필드 값이 범위를 벗어났습니다: {f}
+2481	cron 간격 값이 올바르지 않습니다: {f}
+2482	cron 식은 다섯 개 필드(분 시 일 월 요일)가 필요합니다
+2483	「{n}」의 프로젝트 폴더가 더 이상 없습니다. 작업을 편집해 다른 프로젝트나 폴더를 선택하세요
+2484	북마크를 저장하지 못했습니다: 저장 공간이 가득 찼거나 권한이 없습니다
+2485	작업의 프로젝트 폴더가 더 이상 없습니다. 작업을 편집해 다른 프로젝트나 폴더를 선택하세요
+2486	분기한 세션을 디스크에 쓰지 못했습니다: {err}
+2487	한 번만 실행하려면 날짜를 입력하세요
+2488	시작 시간은 0–23시, 0–59분으로 입력하세요
+2489	날짜는 YYYY-MM-DD 형식으로 입력하세요
+2490	시간은 0–23시, 0–59분으로 입력하세요
+2491	요일을 1–7 사이 정수로 하루 이상 선택하세요
+2492	매월 며칠은 1–31 또는 「마지막 날」로 입력하세요
+2493	간격은 1–24 사이 정수로 입력하세요
+2494	저장하지 못했습니다: 저장 공간이 가득 찼거나 권한이 없습니다
+2495	종료 시간은 0–23시, 0–59분으로 입력하세요
+2496	(본문이 너무 길어 앞 {n}자만 표시합니다)
+2497	안전 모드에서는 묻지 않는 모드는 적용되지 않으며, 현재는 '매번 확인'입니다
+2498	설정이 저장되지 않았습니다. 다시 시작하면 이전 권한 모드로 돌아갑니다
+2499	원본 메시지가 너무 길어 앞부분 6.5만 자만 복원했습니다
+2500	지금은 보안 알림을 가져올 수 없습니다
+2501	보안 알림을 가져오는 중…
+2502	호스트가 바뀌어 이전 키를 지웠습니다. 다시 입력해 주세요
+2503	재설정 시간이 지났습니다. 다음 대화 후에 갱신됩니다
+2504	프로젝트를 만들었습니다. 폴더에 이미 CLAUDE.md가 있어 입력한 지침은 기록되지 않았습니다
+2505	공식 로그인 · 로그인됨
+2506	공식 로그인 · 로그인 안 됨
+2507	공식 로그인 · 로그인 상태를 확인할 수 없음
+2508	공식 로그인 · 마지막 확인 시 로그인됨
+2509	공식 로그인 · 마지막 확인 시 로그인 안 됨
+2510	계정에 로그인하세요
+2511	로그인이 진행 중입니다. 인증 주소가 오면 자동으로 엽니다.
+2512	모델 '{id}'을(를) 삭제할까요? 모델 폴더에서 파일이 삭제됩니다.
+2513	모델 '{id}'을(를) 삭제했습니다
+2514	{n}개를 가져왔지만 그다음 실패했습니다: {msg}
+2515	툴킷이 업데이트되었지만 아직 호환되는 버전이 없습니다
+2516	툴킷이 업데이트되었지만 구성 요소 목록에 현재 툴킷에 맞는 빌드가 아직 없습니다. 먼저 툴킷을 업데이트하거나 '업데이트 확인'을 눌러 목록을 다시 가져오세요.
+2517	압축 기준선은 최소 100k입니다. 100k로 저장했습니다
+2518	설치 기록을 쓰지 못했습니다(저장 공간이 가득 찼거나 권한이 없습니다). 이번 설치를 계속하지 않았습니다
+2519	파일은 배치되었지만 설치 기록을 쓰지 못했습니다(저장 공간이 가득 찼거나 권한이 없습니다). 다시 설치하거나 제거하세요
+2520	컴포넌트 기록을 쓰지 못했습니다(저장 공간이 가득 찼거나 권한이 없습니다). 이번 설치가 완료되지 않았습니다
+2521	엔드포인트가 {s}을(를) 반환했지만 예상한 형식이 아니어서 키가 유효한지 확인할 수 없습니다: {what}
+2522	(비어 있음)
+2523	업스트림이 답변 끝에서 오류를 보냈습니다({msg}). 완료로 처리했습니다. 답변이 불완전하면 「계속」이라고 보내세요
+2524	{name}에서 선택했던 경로 「{ep}」이(가) 더 이상 없습니다. 설정에서 경로를 다시 고르고 그 경로의 키를 다시 입력하세요.
+2525	이 주소는 암호화되지 않은 http입니다. 키와 대화 내용이 암호화 없이 상대 기기로 전송됩니다. 가능하면 https로 바꾸세요.
+2526	예약 작업은 별도의 턴으로 실행됩니다: 맨 앞으로 옮기고 현재 턴이 끝나는 즉시 시작합니다
+2527	초과하면 중지하고 실패로 기록합니다. 공식 API에만 적용
+2528	경로가 바뀌어 이전 키를 지웠습니다. 다시 입력하세요
+2529	기록을 불러오지 못했습니다: {msg} 
+2530	설치 중에 공유 파일 {n}개가 제거 작업으로 삭제되었습니다. 다시 설치하세요
+2531	이 세션에 고정한 온디바이스 모델 {model}이(가) 없어졌습니다. 모델 패널에서 다시 고르세요
+2532	온디바이스 모델 파일을 확인하는 중…
+2533	온디바이스 모델 파일이 변경되어(체크섬 불일치) 안전을 위해 불러오지 않습니다: {file}
+2534	온디바이스 모델 파일이 GGUF가 아닙니다(변경되었을 수 있음). 불러오지 않습니다: {file}
+2535	로그인 시간이 초과되었습니다(15분)
+2536	로그인이 아직 진행 중입니다. 인증 주소를 받으면 열립니다
+2537	이 모듈의 다운로드 정보가 불완전합니다. 먼저 개발 키트를 업데이트하세요
+2538	모듈 패키지에 파일 목록(MANIFEST)이 없어 안전을 위해 설치하지 않습니다
+2539	모듈 패키지의 파일 목록에 잘못된 경로가 있습니다: {file}
+2540	모듈 "{name}"의 초기 설정이 끝나지 않았습니다({err}). 다시 설치하면 재시도합니다
+2541	프로젝트 목록을 저장하지 못했습니다(저장 공간 부족 또는 쓰기 불가). 다시 시작하면 이번 변경이 사라집니다
+2542	대화 {n}개를 휴지통으로 옮기지 못해 폴더를 삭제하지 않았습니다: {why}
+2543	구성 요소 "{id}"이(가) 의존하는 공유 파일 {n}개가 삭제되었습니다
+2544	게이트웨이가 시스템에 의해 종료되어 이번 실행이 끝나지 않았습니다
+2545	시간 초과
+2546	출력 없음
+2547	자체 점검 중…(1~2분 걸립니다)
+2548	지난번 {time}: 통과 {pass}개, 실패 {fail}개
+2549	개발 키트나 앱 업데이트 전에 측정한 결과
+2550	아직 자체 점검 결과가 없습니다
+2551	지난번에는 결과가 나오지 않았습니다: {why}
+2552	실패한 항목
+2553	시스템이 이 앱에서 워크 아일랜드 서비스를 시작하도록 허용하지 않아 표시되지 않습니다.
+2554	"워크 아일랜드" 앱이 감지되지 않았습니다. 설치한 뒤 다시 시도를 누르세요.
+2555	기기 자체 점검
+2556	자체 점검 다시 실행
+2557	주간 · {model}
+2558	기간
+2559	1시간
+2560	4시간
+2561	1일
+2562	3일
+2563	7일
+2564	원래 세션 기록을 삭제할 수 없어 세션을 원래 위치에 그대로 두었습니다: {err}
+2565	이 턴은 끝나지 않았습니다: 앱 업데이트 중 게이트웨이가 다시 시작되었습니다({when} 시작).
+2566	이 턴은 끝나지 않았습니다: 게이트웨이가 중지되거나 다시 시작되었습니다({when} 시작).
+2567	작업 폴더 {dir}이(가) 없습니다(삭제·이름 변경 또는 저장 카드 제거). 이번 턴은 실행하지 않았습니다. 폴더를 되돌리거나 프로젝트 설정에서 경로를 바꾼 뒤 다시 보내세요.
+2568	이 턴은 시작하기 전에 종료되었습니다({when} 전송).
+2569	대화가 모델의 컨텍스트 한도를 넘었습니다. /compact로 압축한 뒤 계속하거나 새 대화를 시작하세요.
+2570	엔드포인트가 키를 거부했습니다: 설정 → 엔드포인트에서 API 키가 올바른지, 만료되거나 비활성화되지 않았는지 확인하세요.
+2571	계정 잔액이 부족하거나 한도를 다 썼습니다: 제공업체 콘솔에서 충전하거나 한도를 확인하세요.
+2572	요청이 너무 많거나 사용량 한도에 도달했습니다: 잠시 후 다시 시도하세요.
+2573	엔드포인트가 이 모델이나 주소를 찾지 못했습니다: 모델 이름과 엔드포인트 주소를 확인하세요.
+2574	제공업체 쪽 오류이거나 과부하입니다: 잠시 후 다시 시도하세요. 계속되면 다른 모델이나 엔드포인트로 바꾸세요.
+2575	엔드포인트에 연결할 수 없습니다: 네트워크나 엔드포인트 주소가 잘못되지 않았는지 확인하세요.
+2576	압축 파일의 파일이 너무 많습니다({n}개, 최대 {max}개). 가져오지 않았습니다
+2577	처음 {n}개만 표시합니다. 필터로 찾으세요
+2578	선택 항목 압축 해제({n})
+2579	압축({n})
+2580	압축 파일: ‘압축 파일 열기’로 안의 파일을 보거나 바로 압축을 풀 수 있습니다
+2581	압축 파일 열기
+2582	압축 해제…
+2583	비활성화하면 Claude에게 보이지 않습니다. 명령 파일은 남아 있고 언제든 다시 켤 수 있습니다.
+2584	이름만
+2585	직접 호출할 때만
+2586	스킬 모드
+2587	다음 턴부터 적용
+2588	비활성화됨: Claude가 연결하지 않습니다. 설정은 보관되어 있어 사용을 누르면 다시 추가됩니다.
+2589	MCP 서버 {name}을(를) 비활성화할까요? 설정을 먼저 저장하므로 언제든 다시 켤 수 있습니다.
+2590	MCP 서버 {name}을(를) 사용할까요? 다음 내용으로 다시 추가합니다: {target}
+2591	비활성화된 MCP 서버 {name}을(를) 삭제할까요? 한 번에 다시 켤 수 없게 됩니다.
+2592	~/.claude/settings.json이 올바른 JSON이 아닙니다. 먼저 고쳐 주세요
+2593	직접 추가한(사용자 범위) MCP 서버만 비활성화할 수 있습니다
+2594	비활성 목록을 쓸 수 없습니다
+2595	비활성 목록에 없습니다
+2596	이 구성 요소는 설치되어 있지 않습니다
+2597	이 모듈은 비활성화할 수 없습니다
+2598	압축…
+2599	파일 이름 인코딩
+2600	이름이 깨져 보이면 다른 인코딩을 선택하세요
+2601	항목 {n}개
+2602	암호화됨
+2603	모두 압축 해제…
+2604	압축 파일 닫기
+2605	압축 파일로 돌아가기
+2606	이 버전에는 7-Zip이 없어 이 형식의 압축 파일을 열 수 없습니다
+2607	압축 파일을 열 수 없습니다: {msg}
+2608	압축 후 {size}
+2609	심볼릭 링크(풀지 않음)
+2610	푸는 중…
+2611	비밀번호가 틀렸습니다
+2612	너무 커서 미리 볼 수 없습니다. 먼저 압축을 푸세요
+2613	저장 공간이 부족합니다
+2614	압축 해제 실패: {msg}
+2615	비밀번호 입력
+2616	비밀번호가 틀렸습니다. 다시 시도하세요
+2617	확인
+2618	선택한 항목 {n}개
+2619	{what} 압축 해제
+2620	압축 해제 위치
+2621	현재 폴더
+2622	비밀번호(암호화되지 않았으면 비워 두세요)
+2623	같은 이름의 기존 파일은 덮어쓰지 않고, 새로 푼 파일 이름을 ‘이름 (2)’로 바꿉니다. 심볼릭 링크는 풀지 않습니다.
+2624	압축 해제
+2625	전체 경로를 입력하세요(/로 시작)
+2626	‘{name}’ 압축
+2627	항목 {n}개 압축
+2628	압축 파일 이름
+2629	형식
+2630	압축 수준
+2631	저장만
+2632	가장 빠르게
+2633	보통
+2634	가장 작게(느림)
+2635	비밀번호(선택, zip / 7z)
+2636	파일 이름도 암호화(7z)
+2637	zip 암호화는 AES-256을 사용합니다. 오래된 압축 프로그램은 못 열 수 있으니 호환성이 중요하면 비밀번호를 설정하지 마세요. .ssh 같은 자격 증명 폴더는 넣지 않습니다.
+2638	압축
+2639	이 위치로는 압축하거나 풀 수 없습니다
+2640	이 버전에는 7-Zip이 없습니다
+2641	압축할 폴더 안에는 압축 파일을 둘 수 없습니다
+2642	압축 해제 중
+2643	압축 중
+2644	{path}에 압축을 풀었습니다
+2645	{path}(으)로 압축했습니다
+2646	여러 개 선택
+2647	시스템 프롬프트를 파일로 쓰지 못해 이번 턴을 시작하지 않았습니다: {msg}
+2648	초기 설정으로 되돌리기
+2649	확인 창이 뜨지 않았습니다
+2650	이 구성 요소 다시 설치(다시 다운로드)
+2651	이 도구 키트 모듈 다시 설치(다시 다운로드)
+2652	개발 도구 키트 복구: 현재 버전을 다시 받아 재설치합니다. 설치하는 동안 1–2분 서비스가 멈춥니다
+2653	모두 복구
+2654	복구
+2655	대기 중
+2656	진행 중…
+2657	앱에 넘김
+2658	복구 중입니다. 이 페이지를 닫아도 멈추지 않으며, 끝나면 자동으로 다시 확인합니다:
+2659	복구 완료:
+2660	앱에 넘긴 단계는 「설정 → 업데이트」에서 진행 상황을 볼 수 있습니다. 끝나면 「기록 확인」을 다시 누르세요.
+2661	복구 완료, {n}개 단계 실패
+2662	복구 완료
+2663	아래 순서로 복구한 뒤 자동으로 다시 확인합니다:
+2664	이 항목 복구:
+2665	재설치는 인터넷에서 내려받습니다. 내 파일, 대화, 설정에는 영향이 없습니다. 계속할까요?
+2666	색인이 서명 검증을 통과하지 못해 구성 요소를 설치할 수 없습니다
+2667	색인의 버전({v})이 설치된 버전({now})보다 오래되어 다운그레이드를 거부했습니다
+2668	복구 또는 확인이 이미 진행 중입니다. 끝난 뒤 다시 시도하세요
+2669	자동으로 복구할 수 있는 문제가 없습니다
+2670	앱에서 아직 진행 중인 단계가 있습니다:
+2671	앱에 넘긴 단계가 아직 진행 중입니다. 끝나면 「기록 확인」을 누르세요
+2672	내장 브라우저
+2673	pkg가 내려받은 패키지
+2674	계보 인덱스
+2675	스캔 중…
+2676	이 앱 사용량 {app}, 기기 남은 공간 {free}
+2677	마지막 스캔: {when}
+2678	아직 스캔하지 않았습니다
+2679	설정한 대로 {n}일
+2680	영구 보관
+2681	마지막 자동 정리: {when}, {size} 확보
+2682	아직 자동 정리한 적이 없습니다
+2683	캐시
+2684	총 {size}. 지워도 필요할 때 자동으로 다시 받거나 다시 만듭니다
+2685	사용 중
+2686	세션 실행 중
+2687	7일 동안 변경 없음
+2688	마지막 변경: {when}
+2689	선택한 항목 삭제
+2690	임시 파일
+2691	총 {size}, 그중 7일 동안 변경 없는 것 {old}. 백그라운드 명령 출력과 테스트·빌드가 남긴 임시 폴더를 포함합니다
+2692	가장 큰 {n}개
+2693	7일 지난 것 정리
+2694	디버그 로그, shell 스냅샷, MCP 로그, .claude.json 백업: 총 {size}. 정리 가능 {n}개 {auto}(30일 지난 것, 백업은 최신 5개 유지)
+2695	{n}개, 총 {size}. 세션은 절대 자동으로 삭제되지 않습니다. 세션 목록에서 삭제하면 먼저 휴지통으로 갑니다
+2696	구성 요소 실행 데이터(~/.cccodroid)
+2697	pkg로 설치한 {name}
+2698	공유 폴더 /sdcard/cccodroid
+2699	프로그램과 내 파일
+2700	크기만 표시하며 여기서는 삭제하지 않습니다
+2701	세션 휴지통
+2702	{n}개, {size}. 30일이 지나면 자동으로 비웁니다
+2703	이전 도구 키트가 남긴 프로그램
+2704	처리하기
+2705	제거한 구성 요소 {id}가 남긴 실행 데이터
+2706	사용량 통계
+2707	기타 정리 위치
+2708	✓ {n}개 삭제, {size} 확보
+2709	{n}개는 삭제하지 않았습니다(사용 중이거나 허용된 폴더 밖)
+2710	선택한 항목이 없습니다
+2711	선택한 임시 항목 {n}개를 삭제할까요? 되돌릴 수 없습니다.
+2712	{id}가 남긴 실행 데이터를 삭제할까요? 다시 설치하면 새로 내려받습니다.
+2713	✓ 삭제됨
+2714	저장 공간
+2715	사용 공간
+2716	스캔
+2717	세션 보관
+2718	자동 정리
+2719	API 목록
+2720	API 추가
+2721	모델 {n}개
+2722	삭제 ({n})
+2723	{what}을(를) 영구 삭제할까요? 되돌릴 수 없습니다.
+2724	폴더는 안의 내용과 함께 삭제됩니다.
+2725	{n}개 항목을 삭제했습니다
+2726	이 폴더에는 앱 자체 디렉터리나 작업 공간이 들어 있어 삭제할 수 없습니다
+2727	(이전 턴이 정상적으로 끝나지 않았습니다. 위의 답변이 불완전할 수 있습니다)
+2728	세션은 가져왔지만 사용자 지정 제목을 저장하지 못했습니다(저장 공간이 가득 찼거나 권한이 없습니다). 다시 시작하면 원래 제목이 표시됩니다
+2729	세션 목록을 읽을 수 없습니다({msg}). 세션이 없다는 뜻은 아닙니다. 저장 공간 권한을 확인한 후 새로 고치세요.
+2730	요청 시간 초과: 게이트웨이가 응답하지 않습니다({n}초)
+2731	게이트웨이 오프라인: {msg} · 눌러서 다시 시도
+2732	이전 턴이 백그라운드에서 실패했습니다: {msg}
+2733	주소가 {s}을(를) 반환했지만 응답 본문이 너무 커서(8MB 초과) 키가 유효한지 확인할 수 없습니다
+2734	이전 턴은 끝났지만 이어진 턴은 결과를 받지 못했습니다(중단됨)
+2735	디렉터리가 없습니다: {dir}. 대신 {cwd}을(를) 사용합니다
+2736	API가 정상 답변이 아닌 오류를 반환했습니다:
+2737	압축선 최댓값은 1M입니다. 1M로 저장했습니다
+2738	HONOR / Huawei 등의 시스템은 백그라운드 Shizuku를 동결시켜 활성화를 늦춥니다. 시스템 앱 관리 → Shizuku에서 '배터리 최적화 무시'를 켜서 동결을 방지하세요.
+2739	최초 기록: {time}
+2740	시간 알 수 없음
+2741	환경 변수, 선택, 쉼표로 구분(KEY=값)
+2742	헤더, 선택, 쉼표로 구분(Header: 값), 예: Authorization: Bearer 토큰
+2743	헤더
+2744	원격 MCP는 헤더를 씁니다: {bad}를 콜론으로 적으세요(예: Authorization: Bearer 토큰)
+2745	원격 MCP는 환경 변수를 지원하지 않습니다: 헤더를 Header: 값 형식으로 적으세요(예: Authorization: Bearer 토큰)
+2746	설정에서 제거
+2747	현재 헤더
+2748	현재 환경 변수
+2749	{name} 변경 사항을 저장했습니다
+2750	편집 실패: {msg}
+2751	저장 실패: {msg}, 이전 설정을 그대로 복원했습니다
+2752	저장 실패: {msg}, 이전 설정도 복원하지 못했습니다. 직접 확인해 주세요
+2753	편집기를 열 수 없습니다: {msg}
+2754	{name} 편집 중: 비워 두면 값 유지, × 누르면 삭제, 입력하면 교체
+2755	이 MCP 서버를 찾을 수 없습니다(계정 커넥터는 편집할 수 없습니다)
+2756	이 이름의 MCP 서버가 이미 있습니다
+2757	stdio는 헤더를 저장하지 않습니다: {names}이(가) 제거됩니다. 계속할까요?
+2758	서버가 이 기기에 있으면 http://127.0.0.1:포트 를 쓰세요. LAN IP는 네트워크가 바뀌면 달라져 연결이 끊깁니다
+2759	LAN 주소로 보입니다: 서버가 이 기기에 있으면 http://127.0.0.1:포트 로 바꾸세요. LAN IP가 바뀌면 연결이 끊깁니다
+2760	PDF 병합
+2761	페이지 추출
+2762	한 페이지씩 분할
+2763	페이지 회전
+2764	PDF 압축
+2765	PDF를 이미지로 변환
+2766	페이지 번호가 잘못되었습니다. 1-3,5 형식으로 입력하고 총 페이지 수를 확인하세요.
+2767	PDF 처리 실패: {code}
+2768	선택한 파일은 PDF가 아닙니다
+2769	위로 이동
+2770	아래로 이동
+2771	파일 패널에서 PDF를 선택하거나 “PDF 선택…”을 누르세요.
+2772	PDF 도구 누락: {tools}. 확장 → 선택 구성 요소에서 “PDF 도구 모음”을 설치하세요.
+2773	PDF 가져오는 중…
+2774	PDF 처리 중…
+2775	처리 완료
+2776	압축 후 크기가 줄지 않았습니다. 원본은 보존됩니다.
+2777	결과 폴더 열기
+2778	연결이 끊겼습니다. 다시 시도 중…
+2779	PDF 도구 모음
+2780	파일은 이 기기에서만 처리되며 원본을 덮어쓰지 않습니다.
+2781	작업
+2782	선택 구성 요소 열기
+2783	파일 패널에서 추가
+2784	PDF 선택…
+2785	병합은 최대 20개, 다른 작업은 PDF 하나만 선택하세요.
+2786	페이지
+2787	1-3,5 형식으로 입력하세요. 비워 두면 전체 페이지입니다.
+2788	회전 각도
+2789	압축 품질
+2790	전자책 (ebook)
+2791	작은 파일 (screen)
+2792	인쇄 (printer)
+2793	이미지 형식
+2794	해상도
+2795	낮음 (72 DPI)
+2796	높음 (150 DPI)
+2797	한 번에 최대 100페이지, 이미지 긴 변은 최대 2048픽셀입니다.
+2798	출력 폴더 (새 폴더)
+2799	처리 시작
+2800	PDF를 최대 20개, 합계 256MB까지 선택하세요.
+2801	PDF 총 페이지 수는 1000페이지를 넘을 수 없습니다.
+2802	PDF를 처리할 수 없습니다. 파일 손상이나 암호 설정 여부를 확인하세요.
+2803	처리 시간이 초과되었습니다. 페이지 수를 줄여 다시 시도하세요.
+2804	이미 PDF 작업이 진행 중입니다. 잠시 후 다시 시도하세요.
+2805	PDF 도구 모음 구성 요소를 설치한 후 다시 여세요.
+2806	쓰기 가능한 위치에 아직 없는 출력 폴더를 입력하세요.
+2807	결과가 512MB를 초과했습니다. 페이지 수나 해상도를 줄이세요.
+2808	파일
+2809	지난 설치의 백업이 아직 복구되지 않았습니다. 다시 시도하거나 제거 후 다시 설치하세요.
+2810	[cc] Error in a script injected by the shell (details hidden by WebView)
+2811	\\[Attachment: (\\/[^\\n]+?) · [^\\n·,\\]]+, file is large and was not read directly, read by path when needed\\]
+2812	Antigravity is requesting tool authorization: {w}
+2813	Antigravity wants to ask you
+2814	Say how it should change (sent back to Antigravity)
+2815	Optional: tell Antigravity why / what to do
+2816	Scheduled
+2817	Antigravity is waiting for your confirmation
+2818	Let Antigravity decide which actions need confirmation
+2819	Ask nothing. Antigravity can delete files and run any command without asking you
+2820	Switch to “Allow everything”?\n\nAntigravity will stop asking and can edit or delete files, run any command and access the network. Only use it when you trust the task and can live with the consequences.
+2821	Sign in with a Google Antigravity account
+2822	Use a personal Google account (Free / Pro / Ultra) or an enterprise account: authorize once in the browser, no key needed.
+2823	Enter a Gemini API Key
+2824	Use a Gemini API Key from Google AI Studio or a custom compatible endpoint, billed by usage.
+2825	Context has reached the auto-compact line; compacting history…
+2826	Background task finished, reported automatically:
+2827	[Attachment: 
+2828	, file is large and was not read directly, read by path when needed]
+2829	Starting Google Antigravity sign-in…
+2830	Google account signed in
+2831	Open the address below in your browser to complete Google authorization, then paste the authorization code under Settings → Providers to submit:
+2832	You can also run {cmd} in the in-app terminal to sign in.
+2833	Interruption sent — it will be seen once the current step finishes
+2834	Antigravity CLI (agy) itself
+2835	The system or hachimia already has a command with this name; pick another one
+2836	hachimia checks these skills before handing them to Antigravity; when calling one with a slash, prefix the name with user:, e.g. /user:{name}.
+2837	This build does not run the hooks configured here: hooks can execute arbitrary commands and put arbitrary content into the conversation, and hachimia cannot check them. The rules stay in the file and will not be deleted.
+2838	Reinstall Antigravity CLI (agy)
+2839	Claude (compatible)
+2840	Third-party provider
+2841	Sign in to a Google Antigravity account
+2842	Google Cloud / enterprise account
+2843	Billed by your Google Antigravity account subscription tier; on-device token stats are on the “Usage” page
+2844	Sign out of the Google Antigravity account on this device?
+2845	The key is stored only in this app's private directory on this device, and is passed to Antigravity CLI only as needed to connect to the matching endpoint.
+2846	AGY blue
+2847	Antigravity's replies
+2848	Shizuku is running but has not been authorized for hachimia
+2849	vivo / iQOO: Settings → Battery → Background power consumption → allow hachimia <b>high background power usage</b>; in iManager allow <b>auto-start</b> (common path)
+2850	Huawei / Honor: Settings → App launch → turn off “Manage automatically” for hachimia, then manually allow <b>auto-start</b> and <b>background activity</b> (common path)
+2851	hachimia has been frozen in the background by the system {n} times (most recent: about {sec} seconds, {at}).
+2852	In system settings, allow hachimia to run in the background, turn off battery optimization, and allow auto-start (each vendor names these differently).
+2853	Authorize for hachimia
+2854	hachimia's wireless debugging pairing has been removed: it still works now, but it cannot auto-activate after a reboot.
+2855	Shizuku was not activated by hachimia: hachimia cannot auto-activate it after a reboot. Pair it once and you're set.
+2856	The system did not notify hachimia at this boot (blocked by the system's “auto-start” management), so it could not auto-activate; opening hachimia will catch up.
+2857	To activate at boot: allow hachimia auto-start / background start in the app details; takes effect at the next boot.
+2858	Antigravity CLI (agy) version
+2859	Uninstall Antigravity CLI (agy)?\n\nThis deletes the downloaded agy program; it will not be reinstalled automatically. Tap “Install” here to download it again when you need it.\n\nSign-in, sessions and settings are kept; sending a message while it is not installed will prompt you to install it first.
+2860	Install the devkit from a local file?\n\nPick a devkit-ha.chi.mia.tar.gz (or .tar), downloadable from the GitHub releases page or hachimia.net. It is checked against the published release before installing; the service pauses for 1–2 minutes during installation.\nThings you installed into the devkit with pip / npm -g are kept.
+2861	Shizuku is not activated yet, so the app cannot toggle accessibility itself: turn on hachimia manually in the system accessibility settings. From Android 13, sideloaded apps must first allow restricted settings via App info → menu in the top-right corner.
+2862	This build has no native layer and only records CPU time (battery, screen-on and foreground time come from hachimia).
+2863	Name (e.g. self-hosted Gemini proxy)
+2864	Auth: x-goog-api-key (Gemini / Antigravity)
+2865	Auth: Authorization: Bearer
+2866	Auth: x-api-key
+2867	Default model name (required, e.g. gemini-3.8-flash)
+2868	Model list URL (optional; Gemini endpoints auto-probe /v1beta/models)
+2869	Context window (optional, in tokens, e.g. 1m; leave empty for the default)
+2870	More models (optional, one per line; you may put the window after the name, separated by a space, e.g. gemini-4-neon 1m)
+2871	Send images with the message (compat): check this when the model cannot read attached images; attachments are then sent directly as multimodal blocks with the message.
+2872	Choosing <b>Gemini / Antigravity</b> auth drives the official <code>agy</code> CLI via <code>GOOGLE_GEMINI_BASE_URL</code> + <code>GEMINI_API_KEY</code>.
+2873	Running Antigravity diagnostics…
+2874	Currently available capabilities
+2875	Fixed
+2876	Workaround
+2877	(Merged from 
+2878	Direct (not needed)
+2879	(Decided by Antigravity)
+2880	Antigravity CLI failed: {msg}
+2881	The Antigravity CLI user-level config has unconfirmed changes. Send a message first, confirm in the card that pops up, then try again.
+2882	Could not fetch the Antigravity CLI version list
+2883	agy install script not found ({p})
+2884	The dev side only manages Antigravity CLI (agy) (you build and install the app itself on this device)
+2885	Updating Antigravity CLI (agy)…
+2886	Could not fetch the Antigravity CLI version list: {err}
+2887	The gateway's own runtime was modified; Antigravity CLI was not started this round. The gateway will restart when idle and restore itself from the install package; send again shortly.
+2888	Antigravity CLI (agy) is not installed. Install it under Settings → Updates first.
+2889	Antigravity CLI (agy) not found
+2890	Settings → Updates: reinstall Antigravity CLI (agy)
+2891	Antigravity CLI (agy) is not installed. Tap “Install” under Settings → Updates.
+2892	The Antigravity CLI user-level config has unconfirmed changes, or an earlier session left background processes behind, so this run did not start. Open hachimia, send a message, and confirm in the card that pops up, then try again.
+2893	Antigravity CLI (agy) is not installed. Install it under Settings → Updates first, then come back to sign in.
+2894	Enterprise sign-in: in the agy sign-in screen, choose “Use a Google Cloud project” → “Continue with Google Cloud” and authorize with your enterprise account.
+2895	Personal sign-in: in the agy sign-in screen, choose “Google OAuth” and authorize with your personal Google account.
+2896	The slash commands, tools, skills and extensions currently available to Antigravity. Tap a slash command to insert it into the input box; a tool's “Allow / Ask / Deny” follows the permission mode and rules.
+2897	For things not in the marketplace, import a Linux arm64 program yourself: a single binary, or a .tar.gz / .zip archive. Missing libraries are filled in automatically and a command is generated, ready to use in Antigravity and in the terminal.
+2898	Save a long prompt you send often as a command and pick it with / in the input box. Text after /command fills $ARGUMENTS in the body, expanded automatically by the gateway when sent to Antigravity.
+2899	Antigravity behavior
+2900	Default color pick (AGY Monet palette); switchable to native, Qiusuo, Zhuyue or Construct
+2901	Font for Antigravity's reply text
+2902	Thinking level (thought_level)
+2903	Levels vary by model (low / medium / high / xhigh). You can also type <code>/effort &lt;level&gt;</code> in the input box.
+2904	Let Antigravity decide
+2905	Empty = let Antigravity decide by window
+2906	Confirm each item by default, same as official agy: it asks in the conversation before editing files or running commands. Allow everything means Antigravity can delete files and run any command without asking. You can also switch anytime via the permission tag under the input box.
+2907	Only clears caches, temp files untouched for 7 days, and expired logs; sessions, your files and programs are never auto-deleted
+2908	When on, run <code>priv 'command'</code> in the terminal as shell (pm / am / settings / dumpsys / logcat / screencap…); Antigravity uses it too. Without Shizuku, basic dev features work as usual — only these debugging abilities are unavailable.
+2909	Auto-activate again after a reboot (needs Wi-Fi; starts the hachimia background service at boot)
+2910	Let Antigravity use device tools (notifications, clipboard, opening links / calendar / alarms, sharing files…)
+2911	Off by default. Turn it on when you want Antigravity to test an app you built, or send files it generated to other apps; while on, each round carries an extra one or two thousand tokens of tool descriptions.
+2912	Antigravity CLI channel
+2913	Plan first
+2914	Interview to align the plan
+2915	Long-term goal
+2916	Multi-agent teamwork
+2917	Deep orchestration
+2918	Capabilities & tools
+2919	Failed to switch permission mode (agent rejected {mode}): {msg}
+2920	Could not restore the previous session (the agent doesn't support resume, or resume failed), so a new session was started. This turn was written to the new session; the old session's history is still kept in local records.
+2921	Compaction not confirmed: context did not shrink (before {pre}, after {post}). Please retry /compact or start a new session.
+2922	Enterprise login: please sign in with your company Google account in the browser
+2923	The authorization code could not be written to agy (stdin is closed). Please start login again.
+2924	The authorization code could not be written to agy (the login process's stdin is closed). Please start login again.
+2925	Login-based providers don't need an API key; sign in through the official flow. The key you entered was not saved.
+2926	Already queued; skipping this duplicate run
+2927	Open this in the app
+2928	Needs npx (included in the hachimia toolkit)
+2929	This build has no native layer, so only CPU time is recorded (battery and screen-on need hachimia).
+2930	The Antigravity CLI program was modified and was not started; 
+2931	Antigravity CLI housekeeping files
+2932	These Claude Code config files contain override-style instructions (telling the model to ignore its rules, posing as system messages and the like). hachimia won't load them, so this turn did not run. Edit or remove the following, then send again:\n{list}
+2933	The command {c} is built into the system or hachimia. Pick another name
+2934	Not a hachimia session archive
+2935	{p}: {n}
+2936	「{n}」 {w}
+2937	API Key
+2938	Google Antigravity / Gemini
+2939	모델 보기 또는 전환
+2940	컨텍스트
+2941	대화 기록을 압축해 컨텍스트 확보
+2942	무슨 일이 있었나요
+2943	무엇을 했는지, 기대한 결과, 실제 결과. 스크린샷은 여기로 끌어다 놓을 수 있습니다.
+2944	재현 방법
+2945	실행 상태를 저장하지 못했습니다(저장 공간이 가득 찼거나 권한이 없음). 시스템이 앱을 종료하면 이 턴을 복구하지 못할 수 있습니다.
+2946	이전 실행 상태를 복구하지 못했습니다(기록을 읽을 수 없거나 형식이 잘못됨). 중단된 턴과 대기 중인 메시지는 표시되지 않습니다. 원본 파일은 보관했습니다.
+2947	이름에는 영문, 숫자, - 와 _ 만 쓸 수 있고 40자 이하여야 합니다
+2948	기본 명령과 이름이 같습니다. 다른 이름을 쓰세요
+2949	지시 내용이 비어 있습니다
+2950	지시 내용이 너무 깁니다(최대 64 KB)
+2951	같은 이름의 지시가 이미 있습니다
+2952	글꼴은 최대 10개까지입니다. 먼저 하나를 삭제하세요
+2953	글꼴 모음(.ttc)은 웹뷰에서 쓸 수 없습니다. 단일 ttf / otf를 사용하세요
+2954	사용할 수 있는 글꼴 파일이 아닙니다. ttf, otf, woff, woff2만 지원합니다
+2955	This model doesn't support thinking level "{effort}"; running with the default instead.
+2956	The agent rejected thinking level "{effort}" ({msg}); running with the default instead.
+2957	Not supported under Antigravity
+2958	Not supported under Antigravity: the Antigravity CLI has no generic third-party API key channel. Declare protocol:"gemini" (the endpoint must speak the Gemini protocol), or switch to a Gemini / sign-in provider.
+2959	On-device models need Claude Code; this device only has the Antigravity CLI, so they're unavailable for now.
+2960	Not set (no default compaction line under ACP)
+2961	No Google Cloud ADC credentials found (Application Default Credentials). Run `gcloud auth application-default login` in a terminal first, then come back and pick ADC.
+2962	Application Default Credentials found.
+2963	The old configuration was still using a Claude preset, which doesn't work in Antigravity-only mode; it has been switched back to Google Antigravity sign-in.
+2964	Protocol: not declared
+2965	Protocol: Gemini (endpoint speaks the Gemini protocol)
+2966	Checking ADC credentials…
+2967	Failed to create a session: the agent returned no session ID. Please try again.
+2968	출력(실행 중)
+2969	남은 AI Credits: {n}
+2970	Google Antigravity 구독 할당량을 동기화하는 중입니다. 현재는 로컬 토큰 사용량을 표시합니다(오른쪽 위 새로고침을 눌러 즉시 조회할 수 있습니다).
+2971	이전 세션을 복원할 수 없습니다({why}). 새 세션을 만들지 않고 현재 세션을 유지했습니다. 다시 시도하거나 수동으로 새 대화를 시작하세요.
+2972	충전 중인지 확인할 수 없습니다
+2973	현재 배터리 잔량을 확인할 수 없습니다
+2974	색인
+2975	잘못된 메모리 파일 이름입니다
+2976	메모리를 찾을 수 없습니다
+2977	일반 메모리 파일만 볼 수 있습니다
+2978	메모리 파일이 너무 큽니다(1 MB 초과)
+2979	메모리는 읽기 전용이므로 여기서 수정할 수 없습니다
+2980	백그라운드 작업 대기 중
+2981	무응답 {d}
+2982	{d} 남음
+2983	유지보수 공지 받기
+2984	GitHub 서드파티 프록시 대체 경로 (gh-proxy.com)
+2985	첫 확인: 아래 전역 설정은 매 턴 적용됩니다. 직접 추가한 항목인지 확인하세요(되돌리면 ~/.ccapp-userconf/quarantine에 백업됨).
+2986	본인이 변경하지 않았다면 ‘되돌리기’(설정 복원 및 잔여 프로세스 종료, 새 파일 격리)를, 직접 변경했다면 ‘유지’를 선택하세요.
+2987	보안 검사 오류가 발생했습니다. 확실하지 않은 작업은 거부하세요.
+2988	프로젝트 설정은 로컬 프로그램을 직접 실행합니다. 출처가 불분명하면 ‘로드 안 함’을 선택하세요(대화는 정상 작동). 허용 후에는 변경될 때만 다시 묻습니다.
+2989	직접 요청하지 않았다면 웹페이지나 파일의 프롬프트 인젝션일 수 있으니 거부하세요. 허용하면 이번 턴에서 같은 유형은 다시 묻지 않습니다.
+2990	확인되지 않은 사용자 설정 변경 감지됨
+2991	보안 검사 오류 — 수동으로 확인하세요
+2992	프롬프트 또는 보안 규칙 파일 수정 예정: {w}
+2993	키 또는 로그인 자격 증명 접근 예정: {w}
+2994	연결 끊김, 재연결 중… (백그라운드 생성 계속됨)
+2995	약 1시간 유휴 상태로 후속 소모를 줄이기 위해 컨텍스트를 자동 압축합니다(설정에서 해제 가능).
+2996	이전 미확인 항목
+2997	새 변경 사항
+2998	설정 파일이 외부에서 수정되어 현재 설정으로 복원됨: 
+2999	실행 파일이 외부에서 수정되어 복구 보호 작동됨: 
+3000	확인 대기 중인 새 대화 · 사이드바 ‘저장되지 않은 대화’ 확인
+3001	준비됨 · 백그라운드 작업 {n}개 실행 중
+3002	준비됨 · 백그라운드 작업 마무리 중
+3003	중단 시 작업 {n}개의 상태를 알 수 없습니다({list}). 계속하기 전에 결과를 확인하세요.
+3004	확인 시간 초과({n}분 무응답)로 이번 턴이 시작되지 않았습니다({when}).
+3005	완료된 진행 내용은 저장되었습니다. ‘계속’을 눌러 중단 지점부터 이어갑니다.
+3006	메시지가 전달되었습니다(재전송 불필요)
+3007	전송 결과 미확인: {msg}
+3008	저장 공간 부족으로 초안이 저장되지 않았습니다. 복사하거나 바로 전송하세요.
+3009	/sdcard/cccodroid/models에 저장(Q4_K_M 양자화), 다운로드 후 ‘설정 → 모델 서비스’에서 활성화. 기기 RAM {ram} GB, 1–4B 권장.
+3010	구성 요소 {name}을(를) 제거할까요? (내 파일에는 영향을 주지 않습니다)
+3011	{name}의 남은 실행 캐시 {size}({path})도 함께 정리할까요?
+3012	진단 패키지를 내보내고 공유할까요?\n\n포함: 버전·기기 정보, 툴킷·자체 점검 상태, 마스킹된 최근 로그, 복구 원장, 네트워크 연결 결과.\n제외: 키, 자격 증명, 이메일, 메시지 본문 및 대화 기록.
+3013	온디바이스 모드는 기본적으로 채팅 전용입니다. 도구와 매개변수를 지정하려면 {file}을 편집하거나 클라우드 모델로 전환해 아래 명령을 보내세요:
+3014	(캐시된 상태, 새로고침 실패: {msg})
+3015	브라우저에서 인증을 완료한 뒤 인증 코드를 아래에 붙여넣으세요.
+3016	내장 터미널에서 직접 로그인 명령을 실행할 수도 있습니다:
+3017	기존 엔드포인트가 종료되었습니다. 새 경로를 선택하고 Key를 다시 입력하세요.
+3018	제공자 콘솔에서 한도를 설정하고, 유출이 의심되면 즉시 Key를 교체하세요.
+3019	이번 달 사용 개요
+3020	예시 템플릿(실제 서비스 주소로 변경하세요)
+3021	타사 호출은 사용자가 직접 설정하며, 상대방이 Key·코드·대화를 볼 수 있습니다. 신뢰할 수 있는 서비스만 사용하세요.
+3022	저장되지 않은 대화
+3023	지금 실행
+3024	지정된 시간에 대상 폴더에서 자동 실행하고 결과를 세션으로 저장합니다. 무인 실행 중 확인 요청은 자동 거부되며, 누락된 작업은 개별 정책에 따릅니다.
+3025	한도 도달 시 당일 남은 작업을 건너뜁니다(공식 API 비용만 집계, 타사 호출 제외).
+3026	개인 구독은 예약 작업이 기본 비활성화됩니다. 켜기 전에 상위 서비스 약관을 확인하세요(API Key는 제한 없음).
+3027	이번 실행 건너뜀
+3028	타사 호출 사용 중: 비용 한도에 집계되지 않으며 1회 실행 시간 제한만 적용됩니다.
+3029	개인 구독 로그인 중: 잦은 자동 실행은 상위 서비스 제재를 유발할 수 있으므로 API Key 사용을 권장합니다.
+3030	일상 소통은 그룹을 이용하고, 버그 제보는 기기·자체 점검 정보가 자동 첨부되는 ‘설정 → GitHub 피드백’을 권장합니다.
+3031	번역, 테스트, 문서, 개발 참여를 환영합니다. 자세한 내용은 저장소의 기여 가이드를 참고하세요.
+3032	외부 브라우저는 샌드박스 보호가 적용되지 않아 스크립트가 같은 폴더 파일 및 로컬 서비스에 접근할 수 있습니다. 신뢰하는 웹페이지만 계속하세요.
+3033	바이너리 파일은 텍스트로 열 수 없습니다.
+3034	이 웹페이지의 인터넷 연결을 허용할까요?\n\n연결 시 스크립트가 상위(최대 3단계) 주변 폴더 파일을 외부로 전송할 수 있습니다. 신뢰하는 페이지만 허용하세요.
+3035	파일이 너무 큽니다({size}). ‘원본 레이아웃’으로 PDF 미리보기를 하거나 외부 앱으로 여세요.
+3036	백그라운드에서 LibreOffice 설치 중…
+3037	[프로세스 종료됨]
+3038	[전송 실패, 게이트웨이 재연결 중]
+3039	턴별 소요 시간 및 도구 호출 타임라인 보기
+3040	처음이라면 오른쪽 위 ‘보는 법’을 눌러 사용법을 확인하세요
+3041	뒤에 아직 저장되지 않은 동일한 메시지가 있습니다. 현재 턴이 끝난 뒤 북마크하세요
+3042	북마크가 없습니다. 메시지 아래의 북마크 아이콘을 눌러 추가하세요.
+3043	인터랙티브 웹페이지(HTML)
+3044	화면 다시 불러오는 중…
+3045	현재 앱 버전은 자동 복구를 지원하지 않습니다. 앱을 업데이트하거나 게이트웨이를 재시작하세요
+3046	스크롤이 멈추면 상단 제목 표시줄을 약 0.6초 길게 눌러 복구하세요
+3047	자동 복구가 중지되었습니다(설정 변경으로 해제되지 않음). 아래에서 진단 후 복구 횟수를 초기화하세요.
+3048	브리지 검증 실패로 자동 복구가 중지되었습니다(설정 저장으로 해제되지 않음). 먼저 진단 및 복구하세요.
+3049	브리지가 비활성화되었습니다(설정 저장으로 해제되지 않음). 먼저 확장 페이지에서 구성 요소를 활성화하세요.
+3050	브리지 구성 요소를 사용할 수 없습니다. 설치 상태를 확인하세요(복구 횟수는 자동 초기화되지 않음).
+3051	브리지 구성 요소를 업데이트한 뒤 사용할 수 있습니다.
+3052	브리지가 준비되지 않았습니다. 아래 진단을 확인하세요(현재 세션 유지, 설정 저장으로 복구 횟수 초기화 안 됨).
+3053	브리지가 사용 중입니다. 잠시 후 다시 시도하세요.
+3054	설정 일관성 검사를 통과하지 못했습니다. 아래 안내에 따라 처리하고 폴더를 직접 삭제하지 마세요.
+3055	브리지 설정을 읽지 못했습니다. 확장 페이지로 돌아가 다시 시도하세요.
+3056	계정 정보, 쿼리 매개변수, 해시 조각이 없는 HTTPS API 주소를 사용하세요.
+3057	Chat Completions 주소를 입력하세요(Responses API는 아직 미지원).
+3058	경로를 자동 완성할 수 없습니다. 전체 /chat/completions 주소를 입력하세요.
+3059	여러 OpenAI 호환 인터페이스를 설정할 수 있으며 저장 후 적용됩니다.
+3060	기기 상태만 읽으며 설정 변경이나 상위 서버 요청을 하지 않습니다.
+3061	이전이나 재설치 전에 브리지 설정을 백업하세요(엔드포인트·키·모델 목록만 포함, 채팅 기록 제외).
+3062	키가 포함된 설정 파일은 공개적으로 공유하지 마세요.
+3063	서비스 제공자의 API 주소를 입력하세요(웹 로그인 페이지 아님).
+3064	모델 목록 자동 가져오기(입력한 서버로 API Key 전송)
+3065	다시 가져오기
+3066	모델 이름 검색 또는 직접 입력
+3067	추가 후 모델별 컨텍스트 창과 기본 모델을 지정할 수 있습니다.
+3068	인터페이스가 반환한 창 크기를 우선 적용하며, 없을 시 기본값은 200,000 토큰입니다(수동 수정 가능).
+3069	대화, 도구 결과 및 이미지가 입력한 서비스로 전송됩니다.
+3070	대화 추론 미확인
+3071	‘설정 → 인터페이스 및 모델’에 동기화되었습니다.
+3072	다른 세션에서도 입력창 아래 모델 칩을 눌러 전환할 수 있습니다.
+3073	로컬 설정 차이를 점검하고 동기화 방안을 생성합니다(점검만으로는 설정이 변경되지 않음).
+3074	모델 목록·기본 모델·인증 방식만 동기화하며, 서비스 시작/중지나 키·런타임 파일·복구 잠금·현재 세션은 변경하지 않습니다(60초 유효).
+3075	인터페이스 기록 동기화 확인
+3076	앱과 구성 요소가 모두 최신 버전인지 확인하고, 실행 중인 세션이 끝나면 다시 점검하세요.
+3077	자동 복구 중지나 검증 실패 시 기록 동기화로는 복구 잠금이 해제되지 않습니다. 먼저 진단을 확인하고 필요 시 확장 페이지에서 업데이트·재설치하세요(디렉터리 직접 삭제 금지).
+3078	문제 제보 시 버전과 진단 코드만 첨부하고, 키나 전체 설정은 절대 포함하지 마세요.
+3079	다시 점검하면 저장하지 않은 입력 내용이 지워집니다. 계속할까요?
+3080	여러 인터페이스를 추가하려면 브리지 구성 요소를 업데이트해야 합니다(기존 단일 설정은 계속 사용 가능).
+3081	한 번에 하나의 인터페이스를 편집하며 ‘설정 저장’을 누르면 일괄 적용됩니다.
+3082	체크하면 목록을 자동으로 가져오며 직접 입력할 수도 있습니다.
+3083	인터페이스 ‘{name}’ 및 해당 모델을 제거할까요?(설정 저장 후 적용)
+3084	브리지가 사용 중입니다. 잠시 후 다시 시도하세요.
+3085	복구 방안이 만료되었거나 상태가 변경되었습니다. 다시 점검하세요.
+3086	동기화할 설정 차이가 없습니다. 문제가 계속되면 아래 안내를 펼쳐 보세요.
+3087	현재 상태에서는 자동 동기화할 수 없습니다. 아래 안내에 따라 점검하고 폴더를 직접 삭제하지 마세요.
+3088	동기화 가능 항목 확인 중…
+3089	모델 {n}개 및 인증 방식을 동기화할 수 있습니다.
+3090	동기화 방안이 준비되었습니다. 확인 시 적용됩니다.
+3091	브리지의 인터페이스 기록을 동기화할까요?\n\n모델 목록·기본 모델·인증 방식만 갱신하며 주소와 키는 변경되지 않습니다.
+3092	인터페이스 기록 동기화 중…
+3093	동기화 결과가 확인되지 않았습니다. 반복 제출하지 말고 상태를 다시 점검하세요.
+3094	인터페이스는 기록되었으나 매핑이 완료되지 않았습니다. 상태를 다시 점검하세요.
+3095	인터페이스 기록이 동기화되었습니다.
+3096	인터페이스 주소, 인증 방식 또는 로컬 연결 기록이 브리지와 일치하지 않습니다.
+3097	저장된 모델 목록의 형식이나 내용이 일치하지 않습니다.
+3098	브리지 인터페이스 매핑 기록 읽기 또는 형식 검증에 실패했습니다.
+3099	로컬 서비스 등록과 연결 기록이 일치하지 않습니다.
+3100	기본 실행 폴더의 소유 표시가 일치하지 않습니다. 이전 설정이나 폴더 상태를 확인하세요.
+3101	구성 요소 안전 자체 점검 실패(구체 항목 없음).
+3102	설정 충돌(구버전 구성 요소가 세부 항목을 반환하지 않음. 실행 파일·소유 표시·인터페이스 기록 관련 가능성).
+3103	구성 요소 사용 불가
+3104	브리지 사용 중
+3105	브리지 상태를 읽을 수 없음
+3106	설정이 기록되었으나 후속 단계가 완료되지 않았습니다. 먼저 상태를 다시 점검하세요.
+3107	저장이 완료되지 않았습니다. 위 안내를 확인하세요.
+3108	먼저 앱과 구성 요소 버전을 확인하고 실행 폴더를 직접 삭제·수정하지 마세요.
+3109	서비스 주소가 변경되었습니다. API Key를 다시 입력하세요(기존 키는 새 주소로 전송되지 않음).
+3110	저장된 키는 표시되지 않습니다. 비워 두면 유지되고 새 값을 입력하면 교체됩니다.
+3111	설정 저장 중…
+3112	저장 시 원격 모델을 호출하거나 현재 세션을 전환하지 않습니다(모델 목록 읽음, 대화 추론 미테스트).
+3113	1024~16777216 사이의 정수(256k, 1m 지원)를 입력하거나 비워 두어 기본값을 사용하세요.
+3114	올바른 모델 이름을 입력하세요(쉼표·줄바꿈 제외).
+3115	유효한 API Key를 입력하면 목록을 자동으로 가져옵니다.
+3116	가져오기가 취소되었습니다. 재시도하거나 직접 입력하세요.
+3117	모델 목록 가져오기 준비 중…
+3118	API Key를 다시 입력한 뒤 재시도하세요.
+3119	모델 목록이 비어 있습니다. 직접 입력하거나 다시 시도하세요.
+3120	모델 {count}개 읽음(최대 500개), 검색하거나 직접 입력하세요.
+3121	저장 중…
+3122	모델 목록 읽음, 대화 추론 미확인
+3123	로컬 준비 완료
+3124	자동 복구 중지됨
+3125	브리지 검증 실패
+3126	브리지 비활성화됨
+3127	설정 저장됨, 브리지 미준비
+3128	모델 ID 충돌, 200자 초과 또는 총 100개 초과입니다. 조정 후 저장하세요.
+3129	모든 인터페이스 설정을 저장할까요?\n\n대화, 도구 결과 및 이미지가 모델에 따라 다음 서버로 전송됩니다:\n{origins}
+3130	이 인터페이스 설정을 저장할까요?\n\n대화, 도구 결과 및 이미지가 {origin}(으)로 전송됩니다.\n({verification})
+3131	API 주소 검증에 실패했습니다. 확인 후 다시 시도하세요.
+3132	API Key를 다시 입력하세요(주소 변경 시 기존 키 재사용 불가).
+3133	저장이 완료되지 않았습니다. 기기 상태를 확인한 뒤 다시 시도하세요.
+3134	새 세션 인터페이스 전환에 실패했습니다. 다시 시도하세요.
+3135	백그라운드 명령이 종료되었으나 엔진이 {d} 넘게 응답하지 않습니다. 중지를 누르거나 새 메시지를 보내세요.
+3136	브리지 설정이 완료되지 않았습니다. 입력 항목이나 구성 요소 상태를 확인하고 다시 시도하세요.
+3137	전송 상태 충돌이 발생했습니다. 다시 보내세요.
+3138	상위 연결이 일찍 끊겨 응답이 불완전할 수 있습니다. ‘계속’을 보내 이어서 생성하세요
+3139	이 인터페이스는 Antigravity에서 지원되지 않습니다. protocol:"gemini"(Gemini 호환 엔드포인트)를 설정하거나 Google 로그인을 사용하세요.
+3140	순수 Antigravity 모드에서는 Claude 프리셋({id})을 사용할 수 없습니다. Google 로그인 또는 Gemini 인터페이스를 선택하세요.
+3141	끼어들기(현재 턴에 추가)
+3142	↩ 방금 지운 초안 복원
+3143	변경 사항은 다음 메시지부터 적용됩니다.
+3144	공개 레지스트리(공식 검수 없음). npm 패키지는 기기에서 직접 실행되므로 설치 전 출처를 확인하세요.
+3145	특정 시점(도구 호출 전후, 메시지 전송, 응답 완료 등)에 명령을 자동 실행해 작업을 차단하거나 컨텍스트 추가·포맷팅을 수행합니다.
+3146	버튼·링크·선택 항목 강조 색상(라이트/다크 모드에 맞춰 대비 자동 조정)
+3147	상단 고정, ‘⋯’에 숨김 또는 표시 안 함으로 설정하고 왼쪽 핸들을 끌어 순서 변경
+3148	ttf / otf / woff / woff2 지원(40MB 이하, 최대 10개), 가져온 뒤 위 ‘사용자 지정…’에서 활성화
+3149	끄면 입력창 모델 선택 메뉴에서 숨기며 설정과 키는 유지됩니다
+3150	첫 응답 후 대화 제목 자동 생성(소량의 토큰 소모, 경량 모델 지정 가능)
+3151	자격 증명(.env / SSH / API Key) 읽기, 화면 읽기·터치, 클립보드 읽기, 외부 공유 시 ‘모두 허용’ 모드에서도 항상 확인 창을 띄워 프롬프트 인젝션을 방지합니다.
+3152	20만 토큰 초과 세션이 약 54분 유휴 상태일 때 자동 압축해 재개 지연과 토큰 소모를 줄입니다.
+3153	‘Work Island’ 앱 필요: ColorOS 16 플루이드 클라우드/아일랜드에 진행 상태와 확인 대기를 실시간 표시합니다(완료 8초 후 닫힘).
+3154	additionalDirectories를 통해 작업 공간 외부 폴더 읽기·쓰기를 허용하며 파일 브라우저 바로가기로도 추가됩니다.
+3155	로컬 파일을 변경하지 않고 사용자 규칙, 스킬, 플러그인, Hooks, MCP를 일시 건너뜁니다(끄면 복구).
+3156	서로 다른 세션 병렬 실행 수(각 수백 MB 메모리 사용, 1 = 순차 실행).
+3157	Android에서 차단된 새 시스템 콜을 가로채 호환 경로로 폴백하여 Go 등 정적 바이너리 충돌을 방지합니다(다음 메시지부터 적용).
+3158	설치 패키지에 따라 자동 선택: targetSdk 28은 직접 실행, targetSdk 36은 시스템 로더 경유(게이트웨이 재시작 후 적용).
+3159	허용 목록 외 백그라운드 앱 중지 허용(Shizuku 필요)
+3160	고부하 명령(<code>cc-mem run -- 명령</code>) 실행 전 백그라운드 앱을 정리합니다. 포그라운드·분할 화면·상시 알림 앱(프록시/음악)·런처·입력기·접근성·VPN·Shizuku·화이트리스트는 유지됩니다.
+3161	로컬 세션을 기본 영구 보관하며 수동 삭제 시에만 휴지통으로 이동합니다.
+3162	특권 명령 개별 확인 생략(본인 책임): 기한 내 팝업 없이 Shizuku 명령을 실행합니다. 본 앱과 Shizuku 관련 명령은 최대한 차단하지만 모든 우회 표기를 막을 수는 없습니다. 단일 세션 허용은 확인 창에서 체크하세요
+3163	기본 targetSdk 28이 호환성이 가장 좋으며, 최신 기기에서 설치 거부 시 targetSdk 36으로 자동 전환됩니다(덮어쓰기 시 데이터 유지).
+3164	Antigravity CLI는 자동 업데이트, 앱 새 버전은 다운로드 후 알림(Shizuku 사용 시 유휴 상태에서 자동 설치), 툴킷은 Wi‑Fi에서만 미리 받아 다음 실행 시 설치합니다.
+3165	3시간마다 서명된 유지보수 공지를 가져옵니다(기기 정보 없는 정적 요청). 끄면 요청하지 않습니다.
+3166	기본 꺼짐: 공식 서버와 미러 모두 연결 불가일 때만 타사 프록시로 다운로드합니다(공인 IP가 노출될 수 있으나 해시·서명 검증은 강제 적용).
+3167	마스킹된 로그와 환경 상태(키, 이메일, 대화 내용 제외)를 내보내 문제 해결이나 Issue 첨부에 활용합니다.
+3168	진단 패키지 내보내기
+3169	기기 모델, OS 버전, 자체 점검 결과가 미리 채워진 새 Issue 페이지를 엽니다(로그·대화 제외).
+3170	사용자 설정, 앱 설정, 셸 시작 파일을 초기화하고 원본은 ~/.ccapp-reset에 백업합니다. 세션·작업 공간·툴킷·키는 기본 유지됩니다.
+3171	컴파일러, Python, Node, git 등의 사용 가능 여부를 점검해 Antigravity에 전달합니다(업데이트 후 자동 재검사).
+3172	화면을 불러오지 못했습니다(탭하여 재시도)
+3173	저장 시 원격 모델을 호출하거나 현재 세션을 전환하지 않습니다.
+3174	Antigravity CLI 무결성 검사를 통과하지 못해 실행하지 않았습니다: {why}
+3175	현재 엔진(Antigravity CLI)은 파일 체크포인트 되돌리기를 아직 지원하지 않습니다
+3176	현재 엔진(Antigravity CLI)은 플러그인 마켓플레이스 관리를 아직 지원하지 않습니다
+3177	현재 엔진(Antigravity CLI)은 이 MCP 하위 명령을 아직 지원하지 않습니다
+3178	MCP 설정이 올바른 JSON 형식이 아닙니다
+3179	공유 폴더 /sdcard/hachimia
+3180	모델 "{model}" 설정이 에이전트에 의해 거부되어({msg}) 기본 모델로 실행합니다.

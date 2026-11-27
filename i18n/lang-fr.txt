@@ -2429,754 +2429,752 @@
 2429	Le point de terminaison par défaut du projet (« {id} ») a été supprimé : ce tour n'a pas été envoyé. Choisissez-en un dans les réglages du projet.
 2430	Le point de terminaison de la tâche a été supprimé : modifiez la tâche et choisissez-en un autre
 2431	Le point de terminaison de « {n} » a été supprimé : modifiez la tâche et choisissez-en un autre
-2432	Le texte injecté par le hook ({ev}) correspond à un motif de contournement ; ce tour a été arrêté, le texte injecté est replié ci-dessus.
-2433	Réponse terminée
-2434	Erreur lors de la réponse
-2435	{n} déplacés dans la corbeille, {m} échecs : {msg}
-2436	{n} joints, {m} échecs : {msg}
-2437	Échec de la recherche : {msg}
-2438	Impossible de lire la liste des fichiers : {msg}
-2439	Fichier trop volumineux ; le serveur ne l'a pas accepté
-2440	Le serveur n'a pas reconnu le fichier envoyé
-2441	Le serveur a renvoyé {status}
-2442	Chargement de la conversation…
-2443	Suppression impossible : {msg}
-2444	{n} fichier(s) en cours d'envoi ; envoyez une fois terminé.
-2445	Le script intégré n'a pas pu être installé : {msg}
-2446	Le script intégré n'a pas pu être installé : {msg} ; la règle n'a pas été enregistrée
-2447	Impossible d'obtenir l'état de mise à jour : {msg}
-2448	Seuls les 1000 premiers éléments sont affichés
-2449	La fusion n'est pas encore validée : validez toutes les modifications ensemble, ou annulez d'abord celles que vous ne voulez pas valider.
-2450	Échec de la copie ; appuyez longuement pour sélectionner le texte et le copier
-2451	Projet supprimé ({id})
-2452	Les 3000 dernières lignes ont été copiées
-2453	Défini à {line} (fenêtre du modèle inconnue ; votre valeur est utilisée)
-2454	Impossible de lire les places de marché des plugins : {msg}
-2455	Nom de fichier trop long (255 octets max ; un caractère chinois compte pour 3)
-2456	Le fichier n'existe pas encore
-2457	Échec de la recherche de mises à jour
-2458	Pas d'autorisation d'accès à cet emplacement (le stockage partagé nécessite « Accès à tous les fichiers » dans les réglages système)
-2459	Pas d'autorisation d'accès à ce dossier (le stockage partagé nécessite « Accès à tous les fichiers » dans les réglages système)
-2460	Pas d'autorisation de lecture à cet emplacement (le stockage partagé nécessite « Accès à tous les fichiers » dans les réglages système)
-2461	Échec de la suppression : {msg}
-2462	Le processus du terminal est terminé ; la saisie n'a pas été envoyée
-2463	Impossible de lire la liste des composants personnalisés : {msg}
-2464	Impossible de lire l'historique des commits
-2465	Impossible de lire l'état de ce fichier
-2466	Impossible de lire la liste des fichiers de ce commit
-2467	Il reste des conflits non résolus ; terminez-les avant de valider.
-2468	Cette page n'a pas pu être rendue
-2469	Cet emplacement ne peut pas être lu
-2470	Ce dossier n'est plus un dépôt git
-2471	Ce dossier n'a pas de SKILL.md (peut-être un reste d'importation interrompue) ; vous pouvez le supprimer.
-2472	Ce tableur se décompresse trop pour être ouvert en toute sécurité.
-2473	Les informations de plage de cette feuille sont corrompues et illisibles
-2474	Les pseudo-fichiers système comme celui-ci ne peuvent pas être lus ainsi
-2475	Les instructions du projet ne sont pas enregistrées ; revenir en arrière perdra ces modifications. Revenir quand même ?
-2476	Le service d'aperçu n'a pas renvoyé d'adresse
-2477	Impossible de charger l'aide : {msg}
-2478	Impossible de charger le journal des modifications : {msg}
-2479	Le paquet de compétences dépasse 64 Mo ; décompressez-le et importez les compétences une par une
-2480	Valeur de champ cron invalide : {f}
-2481	La valeur du champ cron est hors plage : {f}
-2482	Pas de cron invalide : {f}
-2483	L'expression cron doit comporter cinq champs : minute heure jour mois jour de la semaine
-2484	« {n} » : le dossier du projet de la tâche n'existe plus. Modifiez la tâche et choisissez un autre projet ou dossier
-2485	Les signets n'ont pas été enregistrés : stockage plein ou permission refusée
-2486	Le dossier du projet de la tâche n'existe plus. Modifiez la tâche et choisissez un autre projet ou dossier
-2487	La session dérivée n'a pas pu être écrite sur le disque : {err}
-2488	Une tâche ponctuelle nécessite une date
-2489	L'heure de début doit être comprise entre 0 et 23 h, 0 et 59 min
-2490	La date doit être au format AAAA-MM-JJ
-2491	L'heure doit être comprise entre 0 et 23 h, 0 et 59 min
-2492	Choisissez au moins un jour de la semaine (entiers 1–7)
-2493	Le jour du mois doit être 1–31 ou « dernier jour »
-2494	L'intervalle doit être un entier de 1 à 24 heures
-2495	Enregistrement impossible : stockage plein ou permission refusée
-2496	L'heure de fin doit être comprise entre 0 et 23 h, 0 et 59 min
-2497	(Texte trop long ; seuls les {n} premiers caractères sont affichés)
-2498	En mode sécurisé, les modes qui ne posent pas de question ne s'appliquent pas ; c'est maintenant « Demander à chaque fois »
-2499	Les paramètres n'ont pas été enregistrés ; l'ancien mode d'autorisation reviendra après redémarrage
-2500	Le message d'origine était trop long ; seuls les 65 000 premiers caractères ont été restaurés
-2501	Impossible de récupérer les avis de sécurité pour le moment
-2502	Récupération des avis de sécurité…
-2503	L'hôte a changé, l'ancienne clé a été effacée ; saisissez-la à nouveau
-2504	L'heure de réinitialisation est passée ; actualisation après le prochain message
-2505	Projet créé ; le dossier contenait déjà un CLAUDE.md, vos instructions n'ont pas été écrites
-2506	connexion officielle · connecté
-2507	connexion officielle · non connecté
-2508	connexion officielle · état de connexion indéterminable
-2509	connexion officielle · connecté lors de la dernière vérification
-2510	connexion officielle · non connecté lors de la dernière vérification
-2511	Connectez-vous à votre compte
-2512	La connexion est toujours en cours ; le lien d'autorisation s'ouvrira dès qu'il arrivera.
-2513	Supprimer le modèle « {id} » ? Le fichier sera retiré du dossier des modèles.
-2514	Modèle « {id} » supprimé
-2515	{n} importé(s) ; échec ensuite : {msg}
-2516	La boîte à outils a été mise à jour ; aucune version compatible pour l'instant
-2517	La boîte à outils a été mise à jour et l'index des composants n'a pas encore de version adaptée. Mettez d'abord à jour la boîte à outils, ou appuyez sur « Rechercher des mises à jour » pour recharger l'index.
-2518	La ligne de compactage est au minimum de 100k ; enregistrée à 100k
-2519	Impossible d'écrire l'enregistrement d'installation (stockage plein ou permission refusée) ; cette installation ne s'est pas poursuivie
-2520	Les fichiers sont en place, mais l'enregistrement d'installation n'a pas pu être écrit (stockage plein ou permission refusée). Réinstallez ou désinstallez
-2521	Impossible d'écrire l'enregistrement du composant (stockage plein ou permission refusée) ; cette installation n'a pas été terminée
-2522	Le point d'accès a renvoyé {s}, mais pas au format attendu : impossible de confirmer la clé : {what}
-2523	(vide)
-2524	L’amont a signalé une erreur à la fin de la réponse ({msg}) ; elle a été considérée comme terminée. Si elle semble incomplète, envoyez « continue ».
-2525	La ligne « {ep} » choisie pour {name} n’existe plus. Choisissez une ligne dans les réglages et saisissez sa clé.
-2526	Cette adresse utilise http non chiffré : votre clé et la conversation sont envoyées à l'autre machine sans chiffrement. Passez en https si possible.
-2527	Les tâches planifiées s’exécutent dans leur propre tour : elle passe en tête et démarre dès la fin du tour en cours
-2528	S’arrête en cas de dépassement et compte comme un échec ; ne s’applique qu’à l’API officielle
-2529	Itinéraire changé : l’ancienne clé a été effacée, saisissez-la à nouveau
-2530	Impossible de charger l’historique : {msg} 
-2531	Pendant l’installation, une désinstallation a supprimé {n} fichiers partagés ; réinstallez
-2532	Le modèle local {model} épinglé à cette session n’existe plus ; choisissez-en un autre dans le panneau des modèles
-2533	Vérification du fichier du modèle local…
-2534	Le fichier du modèle local a été modifié (somme de contrôle différente) ; par sécurité, il n’est pas chargé : {file}
-2535	Le fichier du modèle local n’est pas au format GGUF (il a peut-être été modifié) ; il n’est pas chargé : {file}
-2536	Délai de connexion dépassé (15 minutes)
-2537	La connexion est toujours en cours ; la page d’autorisation s’ouvrira dès que son adresse arrivera
-2538	Les informations de téléchargement de ce module sont incomplètes ; mettez d’abord à jour le kit de dév.
-2539	Le paquet du module n’a pas de liste de fichiers (MANIFEST) ; par sécurité, il n’est pas installé
-2540	La liste de fichiers du paquet du module contient un chemin non valide : {file}
-2541	Le module « {name} » n’a pas terminé sa configuration initiale ({err}) ; une nouvelle installation la relancera
-2542	La liste des projets n’a pas pu être enregistrée (stockage plein ou non inscriptible) ; cette modification sera perdue au redémarrage
-2543	{n} discussions n’ont pas pu être déplacées dans la corbeille ; le dossier n’a donc pas été supprimé : {why}
-2544	{n} fichiers partagés dont dépend le composant « {id} » ont été supprimés
-2545	La passerelle a été arrêtée par le système avant la fin de cette exécution
-2546	délai dépassé
-2547	aucune sortie
-2548	Autotest en cours… (une ou deux minutes)
-2549	Dernière exécution {time} : {pass} réussis, {fail} échoués
-2550	mesuré avant la mise à jour du kit de dév. ou de l’app
-2551	Pas encore de résultats d’autotest
-2552	La dernière exécution n’a donné aucun résultat : {why}
-2553	Vérifications échouées
-2554	Le système n’autorise pas cette app à démarrer le service Work Island ; rien n’est donc affiché.
-2555	L’app Work Island n’a pas été détectée : installez-la, puis touchez Réessayer.
-2556	Autotest de l’appareil
-2557	Relancer l’autotest
-2558	Hebdomadaire · {model}
-2559	Durée
-2560	1 heure
-2561	4 heures
-2562	1 jour
-2563	3 jours
-2564	7 jours
-2565	Impossible de supprimer l’enregistrement d’origine de la session ; elle reste à sa place : {err}
-2566	Ce tour n’a pas abouti : la passerelle a redémarré pendant la mise à jour de l’app (commencé {when}).
-2567	Ce tour n’a pas abouti : la passerelle a été arrêtée ou redémarrée (commencé {when}).
-2568	Le dossier de travail {dir} a disparu (supprimé, renommé ou carte de stockage retirée) : ce tour n’a pas été exécuté. Remettez le dossier ou changez le chemin dans les réglages du projet, puis renvoyez.
-2569	Ce tour a été interrompu avant de commencer (envoyé {when}).
-2570	La conversation dépasse la limite de contexte du modèle. Lancez /compact puis continuez, ou ouvrez une nouvelle conversation.
-2571	Le point d’accès a refusé la clé : vérifiez dans Réglages → Points d’accès que la clé API est correcte, non expirée et non désactivée.
-2572	Solde ou quota épuisé : rechargez ou vérifiez votre quota dans la console du fournisseur.
-2573	Trop de requêtes ou limite d’usage atteinte : patientez un peu puis réessayez.
-2574	Le point d’accès ne trouve pas ce modèle ou cette adresse : vérifiez le nom du modèle et l’URL.
-2575	Le fournisseur a rencontré une erreur ou est surchargé : réessayez plus tard. Si cela persiste, changez de modèle ou de point d’accès.
-2576	Impossible de joindre le point d’accès : vérifiez le réseau ou l’URL.
-2577	L'archive contient trop de fichiers ({n}, {max} au maximum) ; rien n'a été importé
-2578	Seuls les {n} premiers sont affichés ; utilisez le filtre
-2579	Extraire la sélection ({n})
-2580	Compresser ({n})
-2581	Archive : touchez « Ouvrir l’archive » pour parcourir son contenu, ou extrayez-la directement
-2582	Ouvrir l’archive
-2583	Extraire…
-2584	Une fois désactivé, Claude ne le voit plus. Les fichiers de commandes restent ; vous pouvez le réactiver à tout moment.
-2585	Nom seulement
-2586	Seulement quand vous l'invoquez
-2587	Mode de la compétence
-2588	Pris en compte au prochain tour
-2589	Désactivé : Claude ne s'y connectera pas. Ses réglages sont conservés ; touchez Activer pour le rajouter.
-2590	Désactiver le serveur MCP {name} ? Ses réglages sont d'abord enregistrés, vous pourrez le réactiver à tout moment.
-2591	Activer le serveur MCP {name} ? Ceci sera rajouté : {target}
-2592	Supprimer le serveur MCP désactivé {name} ? Vous ne pourrez plus le réactiver d'un geste.
-2593	~/.claude/settings.json n'est pas un JSON valide. Corrigez-le d'abord
-2594	Seuls les serveurs MCP que vous avez ajoutés (portée utilisateur) peuvent être désactivés
-2595	Impossible d'écrire la liste des désactivés
-2596	Absent de la liste des désactivés
-2597	Ce composant n'est pas installé
-2598	Ce module ne peut pas être désactivé
-2599	Compresser…
-2600	Encodage des noms
-2601	Si les noms sont illisibles, essayez un autre encodage
-2602	{n} éléments
-2603	Chiffré
-2604	Tout extraire…
-2605	Fermer l’archive
-2606	Revenir à l’archive
-2607	Cette version n’inclut pas 7-Zip et ne peut pas ouvrir ce type d’archive
-2608	Impossible d’ouvrir l’archive : {msg}
-2609	{size} compressé
-2610	Lien symbolique (non extrait)
-2611	Extraction…
-2612	Mot de passe incorrect
-2613	Trop volumineux pour l’aperçu ; extrayez-le d’abord
-2614	Espace de stockage insuffisant
-2615	Échec de l’extraction : {msg}
-2616	Saisir le mot de passe
-2617	Mot de passe incorrect, réessayez
-2618	OK
-2619	{n} éléments sélectionnés
-2620	Extraire {what}
-2621	Extraire vers
-2622	Dossier actuel
-2623	Mot de passe (vide si non chiffré)
-2624	Les fichiers existants du même nom ne sont jamais écrasés ; les nouveaux sont renommés « nom (2) ». Les liens symboliques ne sont pas extraits.
-2625	Extraire
-2626	Saisissez un chemin complet (commençant par /)
-2627	Compresser « {name} »
-2628	Compresser {n} éléments
-2629	Nom de l’archive
-2630	Format
-2631	Niveau de compression
-2632	Stockage seul
-2633	Le plus rapide
-2634	Normal
-2635	Taille minimale (lent)
-2636	Mot de passe (facultatif, zip / 7z)
-2637	Chiffrer aussi les noms (7z)
-2638	Le zip chiffré utilise AES-256, que certains anciens outils ne savent pas ouvrir ; sans mot de passe pour une compatibilité maximale. Les dossiers d’identifiants comme .ssh sont exclus.
-2639	Compresser
-2640	Impossible d’extraire ou de compresser à cet emplacement
-2641	Cette version n’inclut pas 7-Zip
-2642	L’archive ne peut pas être enregistrée dans un dossier en cours de compression
-2643	Extraction
-2644	Compression
-2645	Extrait vers {path}
-2646	Compressé dans {path}
-2647	Sélection
-2648	Impossible d'écrire l'invite système dans un fichier ; ce tour n'a pas démarré : {msg}
-2649	Réinitialiser les réglages
-2650	La boîte de confirmation ne s'est pas affichée
-2651	Réinstaller ce composant (nouveau téléchargement)
-2652	Réinstaller ce module de la boîte à outils (nouveau téléchargement)
-2653	Réparer la boîte à outils : retélécharger cette version et la réinstaller ; le service est suspendu 1 à 2 minutes pendant l'installation
-2654	Tout réparer
-2655	Réparer
-2656	En attente
-2657	En cours…
-2658	Confié à l'application
-2659	Réparation en cours. Fermer cette page ne l'arrête pas ; une nouvelle vérification se fait automatiquement à la fin :
-2660	Réparation terminée :
-2661	Suivez les étapes confiées à l'application dans Paramètres → Mettre à jour, puis touchez « Vérifier les enregistrements » une fois terminées.
-2662	Réparation terminée, {n} étape(s) en échec
-2663	Réparation terminée
-2664	Réparation dans cet ordre, puis nouvelle vérification automatique :
-2665	Réparer cet élément :
-2666	La réinstallation télécharge depuis Internet ; vos fichiers, conversations et réglages ne sont pas touchés. Continuer ?
-2667	L'index n'a pas passé la vérification de signature ; impossible d'installer des composants
-2668	La version de l'index ({v}) est plus ancienne que celle installée ({now}) ; rétrogradation refusée
-2669	Une réparation ou une vérification est déjà en cours ; réessayez quand elle sera terminée
-2670	Aucun problème réparable automatiquement
-2671	Des étapes sont encore en cours dans l'application :
-2672	Les étapes confiées à l'application sont encore en cours ; touchez « Vérifier les enregistrements » une fois terminées
-2673	Navigateur intégré
-2674	Paquets téléchargés par pkg
-2675	Index de la généalogie
-2676	Analyse…
-2677	Cette application occupe {app} ; {free} libres sur l'appareil
-2678	Dernière analyse : {when}
-2679	Pas encore analysé
-2680	{n} jours, selon votre réglage
-2681	Conservées indéfiniment
-2682	Dernier nettoyage auto : {when}, {size} libérés
-2683	Aucun nettoyage auto pour l'instant
-2684	Caches
-2685	{size} au total ; retéléchargés ou reconstruits automatiquement si besoin
-2686	En cours d'utilisation
-2687	Session en cours
-2688	Inchangé depuis 7 jours
-2689	Dernière modification : {when}
-2690	Supprimer la sélection
-2691	Fichiers temporaires
-2692	{size} au total, dont {old} inchangés depuis 7 jours. Inclut la sortie des commandes en arrière-plan et les dossiers temporaires laissés par les tests et compilations
-2693	Les {n} plus gros
-2694	Nettoyer ceux de plus de 7 jours
-2695	Journaux de débogage, instantanés shell, journaux MCP et sauvegardes de .claude.json : {size} au total ; {n} éléments ({auto}) peuvent être nettoyés (plus de 30 jours ; les 5 sauvegardes les plus récentes sont conservées)
-2696	{n} sessions, {size} au total. Les sessions ne sont jamais supprimées automatiquement ; supprimez-les depuis la liste des sessions, elles passent d'abord par la corbeille
-2697	Données d'exécution des composants (~/.cccodroid)
-2698	{name} (installé avec pkg)
-2699	Dossier partagé /sdcard/cccodroid
-2700	Programmes et vos fichiers
-2701	Tailles uniquement ; rien n'est supprimé ici
-2702	Corbeille des sessions
-2703	{n} éléments, {size} ; vidés automatiquement au bout de 30 jours
-2704	Programmes laissés par une ancienne boîte à outils
-2705	Examiner
-2706	Données d'exécution laissées par le composant supprimé {id}
-2707	Statistiques d'utilisation
-2708	Autres emplacements de nettoyage
-2709	✓ {n} éléments supprimés, {size} libérés
-2710	{n} éléments non supprimés (en cours d'utilisation ou hors des dossiers autorisés)
-2711	Rien de sélectionné
-2712	Supprimer les {n} éléments temporaires sélectionnés ? Action irréversible.
-2713	Supprimer les données d'exécution laissées par {id} ? Une réinstallation les retéléchargera.
-2714	✓ Supprimé
-2715	Stockage
-2716	Espace utilisé
-2717	Analyser
-2718	Conservation des sessions
-2719	Nettoyage automatique
-2720	Liste des API
-2721	Ajouter une API
-2722	{n} modèles
-2723	Supprimer ({n})
-2724	Supprimer définitivement {what} ? Cette action est irréversible.
-2725	Les dossiers seront supprimés avec tout leur contenu.
-2726	{n} élément(s) supprimé(s)
-2727	Ce dossier contient des répertoires propres à l'app ou l'espace de travail et ne peut pas être supprimé
-2728	(Le tour précédent ne s'est pas terminé normalement ; la réponse ci-dessus peut être incomplète.)
-2729	Les sessions ont été importées, mais les titres personnalisés n'ont pas pu être enregistrés (stockage plein ou permission refusée). Les titres d'origine réapparaîtront après un redémarrage
-2730	La liste des sessions n'a pas pu être lue ({msg}) ; cela ne signifie pas qu'il n'y a pas de sessions. Vérifiez les permissions de stockage puis actualisez.
-2731	Délai dépassé : la passerelle n'a pas répondu ({n} s)
-2732	Passerelle hors ligne : {msg} · Touchez pour réessayer
-2733	Le tour précédent a échoué en arrière-plan : {msg}
-2734	L'adresse a renvoyé {s}, mais la réponse est trop volumineuse (plus de 8 Mo) pour confirmer que la clé est valide
-2735	Le tour précédent est terminé, mais le tour suivant n'a reçu aucun résultat (interrompu)
-2736	Dossier introuvable : {dir} ; {cwd} est utilisé à la place
-2737	L'API a renvoyé une erreur, pas une réponse normale :
-2738	La limite de compactage est de 1 M maximum ; enregistrée à 1 M
-2739	HONOR / Huawei et systèmes similaires gèlent Shizuku en arrière-plan et ralentissent l'activation : dans Gestion des applications → Shizuku, activez « Ignorer l'optimisation de la batterie ».
-2740	Premier enregistrement : {time}
-2741	Heure inconnue
-2742	Variables d’env., facultatif, séparées par des virgules (CLÉ=valeur)
-2743	En-têtes, facultatif, séparés par des virgules (Header: valeur), ex. Authorization: Bearer votre-jeton
-2744	En-têtes
-2745	Le MCP distant prend des en-têtes : écrivez {bad} avec deux-points, ex. Authorization: Bearer votre-jeton
-2746	Le MCP distant ne prend pas de variables d’env. : écrivez les en-têtes sous la forme Header: valeur, ex. Authorization: Bearer votre-jeton
-2747	Retirer de la configuration
-2748	En-têtes actuels
-2749	Variables d’env. actuelles
-2750	Modifications enregistrées pour {name}
-2751	Échec de la modification : {msg}
-2752	Échec de l’enregistrement : {msg} ; l’ancienne configuration a été restaurée telle quelle
-2753	Échec de l’enregistrement : {msg}, et l’ancienne configuration n’a pas pu être restaurée — vérifiez manuellement
-2754	Impossible d’ouvrir l’éditeur : {msg}
-2755	Modification de {name} : laisser vide = conserver la valeur, × pour supprimer, écrire pour remplacer
-2756	Ce serveur MCP est introuvable (les connecteurs de compte ne peuvent pas être modifiés)
-2757	Un serveur MCP porte déjà ce nom
-2758	stdio ne conserve pas les en-têtes : {names} seront supprimés. Continuer ?
-2759	Si le serveur tourne sur cet appareil, mettez http://127.0.0.1:port ; l'IP locale change avec le réseau et coupe la connexion
-2760	Cela ressemble à une adresse locale : si le serveur tourne sur cet appareil, remplacez-la par http://127.0.0.1:port ; l'IP locale change et la connexion tombe
-2761	Fusionner des PDF
-2762	Extraire des pages
-2763	Séparer les pages
-2764	Pivoter les pages
-2765	Compresser un PDF
-2766	PDF en images
-2767	Pages incorrectes. Utilisez le format 1-3,5 et vérifiez le nombre de pages.
-2768	Échec du traitement PDF : {code}
-2769	Le fichier sélectionné n'est pas un PDF
-2770	Monter
-2771	Descendre
-2772	Sélectionnez des PDF dans les fichiers ou cliquez sur « Choisir des PDF… ».
-2773	Outils PDF manquants : {tools}. Installez « Boîte à outils PDF » dans Extensions → Composants optionnels.
-2774	Importation des PDF…
-2775	Traitement du PDF…
-2776	Traitement terminé
-2777	La compression n'a pas réduit la taille. L'original est conservé.
-2778	Ouvrir le dossier de sortie
-2779	Connexion interrompue. Nouvelle tentative…
-2780	Boîte à outils PDF
-2781	Les fichiers sont traités sur cet appareil. Les originaux ne sont pas écrasés.
-2782	Opération
-2783	Ouvrir les composants optionnels
-2784	Ajouter depuis les fichiers
-2785	Choisir des PDF…
-2786	Fusionnez jusqu'à 20 PDF. Sélectionnez un PDF pour les autres opérations.
-2787	Pages
-2788	Format : 1-3,5. Laissez vide pour toutes les pages.
-2789	Angle de rotation
-2790	Qualité de compression
-2791	Livre numérique (ebook)
-2792	Petit fichier (screen)
-2793	Impression (printer)
-2794	Format d'image
-2795	Résolution
-2796	Basse (72 DPI)
-2797	Haute (150 DPI)
-2798	Jusqu'à 100 pages à la fois. Le grand côté des images est limité à 2048 pixels.
-2799	Dossier de sortie (nouveau)
-2800	Lancer le traitement
-2801	Choisissez jusqu'à 20 PDF, 256 Mo au total.
-2802	Le nombre total de pages PDF ne peut pas dépasser 1000.
-2803	Traitement impossible. Vérifiez que le PDF est intact et sans mot de passe.
-2804	Délai dépassé. Réduisez le nombre de pages et réessayez.
-2805	Une tâche PDF est déjà en cours. Réessayez plus tard.
-2806	Installez le composant PDF, puis rouvrez la boîte à outils.
-2807	Indiquez un nouveau dossier de sortie dans un emplacement accessible en écriture.
-2808	La sortie dépasse 512 Mo. Réduisez les pages ou la résolution.
-2809	fichier(s)
-2810	La sauvegarde de la dernière installation n"a pas encore été restaurée. Réessayez, sinon désinstallez puis réinstallez.
-2811	[cc] Error in a script injected by the shell (details hidden by WebView)
-2812	\\[Attachment: (\\/[^\\n]+?) · [^\\n·,\\]]+, file is large and was not read directly, read by path when needed\\]
-2813	Antigravity is requesting tool authorization: {w}
-2814	Antigravity wants to ask you
-2815	Say how it should change (sent back to Antigravity)
-2816	Optional: tell Antigravity why / what to do
-2817	Scheduled
-2818	Antigravity is waiting for your confirmation
-2819	Let Antigravity decide which actions need confirmation
-2820	Ask nothing. Antigravity can delete files and run any command without asking you
-2821	Switch to “Allow everything”?\n\nAntigravity will stop asking and can edit or delete files, run any command and access the network. Only use it when you trust the task and can live with the consequences.
-2822	Sign in with a Google Antigravity account
-2823	Use a personal Google account (Free / Pro / Ultra) or an enterprise account: authorize once in the browser, no key needed.
-2824	Enter a Gemini API Key
-2825	Use a Gemini API Key from Google AI Studio or a custom compatible endpoint, billed by usage.
-2826	Context has reached the auto-compact line; compacting history…
-2827	Background task finished, reported automatically:
-2828	[Attachment: 
-2829	, file is large and was not read directly, read by path when needed]
-2830	Starting Google Antigravity sign-in…
-2831	Google account signed in
-2832	Open the address below in your browser to complete Google authorization, then paste the authorization code under Settings → Providers to submit:
-2833	You can also run {cmd} in the in-app terminal to sign in.
-2834	Interruption sent — it will be seen once the current step finishes
-2835	Antigravity CLI (agy) itself
-2836	The system or hachimia already has a command with this name; pick another one
-2837	hachimia checks these skills before handing them to Antigravity; when calling one with a slash, prefix the name with user:, e.g. /user:{name}.
-2838	This build does not run the hooks configured here: hooks can execute arbitrary commands and put arbitrary content into the conversation, and hachimia cannot check them. The rules stay in the file and will not be deleted.
-2839	Reinstall Antigravity CLI (agy)
-2840	Claude (compatible)
-2841	Third-party provider
-2842	Sign in to a Google Antigravity account
-2843	Google Cloud / enterprise account
-2844	Billed by your Google Antigravity account subscription tier; on-device token stats are on the “Usage” page
-2845	Sign out of the Google Antigravity account on this device?
-2846	The key is stored only in this app's private directory on this device, and is passed to Antigravity CLI only as needed to connect to the matching endpoint.
-2847	AGY blue
-2848	Antigravity's replies
-2849	Shizuku is running but has not been authorized for hachimia
-2850	vivo / iQOO: Settings → Battery → Background power consumption → allow hachimia <b>high background power usage</b>; in iManager allow <b>auto-start</b> (common path)
-2851	Huawei / Honor: Settings → App launch → turn off “Manage automatically” for hachimia, then manually allow <b>auto-start</b> and <b>background activity</b> (common path)
-2852	hachimia has been frozen in the background by the system {n} times (most recent: about {sec} seconds, {at}).
-2853	In system settings, allow hachimia to run in the background, turn off battery optimization, and allow auto-start (each vendor names these differently).
-2854	Authorize for hachimia
-2855	hachimia's wireless debugging pairing has been removed: it still works now, but it cannot auto-activate after a reboot.
-2856	Shizuku was not activated by hachimia: hachimia cannot auto-activate it after a reboot. Pair it once and you're set.
-2857	The system did not notify hachimia at this boot (blocked by the system's “auto-start” management), so it could not auto-activate; opening hachimia will catch up.
-2858	To activate at boot: allow hachimia auto-start / background start in the app details; takes effect at the next boot.
-2859	Antigravity CLI (agy) version
-2860	Uninstall Antigravity CLI (agy)?\n\nThis deletes the downloaded agy program; it will not be reinstalled automatically. Tap “Install” here to download it again when you need it.\n\nSign-in, sessions and settings are kept; sending a message while it is not installed will prompt you to install it first.
-2861	Install the devkit from a local file?\n\nPick a devkit-ha.chi.mia.tar.gz (or .tar), downloadable from the GitHub releases page or hachimia.net. It is checked against the published release before installing; the service pauses for 1–2 minutes during installation.\nThings you installed into the devkit with pip / npm -g are kept.
-2862	Shizuku is not activated yet, so the app cannot toggle accessibility itself: turn on hachimia manually in the system accessibility settings. From Android 13, sideloaded apps must first allow restricted settings via App info → menu in the top-right corner.
-2863	This build has no native layer and only records CPU time (battery, screen-on and foreground time come from hachimia).
-2864	Name (e.g. self-hosted Gemini proxy)
-2865	Auth: x-goog-api-key (Gemini / Antigravity)
-2866	Auth: Authorization: Bearer
-2867	Auth: x-api-key
-2868	Default model name (required, e.g. gemini-3.8-flash)
-2869	Model list URL (optional; Gemini endpoints auto-probe /v1beta/models)
-2870	Context window (optional, in tokens, e.g. 1m; leave empty for the default)
-2871	More models (optional, one per line; you may put the window after the name, separated by a space, e.g. gemini-4-neon 1m)
-2872	Send images with the message (compat): check this when the model cannot read attached images; attachments are then sent directly as multimodal blocks with the message.
-2873	Choosing <b>Gemini / Antigravity</b> auth drives the official <code>agy</code> CLI via <code>GOOGLE_GEMINI_BASE_URL</code> + <code>GEMINI_API_KEY</code>.
-2874	Running Antigravity diagnostics…
-2875	Currently available capabilities
-2876	Fixed
-2877	Workaround
-2878	(Merged from 
-2879	Direct (not needed)
-2880	(Decided by Antigravity)
-2881	Antigravity CLI failed: {msg}
-2882	The Antigravity CLI user-level config has unconfirmed changes. Send a message first, confirm in the card that pops up, then try again.
-2883	Could not fetch the Antigravity CLI version list
-2884	agy install script not found ({p})
-2885	The dev side only manages Antigravity CLI (agy) (you build and install the app itself on this device)
-2886	Updating Antigravity CLI (agy)…
-2887	Could not fetch the Antigravity CLI version list: {err}
-2888	The gateway's own runtime was modified; Antigravity CLI was not started this round. The gateway will restart when idle and restore itself from the install package; send again shortly.
-2889	Antigravity CLI (agy) is not installed. Install it under Settings → Updates first.
-2890	Antigravity CLI (agy) not found
-2891	Settings → Updates: reinstall Antigravity CLI (agy)
-2892	Antigravity CLI (agy) is not installed. Tap “Install” under Settings → Updates.
-2893	The Antigravity CLI user-level config has unconfirmed changes, or an earlier session left background processes behind, so this run did not start. Open hachimia, send a message, and confirm in the card that pops up, then try again.
-2894	Antigravity CLI (agy) is not installed. Install it under Settings → Updates first, then come back to sign in.
-2895	Enterprise sign-in: in the agy sign-in screen, choose “Use a Google Cloud project” → “Continue with Google Cloud” and authorize with your enterprise account.
-2896	Personal sign-in: in the agy sign-in screen, choose “Google OAuth” and authorize with your personal Google account.
-2897	The slash commands, tools, skills and extensions currently available to Antigravity. Tap a slash command to insert it into the input box; a tool's “Allow / Ask / Deny” follows the permission mode and rules.
-2898	For things not in the marketplace, import a Linux arm64 program yourself: a single binary, or a .tar.gz / .zip archive. Missing libraries are filled in automatically and a command is generated, ready to use in Antigravity and in the terminal.
-2899	Save a long prompt you send often as a command and pick it with / in the input box. Text after /command fills $ARGUMENTS in the body, expanded automatically by the gateway when sent to Antigravity.
-2900	Antigravity behavior
-2901	Default color pick (AGY Monet palette); switchable to native, Qiusuo, Zhuyue or Construct
-2902	Font for Antigravity's reply text
-2903	Thinking level (thought_level)
-2904	Levels vary by model (low / medium / high / xhigh). You can also type <code>/effort &lt;level&gt;</code> in the input box.
-2905	Let Antigravity decide
-2906	Empty = let Antigravity decide by window
-2907	Confirm each item by default, same as official agy: it asks in the conversation before editing files or running commands. Allow everything means Antigravity can delete files and run any command without asking. You can also switch anytime via the permission tag under the input box.
-2908	Only clears caches, temp files untouched for 7 days, and expired logs; sessions, your files and programs are never auto-deleted
-2909	When on, run <code>priv 'command'</code> in the terminal as shell (pm / am / settings / dumpsys / logcat / screencap…); Antigravity uses it too. Without Shizuku, basic dev features work as usual — only these debugging abilities are unavailable.
-2910	Auto-activate again after a reboot (needs Wi-Fi; starts the hachimia background service at boot)
-2911	Let Antigravity use device tools (notifications, clipboard, opening links / calendar / alarms, sharing files…)
-2912	Off by default. Turn it on when you want Antigravity to test an app you built, or send files it generated to other apps; while on, each round carries an extra one or two thousand tokens of tool descriptions.
-2913	Antigravity CLI channel
-2914	Plan first
-2915	Interview to align the plan
-2916	Long-term goal
-2917	Multi-agent teamwork
-2918	Deep orchestration
-2919	Capabilities & tools
-2920	Failed to switch permission mode (agent rejected {mode}): {msg}
-2921	Could not restore the previous session (the agent doesn't support resume, or resume failed), so a new session was started. This turn was written to the new session; the old session's history is still kept in local records.
-2922	Compaction not confirmed: context did not shrink (before {pre}, after {post}). Please retry /compact or start a new session.
-2923	Enterprise login: please sign in with your company Google account in the browser
-2924	The authorization code could not be written to agy (stdin is closed). Please start login again.
-2925	The authorization code could not be written to agy (the login process's stdin is closed). Please start login again.
-2926	Login-based providers don't need an API key; sign in through the official flow. The key you entered was not saved.
-2927	Already queued; skipping this duplicate run
-2928	Open this in the app
-2929	Needs npx (included in the hachimia toolkit)
-2930	This build has no native layer, so only CPU time is recorded (battery and screen-on need hachimia).
-2931	The Antigravity CLI program was modified and was not started; 
-2932	Antigravity CLI housekeeping files
-2933	These Claude Code config files contain override-style instructions (telling the model to ignore its rules, posing as system messages and the like). hachimia won't load them, so this turn did not run. Edit or remove the following, then send again:\n{list}
-2934	The command {c} is built into the system or hachimia. Pick another name
-2935	Not a hachimia session archive
-2936	{p} : {n}
-2937	« {n} » {w}
-2938	API Key
-2939	Google Antigravity / Gemini
-2940	Voir ou changer de modèle
-2941	Contexte
-2942	Compresser l'historique pour libérer du contexte
-2943	Ce qui s’est passé
-2944	Ce que vous avez fait, ce que vous attendiez, ce qui s’est réellement passé. Vous pouvez glisser des captures ici.
-2945	Étapes pour reproduire
-2946	L’état d’exécution n’a pas pu être enregistré (stockage plein ou permission refusée). Si le système ferme l’application, ce tour risque de ne pas être récupérable.
-2947	L’état d’exécution précédent n’a pas pu être récupéré (registre illisible ou mal formé) ; les tours interrompus et les messages en file n’apparaîtront pas. Le fichier d’origine a été conservé.
-2948	Le nom ne peut contenir que des lettres, chiffres, - et _, 40 caractères max
-2949	Ce nom est celui d'une commande intégrée. Choisissez-en un autre
-2950	L'invite ne peut pas être vide
-2951	L'invite est trop longue (64 Ko max)
-2952	Une invite porte déjà ce nom
-2953	10 polices au maximum. Supprimez-en une d'abord
-2954	C'est une collection de polices (.ttc), inutilisable dans la vue web. Utilisez un seul ttf / otf
-2955	Ce n'est pas un fichier de police utilisable. Seuls ttf, otf, woff et woff2 sont pris en charge
-2956	This model doesn't support thinking level "{effort}"; running with the default instead.
-2957	The agent rejected thinking level "{effort}" ({msg}); running with the default instead.
-2958	Not supported under Antigravity
-2959	Not supported under Antigravity: the Antigravity CLI has no generic third-party API key channel. Declare protocol:"gemini" (the endpoint must speak the Gemini protocol), or switch to a Gemini / sign-in provider.
-2960	On-device models need Claude Code; this device only has the Antigravity CLI, so they're unavailable for now.
-2961	Not set (no default compaction line under ACP)
-2962	No Google Cloud ADC credentials found (Application Default Credentials). Run `gcloud auth application-default login` in a terminal first, then come back and pick ADC.
-2963	Application Default Credentials found.
-2964	The old configuration was still using a Claude preset, which doesn't work in Antigravity-only mode; it has been switched back to Google Antigravity sign-in.
-2965	Protocol: not declared
-2966	Protocol: Gemini (endpoint speaks the Gemini protocol)
-2967	Checking ADC credentials…
-2968	Failed to create a session: the agent returned no session ID. Please try again.
-2969	Sortie (en cours)
-2970	Crédits IA restants : {n}
-2971	Synchronisation du quota Google Antigravity en cours ; affichage de l’utilisation locale des jetons pour l’instant (appuyez sur Actualiser ci-dessus pour interroger immédiatement).
-2972	Impossible de restaurer la session précédente ({why}). La session actuelle a été conservée sans en créer une nouvelle ; veuillez réessayer ou démarrer une nouvelle discussion manuellement.
-2973	Impossible de savoir si l’appareil est en charge
-2974	Impossible de lire le niveau de batterie actuel
-2975	Index
-2976	Nom de fichier mémoire invalide
-2977	Mémoire introuvable
-2978	Seuls les fichiers mémoire ordinaires peuvent être consultés
-2979	Le fichier mémoire est trop volumineux (plus de 1 Mo)
-2980	Les mémoires sont en lecture seule ici
-2981	En attente des tâches en arrière-plan
-2982	inactif {d}
-2983	{d} restant
-2984	Annonces de maintenance
-2985	Relais proxy tiers GitHub en secours (gh-proxy.com)
-2986	Première vérification : ces réglages globaux s'appliquent à chaque tour. Confirmez qu'ils viennent de vous (annuler les sauvegarde dans ~/.ccapp-userconf/quarantine).
-2987	Choisissez Annuler si ces modifications ne viennent pas de vous (restaure la configuration, arrête les processus restants et isole les nouveaux fichiers), ou Conserver sinon.
-2988	Erreur du contrôle de sécurité. Refusez en cas de doute.
-2989	La configuration du projet exécute directement des programmes locaux. Choisissez Ne pas charger si la source est inconnue (le chat reste fonctionnel) ; une fois autorisée, confirmation uniquement en cas de modification.
-2990	Si vous ne l'avez pas demandé, il peut s'agir d'une injection depuis une page ou un fichier : refusez. Autoriser désactive l'alerte pour ce tour.
-2991	Modifications non confirmées de la configuration utilisateur
-2992	Erreur du contrôle de sécurité — confirmez manuellement
-2993	Modification d'un fichier d'instructions ou de règles de sécurité : {w}
-2994	Accès aux clés ou identifiants : {w}
-2995	Déconnecté, reconnexion… (la génération continue)
-2996	Inactif depuis près d'1 h ; compaction auto du contexte pour réduire la consommation suivante (désactivable dans Réglages).
-2997	En attente (historique)
-2998	Nouveau changement
-2999	Configuration modifiée en externe ; restaurée aux réglages actuels : 
-3000	Fichiers d'exécution modifiés en externe ; protection activée : 
-3001	Nouvelle discussion en attente · voir « Discussions non enregistrées » dans le panneau
-3002	Prêt · {n} tâches en arrière-plan
-3003	Prêt · finalisation des tâches en arrière-plan
-3004	État inconnu pour {n} opérations lors de l'interruption ({list}). Vérifiez le résultat avant de continuer.
-3005	Confirmation expirée ({n} min sans réponse), tour non démarré ({when}).
-3006	La progression effectuée est conservée. Touchez Continuer pour reprendre.
-3007	Message reçu — inutile de renvoyer
-3008	Envoi non confirmé : {msg}
-3009	Espace insuffisant, brouillon non enregistré. Copiez ou envoyez le texte.
-3010	Stocké dans /sdcard/cccodroid/models (Q4_K_M). Activez-le dans Réglages → Services de modèles. RAM : {ram} Go (1–4B conseillé).
-3011	Désinstaller le composant {name} ? (Vos propres fichiers ne sont pas affectés.)
-3012	Supprimer aussi {size} de cache d'exécution laissé par {name} ({path}) ?
-3013	Exporter et partager le pack de diagnostic ?\n\nInclut : versions et appareil, état du kit et d'autotest, journaux récents anonymisés, registre de réparation, connectivité.\nExclut : clés, identifiants, e-mails, messages et historique.
-3014	Le mode local est limité au chat par défaut. Pour personnaliser outils et options, éditez {file} ou envoyez ceci à un modèle cloud :
-3015	(état en cache ; échec de l'actualisation : {msg})
-3016	Terminez l'autorisation dans le navigateur, puis collez le code ci-dessous.
-3017	Vous pouvez aussi vous connecter depuis le terminal intégré :
-3018	L'ancien point d'accès a été retiré. Choisissez-en un autre et ressaisissez votre clé.
-3019	Définissez un plafond chez le fournisseur et remplacez immédiatement la clé en cas de fuite suspectée.
-3020	Aperçu du mois
-3021	Modèle d'exemple (remplacez par l'adresse réelle)
-3022	Les appels tiers sont configurés par vos soins ; le service voit votre clé, votre code et vos échanges. N'utilisez que des services fiables.
-3023	Discussions non enregistrées
-3024	Exécuter maintenant
-3025	S'exécute automatiquement à l'heure prévue dans le dossier choisi et enregistre le résultat en session. Les confirmations sont refusées d'office ; les exécutions manquées suivent la règle de chaque tâche.
-3026	Au-delà du plafond, les tâches restantes du jour sont ignorées (seuls les appels API officiels sont comptés, hors appels tiers).
-3027	Les tâches planifiées sont désactivées par défaut avec un abonnement personnel. Vérifiez les conditions du fournisseur avant d'activer (API Key sans restriction).
-3028	Ignoré pour cette fois
-3029	Appel tiers actif : hors plafond de dépenses, seul le délai maximal par exécution s'applique.
-3030	Connecté via abonnement personnel : des exécutions fréquentes peuvent déclencher des restrictions en amont. Clé API recommandée.
-3031	Rejoignez le groupe pour discuter ; pour les bugs, passez par Réglages → Retour sur GitHub (modèle et autotest préremplis).
-3032	Traduction, tests, documentation ou code : toute contribution est bienvenue (voir le guide du dépôt).
-3033	Le navigateur externe n'est pas isolé : les scripts peuvent lire les fichiers voisins et joindre les services locaux. Continuez uniquement pour une page fiable.
-3034	Fichier binaire — ouverture en texte non prise en charge.
-3035	Autoriser l'accès réseau pour cette page ?\n\nUne fois connectée, ses scripts peuvent envoyer des fichiers jusqu'à 3 dossiers parents. N'activez que pour une page fiable.
-3036	Fichier trop volumineux ({size}). Passez en « Mise en page d'origine » (PDF) ou ouvrez-le dans une autre application.
-3037	Installation de LibreOffice en arrière-plan…
-3038	[Processus terminé]
-3039	[Échec d'envoi, reconnexion de la passerelle]
-3040	Voir la durée par tour et la chronologie des outils
-3041	Première visite ? Touchez « Comment lire » en haut à droite
-3042	Un message identique plus bas n'est pas encore enregistré ; attendez la fin du tour avant d'ajouter un signet
-3043	Aucun signet. Touchez l'icône sous un message pour en ajouter un.
-3044	Page interactive (HTML)
-3045	Rechargement de l'interface…
-3046	Cette version ne prend pas en charge la récupération auto ; mettez à jour l'app ou redémarrez la passerelle
-3047	Défilement bloqué ? Appuyez ~0,6 s sur le titre en haut pour rétablir
-3048	Récupération auto arrêtée ; modifier la configuration ne la débloque pas. Lancez le diagnostic ci-dessous puis réinitialisez le compteur.
-3049	Échec de vérification du pont et arrêt de la récupération auto (enregistrer la configuration ne résout pas le défaut) ; diagnostiquez d'abord.
-3050	Le pont est désactivé (enregistrer la configuration ne le réactive pas). Activez d'abord le composant dans Extensions.
-3051	Composant pont indisponible ; vérifiez l'installation (le compteur de récupération n'est pas réinitialisé automatiquement).
-3052	Mettez à jour le composant du pont avant de l'utiliser.
-3053	Le pont n'est pas prêt ; consultez le diagnostic ci-dessous (session actuelle inchangée, enregistrer ne réinitialise pas le compteur).
-3054	Le pont est occupé. Réessayez dans un instant.
-3055	Échec du contrôle de cohérence. Suivez les indications ci-dessous sans supprimer les dossiers manuellement.
-3056	Échec de lecture de la configuration du pont. Retournez dans Extensions et réessayez.
-3057	Utilisez une URL HTTPS sans identifiants, paramètres ni fragment.
-3058	Indiquez une adresse Chat Completions (Responses API non prise en charge).
-3059	Chemin impossible à compléter automatiquement ; saisissez l'URL /chat/completions complète.
-3060	Configurez un ou plusieurs points d'accès compatibles OpenAI ; prise d'effet à l'enregistrement.
-3061	Lecture locale uniquement — aucune modification ni requête externe.
-3062	Sauvegardez la config du pont avant migration ou réinstallation (adresses, clés et modèles uniquement ; sans historique de chat).
-3063	Ne partagez jamais publiquement un fichier contenant des clés.
-3064	Indiquez l'URL API du fournisseur (pas la page de connexion web).
-3065	Récupérer automatiquement la liste des modèles (envoie la clé API au service indiqué)
-3066	Réessayer
-3067	Rechercher ou saisir le nom du modèle
-3068	Une fois ajoutés, réglez la fenêtre de contexte et le modèle par défaut pour chacun.
-3069	Utilise la fenêtre fournie par l'API ou 200 000 tokens par défaut (modifiable).
-3070	Les messages, résultats d'outils et images seront envoyés à ce service.
-3071	Inférence non testée
-3072	Synchronisé dans Réglages → Interfaces et modèles.
-3073	Les autres sessions peuvent le choisir via l'étiquette de modèle sous le champ de saisie.
-3074	Vérifie les écarts locaux et prépare un plan de synchronisation (sans rien modifier).
-3075	Synchronise uniquement modèles, modèle par défaut et mode d'auth ; ne touche ni au service, ni aux clés, fichiers d'exécution, verrous de récupération ou session active (valable 60 s).
-3076	Synchroniser l'interface
-3077	Vérifiez que l'application et le composant sont à jour ; attendez la fin des sessions en cours avant de revérifier.
-3078	Si la récupération auto est arrêtée ou la vérification échoue, synchroniser ne lève pas le verrou ; consultez le diagnostic puis mettez à jour ou réinstallez dans Extensions sans supprimer le dossier.
-3079	En cas de signalement, indiquez la version et le code diagnostic sans jamais joindre vos clés ni la config complète.
-3080	Revérifier effacera les saisies non enregistrées sur cette page. Continuer ?
-3081	Mettez à jour le composant du pont pour ajouter plusieurs interfaces ; la configuration unique actuelle reste utilisable.
-3082	Modifiez une interface à la fois ; tout prend effet en cliquant sur Enregistrer.
-3083	Cochez pour récupérer la liste automatiquement, ou saisissez le modèle manuellement.
-3084	Supprimer l'interface « {name} » et ses modèles ? (Prend effet à l'enregistrement.)
-3085	Le pont est occupé. Réessayez plus tard.
-3086	Le plan a expiré ou l'état a changé ; revérifiez.
-3087	Aucun écart synchronisable détecté ; si le problème persiste, dépliez l'aide ci-dessous.
-3088	Synchronisation auto impossible dans cet état ; suivez les étapes ci-dessous sans supprimer de dossiers.
-3089	Vérification des éléments synchronisables…
-3090	{n} modèles et le mode d'authentification peuvent être synchronisés.
-3091	Plan prêt — confirmez pour enregistrer.
-3092	Synchroniser l'enregistrement d'interface du pont ?\n\nMet uniquement à jour les modèles, le défaut et l'authentification ; adresse et clé inchangées.
-3093	Synchronisation de l'interface…
-3094	Résultat non confirmé ; revérifiez l'état sans soumettre à nouveau.
-3095	Interface écrite mais mappage incomplet ; revérifiez l'état.
-3096	Enregistrement d'interface synchronisé.
-3097	L'adresse, l'authentification ou la connexion locale ne correspond pas au pont.
-3098	Le format ou le contenu de la liste de modèles enregistrée diverge.
-3099	Échec de lecture ou de validation du mappage d'interface du pont.
-3100	L'enregistrement du service local ne correspond pas à la connexion.
-3101	Le marqueur d'appartenance du dossier d'exécution ne correspond pas ; vérifiez l'ancienne configuration.
-3102	Échec de l'autocontrôle de sécurité du composant (sans détail).
-3103	Conflit de configuration (composant ancien sans détail ; peut concerner les fichiers, l'appartenance ou l'interface).
-3104	Composant indisponible
-3105	Pont occupé
-3106	Impossible de lire l'état du pont
-3107	Configuration écrite, mais les étapes suivantes ont échoué ; revérifiez d'abord l'état.
-3108	Enregistrement incomplet ; consultez l'avis ci-dessus.
-3109	Vérifiez d'abord les versions de l'application et du composant sans modifier les dossiers d'exécution.
-3110	L'hôte a changé — ressaisissez votre clé API (l'ancienne clé n'est jamais envoyée ailleurs).
-3111	La clé enregistrée reste masquée ; laissez vide pour la garder ou saisissez-en une nouvelle.
-3112	Enregistrement…
-3113	L'enregistrement n'appelle aucun modèle distant et ne change pas la session active (liste chargée ; inférence non testée).
-3114	Entrez un entier de 1024 à 16777216 (256k, 1m acceptés), ou laissez vide par défaut.
-3115	Entrez un nom de modèle valide (sans virgule ni retour à la ligne).
-3116	Saisissez une clé API valide pour charger la liste automatiquement.
-3117	Récupération annulée — réessayez ou saisissez manuellement.
-3118	Préparation du chargement des modèles…
-3119	Ressaisissez votre clé API puis réessayez.
-3120	Liste vide — saisissez un modèle ou réessayez.
-3121	{count} modèles chargés (max. 500) — recherchez ou saisissez.
-3122	Enregistrement…
-3123	Liste chargée, inférence non testée
-3124	Pont local prêt
-3125	Récupération auto arrêtée
-3126	Échec de vérification
-3127	Pont désactivé
-3128	Config enregistrée, pont non prêt
-3129	Conflit d'ID modèle, >200 caractères ou >100 modèles au total ; ajustez avant d'enregistrer.
-3130	Enregistrer toutes les interfaces ?\n\nLes échanges, résultats d'outils et images seront envoyés selon le modèle vers :\n{origins}
-3131	Enregistrer cette configuration ?\n\nLes échanges, résultats d'outils et images seront envoyés à {origin}.\n({verification})
-3132	URL API invalide ; vérifiez-la puis réessayez.
-3133	Ressaisissez la clé API (impossible de réutiliser l'ancienne clé sur une nouvelle adresse).
-3134	Enregistrement incomplet ; vérifiez l'état local et réessayez.
-3135	Échec de sélection de cette interface pour une nouvelle session ; réessayez.
-3136	La commande en arrière-plan est terminée mais le moteur ne répond plus depuis {d} ; touchez Arrêter ou envoyez un message.
-3137	Configuration du pont incomplète ; vérifiez les champs ou l'état du composant.
-3138	Conflit d'identifiant d'envoi — veuillez renvoyer.
-3139	Connexion interrompue prématurément ; réponse peut-être incomplète, envoyez « Continuer ».
-3140	Interface non prise en charge sous Antigravity : définissez protocol:"gemini" (endpoint Gemini) ou utilisez la connexion Google.
-3141	Le préréglage Claude ({id}) est indisponible en mode Antigravity seul ; choisissez la connexion Google ou une interface Gemini.
-3142	Intervenir (ajouter au tour en cours)
-3143	↩ Restaurer le brouillon effacé
-3144	Les modifications s'appliquent dès le prochain message.
-3145	Registre public (non vérifié) ; les paquets npm s'exécutent localement — vérifiez la source avant d'installer.
-3146	Exécute automatiquement des commandes sur événement (avant/après outil, envoi, fin de réponse) pour bloquer, enrichir le contexte ou formater.
-3147	Couleur d'accent des boutons, liens et sélections (contraste adapté au thème clair/sombre)
-3148	Épingler, ranger dans « ⋯ » ou masquer ; glissez la poignée gauche pour réordonner
-3149	Formats ttf / otf / woff / woff2 (≤ 40 Mo, max. 10) ; activez via « Personnalisée… » ci-dessus après import
-3150	Masque ce fournisseur du sélecteur de modèles tout en conservant sa configuration et sa clé
-3151	Génère un titre après la première réponse (quelques tokens ; modèle léger sélectionnable)
-3152	Demande toujours confirmation avant lecture de secrets (.env / SSH / clés API), contrôle d'écran, presse-papiers ou partage externe (même en mode Tout autoriser) contre l'injection.
-3153	Compacte automatiquement les sessions >200k tokens après ~54 min d'inactivité pour réduire la latence et les tokens.
-3154	Nécessite l'app « Work Island » pour afficher progression et confirmations sur ColorOS 16 Fluid Cloud (masqué après 8 s).
-3155	Autorise la lecture/écriture hors de l'espace de travail via additionalDirectories et ajoute des raccourcis à l'explorateur.
-3156	Ignore temporairement règles personnalisées, skills, plugins, Hooks et MCP sans modifier les fichiers ; désactivez pour rétablir.
-3157	Exécute plusieurs sessions en parallèle (~quelques centaines de Mo chacune ; 1 = séquentiel).
-3158	Intercepte les appels système bloqués par Android pour éviter le plantage des binaires statiques comme Go (prochain message).
-3159	Choix auto selon le paquet : exécution directe sur targetSdk 28, via le chargeur système sur targetSdk 36 (redémarrage requis).
-3160	Autoriser l'arrêt des apps en arrière-plan hors liste blanche (Shizuku requis)
-3161	Arrête les apps d'arrière-plan avant les commandes lourdes (<code>cc-mem run -- cmd</code>) ; garde premier plan, écran partagé, notifications permanentes (proxy/musique), lanceur, clavier, accessibilité, VPN, Shizuku et liste blanche.
-3162	Conserve indéfiniment les sessions locales sauf suppression manuelle.
-3163	Ne plus confirmer chaque commande privilégiée (à vos risques) : exécute les commandes Shizuku sans invite jusqu'à expiration ; celles visant cette app ou Shizuku restent filtrées au mieux, sans pouvoir bloquer tous les contournements. Pour une seule session, cochez dans la boîte
-3164	targetSdk 28 offre la meilleure compatibilité ; bascule automatiquement vers targetSdk 36 si refusé sur un appareil récent, sans perte de données.
-3165	Met à jour Antigravity CLI en silence ; invite à installer les mises à jour de l'app (ou auto via Shizuku au repos) ; pré-télécharge le kit en Wi‑Fi pour le prochain démarrage.
-3166	Récupère les avis signés toutes les 3 h (requête statique sans donnée locale) ; aucune requête une fois désactivé.
-3167	Désactivé par défaut : passe par un proxy tiers uniquement si la source officielle et le miroir échouent (IP visible par le proxy ; hachage et signature toujours vérifiés).
-3168	Exporte les journaux anonymisés et l'état système (sans clés, e-mails ni messages) pour le dépannage ou un Issue.
-3169	Exporter le diagnostic
-3170	Ouvre une page Nouvel Issue préremplie avec modèle, version Android et autotest (sans journaux ni messages).
-3171	Réinitialise configs utilisateur, réglages de l'app et fichiers shell (sauvegardés dans ~/.ccapp-reset) ; conserve sessions, espace de travail, kit et clés par défaut.
-3172	Vérifie compilateurs, Python, Node, git, etc. et transmet l'état à Antigravity (relancé après mise à jour).
-3173	Échec du chargement — touchez pour réessayer
-3174	L'enregistrement n'appelle aucun modèle distant et ne change pas la session active.
-3175	Antigravity CLI n’a pas passé la vérification d’intégrité, il n’a donc pas été lancé : {why}
-3176	Le moteur actuel (Antigravity CLI) ne prend pas encore en charge le retour aux points de contrôle de fichiers
-3177	Le moteur actuel (Antigravity CLI) ne prend pas encore en charge la gestion des places de marché de greffons
-3178	Le moteur actuel (Antigravity CLI) ne prend pas encore en charge cette sous-commande MCP
-3179	La configuration MCP n’est pas un JSON valide
-3180	Dossier partagé /sdcard/hachimia
-3181	Écriture bloquée car le contenu pourrait compromettre la sécurité du tour suivant : {what}
-3182	Le modèle « {model} » a été refusé par l’agent ({msg}) ; poursuite avec le modèle par défaut.
+2432	Réponse terminée
+2433	Erreur lors de la réponse
+2434	{n} déplacés dans la corbeille, {m} échecs : {msg}
+2435	{n} joints, {m} échecs : {msg}
+2436	Échec de la recherche : {msg}
+2437	Impossible de lire la liste des fichiers : {msg}
+2438	Fichier trop volumineux ; le serveur ne l'a pas accepté
+2439	Le serveur n'a pas reconnu le fichier envoyé
+2440	Le serveur a renvoyé {status}
+2441	Chargement de la conversation…
+2442	Suppression impossible : {msg}
+2443	{n} fichier(s) en cours d'envoi ; envoyez une fois terminé.
+2444	Le script intégré n'a pas pu être installé : {msg}
+2445	Le script intégré n'a pas pu être installé : {msg} ; la règle n'a pas été enregistrée
+2446	Impossible d'obtenir l'état de mise à jour : {msg}
+2447	Seuls les 1000 premiers éléments sont affichés
+2448	La fusion n'est pas encore validée : validez toutes les modifications ensemble, ou annulez d'abord celles que vous ne voulez pas valider.
+2449	Échec de la copie ; appuyez longuement pour sélectionner le texte et le copier
+2450	Projet supprimé ({id})
+2451	Les 3000 dernières lignes ont été copiées
+2452	Défini à {line} (fenêtre du modèle inconnue ; votre valeur est utilisée)
+2453	Impossible de lire les places de marché des plugins : {msg}
+2454	Nom de fichier trop long (255 octets max ; un caractère chinois compte pour 3)
+2455	Le fichier n'existe pas encore
+2456	Échec de la recherche de mises à jour
+2457	Pas d'autorisation d'accès à cet emplacement (le stockage partagé nécessite « Accès à tous les fichiers » dans les réglages système)
+2458	Pas d'autorisation d'accès à ce dossier (le stockage partagé nécessite « Accès à tous les fichiers » dans les réglages système)
+2459	Pas d'autorisation de lecture à cet emplacement (le stockage partagé nécessite « Accès à tous les fichiers » dans les réglages système)
+2460	Échec de la suppression : {msg}
+2461	Le processus du terminal est terminé ; la saisie n'a pas été envoyée
+2462	Impossible de lire la liste des composants personnalisés : {msg}
+2463	Impossible de lire l'historique des commits
+2464	Impossible de lire l'état de ce fichier
+2465	Impossible de lire la liste des fichiers de ce commit
+2466	Il reste des conflits non résolus ; terminez-les avant de valider.
+2467	Cette page n'a pas pu être rendue
+2468	Cet emplacement ne peut pas être lu
+2469	Ce dossier n'est plus un dépôt git
+2470	Ce dossier n'a pas de SKILL.md (peut-être un reste d'importation interrompue) ; vous pouvez le supprimer.
+2471	Ce tableur se décompresse trop pour être ouvert en toute sécurité.
+2472	Les informations de plage de cette feuille sont corrompues et illisibles
+2473	Les pseudo-fichiers système comme celui-ci ne peuvent pas être lus ainsi
+2474	Les instructions du projet ne sont pas enregistrées ; revenir en arrière perdra ces modifications. Revenir quand même ?
+2475	Le service d'aperçu n'a pas renvoyé d'adresse
+2476	Impossible de charger l'aide : {msg}
+2477	Impossible de charger le journal des modifications : {msg}
+2478	Le paquet de compétences dépasse 64 Mo ; décompressez-le et importez les compétences une par une
+2479	Valeur de champ cron invalide : {f}
+2480	La valeur du champ cron est hors plage : {f}
+2481	Pas de cron invalide : {f}
+2482	L'expression cron doit comporter cinq champs : minute heure jour mois jour de la semaine
+2483	« {n} » : le dossier du projet de la tâche n'existe plus. Modifiez la tâche et choisissez un autre projet ou dossier
+2484	Les signets n'ont pas été enregistrés : stockage plein ou permission refusée
+2485	Le dossier du projet de la tâche n'existe plus. Modifiez la tâche et choisissez un autre projet ou dossier
+2486	La session dérivée n'a pas pu être écrite sur le disque : {err}
+2487	Une tâche ponctuelle nécessite une date
+2488	L'heure de début doit être comprise entre 0 et 23 h, 0 et 59 min
+2489	La date doit être au format AAAA-MM-JJ
+2490	L'heure doit être comprise entre 0 et 23 h, 0 et 59 min
+2491	Choisissez au moins un jour de la semaine (entiers 1–7)
+2492	Le jour du mois doit être 1–31 ou « dernier jour »
+2493	L'intervalle doit être un entier de 1 à 24 heures
+2494	Enregistrement impossible : stockage plein ou permission refusée
+2495	L'heure de fin doit être comprise entre 0 et 23 h, 0 et 59 min
+2496	(Texte trop long ; seuls les {n} premiers caractères sont affichés)
+2497	En mode sécurisé, les modes qui ne posent pas de question ne s'appliquent pas ; c'est maintenant « Demander à chaque fois »
+2498	Les paramètres n'ont pas été enregistrés ; l'ancien mode d'autorisation reviendra après redémarrage
+2499	Le message d'origine était trop long ; seuls les 65 000 premiers caractères ont été restaurés
+2500	Impossible de récupérer les avis de sécurité pour le moment
+2501	Récupération des avis de sécurité…
+2502	L'hôte a changé, l'ancienne clé a été effacée ; saisissez-la à nouveau
+2503	L'heure de réinitialisation est passée ; actualisation après le prochain message
+2504	Projet créé ; le dossier contenait déjà un CLAUDE.md, vos instructions n'ont pas été écrites
+2505	connexion officielle · connecté
+2506	connexion officielle · non connecté
+2507	connexion officielle · état de connexion indéterminable
+2508	connexion officielle · connecté lors de la dernière vérification
+2509	connexion officielle · non connecté lors de la dernière vérification
+2510	Connectez-vous à votre compte
+2511	La connexion est toujours en cours ; le lien d'autorisation s'ouvrira dès qu'il arrivera.
+2512	Supprimer le modèle « {id} » ? Le fichier sera retiré du dossier des modèles.
+2513	Modèle « {id} » supprimé
+2514	{n} importé(s) ; échec ensuite : {msg}
+2515	La boîte à outils a été mise à jour ; aucune version compatible pour l'instant
+2516	La boîte à outils a été mise à jour et l'index des composants n'a pas encore de version adaptée. Mettez d'abord à jour la boîte à outils, ou appuyez sur « Rechercher des mises à jour » pour recharger l'index.
+2517	La ligne de compactage est au minimum de 100k ; enregistrée à 100k
+2518	Impossible d'écrire l'enregistrement d'installation (stockage plein ou permission refusée) ; cette installation ne s'est pas poursuivie
+2519	Les fichiers sont en place, mais l'enregistrement d'installation n'a pas pu être écrit (stockage plein ou permission refusée). Réinstallez ou désinstallez
+2520	Impossible d'écrire l'enregistrement du composant (stockage plein ou permission refusée) ; cette installation n'a pas été terminée
+2521	Le point d'accès a renvoyé {s}, mais pas au format attendu : impossible de confirmer la clé : {what}
+2522	(vide)
+2523	L’amont a signalé une erreur à la fin de la réponse ({msg}) ; elle a été considérée comme terminée. Si elle semble incomplète, envoyez « continue ».
+2524	La ligne « {ep} » choisie pour {name} n’existe plus. Choisissez une ligne dans les réglages et saisissez sa clé.
+2525	Cette adresse utilise http non chiffré : votre clé et la conversation sont envoyées à l'autre machine sans chiffrement. Passez en https si possible.
+2526	Les tâches planifiées s’exécutent dans leur propre tour : elle passe en tête et démarre dès la fin du tour en cours
+2527	S’arrête en cas de dépassement et compte comme un échec ; ne s’applique qu’à l’API officielle
+2528	Itinéraire changé : l’ancienne clé a été effacée, saisissez-la à nouveau
+2529	Impossible de charger l’historique : {msg} 
+2530	Pendant l’installation, une désinstallation a supprimé {n} fichiers partagés ; réinstallez
+2531	Le modèle local {model} épinglé à cette session n’existe plus ; choisissez-en un autre dans le panneau des modèles
+2532	Vérification du fichier du modèle local…
+2533	Le fichier du modèle local a été modifié (somme de contrôle différente) ; par sécurité, il n’est pas chargé : {file}
+2534	Le fichier du modèle local n’est pas au format GGUF (il a peut-être été modifié) ; il n’est pas chargé : {file}
+2535	Délai de connexion dépassé (15 minutes)
+2536	La connexion est toujours en cours ; la page d’autorisation s’ouvrira dès que son adresse arrivera
+2537	Les informations de téléchargement de ce module sont incomplètes ; mettez d’abord à jour le kit de dév.
+2538	Le paquet du module n’a pas de liste de fichiers (MANIFEST) ; par sécurité, il n’est pas installé
+2539	La liste de fichiers du paquet du module contient un chemin non valide : {file}
+2540	Le module « {name} » n’a pas terminé sa configuration initiale ({err}) ; une nouvelle installation la relancera
+2541	La liste des projets n’a pas pu être enregistrée (stockage plein ou non inscriptible) ; cette modification sera perdue au redémarrage
+2542	{n} discussions n’ont pas pu être déplacées dans la corbeille ; le dossier n’a donc pas été supprimé : {why}
+2543	{n} fichiers partagés dont dépend le composant « {id} » ont été supprimés
+2544	La passerelle a été arrêtée par le système avant la fin de cette exécution
+2545	délai dépassé
+2546	aucune sortie
+2547	Autotest en cours… (une ou deux minutes)
+2548	Dernière exécution {time} : {pass} réussis, {fail} échoués
+2549	mesuré avant la mise à jour du kit de dév. ou de l’app
+2550	Pas encore de résultats d’autotest
+2551	La dernière exécution n’a donné aucun résultat : {why}
+2552	Vérifications échouées
+2553	Le système n’autorise pas cette app à démarrer le service Work Island ; rien n’est donc affiché.
+2554	L’app Work Island n’a pas été détectée : installez-la, puis touchez Réessayer.
+2555	Autotest de l’appareil
+2556	Relancer l’autotest
+2557	Hebdomadaire · {model}
+2558	Durée
+2559	1 heure
+2560	4 heures
+2561	1 jour
+2562	3 jours
+2563	7 jours
+2564	Impossible de supprimer l’enregistrement d’origine de la session ; elle reste à sa place : {err}
+2565	Ce tour n’a pas abouti : la passerelle a redémarré pendant la mise à jour de l’app (commencé {when}).
+2566	Ce tour n’a pas abouti : la passerelle a été arrêtée ou redémarrée (commencé {when}).
+2567	Le dossier de travail {dir} a disparu (supprimé, renommé ou carte de stockage retirée) : ce tour n’a pas été exécuté. Remettez le dossier ou changez le chemin dans les réglages du projet, puis renvoyez.
+2568	Ce tour a été interrompu avant de commencer (envoyé {when}).
+2569	La conversation dépasse la limite de contexte du modèle. Lancez /compact puis continuez, ou ouvrez une nouvelle conversation.
+2570	Le point d’accès a refusé la clé : vérifiez dans Réglages → Points d’accès que la clé API est correcte, non expirée et non désactivée.
+2571	Solde ou quota épuisé : rechargez ou vérifiez votre quota dans la console du fournisseur.
+2572	Trop de requêtes ou limite d’usage atteinte : patientez un peu puis réessayez.
+2573	Le point d’accès ne trouve pas ce modèle ou cette adresse : vérifiez le nom du modèle et l’URL.
+2574	Le fournisseur a rencontré une erreur ou est surchargé : réessayez plus tard. Si cela persiste, changez de modèle ou de point d’accès.
+2575	Impossible de joindre le point d’accès : vérifiez le réseau ou l’URL.
+2576	L'archive contient trop de fichiers ({n}, {max} au maximum) ; rien n'a été importé
+2577	Seuls les {n} premiers sont affichés ; utilisez le filtre
+2578	Extraire la sélection ({n})
+2579	Compresser ({n})
+2580	Archive : touchez « Ouvrir l’archive » pour parcourir son contenu, ou extrayez-la directement
+2581	Ouvrir l’archive
+2582	Extraire…
+2583	Une fois désactivé, Claude ne le voit plus. Les fichiers de commandes restent ; vous pouvez le réactiver à tout moment.
+2584	Nom seulement
+2585	Seulement quand vous l'invoquez
+2586	Mode de la compétence
+2587	Pris en compte au prochain tour
+2588	Désactivé : Claude ne s'y connectera pas. Ses réglages sont conservés ; touchez Activer pour le rajouter.
+2589	Désactiver le serveur MCP {name} ? Ses réglages sont d'abord enregistrés, vous pourrez le réactiver à tout moment.
+2590	Activer le serveur MCP {name} ? Ceci sera rajouté : {target}
+2591	Supprimer le serveur MCP désactivé {name} ? Vous ne pourrez plus le réactiver d'un geste.
+2592	~/.claude/settings.json n'est pas un JSON valide. Corrigez-le d'abord
+2593	Seuls les serveurs MCP que vous avez ajoutés (portée utilisateur) peuvent être désactivés
+2594	Impossible d'écrire la liste des désactivés
+2595	Absent de la liste des désactivés
+2596	Ce composant n'est pas installé
+2597	Ce module ne peut pas être désactivé
+2598	Compresser…
+2599	Encodage des noms
+2600	Si les noms sont illisibles, essayez un autre encodage
+2601	{n} éléments
+2602	Chiffré
+2603	Tout extraire…
+2604	Fermer l’archive
+2605	Revenir à l’archive
+2606	Cette version n’inclut pas 7-Zip et ne peut pas ouvrir ce type d’archive
+2607	Impossible d’ouvrir l’archive : {msg}
+2608	{size} compressé
+2609	Lien symbolique (non extrait)
+2610	Extraction…
+2611	Mot de passe incorrect
+2612	Trop volumineux pour l’aperçu ; extrayez-le d’abord
+2613	Espace de stockage insuffisant
+2614	Échec de l’extraction : {msg}
+2615	Saisir le mot de passe
+2616	Mot de passe incorrect, réessayez
+2617	OK
+2618	{n} éléments sélectionnés
+2619	Extraire {what}
+2620	Extraire vers
+2621	Dossier actuel
+2622	Mot de passe (vide si non chiffré)
+2623	Les fichiers existants du même nom ne sont jamais écrasés ; les nouveaux sont renommés « nom (2) ». Les liens symboliques ne sont pas extraits.
+2624	Extraire
+2625	Saisissez un chemin complet (commençant par /)
+2626	Compresser « {name} »
+2627	Compresser {n} éléments
+2628	Nom de l’archive
+2629	Format
+2630	Niveau de compression
+2631	Stockage seul
+2632	Le plus rapide
+2633	Normal
+2634	Taille minimale (lent)
+2635	Mot de passe (facultatif, zip / 7z)
+2636	Chiffrer aussi les noms (7z)
+2637	Le zip chiffré utilise AES-256, que certains anciens outils ne savent pas ouvrir ; sans mot de passe pour une compatibilité maximale. Les dossiers d’identifiants comme .ssh sont exclus.
+2638	Compresser
+2639	Impossible d’extraire ou de compresser à cet emplacement
+2640	Cette version n’inclut pas 7-Zip
+2641	L’archive ne peut pas être enregistrée dans un dossier en cours de compression
+2642	Extraction
+2643	Compression
+2644	Extrait vers {path}
+2645	Compressé dans {path}
+2646	Sélection
+2647	Impossible d'écrire l'invite système dans un fichier ; ce tour n'a pas démarré : {msg}
+2648	Réinitialiser les réglages
+2649	La boîte de confirmation ne s'est pas affichée
+2650	Réinstaller ce composant (nouveau téléchargement)
+2651	Réinstaller ce module de la boîte à outils (nouveau téléchargement)
+2652	Réparer la boîte à outils : retélécharger cette version et la réinstaller ; le service est suspendu 1 à 2 minutes pendant l'installation
+2653	Tout réparer
+2654	Réparer
+2655	En attente
+2656	En cours…
+2657	Confié à l'application
+2658	Réparation en cours. Fermer cette page ne l'arrête pas ; une nouvelle vérification se fait automatiquement à la fin :
+2659	Réparation terminée :
+2660	Suivez les étapes confiées à l'application dans Paramètres → Mettre à jour, puis touchez « Vérifier les enregistrements » une fois terminées.
+2661	Réparation terminée, {n} étape(s) en échec
+2662	Réparation terminée
+2663	Réparation dans cet ordre, puis nouvelle vérification automatique :
+2664	Réparer cet élément :
+2665	La réinstallation télécharge depuis Internet ; vos fichiers, conversations et réglages ne sont pas touchés. Continuer ?
+2666	L'index n'a pas passé la vérification de signature ; impossible d'installer des composants
+2667	La version de l'index ({v}) est plus ancienne que celle installée ({now}) ; rétrogradation refusée
+2668	Une réparation ou une vérification est déjà en cours ; réessayez quand elle sera terminée
+2669	Aucun problème réparable automatiquement
+2670	Des étapes sont encore en cours dans l'application :
+2671	Les étapes confiées à l'application sont encore en cours ; touchez « Vérifier les enregistrements » une fois terminées
+2672	Navigateur intégré
+2673	Paquets téléchargés par pkg
+2674	Index de la généalogie
+2675	Analyse…
+2676	Cette application occupe {app} ; {free} libres sur l'appareil
+2677	Dernière analyse : {when}
+2678	Pas encore analysé
+2679	{n} jours, selon votre réglage
+2680	Conservées indéfiniment
+2681	Dernier nettoyage auto : {when}, {size} libérés
+2682	Aucun nettoyage auto pour l'instant
+2683	Caches
+2684	{size} au total ; retéléchargés ou reconstruits automatiquement si besoin
+2685	En cours d'utilisation
+2686	Session en cours
+2687	Inchangé depuis 7 jours
+2688	Dernière modification : {when}
+2689	Supprimer la sélection
+2690	Fichiers temporaires
+2691	{size} au total, dont {old} inchangés depuis 7 jours. Inclut la sortie des commandes en arrière-plan et les dossiers temporaires laissés par les tests et compilations
+2692	Les {n} plus gros
+2693	Nettoyer ceux de plus de 7 jours
+2694	Journaux de débogage, instantanés shell, journaux MCP et sauvegardes de .claude.json : {size} au total ; {n} éléments ({auto}) peuvent être nettoyés (plus de 30 jours ; les 5 sauvegardes les plus récentes sont conservées)
+2695	{n} sessions, {size} au total. Les sessions ne sont jamais supprimées automatiquement ; supprimez-les depuis la liste des sessions, elles passent d'abord par la corbeille
+2696	Données d'exécution des composants (~/.cccodroid)
+2697	{name} (installé avec pkg)
+2698	Dossier partagé /sdcard/cccodroid
+2699	Programmes et vos fichiers
+2700	Tailles uniquement ; rien n'est supprimé ici
+2701	Corbeille des sessions
+2702	{n} éléments, {size} ; vidés automatiquement au bout de 30 jours
+2703	Programmes laissés par une ancienne boîte à outils
+2704	Examiner
+2705	Données d'exécution laissées par le composant supprimé {id}
+2706	Statistiques d'utilisation
+2707	Autres emplacements de nettoyage
+2708	✓ {n} éléments supprimés, {size} libérés
+2709	{n} éléments non supprimés (en cours d'utilisation ou hors des dossiers autorisés)
+2710	Rien de sélectionné
+2711	Supprimer les {n} éléments temporaires sélectionnés ? Action irréversible.
+2712	Supprimer les données d'exécution laissées par {id} ? Une réinstallation les retéléchargera.
+2713	✓ Supprimé
+2714	Stockage
+2715	Espace utilisé
+2716	Analyser
+2717	Conservation des sessions
+2718	Nettoyage automatique
+2719	Liste des API
+2720	Ajouter une API
+2721	{n} modèles
+2722	Supprimer ({n})
+2723	Supprimer définitivement {what} ? Cette action est irréversible.
+2724	Les dossiers seront supprimés avec tout leur contenu.
+2725	{n} élément(s) supprimé(s)
+2726	Ce dossier contient des répertoires propres à l'app ou l'espace de travail et ne peut pas être supprimé
+2727	(Le tour précédent ne s'est pas terminé normalement ; la réponse ci-dessus peut être incomplète.)
+2728	Les sessions ont été importées, mais les titres personnalisés n'ont pas pu être enregistrés (stockage plein ou permission refusée). Les titres d'origine réapparaîtront après un redémarrage
+2729	La liste des sessions n'a pas pu être lue ({msg}) ; cela ne signifie pas qu'il n'y a pas de sessions. Vérifiez les permissions de stockage puis actualisez.
+2730	Délai dépassé : la passerelle n'a pas répondu ({n} s)
+2731	Passerelle hors ligne : {msg} · Touchez pour réessayer
+2732	Le tour précédent a échoué en arrière-plan : {msg}
+2733	L'adresse a renvoyé {s}, mais la réponse est trop volumineuse (plus de 8 Mo) pour confirmer que la clé est valide
+2734	Le tour précédent est terminé, mais le tour suivant n'a reçu aucun résultat (interrompu)
+2735	Dossier introuvable : {dir} ; {cwd} est utilisé à la place
+2736	L'API a renvoyé une erreur, pas une réponse normale :
+2737	La limite de compactage est de 1 M maximum ; enregistrée à 1 M
+2738	HONOR / Huawei et systèmes similaires gèlent Shizuku en arrière-plan et ralentissent l'activation : dans Gestion des applications → Shizuku, activez « Ignorer l'optimisation de la batterie ».
+2739	Premier enregistrement : {time}
+2740	Heure inconnue
+2741	Variables d’env., facultatif, séparées par des virgules (CLÉ=valeur)
+2742	En-têtes, facultatif, séparés par des virgules (Header: valeur), ex. Authorization: Bearer votre-jeton
+2743	En-têtes
+2744	Le MCP distant prend des en-têtes : écrivez {bad} avec deux-points, ex. Authorization: Bearer votre-jeton
+2745	Le MCP distant ne prend pas de variables d’env. : écrivez les en-têtes sous la forme Header: valeur, ex. Authorization: Bearer votre-jeton
+2746	Retirer de la configuration
+2747	En-têtes actuels
+2748	Variables d’env. actuelles
+2749	Modifications enregistrées pour {name}
+2750	Échec de la modification : {msg}
+2751	Échec de l’enregistrement : {msg} ; l’ancienne configuration a été restaurée telle quelle
+2752	Échec de l’enregistrement : {msg}, et l’ancienne configuration n’a pas pu être restaurée — vérifiez manuellement
+2753	Impossible d’ouvrir l’éditeur : {msg}
+2754	Modification de {name} : laisser vide = conserver la valeur, × pour supprimer, écrire pour remplacer
+2755	Ce serveur MCP est introuvable (les connecteurs de compte ne peuvent pas être modifiés)
+2756	Un serveur MCP porte déjà ce nom
+2757	stdio ne conserve pas les en-têtes : {names} seront supprimés. Continuer ?
+2758	Si le serveur tourne sur cet appareil, mettez http://127.0.0.1:port ; l'IP locale change avec le réseau et coupe la connexion
+2759	Cela ressemble à une adresse locale : si le serveur tourne sur cet appareil, remplacez-la par http://127.0.0.1:port ; l'IP locale change et la connexion tombe
+2760	Fusionner des PDF
+2761	Extraire des pages
+2762	Séparer les pages
+2763	Pivoter les pages
+2764	Compresser un PDF
+2765	PDF en images
+2766	Pages incorrectes. Utilisez le format 1-3,5 et vérifiez le nombre de pages.
+2767	Échec du traitement PDF : {code}
+2768	Le fichier sélectionné n'est pas un PDF
+2769	Monter
+2770	Descendre
+2771	Sélectionnez des PDF dans les fichiers ou cliquez sur « Choisir des PDF… ».
+2772	Outils PDF manquants : {tools}. Installez « Boîte à outils PDF » dans Extensions → Composants optionnels.
+2773	Importation des PDF…
+2774	Traitement du PDF…
+2775	Traitement terminé
+2776	La compression n'a pas réduit la taille. L'original est conservé.
+2777	Ouvrir le dossier de sortie
+2778	Connexion interrompue. Nouvelle tentative…
+2779	Boîte à outils PDF
+2780	Les fichiers sont traités sur cet appareil. Les originaux ne sont pas écrasés.
+2781	Opération
+2782	Ouvrir les composants optionnels
+2783	Ajouter depuis les fichiers
+2784	Choisir des PDF…
+2785	Fusionnez jusqu'à 20 PDF. Sélectionnez un PDF pour les autres opérations.
+2786	Pages
+2787	Format : 1-3,5. Laissez vide pour toutes les pages.
+2788	Angle de rotation
+2789	Qualité de compression
+2790	Livre numérique (ebook)
+2791	Petit fichier (screen)
+2792	Impression (printer)
+2793	Format d'image
+2794	Résolution
+2795	Basse (72 DPI)
+2796	Haute (150 DPI)
+2797	Jusqu'à 100 pages à la fois. Le grand côté des images est limité à 2048 pixels.
+2798	Dossier de sortie (nouveau)
+2799	Lancer le traitement
+2800	Choisissez jusqu'à 20 PDF, 256 Mo au total.
+2801	Le nombre total de pages PDF ne peut pas dépasser 1000.
+2802	Traitement impossible. Vérifiez que le PDF est intact et sans mot de passe.
+2803	Délai dépassé. Réduisez le nombre de pages et réessayez.
+2804	Une tâche PDF est déjà en cours. Réessayez plus tard.
+2805	Installez le composant PDF, puis rouvrez la boîte à outils.
+2806	Indiquez un nouveau dossier de sortie dans un emplacement accessible en écriture.
+2807	La sortie dépasse 512 Mo. Réduisez les pages ou la résolution.
+2808	fichier(s)
+2809	La sauvegarde de la dernière installation n"a pas encore été restaurée. Réessayez, sinon désinstallez puis réinstallez.
+2810	[cc] Error in a script injected by the shell (details hidden by WebView)
+2811	\\[Attachment: (\\/[^\\n]+?) · [^\\n·,\\]]+, file is large and was not read directly, read by path when needed\\]
+2812	Antigravity is requesting tool authorization: {w}
+2813	Antigravity wants to ask you
+2814	Say how it should change (sent back to Antigravity)
+2815	Optional: tell Antigravity why / what to do
+2816	Scheduled
+2817	Antigravity is waiting for your confirmation
+2818	Let Antigravity decide which actions need confirmation
+2819	Ask nothing. Antigravity can delete files and run any command without asking you
+2820	Switch to “Allow everything”?\n\nAntigravity will stop asking and can edit or delete files, run any command and access the network. Only use it when you trust the task and can live with the consequences.
+2821	Sign in with a Google Antigravity account
+2822	Use a personal Google account (Free / Pro / Ultra) or an enterprise account: authorize once in the browser, no key needed.
+2823	Enter a Gemini API Key
+2824	Use a Gemini API Key from Google AI Studio or a custom compatible endpoint, billed by usage.
+2825	Context has reached the auto-compact line; compacting history…
+2826	Background task finished, reported automatically:
+2827	[Attachment: 
+2828	, file is large and was not read directly, read by path when needed]
+2829	Starting Google Antigravity sign-in…
+2830	Google account signed in
+2831	Open the address below in your browser to complete Google authorization, then paste the authorization code under Settings → Providers to submit:
+2832	You can also run {cmd} in the in-app terminal to sign in.
+2833	Interruption sent — it will be seen once the current step finishes
+2834	Antigravity CLI (agy) itself
+2835	The system or hachimia already has a command with this name; pick another one
+2836	hachimia checks these skills before handing them to Antigravity; when calling one with a slash, prefix the name with user:, e.g. /user:{name}.
+2837	This build does not run the hooks configured here: hooks can execute arbitrary commands and put arbitrary content into the conversation, and hachimia cannot check them. The rules stay in the file and will not be deleted.
+2838	Reinstall Antigravity CLI (agy)
+2839	Claude (compatible)
+2840	Third-party provider
+2841	Sign in to a Google Antigravity account
+2842	Google Cloud / enterprise account
+2843	Billed by your Google Antigravity account subscription tier; on-device token stats are on the “Usage” page
+2844	Sign out of the Google Antigravity account on this device?
+2845	The key is stored only in this app's private directory on this device, and is passed to Antigravity CLI only as needed to connect to the matching endpoint.
+2846	AGY blue
+2847	Antigravity's replies
+2848	Shizuku is running but has not been authorized for hachimia
+2849	vivo / iQOO: Settings → Battery → Background power consumption → allow hachimia <b>high background power usage</b>; in iManager allow <b>auto-start</b> (common path)
+2850	Huawei / Honor: Settings → App launch → turn off “Manage automatically” for hachimia, then manually allow <b>auto-start</b> and <b>background activity</b> (common path)
+2851	hachimia has been frozen in the background by the system {n} times (most recent: about {sec} seconds, {at}).
+2852	In system settings, allow hachimia to run in the background, turn off battery optimization, and allow auto-start (each vendor names these differently).
+2853	Authorize for hachimia
+2854	hachimia's wireless debugging pairing has been removed: it still works now, but it cannot auto-activate after a reboot.
+2855	Shizuku was not activated by hachimia: hachimia cannot auto-activate it after a reboot. Pair it once and you're set.
+2856	The system did not notify hachimia at this boot (blocked by the system's “auto-start” management), so it could not auto-activate; opening hachimia will catch up.
+2857	To activate at boot: allow hachimia auto-start / background start in the app details; takes effect at the next boot.
+2858	Antigravity CLI (agy) version
+2859	Uninstall Antigravity CLI (agy)?\n\nThis deletes the downloaded agy program; it will not be reinstalled automatically. Tap “Install” here to download it again when you need it.\n\nSign-in, sessions and settings are kept; sending a message while it is not installed will prompt you to install it first.
+2860	Install the devkit from a local file?\n\nPick a devkit-ha.chi.mia.tar.gz (or .tar), downloadable from the GitHub releases page or hachimia.net. It is checked against the published release before installing; the service pauses for 1–2 minutes during installation.\nThings you installed into the devkit with pip / npm -g are kept.
+2861	Shizuku is not activated yet, so the app cannot toggle accessibility itself: turn on hachimia manually in the system accessibility settings. From Android 13, sideloaded apps must first allow restricted settings via App info → menu in the top-right corner.
+2862	This build has no native layer and only records CPU time (battery, screen-on and foreground time come from hachimia).
+2863	Name (e.g. self-hosted Gemini proxy)
+2864	Auth: x-goog-api-key (Gemini / Antigravity)
+2865	Auth: Authorization: Bearer
+2866	Auth: x-api-key
+2867	Default model name (required, e.g. gemini-3.8-flash)
+2868	Model list URL (optional; Gemini endpoints auto-probe /v1beta/models)
+2869	Context window (optional, in tokens, e.g. 1m; leave empty for the default)
+2870	More models (optional, one per line; you may put the window after the name, separated by a space, e.g. gemini-4-neon 1m)
+2871	Send images with the message (compat): check this when the model cannot read attached images; attachments are then sent directly as multimodal blocks with the message.
+2872	Choosing <b>Gemini / Antigravity</b> auth drives the official <code>agy</code> CLI via <code>GOOGLE_GEMINI_BASE_URL</code> + <code>GEMINI_API_KEY</code>.
+2873	Running Antigravity diagnostics…
+2874	Currently available capabilities
+2875	Fixed
+2876	Workaround
+2877	(Merged from 
+2878	Direct (not needed)
+2879	(Decided by Antigravity)
+2880	Antigravity CLI failed: {msg}
+2881	The Antigravity CLI user-level config has unconfirmed changes. Send a message first, confirm in the card that pops up, then try again.
+2882	Could not fetch the Antigravity CLI version list
+2883	agy install script not found ({p})
+2884	The dev side only manages Antigravity CLI (agy) (you build and install the app itself on this device)
+2885	Updating Antigravity CLI (agy)…
+2886	Could not fetch the Antigravity CLI version list: {err}
+2887	The gateway's own runtime was modified; Antigravity CLI was not started this round. The gateway will restart when idle and restore itself from the install package; send again shortly.
+2888	Antigravity CLI (agy) is not installed. Install it under Settings → Updates first.
+2889	Antigravity CLI (agy) not found
+2890	Settings → Updates: reinstall Antigravity CLI (agy)
+2891	Antigravity CLI (agy) is not installed. Tap “Install” under Settings → Updates.
+2892	The Antigravity CLI user-level config has unconfirmed changes, or an earlier session left background processes behind, so this run did not start. Open hachimia, send a message, and confirm in the card that pops up, then try again.
+2893	Antigravity CLI (agy) is not installed. Install it under Settings → Updates first, then come back to sign in.
+2894	Enterprise sign-in: in the agy sign-in screen, choose “Use a Google Cloud project” → “Continue with Google Cloud” and authorize with your enterprise account.
+2895	Personal sign-in: in the agy sign-in screen, choose “Google OAuth” and authorize with your personal Google account.
+2896	The slash commands, tools, skills and extensions currently available to Antigravity. Tap a slash command to insert it into the input box; a tool's “Allow / Ask / Deny” follows the permission mode and rules.
+2897	For things not in the marketplace, import a Linux arm64 program yourself: a single binary, or a .tar.gz / .zip archive. Missing libraries are filled in automatically and a command is generated, ready to use in Antigravity and in the terminal.
+2898	Save a long prompt you send often as a command and pick it with / in the input box. Text after /command fills $ARGUMENTS in the body, expanded automatically by the gateway when sent to Antigravity.
+2899	Antigravity behavior
+2900	Default color pick (AGY Monet palette); switchable to native, Qiusuo, Zhuyue or Construct
+2901	Font for Antigravity's reply text
+2902	Thinking level (thought_level)
+2903	Levels vary by model (low / medium / high / xhigh). You can also type <code>/effort &lt;level&gt;</code> in the input box.
+2904	Let Antigravity decide
+2905	Empty = let Antigravity decide by window
+2906	Confirm each item by default, same as official agy: it asks in the conversation before editing files or running commands. Allow everything means Antigravity can delete files and run any command without asking. You can also switch anytime via the permission tag under the input box.
+2907	Only clears caches, temp files untouched for 7 days, and expired logs; sessions, your files and programs are never auto-deleted
+2908	When on, run <code>priv 'command'</code> in the terminal as shell (pm / am / settings / dumpsys / logcat / screencap…); Antigravity uses it too. Without Shizuku, basic dev features work as usual — only these debugging abilities are unavailable.
+2909	Auto-activate again after a reboot (needs Wi-Fi; starts the hachimia background service at boot)
+2910	Let Antigravity use device tools (notifications, clipboard, opening links / calendar / alarms, sharing files…)
+2911	Off by default. Turn it on when you want Antigravity to test an app you built, or send files it generated to other apps; while on, each round carries an extra one or two thousand tokens of tool descriptions.
+2912	Antigravity CLI channel
+2913	Plan first
+2914	Interview to align the plan
+2915	Long-term goal
+2916	Multi-agent teamwork
+2917	Deep orchestration
+2918	Capabilities & tools
+2919	Failed to switch permission mode (agent rejected {mode}): {msg}
+2920	Could not restore the previous session (the agent doesn't support resume, or resume failed), so a new session was started. This turn was written to the new session; the old session's history is still kept in local records.
+2921	Compaction not confirmed: context did not shrink (before {pre}, after {post}). Please retry /compact or start a new session.
+2922	Enterprise login: please sign in with your company Google account in the browser
+2923	The authorization code could not be written to agy (stdin is closed). Please start login again.
+2924	The authorization code could not be written to agy (the login process's stdin is closed). Please start login again.
+2925	Login-based providers don't need an API key; sign in through the official flow. The key you entered was not saved.
+2926	Already queued; skipping this duplicate run
+2927	Open this in the app
+2928	Needs npx (included in the hachimia toolkit)
+2929	This build has no native layer, so only CPU time is recorded (battery and screen-on need hachimia).
+2930	The Antigravity CLI program was modified and was not started; 
+2931	Antigravity CLI housekeeping files
+2932	These Claude Code config files contain override-style instructions (telling the model to ignore its rules, posing as system messages and the like). hachimia won't load them, so this turn did not run. Edit or remove the following, then send again:\n{list}
+2933	The command {c} is built into the system or hachimia. Pick another name
+2934	Not a hachimia session archive
+2935	{p} : {n}
+2936	« {n} » {w}
+2937	API Key
+2938	Google Antigravity / Gemini
+2939	Voir ou changer de modèle
+2940	Contexte
+2941	Compresser l'historique pour libérer du contexte
+2942	Ce qui s’est passé
+2943	Ce que vous avez fait, ce que vous attendiez, ce qui s’est réellement passé. Vous pouvez glisser des captures ici.
+2944	Étapes pour reproduire
+2945	L’état d’exécution n’a pas pu être enregistré (stockage plein ou permission refusée). Si le système ferme l’application, ce tour risque de ne pas être récupérable.
+2946	L’état d’exécution précédent n’a pas pu être récupéré (registre illisible ou mal formé) ; les tours interrompus et les messages en file n’apparaîtront pas. Le fichier d’origine a été conservé.
+2947	Le nom ne peut contenir que des lettres, chiffres, - et _, 40 caractères max
+2948	Ce nom est celui d'une commande intégrée. Choisissez-en un autre
+2949	L'invite ne peut pas être vide
+2950	L'invite est trop longue (64 Ko max)
+2951	Une invite porte déjà ce nom
+2952	10 polices au maximum. Supprimez-en une d'abord
+2953	C'est une collection de polices (.ttc), inutilisable dans la vue web. Utilisez un seul ttf / otf
+2954	Ce n'est pas un fichier de police utilisable. Seuls ttf, otf, woff et woff2 sont pris en charge
+2955	This model doesn't support thinking level "{effort}"; running with the default instead.
+2956	The agent rejected thinking level "{effort}" ({msg}); running with the default instead.
+2957	Not supported under Antigravity
+2958	Not supported under Antigravity: the Antigravity CLI has no generic third-party API key channel. Declare protocol:"gemini" (the endpoint must speak the Gemini protocol), or switch to a Gemini / sign-in provider.
+2959	On-device models need Claude Code; this device only has the Antigravity CLI, so they're unavailable for now.
+2960	Not set (no default compaction line under ACP)
+2961	No Google Cloud ADC credentials found (Application Default Credentials). Run `gcloud auth application-default login` in a terminal first, then come back and pick ADC.
+2962	Application Default Credentials found.
+2963	The old configuration was still using a Claude preset, which doesn't work in Antigravity-only mode; it has been switched back to Google Antigravity sign-in.
+2964	Protocol: not declared
+2965	Protocol: Gemini (endpoint speaks the Gemini protocol)
+2966	Checking ADC credentials…
+2967	Failed to create a session: the agent returned no session ID. Please try again.
+2968	Sortie (en cours)
+2969	Crédits IA restants : {n}
+2970	Synchronisation du quota Google Antigravity en cours ; affichage de l’utilisation locale des jetons pour l’instant (appuyez sur Actualiser ci-dessus pour interroger immédiatement).
+2971	Impossible de restaurer la session précédente ({why}). La session actuelle a été conservée sans en créer une nouvelle ; veuillez réessayer ou démarrer une nouvelle discussion manuellement.
+2972	Impossible de savoir si l’appareil est en charge
+2973	Impossible de lire le niveau de batterie actuel
+2974	Index
+2975	Nom de fichier mémoire invalide
+2976	Mémoire introuvable
+2977	Seuls les fichiers mémoire ordinaires peuvent être consultés
+2978	Le fichier mémoire est trop volumineux (plus de 1 Mo)
+2979	Les mémoires sont en lecture seule ici
+2980	En attente des tâches en arrière-plan
+2981	inactif {d}
+2982	{d} restant
+2983	Annonces de maintenance
+2984	Relais proxy tiers GitHub en secours (gh-proxy.com)
+2985	Première vérification : ces réglages globaux s'appliquent à chaque tour. Confirmez qu'ils viennent de vous (annuler les sauvegarde dans ~/.ccapp-userconf/quarantine).
+2986	Choisissez Annuler si ces modifications ne viennent pas de vous (restaure la configuration, arrête les processus restants et isole les nouveaux fichiers), ou Conserver sinon.
+2987	Erreur du contrôle de sécurité. Refusez en cas de doute.
+2988	La configuration du projet exécute directement des programmes locaux. Choisissez Ne pas charger si la source est inconnue (le chat reste fonctionnel) ; une fois autorisée, confirmation uniquement en cas de modification.
+2989	Si vous ne l'avez pas demandé, il peut s'agir d'une injection depuis une page ou un fichier : refusez. Autoriser désactive l'alerte pour ce tour.
+2990	Modifications non confirmées de la configuration utilisateur
+2991	Erreur du contrôle de sécurité — confirmez manuellement
+2992	Modification d'un fichier d'instructions ou de règles de sécurité : {w}
+2993	Accès aux clés ou identifiants : {w}
+2994	Déconnecté, reconnexion… (la génération continue)
+2995	Inactif depuis près d'1 h ; compaction auto du contexte pour réduire la consommation suivante (désactivable dans Réglages).
+2996	En attente (historique)
+2997	Nouveau changement
+2998	Configuration modifiée en externe ; restaurée aux réglages actuels : 
+2999	Fichiers d'exécution modifiés en externe ; protection activée : 
+3000	Nouvelle discussion en attente · voir « Discussions non enregistrées » dans le panneau
+3001	Prêt · {n} tâches en arrière-plan
+3002	Prêt · finalisation des tâches en arrière-plan
+3003	État inconnu pour {n} opérations lors de l'interruption ({list}). Vérifiez le résultat avant de continuer.
+3004	Confirmation expirée ({n} min sans réponse), tour non démarré ({when}).
+3005	La progression effectuée est conservée. Touchez Continuer pour reprendre.
+3006	Message reçu — inutile de renvoyer
+3007	Envoi non confirmé : {msg}
+3008	Espace insuffisant, brouillon non enregistré. Copiez ou envoyez le texte.
+3009	Stocké dans /sdcard/cccodroid/models (Q4_K_M). Activez-le dans Réglages → Services de modèles. RAM : {ram} Go (1–4B conseillé).
+3010	Désinstaller le composant {name} ? (Vos propres fichiers ne sont pas affectés.)
+3011	Supprimer aussi {size} de cache d'exécution laissé par {name} ({path}) ?
+3012	Exporter et partager le pack de diagnostic ?\n\nInclut : versions et appareil, état du kit et d'autotest, journaux récents anonymisés, registre de réparation, connectivité.\nExclut : clés, identifiants, e-mails, messages et historique.
+3013	Le mode local est limité au chat par défaut. Pour personnaliser outils et options, éditez {file} ou envoyez ceci à un modèle cloud :
+3014	(état en cache ; échec de l'actualisation : {msg})
+3015	Terminez l'autorisation dans le navigateur, puis collez le code ci-dessous.
+3016	Vous pouvez aussi vous connecter depuis le terminal intégré :
+3017	L'ancien point d'accès a été retiré. Choisissez-en un autre et ressaisissez votre clé.
+3018	Définissez un plafond chez le fournisseur et remplacez immédiatement la clé en cas de fuite suspectée.
+3019	Aperçu du mois
+3020	Modèle d'exemple (remplacez par l'adresse réelle)
+3021	Les appels tiers sont configurés par vos soins ; le service voit votre clé, votre code et vos échanges. N'utilisez que des services fiables.
+3022	Discussions non enregistrées
+3023	Exécuter maintenant
+3024	S'exécute automatiquement à l'heure prévue dans le dossier choisi et enregistre le résultat en session. Les confirmations sont refusées d'office ; les exécutions manquées suivent la règle de chaque tâche.
+3025	Au-delà du plafond, les tâches restantes du jour sont ignorées (seuls les appels API officiels sont comptés, hors appels tiers).
+3026	Les tâches planifiées sont désactivées par défaut avec un abonnement personnel. Vérifiez les conditions du fournisseur avant d'activer (API Key sans restriction).
+3027	Ignoré pour cette fois
+3028	Appel tiers actif : hors plafond de dépenses, seul le délai maximal par exécution s'applique.
+3029	Connecté via abonnement personnel : des exécutions fréquentes peuvent déclencher des restrictions en amont. Clé API recommandée.
+3030	Rejoignez le groupe pour discuter ; pour les bugs, passez par Réglages → Retour sur GitHub (modèle et autotest préremplis).
+3031	Traduction, tests, documentation ou code : toute contribution est bienvenue (voir le guide du dépôt).
+3032	Le navigateur externe n'est pas isolé : les scripts peuvent lire les fichiers voisins et joindre les services locaux. Continuez uniquement pour une page fiable.
+3033	Fichier binaire — ouverture en texte non prise en charge.
+3034	Autoriser l'accès réseau pour cette page ?\n\nUne fois connectée, ses scripts peuvent envoyer des fichiers jusqu'à 3 dossiers parents. N'activez que pour une page fiable.
+3035	Fichier trop volumineux ({size}). Passez en « Mise en page d'origine » (PDF) ou ouvrez-le dans une autre application.
+3036	Installation de LibreOffice en arrière-plan…
+3037	[Processus terminé]
+3038	[Échec d'envoi, reconnexion de la passerelle]
+3039	Voir la durée par tour et la chronologie des outils
+3040	Première visite ? Touchez « Comment lire » en haut à droite
+3041	Un message identique plus bas n'est pas encore enregistré ; attendez la fin du tour avant d'ajouter un signet
+3042	Aucun signet. Touchez l'icône sous un message pour en ajouter un.
+3043	Page interactive (HTML)
+3044	Rechargement de l'interface…
+3045	Cette version ne prend pas en charge la récupération auto ; mettez à jour l'app ou redémarrez la passerelle
+3046	Défilement bloqué ? Appuyez ~0,6 s sur le titre en haut pour rétablir
+3047	Récupération auto arrêtée ; modifier la configuration ne la débloque pas. Lancez le diagnostic ci-dessous puis réinitialisez le compteur.
+3048	Échec de vérification du pont et arrêt de la récupération auto (enregistrer la configuration ne résout pas le défaut) ; diagnostiquez d'abord.
+3049	Le pont est désactivé (enregistrer la configuration ne le réactive pas). Activez d'abord le composant dans Extensions.
+3050	Composant pont indisponible ; vérifiez l'installation (le compteur de récupération n'est pas réinitialisé automatiquement).
+3051	Mettez à jour le composant du pont avant de l'utiliser.
+3052	Le pont n'est pas prêt ; consultez le diagnostic ci-dessous (session actuelle inchangée, enregistrer ne réinitialise pas le compteur).
+3053	Le pont est occupé. Réessayez dans un instant.
+3054	Échec du contrôle de cohérence. Suivez les indications ci-dessous sans supprimer les dossiers manuellement.
+3055	Échec de lecture de la configuration du pont. Retournez dans Extensions et réessayez.
+3056	Utilisez une URL HTTPS sans identifiants, paramètres ni fragment.
+3057	Indiquez une adresse Chat Completions (Responses API non prise en charge).
+3058	Chemin impossible à compléter automatiquement ; saisissez l'URL /chat/completions complète.
+3059	Configurez un ou plusieurs points d'accès compatibles OpenAI ; prise d'effet à l'enregistrement.
+3060	Lecture locale uniquement — aucune modification ni requête externe.
+3061	Sauvegardez la config du pont avant migration ou réinstallation (adresses, clés et modèles uniquement ; sans historique de chat).
+3062	Ne partagez jamais publiquement un fichier contenant des clés.
+3063	Indiquez l'URL API du fournisseur (pas la page de connexion web).
+3064	Récupérer automatiquement la liste des modèles (envoie la clé API au service indiqué)
+3065	Réessayer
+3066	Rechercher ou saisir le nom du modèle
+3067	Une fois ajoutés, réglez la fenêtre de contexte et le modèle par défaut pour chacun.
+3068	Utilise la fenêtre fournie par l'API ou 200 000 tokens par défaut (modifiable).
+3069	Les messages, résultats d'outils et images seront envoyés à ce service.
+3070	Inférence non testée
+3071	Synchronisé dans Réglages → Interfaces et modèles.
+3072	Les autres sessions peuvent le choisir via l'étiquette de modèle sous le champ de saisie.
+3073	Vérifie les écarts locaux et prépare un plan de synchronisation (sans rien modifier).
+3074	Synchronise uniquement modèles, modèle par défaut et mode d'auth ; ne touche ni au service, ni aux clés, fichiers d'exécution, verrous de récupération ou session active (valable 60 s).
+3075	Synchroniser l'interface
+3076	Vérifiez que l'application et le composant sont à jour ; attendez la fin des sessions en cours avant de revérifier.
+3077	Si la récupération auto est arrêtée ou la vérification échoue, synchroniser ne lève pas le verrou ; consultez le diagnostic puis mettez à jour ou réinstallez dans Extensions sans supprimer le dossier.
+3078	En cas de signalement, indiquez la version et le code diagnostic sans jamais joindre vos clés ni la config complète.
+3079	Revérifier effacera les saisies non enregistrées sur cette page. Continuer ?
+3080	Mettez à jour le composant du pont pour ajouter plusieurs interfaces ; la configuration unique actuelle reste utilisable.
+3081	Modifiez une interface à la fois ; tout prend effet en cliquant sur Enregistrer.
+3082	Cochez pour récupérer la liste automatiquement, ou saisissez le modèle manuellement.
+3083	Supprimer l'interface « {name} » et ses modèles ? (Prend effet à l'enregistrement.)
+3084	Le pont est occupé. Réessayez plus tard.
+3085	Le plan a expiré ou l'état a changé ; revérifiez.
+3086	Aucun écart synchronisable détecté ; si le problème persiste, dépliez l'aide ci-dessous.
+3087	Synchronisation auto impossible dans cet état ; suivez les étapes ci-dessous sans supprimer de dossiers.
+3088	Vérification des éléments synchronisables…
+3089	{n} modèles et le mode d'authentification peuvent être synchronisés.
+3090	Plan prêt — confirmez pour enregistrer.
+3091	Synchroniser l'enregistrement d'interface du pont ?\n\nMet uniquement à jour les modèles, le défaut et l'authentification ; adresse et clé inchangées.
+3092	Synchronisation de l'interface…
+3093	Résultat non confirmé ; revérifiez l'état sans soumettre à nouveau.
+3094	Interface écrite mais mappage incomplet ; revérifiez l'état.
+3095	Enregistrement d'interface synchronisé.
+3096	L'adresse, l'authentification ou la connexion locale ne correspond pas au pont.
+3097	Le format ou le contenu de la liste de modèles enregistrée diverge.
+3098	Échec de lecture ou de validation du mappage d'interface du pont.
+3099	L'enregistrement du service local ne correspond pas à la connexion.
+3100	Le marqueur d'appartenance du dossier d'exécution ne correspond pas ; vérifiez l'ancienne configuration.
+3101	Échec de l'autocontrôle de sécurité du composant (sans détail).
+3102	Conflit de configuration (composant ancien sans détail ; peut concerner les fichiers, l'appartenance ou l'interface).
+3103	Composant indisponible
+3104	Pont occupé
+3105	Impossible de lire l'état du pont
+3106	Configuration écrite, mais les étapes suivantes ont échoué ; revérifiez d'abord l'état.
+3107	Enregistrement incomplet ; consultez l'avis ci-dessus.
+3108	Vérifiez d'abord les versions de l'application et du composant sans modifier les dossiers d'exécution.
+3109	L'hôte a changé — ressaisissez votre clé API (l'ancienne clé n'est jamais envoyée ailleurs).
+3110	La clé enregistrée reste masquée ; laissez vide pour la garder ou saisissez-en une nouvelle.
+3111	Enregistrement…
+3112	L'enregistrement n'appelle aucun modèle distant et ne change pas la session active (liste chargée ; inférence non testée).
+3113	Entrez un entier de 1024 à 16777216 (256k, 1m acceptés), ou laissez vide par défaut.
+3114	Entrez un nom de modèle valide (sans virgule ni retour à la ligne).
+3115	Saisissez une clé API valide pour charger la liste automatiquement.
+3116	Récupération annulée — réessayez ou saisissez manuellement.
+3117	Préparation du chargement des modèles…
+3118	Ressaisissez votre clé API puis réessayez.
+3119	Liste vide — saisissez un modèle ou réessayez.
+3120	{count} modèles chargés (max. 500) — recherchez ou saisissez.
+3121	Enregistrement…
+3122	Liste chargée, inférence non testée
+3123	Pont local prêt
+3124	Récupération auto arrêtée
+3125	Échec de vérification
+3126	Pont désactivé
+3127	Config enregistrée, pont non prêt
+3128	Conflit d'ID modèle, >200 caractères ou >100 modèles au total ; ajustez avant d'enregistrer.
+3129	Enregistrer toutes les interfaces ?\n\nLes échanges, résultats d'outils et images seront envoyés selon le modèle vers :\n{origins}
+3130	Enregistrer cette configuration ?\n\nLes échanges, résultats d'outils et images seront envoyés à {origin}.\n({verification})
+3131	URL API invalide ; vérifiez-la puis réessayez.
+3132	Ressaisissez la clé API (impossible de réutiliser l'ancienne clé sur une nouvelle adresse).
+3133	Enregistrement incomplet ; vérifiez l'état local et réessayez.
+3134	Échec de sélection de cette interface pour une nouvelle session ; réessayez.
+3135	La commande en arrière-plan est terminée mais le moteur ne répond plus depuis {d} ; touchez Arrêter ou envoyez un message.
+3136	Configuration du pont incomplète ; vérifiez les champs ou l'état du composant.
+3137	Conflit d'identifiant d'envoi — veuillez renvoyer.
+3138	Connexion interrompue prématurément ; réponse peut-être incomplète, envoyez « Continuer ».
+3139	Interface non prise en charge sous Antigravity : définissez protocol:"gemini" (endpoint Gemini) ou utilisez la connexion Google.
+3140	Le préréglage Claude ({id}) est indisponible en mode Antigravity seul ; choisissez la connexion Google ou une interface Gemini.
+3141	Intervenir (ajouter au tour en cours)
+3142	↩ Restaurer le brouillon effacé
+3143	Les modifications s'appliquent dès le prochain message.
+3144	Registre public (non vérifié) ; les paquets npm s'exécutent localement — vérifiez la source avant d'installer.
+3145	Exécute automatiquement des commandes sur événement (avant/après outil, envoi, fin de réponse) pour bloquer, enrichir le contexte ou formater.
+3146	Couleur d'accent des boutons, liens et sélections (contraste adapté au thème clair/sombre)
+3147	Épingler, ranger dans « ⋯ » ou masquer ; glissez la poignée gauche pour réordonner
+3148	Formats ttf / otf / woff / woff2 (≤ 40 Mo, max. 10) ; activez via « Personnalisée… » ci-dessus après import
+3149	Masque ce fournisseur du sélecteur de modèles tout en conservant sa configuration et sa clé
+3150	Génère un titre après la première réponse (quelques tokens ; modèle léger sélectionnable)
+3151	Demande toujours confirmation avant lecture de secrets (.env / SSH / clés API), contrôle d'écran, presse-papiers ou partage externe (même en mode Tout autoriser) contre l'injection.
+3152	Compacte automatiquement les sessions >200k tokens après ~54 min d'inactivité pour réduire la latence et les tokens.
+3153	Nécessite l'app « Work Island » pour afficher progression et confirmations sur ColorOS 16 Fluid Cloud (masqué après 8 s).
+3154	Autorise la lecture/écriture hors de l'espace de travail via additionalDirectories et ajoute des raccourcis à l'explorateur.
+3155	Ignore temporairement règles personnalisées, skills, plugins, Hooks et MCP sans modifier les fichiers ; désactivez pour rétablir.
+3156	Exécute plusieurs sessions en parallèle (~quelques centaines de Mo chacune ; 1 = séquentiel).
+3157	Intercepte les appels système bloqués par Android pour éviter le plantage des binaires statiques comme Go (prochain message).
+3158	Choix auto selon le paquet : exécution directe sur targetSdk 28, via le chargeur système sur targetSdk 36 (redémarrage requis).
+3159	Autoriser l'arrêt des apps en arrière-plan hors liste blanche (Shizuku requis)
+3160	Arrête les apps d'arrière-plan avant les commandes lourdes (<code>cc-mem run -- cmd</code>) ; garde premier plan, écran partagé, notifications permanentes (proxy/musique), lanceur, clavier, accessibilité, VPN, Shizuku et liste blanche.
+3161	Conserve indéfiniment les sessions locales sauf suppression manuelle.
+3162	Ne plus confirmer chaque commande privilégiée (à vos risques) : exécute les commandes Shizuku sans invite jusqu'à expiration ; celles visant cette app ou Shizuku restent filtrées au mieux, sans pouvoir bloquer tous les contournements. Pour une seule session, cochez dans la boîte
+3163	targetSdk 28 offre la meilleure compatibilité ; bascule automatiquement vers targetSdk 36 si refusé sur un appareil récent, sans perte de données.
+3164	Met à jour Antigravity CLI en silence ; invite à installer les mises à jour de l'app (ou auto via Shizuku au repos) ; pré-télécharge le kit en Wi‑Fi pour le prochain démarrage.
+3165	Récupère les avis signés toutes les 3 h (requête statique sans donnée locale) ; aucune requête une fois désactivé.
+3166	Désactivé par défaut : passe par un proxy tiers uniquement si la source officielle et le miroir échouent (IP visible par le proxy ; hachage et signature toujours vérifiés).
+3167	Exporte les journaux anonymisés et l'état système (sans clés, e-mails ni messages) pour le dépannage ou un Issue.
+3168	Exporter le diagnostic
+3169	Ouvre une page Nouvel Issue préremplie avec modèle, version Android et autotest (sans journaux ni messages).
+3170	Réinitialise configs utilisateur, réglages de l'app et fichiers shell (sauvegardés dans ~/.ccapp-reset) ; conserve sessions, espace de travail, kit et clés par défaut.
+3171	Vérifie compilateurs, Python, Node, git, etc. et transmet l'état à Antigravity (relancé après mise à jour).
+3172	Échec du chargement — touchez pour réessayer
+3173	L'enregistrement n'appelle aucun modèle distant et ne change pas la session active.
+3174	Antigravity CLI n’a pas passé la vérification d’intégrité, il n’a donc pas été lancé : {why}
+3175	Le moteur actuel (Antigravity CLI) ne prend pas encore en charge le retour aux points de contrôle de fichiers
+3176	Le moteur actuel (Antigravity CLI) ne prend pas encore en charge la gestion des places de marché de greffons
+3177	Le moteur actuel (Antigravity CLI) ne prend pas encore en charge cette sous-commande MCP
+3178	La configuration MCP n’est pas un JSON valide
+3179	Dossier partagé /sdcard/hachimia
+3180	Le modèle « {model} » a été refusé par l’agent ({msg}) ; poursuite avec le modèle par défaut.

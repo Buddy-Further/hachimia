@@ -2464,7 +2464,6 @@ window.I18N_DICT.en = {
   "项目默认的接口「{id}」已经删掉了，这一轮没有发出去。到项目设置里重新选个接口。": "The project's default endpoint \"{id}\" has been deleted, so this turn was not sent. Choose an endpoint again in the project settings.",
   "任务指定的接口已经删掉了：编辑任务重新选个接口": "The task's endpoint has been deleted: edit the task and choose another",
   "「{n}」指定的接口已经删掉了：编辑任务重新选个接口": "The endpoint for \"{n}\" has been deleted: edit the task and choose another",
-  "钩子（{ev}）注入的文字命中破甲特征，这一轮已中止；注入原文折叠在上方。": "Text injected by the {ev} hook matched a jailbreak pattern, so this turn was stopped; the injected text is folded above.",
   "回复完成": "Reply complete",
   "回复出错": "Reply failed",
   "已移进回收站 {n} 个，{m} 个失败：{msg}": "Moved {n} to trash, {m} failed: {msg}",
@@ -3217,6 +3216,5 @@ window.I18N_DICT.en = {
   "当前引擎 (Antigravity CLI) 暂不支持该 MCP 子命令": "The current engine (Antigravity CLI) does not support this MCP subcommand yet",
   "MCP 配置不是合法的 JSON": "MCP configuration is not valid JSON",
   "共享目录 /sdcard/hachimia": "Shared folder /sdcard/hachimia",
-  "拒绝写入可能影响下一轮安全性的内容：{what}": "Blocked writing content that could compromise the next turn's safety: {what}",
   "模型「{model}」设置被 agent 拒绝（{msg}），已按默认跑。": "Model \"{model}\" was rejected by the agent ({msg}); continuing with the default model.",
 };

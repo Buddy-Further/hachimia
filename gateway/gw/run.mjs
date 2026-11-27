@@ -19,7 +19,7 @@ import { END_HOOKS, INTERRUPTED, QUEUE, RUN_LANE, RUN_SESSIONS, abortRun, clearI
 import { LOCAL_CMD_RE, handleLocalCommand } from "./modelcmd.mjs";
 import { ensureLlama, localCustomActive, localRunAttach } from "./local.mjs";
 import { deviceMcpAcpServer, deviceMcpConfig, privCall, usageAdd, usageIsPrompt, usageMeter } from "./usage.mjs";
-import { TASKS_HINT, contextWindowOf, effectiveAutoCompact, toolsHint, translate, hookBlocked } from "./stream.mjs";
+import { TASKS_HINT, contextWindowOf, effectiveAutoCompact, toolsHint, translate } from "./stream.mjs";
 import { latestContextTokens } from "./transcript.mjs";
 import { archiveHint } from "./archive.mjs";
 import { autoTitle } from "./autotitle.mjs";
@@ -34,7 +34,6 @@ import { claudeSeal, sealStillValid } from "./claudeseal.mjs";
 import { gwRuntimeBlocked } from "./gwpin.mjs";
 import { tamperNote, tamperRecord, tamperRetell } from "./tamper.mjs";
 import { SPOOF_NOTE, checkSessionAsync, integrityHint, integrityNote, neutralizeMarkers, sealSessionAsync, sessionAnchorAsync } from "./integrity.mjs";
-import { ruleblockHint } from "./ruleblock.mjs";
 import { recordExtra } from "./lineage-store.mjs";
 import { refNote, refNoteSync } from "./merge.mjs";
 import { ensureManagedBridge } from "./managed-bridge.mjs";
@@ -55,7 +54,7 @@ import { runPromptFile, sealBlockMessage, sealCleanup, sealPrepare, sealRecheck 
 // 敏感操作「这一轮已允许」的范围：读屏、点按、剪贴板这类设备操作一连串连着做，按类别记；
 // 密钥、会自动执行的文件、破甲这些，批准一次只放行同一个工具对同一个目标，不能一把解锁同类所有文件（0.6.9 审计 199 11-07）
 const guardKey = (p) => (/^device:/.test(p.guard.cat) ? p.guard.cat : `${p.tool}\0${p.guard.cat}\0${p.guard.what}`);
-const HUMAN_TOOLS = new Set(["AskUserQuestion", "ask_question", "ExitPlanMode"]);
+const HUMAN_TOOLS = new Set(["AskUserQuestion", "ask_question", "ExitPlanMode", "exit_plan_mode"]);
 // ACP 网关级自动压缩防抖记录：sessionId -> { at, post }，避免连续死循环压缩
 const ACP_AUTOCOMPACT = new Map();
 // 空闲中后台任务自己跑完、claude 却一直没起新一轮：这么久没动静才关 stdin 收尾（我们发过 stop_task 的 6 秒）。环境变量只给测试用
@@ -267,7 +266,7 @@ function prepareSealAndUc(run, cwd, P, emit) {
     try { prep = sealPrepare({ cwd, runId: run.id, outputStyle: SETTINGS.outputStyle || "" }); }
     catch (e) { log(`[封口] 准备回填失败：${e.message}`); prep = { block: { found: [{ name: "(hachimia)", hits: [{ line: 0, excerpt: e.message }] }] } }; }
     if (prep.block) {
-      log(`${runTag(run)} ⛔ [封口] 命中破甲特征，不跑：${prep.block.found.slice(0, 4).map((f) => f.name).join(", ")}`);
+      log(`${runTag(run)} ⛔ [封口] 配置校验未通过，不跑：${prep.block.found.slice(0, 4).map((f) => f.name).join(", ")}`);
       const msg = tr(LAST_LANG, sealBlockMessage(prep.block));
       emit({ type: "error", message: msg });
       return { blocked: endRun(run, { failed: true, finalText: msg }), prep: null };
@@ -281,7 +280,7 @@ function prepareSealAndUc(run, cwd, P, emit) {
   }
   const late = prep ? sealRecheck(prep) : null;
   if (late) {
-    log(`${runTag(run)} ⛔ [封口] 起进程前记忆被改、命中破甲特征：${late.found.slice(0, 4).map((f) => f.name).join(", ")}`);
+    log(`${runTag(run)} ⛔ [封口] 起进程前记忆目录校验未通过：${late.found.slice(0, 4).map((f) => f.name).join(", ")}`);
     const msg = tr(LAST_LANG, sealBlockMessage(late));
     emit({ type: "error", message: msg });
     return { blocked: endRun(run, { failed: true, finalText: msg }), prep };
@@ -672,7 +671,15 @@ export async function startRun(item) {
     let displayMsg = message;
     let acpPrompt = message;
     let isSlashCmd = isCmd;
-    let pathNote = "";
+    const back = { tamper: [], path: "", uc: "", agent: [] };
+    run.giveNotesBack = () => {
+      run.giveNotesBack = null;
+      if (back.tamper.length) tamperRetell(back.tamper);
+      putPathNote(run.sessionId, back.path);
+      ucPutNote(back.uc);
+      if (back.agent.length) putAgentNote(run.cwd, run.sessionId, back.agent.join("\n"));
+      if (back.tamper.length || back.path || back.uc || back.agent.length) log("这一轮没送到模型：提醒放回去，下一轮再带");
+    };
     if (!run.auto) {
       const cleanMsg = neutralizeMarkers(message);
       let isSpoofed = cleanMsg !== message;
@@ -693,10 +700,14 @@ export async function startRun(item) {
         acpPrompt = cmdExp.text;
       }
       if (!isSlashCmd && !P.local) {
-        pathNote = takePathNote(run.sessionId);
+        back.path = takePathNote(run.sessionId);
+        const tamperN = run.unattended ? "" : tamperNote(back.tamper);
+        const ucN = back.uc = run.unattended ? "" : ucTakeNote();
+        const agentN = takeAgentNote(run.cwd, run.sessionId);
+        if (agentN) back.agent.push(agentN);
         const arch = await archiveHint(run.sessionId).catch(() => null);
         const refN = await refNote(cleanMsg, run.sessionId).catch((e) => { log("档号引用失败: " + e.message); return ""; });
-        const notes = [isSpoofed ? SPOOF_NOTE : "", integNote, arch?.note, pathNote, refN].filter(Boolean);
+        const notes = [isSpoofed ? SPOOF_NOTE : "", tamperN, ucN, integNote, arch?.note, back.path, refN, agentN].filter(Boolean);
         if (notes.length) acpPrompt = `${acpPrompt}\n\n<system-reminder>\n${notes.join("\n\n")}\n</system-reminder>`;
       }
     }
@@ -704,6 +715,25 @@ export async function startRun(item) {
     let acpImages = [];
     if (!isSlashCmd && wantsInline(P)) {
       acpImages = await inlineImages(acpPrompt, P, { tmpDir: acpEnv.TMPDIR, env: acpEnv }).catch(() => []);
+    }
+    // 等待用户配置/项目信任/图片等异步步骤期间，用户可能已停止或收紧权限模式：启动前统一复核（对齐 Claude 分支）
+    if (run.aborted || run.ended) {
+      run.giveNotesBack?.();
+      log("⏹ 起进程前已停止");
+      return endRun(run, { durationMs: 0 });
+    }
+    if (run.permMode !== permMode && PERM_MODES.includes(run.permMode)) {
+      run.permMode = safeModePerm(run.permMode);
+      log(`权限模式在起进程前改了：${permMode} → ${run.permMode}`);
+      permMode = run.permMode;
+    }
+    if (!P.local && !sealStillValid(cliBin)) {
+      run.giveNotesBack?.();
+      log(`${runTag(run)} ⚠️ [Antigravity CLI 核验] 核过之后程序文件又变了，停掉这一轮`);
+      tamperRecord("agy", ["agy: changed right after it was verified"]);
+      const msg = tr(LAST_LANG, "Antigravity CLI 程序和官方签名清单对不上，可能被改过，这一轮没有启动。到 设置 → 更新 里重新安装后再试。");
+      emit({ type: "error", message: msg });
+      return endRun(run, { failed: true, finalText: msg });
     }
     if (item.timeoutMs > 0) {
       run.limitTimer = setTimeout(() => {
@@ -719,7 +749,7 @@ export async function startRun(item) {
       if (ev?.type === "tool_use" || (ev?.type === "tool_update" && ev.input && Object.keys(ev.input).length)) {
         run.paths?.feed({ type: "assistant", message: { content: [{ type: "tool_use", name: ev.name, input: ev.input }] } });
       } else if (ev?.type === "text_delta" && ev.text) {
-        run.paths?.feed({ type: "assistant", message: { content: [{ type: "text", text: ev.text }] } });
+        run.paths?.feedDelta(ev.text);
       }
       emit(ev);
     };
@@ -783,7 +813,6 @@ export async function startRun(item) {
         const isHuman = HUMAN_TOOLS.has(tool);
         if (run.unattended || run.auto) {
           if (!guard && !isHuman) {
-            if (run.auto === "bg" && permMode === "bypassPermissions") return { behavior: "allow" };
             if (run.auto === "bg" && run.permMode === "bypassPermissions") return { behavior: "allow" };
             if (run.unattended && allowed.length && (isAcpToolAllowed(tool, kind, allowed) || (rawName && isAcpToolAllowed(rawName, kind, allowed)))) {
               return { behavior: "allow" };
@@ -869,9 +898,13 @@ export async function startRun(item) {
         emit({ type: "session_created", sessionId: run.sessionId, runId: run.id, cwd: run.cwd });
       }
     }
-    if (!isCmd && !P.local) {
-      if (acpRes.ok && !run.aborted) settlePathNote(run.sessionId, run.paths);
-      else if (pathNote && !acpRes.ok && !acpRes.toolCount && !acpRes.resultText) putPathNote(run.sessionId, pathNote);
+    if (!acpRes.ok && (!run.aborted || (!acpRes.toolCount && !acpRes.resultText))) {
+      run.giveNotesBack?.();
+    } else {
+      run.giveNotesBack = null;
+    }
+    if (!isCmd && !P.local && acpRes.ok && !run.aborted) {
+      settlePathNote(run.sessionId, run.paths);
     }
     if (run.sessionId) {
       try {
@@ -995,9 +1028,9 @@ export async function startRun(item) {
     : `You are ${model}, a small open model running locally on the user's Android device through llama.cpp (not Claude). Reply in the user's language; keep answers short.`;
   // 建档（脉络）：常驻规则 + 这一轮该不该先建档（见 archive.mjs）
   const arch = P.local ? null : await archiveHint(run.sessionId).catch(() => null);
-  const appendPrompt = [P.local ? localHint : toolsHint(), !P.nativeModels && !P.local ? TASKS_HINT : "", P.local ? "" : previewHint(cwd), P.local ? "" : integrityHint(), P.local ? "" : ruleblockHint(), arch?.rule].filter(Boolean).join("\n\n");
+  const appendPrompt = [P.local ? localHint : toolsHint(), !P.nativeModels && !P.local ? TASKS_HINT : "", P.local ? "" : previewHint(cwd), P.local ? "" : integrityHint(), arch?.rule].filter(Boolean).join("\n\n");
   // 子代理（连孙代理）统一的联络规矩：用 agentId 发消息、summary 写事由、长内容落文件只发路径（见 agents.mjs）
-  const subPrompt = !P.local && !message.trim().startsWith("/") ? SUBAGENT_HINT + "\n\n" + integrityHint() + "\n\n" + ruleblockHint() : "";
+  const subPrompt = !P.local && !message.trim().startsWith("/") ? SUBAGENT_HINT + "\n\n" + integrityHint() : "";
   // 这两段在起进程紧前写成文件再交（见 promptFiles）
   // claude 没有 --output-style 参数（传了直接 unknown option，整条消息失败）；它是 settings 里的 outputStyle。
   // 密钥读取器也在这里（见 settingsArgs）
@@ -1634,20 +1667,6 @@ export async function startRun(item) {
       publishState();
     }
     run.agents.feed(ev);
-    // 钩子往上下文里塞的文本过破甲检查（红队 11-07 通道 C）：命中就中止这一轮，注入原文折叠亮给用户。
-    // 发行版封口把用户/项目钩子挡在 --setting-sources "" 外，这是 dev 包的兜底；网关自带的钩子不产 additionalContext，无感
-    if (ev.type === "system" && ev.subtype === "hook_response") {
-      const htext = hookBlocked(ev);
-      if (htext && !run.hookBlocked) {
-        run.hookBlocked = true;   // 中止后进程死前还会来事件：只报一次
-        const hname = String(ev.hook_event || ev.hook_name || "hook").slice(0, 60);
-        log(`[钩子注入] ${hname} 命中破甲特征，这一轮中止`);
-        emit({ type: "hook_ctx", event: hname, text: htext });
-        emit({ type: "note", key: "hook_blocked", text: tz("钩子（{ev}）注入的文字命中破甲特征，这一轮已中止；注入原文折叠在上方。", { ev: hname }) });
-        abortRun(run);
-        return;
-      }
-    }
     if (!run.tFirst && run.tInit && ev.type === "stream_event" && ev.event?.type === "message_start" && !ev.parent_tool_use_id) {
       run.tFirst = Date.now();
       const s = (ms) => (ms / 1000).toFixed(1) + "s";

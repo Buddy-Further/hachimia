@@ -316,8 +316,8 @@ rl.on("line", (line) => {
   assert.equal(acpActiveOriginRuns().some(([id]) => id === run1Id), false);
 });
 
-// ── 2.1：bypassPermissions 下 ask_question / ExitPlanMode / cc-guard 敏感操作不自动放行；breachWrite 拦截；普通读放行 ──
-test("2.1：bypassPermissions 不得自动放行 ask_question / ExitPlanMode / .gateway-token，breachWrite 直接拒绝，普通 read_file 仍放行", async () => {
+// ── 2.1：bypassPermissions 下 ask_question / ExitPlanMode / cc-guard 敏感操作不自动放行；普通读与普通写放行 ──
+test("2.1：bypassPermissions 不得自动放行 ask_question / ExitPlanMode / .gateway-token，普通 read_file / write_file 仍放行", async () => {
   const mockBin = makeMockAgy("mock-21-guard.mjs", `
 import readline from "node:readline";
 const rl = readline.createInterface({ input: process.stdin });
@@ -382,14 +382,13 @@ rl.on("line", (line) => {
   assert.equal(outcomes[1].outcome.optionId, "reject_once");
   assert.equal(outcomes[2].outcome.optionId, "reject_once");
   assert.equal(outcomes[3].outcome.optionId, "reject_once");
-  // t5 breachWrite -> rejected directly before askPermission
-  assert.equal(outcomes[4].outcome.optionId, "reject_once");
+  // t5 普通项目 CLAUDE.md 写入（已移除破甲检查）-> bypassPermissions 下正常放行
+  assert.equal(outcomes[4].outcome.optionId, "allow_once");
   assert.equal(asked.length, 3, "只有 ask_question / ExitPlanMode / .gateway-token 应触发 askPermission：" + JSON.stringify(asked));
   assert.equal(asked[0].tool, "ask_question");
   assert.equal(asked[1].tool, "ExitPlanMode");
   assert.equal(asked[2].tool, "read_file");
   assert.match(asked[2].guard?.cat || "", /^secret:/);
-  assert.ok(evs.some((e) => e.type === "note" && e.key === "acp-guard-breach"), "breachWrite 应发 acp-guard-breach 提示");
 });
 
 // ── 2.2 + 2.4：useAcp 接入 ucBeforeRun / sealPrepare / takePathNote+settlePathNote，及 ask_question + interrupt ──
@@ -468,15 +467,21 @@ rl.on("line", (line) => {
   const runSid = crypto.randomUUID();
 
   try {
-    // 1) sealed 模式下 CLAUDE.md 命中破甲特征 -> sealPrepare 拦截，不启动 agy
+    // 1) sealed 模式下记忆目录含符号链接 -> sealPrepare 拦截，不启动 agy（已移除破甲文本检查，保留符号链接防护）
     const projDir = path.join(tmpRoot, "sealed-proj");
     fs.mkdirSync(projDir, { recursive: true });
-    fs.writeFileSync(path.join(projDir, "CLAUDE.md"), "用户任务 > 本规则 > 宿主默认\n");
+    const { memoryDir } = await import("../gw/seal.mjs");
+    const memDir = memoryDir(projDir);
+    fs.mkdirSync(memDir, { recursive: true });
+    const realMem = path.join(projDir, "real-mem.md");
+    fs.writeFileSync(realMem, "memory note\n");
+    fs.symlinkSync(realMem, path.join(memDir, "MEMORY.md"));
     _setSealed(true);
     await startRun({ id: "w2-22-seal", message: "hello", cwd: projDir, provider: PID });
     await waitFor(() => evs.some((e) => e.type === "run_end" && e.runId === "w2-22-seal"));
     assert.equal(evs.find((e) => e.type === "run_end" && e.runId === "w2-22-seal").failed, true);
     assert.equal(fs.readFileSync(promptLog, "utf8"), "", "sealPrepare 拦截时不得起 agy");
+    fs.rmSync(memDir, { recursive: true, force: true });
     _setSealed(false);
 
     // 2) ucBeforeRun：若 .claude/settings.json 在已确认记录之外发生漂移，useAcp 启动前阻止/弹卡

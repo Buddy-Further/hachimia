@@ -754,7 +754,7 @@ if (/[?&](t|k)=/.test(location.search) || /[#&]k=/.test(location.hash)) history.
   const WROTE = new Map();
   function noteWrote(name, input) {
     const raw = typeof displayToolName === "function" ? displayToolName(name, input) : name;
-    const norm = String(raw || "").trim().replace(/^run\s+/i, "");
+    const norm = String(raw || "").trim().replace(/^run\s+/i, "").replace(/\s*\([^)]+\)$/, "").trim();
     const p = input && (input.file_path || input.notebook_path || input.Path || input.TargetFile || input.AbsolutePath || input.path);
     // 路径是模型给的：带引号、尖括号这类的不登记（正常文件名不会有，登记了还要进 data-path 属性）；兼容 ACP 写/改工具名（C-08.4）
     if (!/^(Write|Edit|MultiEdit|NotebookEdit|write_file|edit_file|replace_file_content|multi_replace_file_content|write file|edit file|replace file)$/i.test(norm) || typeof p !== "string" || !/^\//.test(p) || /["'<>&`\u0000-\u001f]/.test(p)) return;
@@ -886,85 +886,97 @@ if (/[?&](t|k)=/.test(location.search) || /[#&]k=/.test(location.hash)) history.
     + `<code${lang ? ` data-lang="${esc(lang.toLowerCase())}"` : ""}>${esc(buf.join("\n"))}</code></pre><button class="copy-btn">${t("复制")}</button></div>`;
   const mathBlock = (tex, raw) => `<div class="math math-d" data-tex="${esc(tex)}">${esc(raw)}</div>`;
   function renderMdLines(text) {
-    const lines = String(text).split("\n");
-    let out = "", inCode = false, codeBuf = [], codeLang = "", listType = null, inTable = false, tblRows = [];
-    let inMath = false, mathBuf = [];
+    const run = (src, depth) => {
+      const lines = String(src).split("\n");
+      let out = "", inCode = false, codeBuf = [], codeLang = "", listType = null, inTable = false, tblRows = [];
+      let inMath = false, mathBuf = [], bqBuf = [];
 
-    const closeList = () => { if (listType) { out += `</${listType}>`; listType = null; } };
-    const flushTable = () => {
-      if (!inTable) return;
-      inTable = false;
-      if (!tblRows.length) return;
-      const cells = (r) => r.replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
-      let html = '<div class="tbl-wrap"><table>';
-      tblRows.forEach((row, i) => {
-        if (/^\s*\|?[\s:|-]+\|?\s*$/.test(row) && i === 1) return;   // 分隔行
-        const tag = i === 0 ? "th" : "td";
-        html += "<tr>" + cells(row).map((c) => `<${tag}>${inlineMd(c)}</${tag}>`).join("") + "</tr>";
-      });
-      out += html + "</table></div>";
-      tblRows = [];
+      const closeList = () => { if (listType) { out += `</${listType}>`; listType = null; } };
+      const flushTable = () => {
+        if (!inTable) return;
+        inTable = false;
+        if (!tblRows.length) return;
+        const cells = (r) => r.replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+        let html = '<div class="tbl-wrap"><table>';
+        tblRows.forEach((row, i) => {
+          if (/^\s*\|?[\s:|-]+\|?\s*$/.test(row) && i === 1) return;   // 分隔行
+          const tag = i === 0 ? "th" : "td";
+          html += "<tr>" + cells(row).map((c) => `<${tag}>${inlineMd(c)}</${tag}>`).join("") + "</tr>";
+        });
+        out += html + "</table></div>";
+        tblRows = [];
+      };
+      const flushBq = () => {
+        if (!bqBuf.length) return;
+        const buf = bqBuf; bqBuf = [];
+        const body = depth < 8
+          ? run(buf.join("\n"), depth + 1)
+          : buf.map((l) => (l.trim() ? `<p>${inlineMd(l)}</p>` : "")).join("");
+        out += `<blockquote>${body}</blockquote>`;
+      };
+
+      for (const raw of lines) {
+        // 围栏后面可以带 info string（```js title="x"）：只把第一个词当语言，别因为后面还有字就认不出围栏，
+        // 否则正文会被当成代码、收尾围栏又把后面的正文吞进代码块（0.6.9 审计 196-聊天.6）。
+        // 代码块里只有不带 info 的围栏才算收尾，否则代码里以 ``` 开头的一行会被当成结束
+        const fence = (inCode ? /^\s*```\s*$/ : /^\s*```\s*([^\s`]*)(?:\s+.*)?$/).exec(raw);
+        if (fence && !inMath) {
+          if (inCode) {
+            out += codeBlock(codeLang, codeBuf);
+            codeBuf = []; inCode = false;
+          } else { flushBq(); closeList(); flushTable(); inCode = true; codeLang = fence[1]; }
+          continue;
+        }
+        if (inCode) { codeBuf.push(raw); continue; }
+
+        // 公式块：独占一行的 $$…$$ / \[…\]，或者 $$ / \[ 开头、$$ / \] 收尾的多行
+        if (inMath) {
+          if (/^\s*(\$\$|\\\])\s*$/.test(raw)) { out += mathBlock(mathBuf.join("\n"), "$$" + mathBuf.join("\n") + "$$"); mathBuf = []; inMath = false; }
+          else mathBuf.push(raw);
+          continue;
+        }
+        const m1 = raw.match(/^\s*\$\$(.+?)\$\$\s*$/) || raw.match(/^\s*\\\[(.+?)\\\]\s*$/);
+        if (m1) { flushBq(); closeList(); flushTable(); out += mathBlock(m1[1], raw.trim()); continue; }
+        if (/^\s*(\$\$|\\\[)\s*$/.test(raw)) { flushBq(); closeList(); flushTable(); inMath = true; continue; }
+
+        if (/^\s*\|.*\|\s*$/.test(raw)) { flushBq(); closeList(); inTable = true; tblRows.push(raw.trim()); continue; }
+        flushTable();
+
+        const bq = raw.match(/^>\s?(.*)$/);
+        if (bq) { closeList(); bqBuf.push(bq[1]); continue; }
+        flushBq();
+
+        const h = raw.match(/^(#{1,4})\s+(.*)$/);
+        if (h) { closeList(); const lv = Math.min(h[1].length + 1, 4); out += `<h${lv}>${inlineMd(h[2])}</h${lv}>`; continue; }
+
+        if (/^\s*([-*_])\s*\1\s*\1[\s-*_]*$/.test(raw)) { closeList(); out += "<hr>"; continue; }
+
+        const ul = raw.match(/^\s*[-*+]\s+(.*)$/);
+        if (ul) {
+          if (listType !== "ul") { closeList(); out += "<ul>"; listType = "ul"; }
+          const task = ul[1].match(/^\[([ xX])\]\s+(.*)$/);      // 任务清单 - [ ] / - [x]
+          out += task
+            ? `<li class="task"><input type="checkbox" disabled${task[1] === " " ? "" : " checked"}>${inlineMd(task[2])}</li>`
+            : `<li>${inlineMd(ul[1])}</li>`;
+          continue;
+        }
+        const ol = raw.match(/^\s*(\d+)[.)]\s+(.*)$/);
+        if (ol) {
+          // 带上起始编号：增量渲染会把一个列表切成几段，不带的话每段都从 1 数起
+          if (listType !== "ol") { closeList(); out += Number(ol[1]) > 1 ? `<ol start="${Number(ol[1])}">` : "<ol>"; listType = "ol"; }
+          out += `<li>${inlineMd(ol[2])}</li>`; continue;
+        }
+
+        if (!raw.trim()) { closeList(); continue; }
+        closeList();
+        out += `<p>${inlineMd(raw)}</p>`;
+      }
+      if (inCode && codeBuf.length) out += codeBlock(codeLang, codeBuf);
+      if (inMath && mathBuf.length) out += `<p>${esc("$$ " + mathBuf.join(" "))}</p>`;   // 流式中还没收尾的公式块，先按原文显示
+      flushBq(); flushTable(); closeList();
+      return out;
     };
-
-    for (const raw of lines) {
-      // 围栏后面可以带 info string（```js title="x"）：只把第一个词当语言，别因为后面还有字就认不出围栏，
-      // 否则正文会被当成代码、收尾围栏又把后面的正文吞进代码块（0.6.9 审计 196-聊天.6）。
-      // 代码块里只有不带 info 的围栏才算收尾，否则代码里以 ``` 开头的一行会被当成结束
-      const fence = (inCode ? /^\s*```\s*$/ : /^\s*```\s*([^\s`]*)(?:\s+.*)?$/).exec(raw);
-      if (fence && !inMath) {
-        if (inCode) {
-          out += codeBlock(codeLang, codeBuf);
-          codeBuf = []; inCode = false;
-        } else { closeList(); flushTable(); inCode = true; codeLang = fence[1]; }
-        continue;
-      }
-      if (inCode) { codeBuf.push(raw); continue; }
-
-      // 公式块：独占一行的 $$…$$ / \[…\]，或者 $$ / \[ 开头、$$ / \] 收尾的多行
-      if (inMath) {
-        if (/^\s*(\$\$|\\\])\s*$/.test(raw)) { out += mathBlock(mathBuf.join("\n"), "$$" + mathBuf.join("\n") + "$$"); mathBuf = []; inMath = false; }
-        else mathBuf.push(raw);
-        continue;
-      }
-      const m1 = raw.match(/^\s*\$\$(.+?)\$\$\s*$/) || raw.match(/^\s*\\\[(.+?)\\\]\s*$/);
-      if (m1) { closeList(); flushTable(); out += mathBlock(m1[1], raw.trim()); continue; }
-      if (/^\s*(\$\$|\\\[)\s*$/.test(raw)) { closeList(); flushTable(); inMath = true; continue; }
-
-      if (/^\s*\|.*\|\s*$/.test(raw)) { closeList(); inTable = true; tblRows.push(raw.trim()); continue; }
-      flushTable();
-
-      const h = raw.match(/^(#{1,4})\s+(.*)$/);
-      if (h) { closeList(); const lv = Math.min(h[1].length + 1, 4); out += `<h${lv}>${inlineMd(h[2])}</h${lv}>`; continue; }
-
-      if (/^\s*([-*_])\s*\1\s*\1[\s-*_]*$/.test(raw)) { closeList(); out += "<hr>"; continue; }
-
-      const bq = raw.match(/^>\s?(.*)$/);
-      if (bq) { closeList(); out += `<blockquote>${inlineMd(bq[1])}</blockquote>`; continue; }
-
-      const ul = raw.match(/^\s*[-*+]\s+(.*)$/);
-      if (ul) {
-        if (listType !== "ul") { closeList(); out += "<ul>"; listType = "ul"; }
-        const task = ul[1].match(/^\[([ xX])\]\s+(.*)$/);      // 任务清单 - [ ] / - [x]
-        out += task
-          ? `<li class="task"><input type="checkbox" disabled${task[1] === " " ? "" : " checked"}>${inlineMd(task[2])}</li>`
-          : `<li>${inlineMd(ul[1])}</li>`;
-        continue;
-      }
-      const ol = raw.match(/^\s*(\d+)[.)]\s+(.*)$/);
-      if (ol) {
-        // 带上起始编号：增量渲染会把一个列表切成几段，不带的话每段都从 1 数起
-        if (listType !== "ol") { closeList(); out += Number(ol[1]) > 1 ? `<ol start="${Number(ol[1])}">` : "<ol>"; listType = "ol"; }
-        out += `<li>${inlineMd(ol[2])}</li>`; continue;
-      }
-
-      if (!raw.trim()) { closeList(); continue; }
-      closeList();
-      out += `<p>${inlineMd(raw)}</p>`;
-    }
-    if (inCode && codeBuf.length) out += codeBlock(codeLang, codeBuf);
-    if (inMath && mathBuf.length) out += `<p>${esc("$$ " + mathBuf.join(" "))}</p>`;   // 流式中还没收尾的公式块，先按原文显示
-    flushTable(); closeList();
-    return out;
+    return run(text, 0);
   }
 
   // ── 本地图片内联（「拿出去」那条线）───────────────────────────────

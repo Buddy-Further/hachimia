@@ -151,6 +151,122 @@ test("权限卡、底部权限条、子代理步骤与 style.css 同步单行省
   const chatSrc = readWeb("app/02-chat-view.js");
   assert.match(chatSrc, /card\.querySelector\("\.tool-open"\)/);
   assert.match(chatSrc, /typeof noteWrote === "function"/);
+
+  // 真执行 02-chat-view.js + 03-perm-status.js：验证 PermCard / permPreview / permWhat / renderPermBar 实际渲染输出
+  const a02 = chatSrc.indexOf("  function summarizeTool(");
+  const b02 = chatSrc.indexOf("  /** 收着的子代理", a02);
+  assert.ok(a02 >= 0 && b02 > a02);
+  const pEnd1 = permSrc.indexOf("  // ── 输入框上方的状态带");
+  const pStart2 = permSrc.indexOf("  function renderPermBar()");
+  const pEnd2 = permSrc.indexOf("  permBar.addEventListener(", pStart2);
+  assert.ok(pEnd1 > 0 && pStart2 > pEnd1 && pEnd2 > pStart2);
+  const elems = new Map();
+  const mkEl = (tag = "div") => {
+    const cls = new Set();
+    const el = {
+      tagName: tag.toUpperCase(),
+      className: "",
+      innerHTML: "",
+      textContent: "",
+      dataset: {},
+      style: {},
+      children: [],
+      classList: {
+        add: (...c) => c.forEach((x) => cls.add(x)),
+        remove: (...c) => c.forEach((x) => cls.delete(x)),
+        toggle: (c, v) => (v === undefined ? (cls.has(c) ? cls.delete(c) : cls.add(c)) : (v ? cls.add(c) : cls.delete(c))),
+        contains: (c) => cls.has(c),
+      },
+      appendChild(ch) { this.children.push(ch); return ch; },
+      querySelector() { return null; },
+      querySelectorAll() { return []; },
+      addEventListener() {},
+      remove() {},
+    };
+    return el;
+  };
+  const permBar = mkEl("div");
+  const liveEl = mkEl("div");
+  elems.set("perm-bar", permBar);
+  const ctx = {
+    state: { settings: { permNotice: false }, permissionMode: "default" },
+    srv: { run: { id: "r1" }, runs: [] },
+    runViews: new Map(),
+    TOOL_CARDS: new Map(),
+    liveEl,
+    permEl: mkEl("button"),
+    t: (s, vars) => (vars ? s.replace(/\{(\w+)\}/g, (_, k) => (vars[k] ?? "")) : s),
+    esc: (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])),
+    $: (id) => elems.get(id) || (elems.set(id, mkEl("div")), elems.get(id)),
+    document: { createElement: (tag) => mkEl(tag), querySelector: () => null, querySelectorAll: () => [] },
+    uiI: () => "",
+    renderMd: (s) => `<p>${s}</p>`,
+    runMode: () => "default",
+    setStatus() {},
+    isBusy: () => false,
+    permGuardWhat: () => "guard",
+    scrollDown() {},
+    api: async () => ({ ok: true }),
+    toast() {},
+    toastAct() {},
+    curPage: null,
+    view: { sessionId: "s1" },
+    window: {},
+  };
+  vm.runInNewContext(
+    chatSrc.slice(a02, b02) + "\n" + permSrc.slice(0, pEnd1) + "\n" + permSrc.slice(pStart2, pEnd2)
+      + "\nglobalThis.__p = { PERMS, permToolLabel, permToolBase, permPreview, permWhat, permActions, PermCard, renderPermBar };",
+    ctx,
+  );
+  const P = ctx.__p;
+
+  // 1) multi_replace_file_content + ReplacementChunks (Target/Replacement 及 TargetContent/ReplacementContent) 不得渲染空白 diff
+  const multiCard = P.PermCard({
+    id: "pm1",
+    tool: "Edit /a/b/c/file.js",
+    input: {
+      TargetFile: "/a/b/c/file.js",
+      ReplacementChunks: [
+        { TargetContent: "oldOne", ReplacementContent: "newOne" },
+        { Target: "oldTwo", Replacement: "newTwo" },
+      ],
+    },
+  }, "r1");
+  assert.match(multiCard.innerHTML, /- oldOne[\s\S]*\+ newOne/, "ReplacementChunks (TargetContent/ReplacementContent) 必须画出非空 diff");
+  assert.match(multiCard.innerHTML, /- oldTwo[\s\S]*\+ newTwo/, "ReplacementChunks (Target/Replacement) 必须画出非空 diff");
+  assert.match(multiCard.innerHTML, /multi_replace_file_content/);
+
+  // 2) 带括号后缀 edit_file (foo.js) 必须按 baseToolName 分派，渲染真实 diff 与路径摘要
+  const parenCard = P.PermCard({
+    id: "pm2",
+    tool: "edit_file (foo.js)",
+    input: { TargetFile: "/w/foo.js", TargetContent: "before", ReplacementContent: "after" },
+  }, "r1");
+  assert.match(parenCard.innerHTML, /- before[\s\S]*\+ after/, "edit_file (foo.js) 必须渲染 diff 而非退化原始 JSON");
+  assert.equal(P.permWhat("edit_file (foo.js)", { TargetFile: "/w/foo.js" }), "/w/foo.js");
+
+  // 3) exit_plan_mode 必须识别为计划审批并渲染计划正文而非原始 JSON
+  const planHtml = P.permPreview({ id: "pm3", tool: "exit_plan_mode", input: { plan: "Step 1: ship" } });
+  assert.match(planHtml, /Step 1: ship/);
+  assert.doesNotMatch(planHtml, /"plan":/);
+  assert.match(P.permActions({ id: "pm3", tool: "exit_plan_mode", input: { plan: "x" } }, "r1"), /data-mode="acceptEdits"/);
+
+  // 4) web_fetch / read_url_content 预览 URL
+  assert.match(P.permPreview({ id: "pm3b", tool: "read_url_content", input: { Url: "https://example.com/doc" } }), /https:\/\/example\.com\/doc/);
+  assert.match(P.permPreview({ id: "pm3c", tool: "web_fetch", input: { url: "https://example.com/api" } }), /https:\/\/example\.com\/api/);
+
+  // 5) renderPermBar 展示归一短名
+  P.PERMS.set("pm4", {
+    p: {
+      id: "pm4",
+      tool: "ls -la\n/very/long/command/line",
+      input: { CommandLine: "ls -la /very/long/command/line", toolSummary: "List files" },
+    },
+    runId: "r1",
+    done: false,
+  });
+  P.renderPermBar();
+  assert.match(permBar.innerHTML, /<b>run_command<\/b>/);
 });
 
 test("work-island、permView、pathnote、profile 对 ACP 工具名与字段全适配", async () => {

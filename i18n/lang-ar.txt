@@ -2429,754 +2429,752 @@
 2429	حُذفت نقطة الاتصال الافتراضية للمشروع «{id}»، لذلك لم يُرسَل هذا الدور. اختر نقطة اتصال من جديد في إعدادات المشروع.
 2430	حُذفت نقطة اتصال المهمة: عدّل المهمة واختر نقطة اتصال أخرى
 2431	حُذفت نقطة اتصال «{n}»: عدّل المهمة واختر نقطة اتصال أخرى
-2432	النص الذي حقنه الخطاف ({ev}) طابق نمط اختراق، لذا أُوقفت هذه الجولة؛ النص المحقون مطوي في الأعلى.
-2433	اكتمل الرد
-2434	حدث خطأ في الرد
-2435	نُقل {n} إلى المهملات، وفشل {m}: {msg}
-2436	أُرفق {n}، وفشل {m}: {msg}
-2437	فشل البحث: {msg}
-2438	تعذّرت قراءة قائمة الملفات: {msg}
-2439	الملف كبير جدًا ولم يقبله الخادم
-2440	لم يتعرّف الخادم على الملف المرفوع
-2441	أعاد الخادم {status}
-2442	جارٍ تحميل المحادثة…
-2443	لم يتم الحذف: {msg}
-2444	لا يزال رفع {n} ملف(ات) جاريًا؛ أرسل بعد الانتهاء.
-2445	لم يتم تثبيت النص البرمجي المدمج: {msg}
-2446	لم يتم تثبيت النص البرمجي المدمج: {msg}؛ لم تُحفظ القاعدة
-2447	تعذّر الحصول على حالة التحديث: {msg}
-2448	تُعرض أول 1000 عنصر فقط
-2449	لم يُثبَّت الدمج بعد: إمّا تثبيت كل التغييرات معًا، أو التراجع أولًا عن التغييرات التي لا تريد تثبيتها.
-2450	فشل النسخ؛ اضغط مطوّلًا لتحديد النص ثم انسخه
-2451	مشروع محذوف ({id})
-2452	نُسخت آخر 3000 سطر
-2453	مضبوط على {line} (نافذة النموذج غير معروفة؛ تُستخدم قيمتك)
-2454	تعذّرت قراءة متاجر الإضافات: {msg}
-2455	اسم الملف طويل جدًا (الحد الأقصى 255 بايت؛ الحرف الصيني يُحسب 3)
-2456	الملف غير موجود بعد
-2457	فشل التحقق من التحديثات
-2458	لا إذن للوصول إلى هذا الموقع (يتطلب التخزين المشترك «الوصول إلى كل الملفات» في إعدادات النظام)
-2459	لا إذن للوصول إلى هذا المجلد (يتطلب التخزين المشترك «الوصول إلى كل الملفات» في إعدادات النظام)
-2460	لا إذن لقراءة هذا الموقع (يتطلب التخزين المشترك «الوصول إلى كل الملفات» في إعدادات النظام)
-2461	فشل المسح: {msg}
-2462	انتهت عملية الطرفية؛ لم يُرسل الإدخال
-2463	تعذّرت قراءة قائمة المكوّنات المخصّصة: {msg}
-2464	تعذّرت قراءة سجلّ التثبيتات
-2465	تعذّرت قراءة حالة هذا الملف
-2466	تعذّرت قراءة قائمة ملفات هذا التثبيت
-2467	هناك تعارضات لم تُحلّ؛ أكملها قبل التثبيت.
-2468	تعذّر رسم هذه الصفحة
-2469	لا يمكن قراءة هذا الموقع
-2470	هذا المجلد لم يعد مستودع git
-2471	لا يحتوي هذا المجلد على SKILL.md (ربما بقي من استيراد لم يكتمل)؛ يمكنك حذفه.
-2472	يتوسّع هذا الجدول داخليًا أكثر من اللازم لفتحه بأمان.
-2473	معلومات نطاق هذه الورقة تالفة ولا يمكن قراءتها
-2474	لا يمكن قراءة هذه الملفات النظامية الوهمية بهذه الطريقة
-2475	تعليمات المشروع غير محفوظة؛ الرجوع سيتجاهل هذه التغييرات. هل تريد الرجوع؟
-2476	لم تُرجع خدمة المعاينة عنوانًا
-2477	تعذّر تحميل المساعدة: {msg}
-2478	تعذّر تحميل سجلّ التغييرات: {msg}
-2479	حزمة المهارات أكبر من 64 ميغابايت؛ فكّ ضغطها واستورد المهارات واحدة تلو الأخرى
-2480	قيمة حقل cron غير صالحة: {f}
-2481	قيمة حقل cron خارج النطاق: {f}
-2482	خطوة cron غير صالحة: {f}
-2483	تعبير cron يحتاج إلى خمسة حقول: الدقيقة الساعة اليوم الشهر يوم الأسبوع
-2484	«{n}»: مجلد مشروع المهمة لم يعد موجودًا. حرّر المهمة واختر مشروعًا أو مجلدًا آخر
-2485	لم تُحفظ الإشارات المرجعية: التخزين ممتلئ أو لا توجد صلاحية
-2486	مجلد مشروع المهمة لم يعد موجودًا. حرّر المهمة واختر مشروعًا أو مجلدًا آخر
-2487	تعذّر كتابة الجلسة المتفرعة على القرص: {err}
-2488	المهمة التي تُنفَّذ مرة واحدة تحتاج إلى تاريخ
-2489	وقت البدء يجب أن يكون 0–23 ساعة، 0–59 دقيقة
-2490	يجب أن يكون التاريخ بصيغة YYYY-MM-DD
-2491	الوقت يجب أن يكون 0–23 ساعة، 0–59 دقيقة
-2492	اختر يومًا واحدًا على الأقل (أعداد صحيحة 1–7)
-2493	يوم الشهر يجب أن يكون 1–31 أو «آخر يوم»
-2494	الفاصل يجب أن يكون عددًا صحيحًا من 1 إلى 24 ساعة
-2495	تعذّر الحفظ: التخزين ممتلئ أو لا توجد صلاحية
-2496	وقت الانتهاء يجب أن يكون 0–23 ساعة، 0–59 دقيقة
-2497	(النص طويل جدًا؛ تُعرض أول {n} حرفًا)
-2498	في الوضع الآمن لا تُطبَّق الأوضاع التي لا تسأل؛ الآن «السؤال في كل مرة»
-2499	لم تُحفظ الإعدادات؛ سيعود وضع الأذونات السابق بعد إعادة التشغيل
-2500	كانت الرسالة الأصلية طويلة جدًا؛ تمت استعادة أول 65,000 حرف فقط
-2501	لا يمكن جلب إشعارات الأمان الآن
-2502	جارٍ جلب إشعارات الأمان…
-2503	تغيّر المضيف وتم مسح المفتاح القديم؛ يرجى إدخاله من جديد
-2504	انقضى وقت إعادة الضبط؛ سيُحدَّث بعد الرسالة التالية
-2505	تم إنشاء المشروع؛ كان المجلد يحتوي على CLAUDE.md بالفعل، لذا لم تُكتب التعليمات التي أدخلتها
-2506	دخول رسمي · مسجّل للدخول
-2507	دخول رسمي · غير مسجّل للدخول
-2508	دخول رسمي · تعذّر تحديد حالة تسجيل الدخول
-2509	دخول رسمي · كان مسجّلًا للدخول عند آخر فحص
-2510	دخول رسمي · لم يكن مسجّلًا للدخول عند آخر فحص
-2511	سجّل الدخول إلى حسابك
-2512	تسجيل الدخول ما زال جاريًا؛ سيُفتح رابط التفويض بمجرد وصوله.
-2513	حذف الطراز «{id}»؟ سيُحذف الملف من مجلد الطرازات.
-2514	تم حذف الطراز «{id}»
-2515	تم استيراد {n}؛ ثم فشل: {msg}
-2516	تم تحديث صندوق الأدوات؛ لا يوجد إصدار متوافق بعد
-2517	تم تحديث صندوق الأدوات ولا يوجد في فهرس المكوّنات إصدار متوافق معه بعد. حدّث صندوق الأدوات أولًا، أو اضغط «البحث عن تحديثات» لإعادة جلب الفهرس.
-2518	الحد الأدنى لخط الضغط هو 100k؛ تم الحفظ على 100k
-2519	تعذّر كتابة سجل التثبيت (التخزين ممتلئ أو لا توجد صلاحية)، ولم يستمر هذا التثبيت
-2520	وُضعت الملفات في مكانها، لكن سجل التثبيت لم يُكتب (التخزين ممتلئ أو لا توجد صلاحية). أعد التثبيت أو أزل
-2521	تعذّر كتابة سجل المكوّن (التخزين ممتلئ أو لا توجد صلاحية)، ولم يكتمل هذا التثبيت
-2522	أعادت نقطة النهاية {s} لكن ليس بالتنسيق المتوقع، لذا لا يمكن تأكيد صلاحية المفتاح: {what}
-2523	(فارغ)
-2524	أبلغ الخادم عن خطأ في نهاية الرد ({msg})؛ عُدّ الرد مكتملاً. إن بدا ناقصاً فأرسل «تابع».
-2525	المسار «{ep}» الذي اختير لـ {name} لم يعد موجوداً. اختر مساراً من الإعدادات وأدخل مفتاحه من جديد.
-2526	يستخدم هذا العنوان http غير مشفّر: يُرسل مفتاحك والمحادثة إلى الجهاز الآخر دون تشفير. انتقل إلى https إن أمكن.
-2527	تعمل المهام المجدولة في دور مستقل: تُنقل إلى المقدمة وتبدأ فور انتهاء الدور الحالي
-2528	يتوقف عند التجاوز ويُحتسب فشلًا؛ ينطبق على الواجهة الرسمية فقط
-2529	تغيّر المسار — حُذف المفتاح القديم، أدخله مجددًا
-2530	تعذّر تحميل السجل: {msg} 
-2531	أثناء التثبيت حُذف {n} من الملفات المشتركة بسبب إزالة تثبيت — أعد التثبيت
-2532	النموذج المحلي {model} المثبّت لهذه الجلسة لم يعد موجودًا — اختر نموذجًا آخر من لوحة النماذج
-2533	جارٍ التحقق من ملف النموذج المحلي…
-2534	عُدّل ملف النموذج المحلي (المجموع الاختباري غير مطابق)، فلن يُحمَّل حفاظًا على الأمان: {file}
-2535	ملف النموذج المحلي ليس بصيغة GGUF (ربما عُدّل)، فلن يُحمَّل: {file}
-2536	انتهت مهلة تسجيل الدخول (15 دقيقة)
-2537	لا يزال تسجيل الدخول جاريًا — ستُفتح صفحة التفويض فور وصول عنوانها
-2538	معلومات تنزيل هذه الوحدة غير مكتملة — حدّث حزمة الأدوات أولًا
-2539	حزمة الوحدة تفتقد قائمة الملفات (MANIFEST)، فلن تُثبَّت حفاظًا على الأمان
-2540	تحتوي قائمة ملفات حزمة الوحدة على مسار غير صالح: {file}
-2541	لم تكتمل الإعدادات الأولى للوحدة «{name}» ({err})؛ ستُعاد المحاولة عند تثبيتها مجددًا
-2542	تعذّر حفظ قائمة المشاريع (التخزين ممتلئ أو غير قابل للكتابة)؛ سيضيع هذا التغيير بعد إعادة التشغيل
-2543	تعذّر نقل {n} من المحادثات إلى سلة المحذوفات، لذا لم يُحذف المجلد: {why}
-2544	حُذف {n} من الملفات المشتركة التي يعتمد عليها المكوّن «{id}»
-2545	أوقف النظام البوابة قبل أن ينتهي هذا التشغيل
-2546	انتهت المهلة
-2547	لا يوجد ناتج
-2548	جارٍ الفحص الذاتي… (يستغرق دقيقة أو دقيقتين)
-2549	آخر تشغيل {time}: نجح {pass}، وفشل {fail}
-2550	قيس قبل تحديث حزمة الأدوات أو التطبيق
-2551	لا توجد نتائج للفحص الذاتي بعد
-2552	لم يُخرج التشغيل الأخير أي نتيجة: {why}
-2553	الفحوص الفاشلة
-2554	لا يسمح النظام لهذا التطبيق بتشغيل خدمة Work Island، لذا لا يظهر شيء.
-2555	لم يُعثر على تطبيق Work Island — ثبّته ثم اضغط إعادة المحاولة.
-2556	الفحص الذاتي للجهاز
-2557	إعادة الفحص الذاتي
-2558	أسبوعيًا · {model}
-2559	المدة
-2560	ساعة واحدة
-2561	4 ساعات
-2562	يوم واحد
-2563	3 أيام
-2564	7 أيام
-2565	تعذّر حذف سجل الجلسة الأصلي، لذا بقيت الجلسة في مكانها: {err}
-2566	لم يكتمل هذا الدور: أُعيد تشغيل البوابة أثناء تحديث التطبيق (بدأ {when}).
-2567	لم يكتمل هذا الدور: أُوقفت البوابة أو أُعيد تشغيلها (بدأ {when}).
-2568	مجلد العمل {dir} لم يعد موجودًا (حُذف أو أُعيدت تسميته أو أُزيلت بطاقة التخزين)، لذلك لم يُنفَّذ هذا الدور. أعد المجلد أو غيّر المسار في إعدادات المشروع ثم أرسل مجددًا.
-2569	انقطع هذا الدور قبل أن يبدأ (أُرسل {when}).
-2570	المحادثة أطول من حد سياق النموذج. شغّل ‎/compact ثم تابع، أو ابدأ محادثة جديدة.
-2571	رفضت الواجهة المفتاح: تحقّق في الإعدادات ← الواجهات من أن مفتاح API صحيح ولم تنتهِ صلاحيته أو يُعطَّل.
-2572	نفد رصيد الحساب أو حصته: اشحن الرصيد أو راجع الحصة من لوحة تحكم المزوّد.
-2573	طلبات كثيرة جدًا أو بلغت حد الاستخدام: انتظر قليلًا ثم أعد المحاولة.
-2574	لا تجد الواجهة هذا النموذج أو العنوان: تحقّق من اسم النموذج وعنوان الواجهة.
-2575	حدث خطأ لدى المزوّد أو أنه مُثقل: أعد المحاولة لاحقًا. إن تكرر ذلك فبدّل النموذج أو الواجهة.
-2576	تعذّر الوصول إلى الواجهة: تحقّق من الشبكة أو من صحة عنوان الواجهة.
-2577	يحتوي الأرشيف على ملفات كثيرة جدًا ({n}، بحد أقصى {max})؛ لم يتم الاستيراد
-2578	تُعرض أول {n} فقط؛ استخدم عامل التصفية
-2579	استخراج المحدد ({n})
-2580	ضغط ({n})
-2581	أرشيف: اضغط «فتح الأرشيف» لتصفح ملفاته، أو استخرجه مباشرة
-2582	فتح الأرشيف
-2583	استخراج…
-2584	عند التعطيل لن يراه Claude. تبقى ملفات الأوامر، ويمكنك تفعيله في أي وقت.
-2585	الاسم فقط
-2586	فقط عندما تستدعيه أنت
-2587	وضع المهارة
-2588	يسري من الدور التالي
-2589	معطّل: لن يتصل به Claude. إعداداته محفوظة؛ اضغط تفعيل لإعادته.
-2590	تعطيل خادم MCP {name}؟ تُحفظ إعداداته أولاً، ويمكنك تفعيله في أي وقت.
-2591	تفعيل خادم MCP {name}؟ ستتم إعادة إضافة: {target}
-2592	حذف خادم MCP المعطّل {name}؟ لن تتمكن من تفعيله بنقرة واحدة بعد ذلك.
-2593	الملف ~/.claude/settings.json ليس JSON صالحًا. أصلحه أولاً
-2594	يمكن تعطيل خوادم MCP التي أضفتها بنفسك (نطاق المستخدم) فقط
-2595	تعذّرت كتابة قائمة المعطّلات
-2596	غير موجود في قائمة المعطّلات
-2597	هذا المكوّن غير مثبّت
-2598	لا يمكن تعطيل هذه الوحدة
-2599	ضغط…
-2600	ترميز أسماء الملفات
-2601	إذا ظهرت الأسماء مشوّهة فجرّب ترميزًا آخر
-2602	{n} عنصر
-2603	مشفّر
-2604	استخراج الكل…
-2605	إغلاق الأرشيف
-2606	العودة إلى الأرشيف
-2607	هذا الإصدار لا يتضمن 7-Zip، لذا لا يمكنه فتح هذا النوع من الأرشيفات
-2608	تعذّر فتح الأرشيف: {msg}
-2609	{size} بعد الضغط
-2610	رابط رمزي (لا يُستخرج)
-2611	جارٍ الاستخراج…
-2612	كلمة المرور غير صحيحة
-2613	الملف أكبر من أن يُعاين؛ استخرجه أولًا
-2614	لا توجد مساحة تخزين كافية
-2615	فشل الاستخراج: {msg}
-2616	أدخل كلمة المرور
-2617	كلمة المرور غير صحيحة، حاول مرة أخرى
-2618	موافق
-2619	{n} عنصر محدد
-2620	استخراج {what}
-2621	استخراج إلى
-2622	المجلد الحالي
-2623	كلمة المرور (اتركها فارغة إن لم يكن مشفّرًا)
-2624	لا تُستبدل الملفات الموجودة بالاسم نفسه أبدًا؛ تُعاد تسمية الجديدة إلى «الاسم (2)». لا تُستخرج الروابط الرمزية.
-2625	استخراج
-2626	اكتب مسارًا كاملًا (يبدأ بـ /)
-2627	ضغط «{name}»
-2628	ضغط {n} عنصر
-2629	اسم الأرشيف
-2630	الصيغة
-2631	مستوى الضغط
-2632	تخزين فقط
-2633	الأسرع
-2634	عادي
-2635	أصغر حجم (بطيء)
-2636	كلمة المرور (اختيارية، zip / 7z)
-2637	تشفير أسماء الملفات أيضًا (7z)
-2638	يستخدم zip المشفّر AES-256 وقد لا تفتحه بعض الأدوات القديمة؛ اترك كلمة المرور فارغة لأقصى توافق. لا تُضمَّن مجلدات بيانات الاعتماد مثل .ssh.
-2639	ضغط
-2640	لا يمكن الاستخراج أو الضغط إلى هذا الموقع
-2641	هذا الإصدار لا يتضمن 7-Zip
-2642	لا يمكن حفظ الأرشيف داخل مجلد يجري ضغطه
-2643	جارٍ الاستخراج
-2644	جارٍ الضغط
-2645	تم الاستخراج إلى {path}
-2646	تم الضغط إلى {path}
-2647	تحديد متعدد
-2648	تعذّرت كتابة موجّه النظام في ملف، لذا لم يبدأ هذا الدور: {msg}
-2649	إعادة الإعدادات الأولية
-2650	لم يظهر مربع التأكيد
-2651	إعادة تثبيت هذا المكوّن (سيُنزَّل من جديد)
-2652	إعادة تثبيت وحدة مجموعة الأدوات هذه (ستُنزَّل من جديد)
-2653	إصلاح مجموعة الأدوات: تنزيل هذا الإصدار من جديد وإعادة تثبيته؛ تتوقف الخدمة دقيقة إلى دقيقتين أثناء التثبيت
-2654	إصلاح الكل
-2655	إصلاح
-2656	في الانتظار
-2657	قيد التنفيذ…
-2658	سُلِّم إلى التطبيق
-2659	جارٍ الإصلاح. إغلاق هذه الصفحة لا يوقفه؛ وعند الانتهاء يُعاد الفحص تلقائيًا:
-2660	انتهى الإصلاح:
-2661	تابع الخطوات المسلَّمة إلى التطبيق في الإعدادات ← تحديث، ثم اضغط «تحقق من السجلات» مجددًا بعد انتهائها.
-2662	انتهى الإصلاح، وفشلت {n} خطوة
-2663	انتهى الإصلاح
-2664	سيُصلَح بهذا الترتيب، ثم يُعاد الفحص تلقائيًا:
-2665	إصلاح هذا البند:
-2666	إعادة التثبيت تتطلب التنزيل من الإنترنت؛ ولا تتأثر ملفاتك ومحادثاتك وإعداداتك. متابعة؟
-2667	لم يجتز الفهرس التحقق من التوقيع، فلا يمكن تثبيت المكوّنات
-2668	الإصدار في الفهرس ({v}) أقدم من المثبَّت ({now})؛ رُفض الرجوع إلى إصدار أقدم
-2669	يجري إصلاح أو فحص بالفعل؛ أعد المحاولة عند انتهائه
-2670	لا توجد مشكلات يمكن إصلاحها تلقائيًا
-2671	لا تزال بعض الخطوات قيد التنفيذ في التطبيق:
-2672	الخطوات المسلَّمة إلى التطبيق ما زالت قيد التنفيذ؛ اضغط «تحقق من السجلات» بعد انتهائها
-2673	المتصفح المدمج
-2674	الحزم التي نزّلها pkg
-2675	فهرس السلالة
-2676	جارٍ الفحص…
-2677	يشغل هذا التطبيق {app}؛ والمساحة الحرة على الجهاز {free}
-2678	آخر فحص: {when}
-2679	لم يُفحص بعد
-2680	{n} يومًا حسب إعدادك
-2681	تُحفظ دائمًا
-2682	آخر تنظيف تلقائي: {when}، وتحرّر {size}
-2683	لم يجرِ تنظيف تلقائي بعد
-2684	ذاكرات التخزين المؤقت
-2685	المجموع {size}؛ يُعاد تنزيلها أو بناؤها تلقائيًا عند الحاجة
-2686	قيد الاستخدام
-2687	الجلسة قيد التشغيل
-2688	لم يتغير منذ 7 أيام
-2689	آخر تغيير: {when}
-2690	حذف المحدد
-2691	الملفات المؤقتة
-2692	المجموع {size}، منها {old} لم تتغير منذ 7 أيام. تشمل مخرجات أوامر الخلفية والمجلدات المؤقتة التي تخلّفها الاختبارات وعمليات البناء
-2693	أكبر {n}
-2694	تنظيف الأقدم من 7 أيام
-2695	سجلات التصحيح ولقطات shell وسجلات MCP ونسخ ‎.claude.json الاحتياطية: المجموع {size}؛ يمكن تنظيف {n} عنصرًا ({auto}) (الأقدم من 30 يومًا، مع الإبقاء على أحدث 5 نسخ)
-2696	{n} جلسة، المجموع {size}. لا تُحذف الجلسات تلقائيًا أبدًا؛ احذفها من قائمة الجلسات وستذهب إلى سلة المهملات أولًا
-2697	بيانات تشغيل المكوّنات (~/.cccodroid)
-2698	{name} (مثبّت عبر pkg)
-2699	المجلد المشترك ‎/sdcard/cccodroid
-2700	البرامج وملفاتك
-2701	الأحجام فقط؛ لا يُحذف شيء هنا
-2702	سلة مهملات الجلسات
-2703	{n} عنصرًا، {size}؛ تُفرَغ تلقائيًا بعد 30 يومًا
-2704	برامج متبقية من حزمة أدوات قديمة
-2705	مراجعة
-2706	بيانات تشغيل تركها المكوّن المحذوف {id}
-2707	إحصاءات الاستخدام
-2708	أماكن تنظيف أخرى
-2709	✓ حُذف {n} عنصرًا وتحرّر {size}
-2710	{n} عنصرًا لم يُحذف (قيد الاستخدام أو خارج المجلدات المسموح بها)
-2711	لم يُحدَّد شيء
-2712	حذف {n} من العناصر المؤقتة المحددة؟ لا يمكن التراجع.
-2713	حذف بيانات التشغيل التي تركها {id}؟ ستُنزَّل من جديد عند إعادة التثبيت.
-2714	✓ حُذف
-2715	التخزين
-2716	المساحة المستخدمة
-2717	فحص
-2718	الاحتفاظ بالجلسات
-2719	التنظيف التلقائي
-2720	قائمة API
-2721	إضافة API
-2722	{n} نماذج
-2723	حذف ({n})
-2724	حذف {what} نهائيًا؟ لا يمكن التراجع عن ذلك.
-2725	سيتم حذف المجلدات مع كل ما بداخلها.
-2726	تم حذف {n} عنصر
-2727	يحتوي هذا المجلد على أدلة التطبيق الخاصة أو مساحة العمل ولا يمكن حذفه
-2728	(لم ينتهِ الدور السابق بشكل طبيعي؛ قد يكون الرد أعلاه غير مكتمل)
-2729	تم استيراد الجلسات، لكن تعذّر حفظ العناوين المخصصة (قد تكون المساحة ممتلئة أو لا توجد صلاحية). ستظهر العناوين الأصلية بعد إعادة التشغيل
-2730	تعذّرت قراءة قائمة الجلسات ({msg})، وهذا لا يعني عدم وجود جلسات. تحقق من أذونات التخزين ثم حدّث.
-2731	انتهت مهلة الطلب: لم تستجب البوابة ({n} ث)
-2732	البوابة غير متصلة: {msg} · انقر لإعادة المحاولة
-2733	فشلت الجولة السابقة في الخلفية: {msg}
-2734	أعاد العنوان {s}، لكن نص الاستجابة كبير جداً (أكثر من 8 ميغابايت) لتأكيد صلاحية المفتاح
-2735	انتهت الجولة السابقة، لكن الجولة التالية لم تتلقَّ نتيجة (مقاطَعة)
-2736	المجلد غير موجود: {dir}؛ يُستخدم {cwd} بدلاً منه
-2737	أعادت الواجهة خطأً وليس رداً عادياً:
-2738	الحد الأقصى لسطر الضغط هو 1M؛ تم الحفظ كـ 1M
-2739	تقوم أنظمة HONOR / Huawei وما شابهها بتجميد Shizuku في الخلفية وإبطاء التفعيل: في إدارة التطبيقات → Shizuku فعّل «تجاهل تحسين البطارية».
-2740	أول تسجيل: {time}
-2741	الوقت غير معروف
-2742	متغيرات البيئة، اختياري، مفصولة بفواصل (KEY=قيمة)
-2743	الترويسات، اختياري، مفصولة بفواصل (Header: قيمة)، مثل Authorization: Bearer رمزك
-2744	الترويسات
-2745	الترويسات مطلوبة لـ MCP البعيد: اكتب {bad} بنقطتين بدلًا من =، مثل Authorization: Bearer رمزك
-2746	لا يدعم MCP البعيد متغيرات البيئة: اكتب الترويسات بصيغة Header: قيمة، مثل Authorization: Bearer رمزك
-2747	إزالة من الإعداد
-2748	الترويسات الحالية
-2749	متغيرات البيئة الحالية
-2750	تم حفظ تعديلات {name}
-2751	فشل التعديل: {msg}
-2752	فشل الحفظ: {msg}؛ أُعيد الإعداد القديم كما كان
-2753	فشل الحفظ: {msg}، وتعذّر استعادة الإعداد القديم — يُرجى التحقق يدويًا
-2754	تعذّر فتح المحرر: {msg}
-2755	جارٍ تعديل {name}: اتركه فارغًا = احتفظ بالقيمة، اضغط × للحذف، واكتب للاستبدال
-2756	لم يتم العثور على خادم MCP هذا (لا يمكن تعديل موصلات الحساب)
-2757	يوجد بالفعل خادم MCP بهذا الاسم
-2758	stdio لا يخزّن الترويسات: سيتم إسقاط {names}. متابعة؟
-2759	إذا كان الخادم يعمل على هذا الجهاز، فاملأ http://127.0.0.1:منفذ — عنوان IP المحلي يتغير عند تبديل الشبكة فينقطع الاتصال
-2760	يبدو هذا عنوان شبكة محلية: إذا كان الخادم على هذا الجهاز، فغيّره إلى http://127.0.0.1:منفذ — يتغير IP المحلي فينقطع الاتصال
-2761	دمج ملفات PDF
-2762	استخراج الصفحات
-2763	تقسيم إلى صفحات منفصلة
-2764	تدوير الصفحات
-2765	ضغط PDF
-2766	تحويل PDF إلى صور
-2767	أرقام الصفحات غير صحيحة. استخدم تنسيقًا مثل 1-3,5 وتحقق من عدد الصفحات.
-2768	فشلت معالجة PDF: {code}
-2769	الملف المحدد ليس PDF
-2770	نقل لأعلى
-2771	نقل لأسفل
-2772	حدد ملفات PDF في لوحة الملفات أو اضغط «اختيار PDF…».
-2773	أدوات PDF مفقودة: {tools}. ثبّت «أدوات PDF» من الإضافات ← المكونات الاختيارية.
-2774	جارٍ استيراد PDF…
-2775	جارٍ معالجة PDF…
-2776	اكتملت المعالجة
-2777	لم يقل الحجم بعد الضغط. الملف الأصلي محفوظ.
-2778	فتح مجلد النتائج
-2779	انقطع الاتصال. جارٍ إعادة المحاولة…
-2780	أدوات PDF
-2781	تُعالج الملفات على هذا الجهاز فقط دون استبدال الملفات الأصلية.
-2782	العملية
-2783	فتح المكونات الاختيارية
-2784	إضافة من لوحة الملفات
-2785	اختيار PDF…
-2786	يمكن دمج 20 ملف PDF كحد أقصى. اختر ملفًا واحدًا للعمليات الأخرى.
-2787	الصفحات
-2788	التنسيق: 1-3,5. اتركه فارغًا لتحديد جميع الصفحات.
-2789	زاوية التدوير
-2790	جودة الضغط
-2791	كتاب إلكتروني (ebook)
-2792	ملف صغير (screen)
-2793	طباعة (printer)
-2794	تنسيق الصور
-2795	الدقة
-2796	منخفضة (72 DPI)
-2797	عالية (150 DPI)
-2798	حوّل حتى 100 صفحة في المرة الواحدة. الحد الأقصى للضلع الأطول 2048 بكسل.
-2799	مجلد النتائج (جديد)
-2800	بدء المعالجة
-2801	اختر حتى 20 ملف PDF بحجم إجمالي لا يتجاوز 256 ميغابايت.
-2802	يجب ألا يتجاوز إجمالي صفحات PDF عدد 1000.
-2803	تعذرت معالجة PDF. تأكد من سلامته وعدم وجود كلمة مرور.
-2804	انتهت مهلة المعالجة. قلّل عدد الصفحات وأعد المحاولة.
-2805	هناك مهمة PDF قيد التنفيذ. حاول لاحقًا.
-2806	ثبّت مكون أدوات PDF ثم أعد فتح الأدوات.
-2807	أدخل مجلد نتائج جديدًا في موقع قابل للكتابة.
-2808	تجاوزت النتائج 512 ميغابايت. قلّل الصفحات أو الدقة.
-2809	ملفات
-2810	لم تتم استعادة النسخة الاحتياطية من التثبيت السابق بعد. أعد المحاولة، أو ألغِ التثبيت ثم أعد التثبيت.
-2811	[cc] Error in a script injected by the shell (details hidden by WebView)
-2812	\\[Attachment: (\\/[^\\n]+?) · [^\\n·,\\]]+, file is large and was not read directly, read by path when needed\\]
-2813	Antigravity is requesting tool authorization: {w}
-2814	Antigravity wants to ask you
-2815	Say how it should change (sent back to Antigravity)
-2816	Optional: tell Antigravity why / what to do
-2817	Scheduled
-2818	Antigravity is waiting for your confirmation
-2819	Let Antigravity decide which actions need confirmation
-2820	Ask nothing. Antigravity can delete files and run any command without asking you
-2821	Switch to “Allow everything”?\n\nAntigravity will stop asking and can edit or delete files, run any command and access the network. Only use it when you trust the task and can live with the consequences.
-2822	Sign in with a Google Antigravity account
-2823	Use a personal Google account (Free / Pro / Ultra) or an enterprise account: authorize once in the browser, no key needed.
-2824	Enter a Gemini API Key
-2825	Use a Gemini API Key from Google AI Studio or a custom compatible endpoint, billed by usage.
-2826	Context has reached the auto-compact line; compacting history…
-2827	Background task finished, reported automatically:
-2828	[Attachment: 
-2829	, file is large and was not read directly, read by path when needed]
-2830	Starting Google Antigravity sign-in…
-2831	Google account signed in
-2832	Open the address below in your browser to complete Google authorization, then paste the authorization code under Settings → Providers to submit:
-2833	You can also run {cmd} in the in-app terminal to sign in.
-2834	Interruption sent — it will be seen once the current step finishes
-2835	Antigravity CLI (agy) itself
-2836	The system or hachimia already has a command with this name; pick another one
-2837	hachimia checks these skills before handing them to Antigravity; when calling one with a slash, prefix the name with user:, e.g. /user:{name}.
-2838	This build does not run the hooks configured here: hooks can execute arbitrary commands and put arbitrary content into the conversation, and hachimia cannot check them. The rules stay in the file and will not be deleted.
-2839	Reinstall Antigravity CLI (agy)
-2840	Claude (compatible)
-2841	Third-party provider
-2842	Sign in to a Google Antigravity account
-2843	Google Cloud / enterprise account
-2844	Billed by your Google Antigravity account subscription tier; on-device token stats are on the “Usage” page
-2845	Sign out of the Google Antigravity account on this device?
-2846	The key is stored only in this app's private directory on this device, and is passed to Antigravity CLI only as needed to connect to the matching endpoint.
-2847	AGY blue
-2848	Antigravity's replies
-2849	Shizuku is running but has not been authorized for hachimia
-2850	vivo / iQOO: Settings → Battery → Background power consumption → allow hachimia <b>high background power usage</b>; in iManager allow <b>auto-start</b> (common path)
-2851	Huawei / Honor: Settings → App launch → turn off “Manage automatically” for hachimia, then manually allow <b>auto-start</b> and <b>background activity</b> (common path)
-2852	hachimia has been frozen in the background by the system {n} times (most recent: about {sec} seconds, {at}).
-2853	In system settings, allow hachimia to run in the background, turn off battery optimization, and allow auto-start (each vendor names these differently).
-2854	Authorize for hachimia
-2855	hachimia's wireless debugging pairing has been removed: it still works now, but it cannot auto-activate after a reboot.
-2856	Shizuku was not activated by hachimia: hachimia cannot auto-activate it after a reboot. Pair it once and you're set.
-2857	The system did not notify hachimia at this boot (blocked by the system's “auto-start” management), so it could not auto-activate; opening hachimia will catch up.
-2858	To activate at boot: allow hachimia auto-start / background start in the app details; takes effect at the next boot.
-2859	Antigravity CLI (agy) version
-2860	Uninstall Antigravity CLI (agy)?\n\nThis deletes the downloaded agy program; it will not be reinstalled automatically. Tap “Install” here to download it again when you need it.\n\nSign-in, sessions and settings are kept; sending a message while it is not installed will prompt you to install it first.
-2861	Install the devkit from a local file?\n\nPick a devkit-ha.chi.mia.tar.gz (or .tar), downloadable from the GitHub releases page or hachimia.net. It is checked against the published release before installing; the service pauses for 1–2 minutes during installation.\nThings you installed into the devkit with pip / npm -g are kept.
-2862	Shizuku is not activated yet, so the app cannot toggle accessibility itself: turn on hachimia manually in the system accessibility settings. From Android 13, sideloaded apps must first allow restricted settings via App info → menu in the top-right corner.
-2863	This build has no native layer and only records CPU time (battery, screen-on and foreground time come from hachimia).
-2864	Name (e.g. self-hosted Gemini proxy)
-2865	Auth: x-goog-api-key (Gemini / Antigravity)
-2866	Auth: Authorization: Bearer
-2867	Auth: x-api-key
-2868	Default model name (required, e.g. gemini-3.8-flash)
-2869	Model list URL (optional; Gemini endpoints auto-probe /v1beta/models)
-2870	Context window (optional, in tokens, e.g. 1m; leave empty for the default)
-2871	More models (optional, one per line; you may put the window after the name, separated by a space, e.g. gemini-4-neon 1m)
-2872	Send images with the message (compat): check this when the model cannot read attached images; attachments are then sent directly as multimodal blocks with the message.
-2873	Choosing <b>Gemini / Antigravity</b> auth drives the official <code>agy</code> CLI via <code>GOOGLE_GEMINI_BASE_URL</code> + <code>GEMINI_API_KEY</code>.
-2874	Running Antigravity diagnostics…
-2875	Currently available capabilities
-2876	Fixed
-2877	Workaround
-2878	(Merged from 
-2879	Direct (not needed)
-2880	(Decided by Antigravity)
-2881	Antigravity CLI failed: {msg}
-2882	The Antigravity CLI user-level config has unconfirmed changes. Send a message first, confirm in the card that pops up, then try again.
-2883	Could not fetch the Antigravity CLI version list
-2884	agy install script not found ({p})
-2885	The dev side only manages Antigravity CLI (agy) (you build and install the app itself on this device)
-2886	Updating Antigravity CLI (agy)…
-2887	Could not fetch the Antigravity CLI version list: {err}
-2888	The gateway's own runtime was modified; Antigravity CLI was not started this round. The gateway will restart when idle and restore itself from the install package; send again shortly.
-2889	Antigravity CLI (agy) is not installed. Install it under Settings → Updates first.
-2890	Antigravity CLI (agy) not found
-2891	Settings → Updates: reinstall Antigravity CLI (agy)
-2892	Antigravity CLI (agy) is not installed. Tap “Install” under Settings → Updates.
-2893	The Antigravity CLI user-level config has unconfirmed changes, or an earlier session left background processes behind, so this run did not start. Open hachimia, send a message, and confirm in the card that pops up, then try again.
-2894	Antigravity CLI (agy) is not installed. Install it under Settings → Updates first, then come back to sign in.
-2895	Enterprise sign-in: in the agy sign-in screen, choose “Use a Google Cloud project” → “Continue with Google Cloud” and authorize with your enterprise account.
-2896	Personal sign-in: in the agy sign-in screen, choose “Google OAuth” and authorize with your personal Google account.
-2897	The slash commands, tools, skills and extensions currently available to Antigravity. Tap a slash command to insert it into the input box; a tool's “Allow / Ask / Deny” follows the permission mode and rules.
-2898	For things not in the marketplace, import a Linux arm64 program yourself: a single binary, or a .tar.gz / .zip archive. Missing libraries are filled in automatically and a command is generated, ready to use in Antigravity and in the terminal.
-2899	Save a long prompt you send often as a command and pick it with / in the input box. Text after /command fills $ARGUMENTS in the body, expanded automatically by the gateway when sent to Antigravity.
-2900	Antigravity behavior
-2901	Default color pick (AGY Monet palette); switchable to native, Qiusuo, Zhuyue or Construct
-2902	Font for Antigravity's reply text
-2903	Thinking level (thought_level)
-2904	Levels vary by model (low / medium / high / xhigh). You can also type <code>/effort &lt;level&gt;</code> in the input box.
-2905	Let Antigravity decide
-2906	Empty = let Antigravity decide by window
-2907	Confirm each item by default, same as official agy: it asks in the conversation before editing files or running commands. Allow everything means Antigravity can delete files and run any command without asking. You can also switch anytime via the permission tag under the input box.
-2908	Only clears caches, temp files untouched for 7 days, and expired logs; sessions, your files and programs are never auto-deleted
-2909	When on, run <code>priv 'command'</code> in the terminal as shell (pm / am / settings / dumpsys / logcat / screencap…); Antigravity uses it too. Without Shizuku, basic dev features work as usual — only these debugging abilities are unavailable.
-2910	Auto-activate again after a reboot (needs Wi-Fi; starts the hachimia background service at boot)
-2911	Let Antigravity use device tools (notifications, clipboard, opening links / calendar / alarms, sharing files…)
-2912	Off by default. Turn it on when you want Antigravity to test an app you built, or send files it generated to other apps; while on, each round carries an extra one or two thousand tokens of tool descriptions.
-2913	Antigravity CLI channel
-2914	Plan first
-2915	Interview to align the plan
-2916	Long-term goal
-2917	Multi-agent teamwork
-2918	Deep orchestration
-2919	Capabilities & tools
-2920	Failed to switch permission mode (agent rejected {mode}): {msg}
-2921	Could not restore the previous session (the agent doesn't support resume, or resume failed), so a new session was started. This turn was written to the new session; the old session's history is still kept in local records.
-2922	Compaction not confirmed: context did not shrink (before {pre}, after {post}). Please retry /compact or start a new session.
-2923	Enterprise login: please sign in with your company Google account in the browser
-2924	The authorization code could not be written to agy (stdin is closed). Please start login again.
-2925	The authorization code could not be written to agy (the login process's stdin is closed). Please start login again.
-2926	Login-based providers don't need an API key; sign in through the official flow. The key you entered was not saved.
-2927	Already queued; skipping this duplicate run
-2928	Open this in the app
-2929	Needs npx (included in the hachimia toolkit)
-2930	This build has no native layer, so only CPU time is recorded (battery and screen-on need hachimia).
-2931	The Antigravity CLI program was modified and was not started; 
-2932	Antigravity CLI housekeeping files
-2933	These Claude Code config files contain override-style instructions (telling the model to ignore its rules, posing as system messages and the like). hachimia won't load them, so this turn did not run. Edit or remove the following, then send again:\n{list}
-2934	The command {c} is built into the system or hachimia. Pick another name
-2935	Not a hachimia session archive
-2936	{p}: {n}
-2937	«{n}» {w}
-2938	API Key
-2939	Google Antigravity / Gemini
-2940	عرض النموذج أو تبديله
-2941	السياق
-2942	ضغط سجل المحادثة لتحرير مساحة السياق
-2943	ما الذي حدث
-2944	ماذا فعلت، وما النتيجة المتوقعة، وما الذي حدث فعلًا. يمكنك سحب لقطات الشاشة إلى هنا.
-2945	خطوات إعادة الإنتاج
-2946	تعذّر حفظ حالة التشغيل (قد تكون المساحة ممتلئة أو لا توجد صلاحية). إذا أنهى النظام التطبيق، فقد لا يكون هذا الدور قابلاً للاستعادة.
-2947	تعذّر استعادة حالة التشغيل السابقة (السجل غير قابل للقراءة أو تالف)، لذا لن تظهر الجولات المتقطعة والرسائل المنتظرة؛ تم الاحتفاظ بالملف الأصلي.
-2948	يمكن أن يحتوي الاسم على أحرف لاتينية وأرقام و- و_ فقط، حتى 40 حرفًا
-2949	هذا اسم أمر مدمج. اختر اسمًا آخر
-2950	لا يمكن أن يكون نص الأمر فارغًا
-2951	نص الأمر طويل جدًا (64 كيلوبايت كحد أقصى)
-2952	يوجد أمر بهذا الاسم بالفعل
-2953	يمكنك استيراد 10 خطوط كحد أقصى. احذف واحدًا أولًا
-2954	هذه مجموعة خطوط (.ttc) ولا يمكن لعارض الويب استخدامها. استخدم ملف ttf / otf منفردًا
-2955	ليس ملف خط صالحًا. الصيغ المدعومة فقط: ttf وotf وwoff وwoff2
-2956	This model doesn't support thinking level "{effort}"; running with the default instead.
-2957	The agent rejected thinking level "{effort}" ({msg}); running with the default instead.
-2958	Not supported under Antigravity
-2959	Not supported under Antigravity: the Antigravity CLI has no generic third-party API key channel. Declare protocol:"gemini" (the endpoint must speak the Gemini protocol), or switch to a Gemini / sign-in provider.
-2960	On-device models need Claude Code; this device only has the Antigravity CLI, so they're unavailable for now.
-2961	Not set (no default compaction line under ACP)
-2962	No Google Cloud ADC credentials found (Application Default Credentials). Run `gcloud auth application-default login` in a terminal first, then come back and pick ADC.
-2963	Application Default Credentials found.
-2964	The old configuration was still using a Claude preset, which doesn't work in Antigravity-only mode; it has been switched back to Google Antigravity sign-in.
-2965	Protocol: not declared
-2966	Protocol: Gemini (endpoint speaks the Gemini protocol)
-2967	Checking ADC credentials…
-2968	Failed to create a session: the agent returned no session ID. Please try again.
-2969	المخرجات (قيد التشغيل)
-2970	رصيد AI Credits المتبقي: {n}
-2971	جارٍ مزامنة حصة اشتراك Google Antigravity؛ يتم عرض استهلاك الرموز المحلي حالياً (اضغط تحديث بالأعلى للاستعلام فوراً).
-2972	تعذّر استعادة الجلسة السابقة ({why}). تم الاحتفاظ بالجلسة الحالية دون إنشاء جلسة جديدة؛ يُرجى المحاولة مجدداً أو بدء محادثة جديدة يدوياً.
-2973	تعذّر التحقق مما إذا كان الجهاز قيد الشحن
-2974	تعذّر قراءة مستوى البطارية الحالي
-2975	فهرس
-2976	اسم ملف الذاكرة غير صالح
-2977	الذاكرة غير موجودة
-2978	يُسمح فقط بعرض ملفات الذاكرة العادية
-2979	ملف الذاكرة كبير جدًا (يتجاوز 1 ميغابايت)
-2980	الذاكرة للقراءة فقط ولا يمكن تعديلها هنا
-2981	بانتظار المهام في الخلفية
-2982	خامل {d}
-2983	متبقي {d}
-2984	إشعارات الصيانة
-2985	وكيل GitHub خارجي احتياطي (gh-proxy.com)
-2986	فحص أولي: تسري هذه الإعدادات العامة في كل جولة. أكّد أنك أضفتها بنفسك (التراجع ينقلها كنسخة احتياطية إلى ~/.ccapp-userconf/quarantine).
-2987	اختر «تراجع» إذا لم تُجرِ هذه التعديلات (لاستعادة الإعدادات وإنهاء العمليات المتبقية وعزل الملفات الجديدة)، أو «إبقاء» إذا كانت منك.
-2988	حدث خطأ في فحص الأمان. يُنصح بالرفض إذا لم تكن متأكداً من الإجراء.
-2989	تُشغّل إعدادات المشروع برامج محلية مباشرة. اختر «عدم التحميل» للمشاريع غير الموثوقة (تستمر المحادثة بشكل طبيعي)؛ وبعد السماح لن يُسأل مجدداً إلا عند التغيير.
-2990	إذا لم تطلب ذلك بنفسك فقد يكون أمراً محقوناً من صفحة ويب أو ملف، ويُنصح بالرفض. السماح يتجاوز السؤال عن العمليات المماثلة في هذه الجولة.
-2991	تم رصد تعديلات غير مؤكدة في إعدادات المستخدم
-2992	خطأ في فحص الأمان — يرجى التأكيد يدوياً
-2993	سيتم تعديل ملف التعليمات أو قواعد الأمان: {w}
-2994	سيتم الوصول إلى مفاتيح أو بيانات اعتماد: {w}
-2995	انقطع الاتصال، جارٍ إعادة الاتصال… (يستمر التوليد في الخلفية)
-2996	خامل منذ قرابة ساعة؛ يجري ضغط السياق تلقائياً لتقليل الاستهلاك اللاحق (يمكن إيقافه من الإعدادات).
-2997	سجل سابق بانتظار التأكيد
-2998	تغيير جديد
-2999	تغيّر ملف الإعدادات خارجياً وتمت استعادته للإعدادات الحالية: 
-3000	تغيّرت ملفات التشغيل خارجياً وتم تفعيل الحماية: 
-3001	محادثة جديدة بانتظار التأكيد · راجع «محادثات غير محفوظة» في الشريط الجانبي
-3002	جاهز · {n} مهام تعمل في الخلفية
-3003	جاهز · جارٍ إنهاء مهام الخلفية
-3004	تعذر التحقق من حالة {n} عمليات عند الانقطاع ({list}). يرجى مراجعة النتائج قبل المتابعة.
-3005	انتهت مهلة التأكيد ({n} دقائق دون رد)، ولم تبدأ الجولة ({when}).
-3006	تم حفظ التقدم المنجز. اضغط «متابعة» للاستئناف من نقطة التوقف.
-3007	وصلت الرسالة، لا داعي لإعادة الإرسال
-3008	لم يتأكد الإرسال: {msg}
-3009	المساحة غير كافية ولم تُحفظ المسودة. انسخ النص أو أرسله الآن.
-3010	تُحفظ في /sdcard/cccodroid/models (تكميم Q4_K_M)، وتُفعّل من «الإعدادات ← خدمات النماذج». ذاكرة الجهاز {ram} غيغابايت، يُنصح بـ 1–4B.
-3011	إلغاء تثبيت المكوّن {name}؟ (لن تتأثر ملفاتك الخاصة.)
-3012	هل تريد أيضاً حذف {size} من ذاكرة التشغيل المتبقية لـ {name} ({path})؟
-3013	تصدير حزمة التشخيص ومشاركتها؟\n\nتتضمن: الإصدار والطراز، حالة الحزمة والفحص الذاتي، السجلات الحديثة المنقّاة، سجل الإصلاح، ونتائج الاتصال.\nلا تتضمن: المفاتيح، بيانات الاعتماد، البريد الإلكتروني، نصوص الرسائل، وسجل المحادثات.
-3014	يقتصر الوضع المحلي افتراضياً على المحادثة فقط. لتخصيص الأدوات والمعاملات، حرر {file} أو انتقل لنموذج سحابي وأرسل الأمر التالي:
-3015	(حالة مخزنة مؤقتاً؛ تعذر التحديث: {msg})
-3016	أكمل التفويض في المتصفح ثم الصق رمز التفويض أدناه.
-3017	أو نفّذ أمر تسجيل الدخول مباشرة في الطرفية المدمجة:
-3018	توقّف المسار السابق. يرجى اختيار مسار جديد وإعادة إدخال المفتاح.
-3019	يُنصح بتحديد سقف للإنفاق في لوحة المزوّد وتدوير المفتاح فوراً عند الاشتباه بتسربه.
-3020	ملخص الاستخدام الشهري
-3021	قالب توضيحي (استبدله بعنوان الخدمة الفعلي)
-3022	يتم إعداد الاتصال بطرف ثالث من قِبلك، ويمكن للخدمة الاطلاع على مفتاحك وكودك ومحادثاتك. استخدم خدمات موثوقة فقط.
-3023	محادثات غير محفوظة
-3024	تشغيل الآن
-3025	يعمل تلقائياً في الموعد المحدد داخل المجلد المختار ويحفظ النتيجة كجلسة؛ تُرفض طلبات التأكيد تلقائياً، وتُعالج المهام الفائتة حسب إعداد كل مهمة.
-3026	عند بلوغ الحد تُتخطى بقية مهام اليوم (يُحتسب إنفاق الواجهة الرسمية فقط دون استدعاءات الطرف الثالث).
-3027	تُعطَّل المهام المجدولة افتراضياً للاشتراكات الشخصية؛ تحقّق من شروط الخدمة قبل التفعيل (مفاتيح API غير مقيدة).
-3028	تم تجاهل هذه المرة
-3029	تستخدم حالياً استدعاء طرف ثالث: لا يدخل في سقف التكلفة ويخضع فقط لحد المدة لكل تشغيل.
-3030	مسجّل باشتراك شخصي: التشغيل التلقائي المتكرر قد يفعّل قيود المزوّد، لذا يُنصح باستخدام مفتاح API.
-3031	مرحباً بك في المجموعة للنقاش العام؛ وللإبلاغ عن الأخطاء يُفضّل «الإعدادات ← ملاحظات على GitHub» (يرفق الطراز والفحص الذاتي تلقائياً).
-3032	نرحّب بالمساهمة في الترجمة والاختبار والتوثيق والتطوير — راجع دليل المساهمة في المستودع.
-3033	المتصفح الخارجي غير محمي بصندوق العزل؛ يمكن للنصوص قراءة ملفات المجلد والوصول للخدمات المحلية. تابع للصفحات الموثوقة فقط.
-3034	ملف ثنائي، لا يمكن فتحه كنص.
-3035	السماح لهذه الصفحة بالاتصال بالإنترنت؟\n\nعند الاتصال قد ترسل النصوص البرمجية ملفات المجلدات المجاورة (حتى 3 مستويات للأعلى). فعّله للصفحات الموثوقة فقط.
-3036	الملف كبير جداً ({size}). انتقل إلى «التخطيط الأصلي» لمعاينته كـ PDF أو افتحه بتطبيق خارجي.
-3037	جارٍ تثبيت LibreOffice في الخلفية…
-3038	[انتهت العملية]
-3039	[فشل الإرسال، البوابة تعيد الاتصال]
-3040	عرض مدة كل جولة والخط الزمني لاستدعاء الأدوات
-3041	للمرة الأولى؟ اضغط «كيفية القراءة» أعلى اليسار للتعرّف السريع
-3042	توجد رسالة مماثلة بالأسفل لم تُحفظ بعد؛ انتظر انتهاء الجولة الحالية قبل إضافة علامة
-3043	لا توجد علامات بعد. اضغط أيقونة العلامة أسفل أي رسالة لإضافتها.
-3044	صفحة تفاعلية (HTML)
-3045	جارٍ إعادة تحميل الواجهة…
-3046	لا يدعم إصدار التطبيق الحالي الاستعادة التلقائية؛ حدّث التطبيق أو أعد تشغيل البوابة
-3047	إذا علِق التمرير، اضغط مطولاً على شريط العنوان العلوي لنحو 0.6 ثانية للاستعادة
-3048	توقفت الاستعادة التلقائية؛ تعديل الإعدادات لن يرفع القفل. شغّل التشخيص أدناه وأعد ضبط عدّاد المحاولات.
-3049	فشل التحقق من الجسر وتوقفت الاستعادة التلقائية (حفظ الإعدادات لن يزيل العطل)؛ شخّص وأصلح أولاً.
-3050	الجسر معطّل (حفظ الإعدادات لن يعيد تفعيله). فعّل المكوّن من صفحة الإضافات أولاً.
-3051	مكوّن الجسر غير متاح حالياً؛ تحقق من حالة التثبيت (لا يُعاد ضبط محاولات الاستعادة تلقائياً).
-3052	يلزم تحديث مكوّن الجسر قبل استخدامه.
-3053	الجسر غير جاهز؛ راجع التشخيص أدناه (الجلسة الحالية دون تغيير وحفظ الإعدادات لا يعيد ضبط محاولات الاستعادة).
-3054	الجسر مشغول حالياً، حاول مجدداً بعد قليل.
-3055	فشل فحص اتساق الإعدادات. اتبع التعليمات أدناه ولا تحذف المجلدات مباشرة.
-3056	تعذّر قراءة إعدادات الجسر. ارجع إلى الإضافات وأعد المحاولة.
-3057	استخدم عنوان HTTPS API خالياً من بيانات الدخول والمعاملات والأجزاء.
-3058	أدخل عنوان Chat Completions — واجهة Responses API غير مدعومة حالياً.
-3059	تعذّر إكمال المسار تلقائياً؛ أدخل عنوان /chat/completions كاملاً.
-3060	يدعم إعداد عدة واجهات متوافقة مع OpenAI ويسري بعد الحفظ.
-3061	يقرأ الحالة المحلية فقط دون تعديل الإعدادات أو الاتصال بالمزوّد.
-3062	انسخ إعدادات الجسر احتياطياً قبل النقل أو إعادة التثبيت (العناوين والمفاتيح والنماذج فقط؛ دون سجل المحادثات).
-3063	لا تشارك ملفات الإعدادات التي تحتوي على مفاتيح بشكل علني.
-3064	أدخل عنوان API الخاص بالمزوّد (وليس صفحة تسجيل الدخول).
-3065	جلب قائمة النماذج تلقائياً (يرسل مفتاح API إلى الخدمة المحددة)
-3066	إعادة الجلب
-3067	ابحث عن اسم النموذج أو اكتبه يدوياً
-3068	بعد الإضافة يمكنك ضبط نافذة السياق والنموذج الافتراضي لكل نموذج.
-3069	يعتمد النافذة المُعادة من الواجهة، أو 200,000 رمز افتراضياً مع إمكانية التعديل.
-3070	ستُرسل المحادثات ونتائج الأدوات والصور إلى الخدمة المحددة.
-3071	لم يُختبر الاستدلال
-3072	تمت المزامنة مع «الإعدادات ← المزودات والنماذج».
-3073	يمكن للجلسات الأخرى التبديل إليه من شريحة النموذج أسفل حقل الإدخال.
-3074	يفحص فروق الإعدادات المحلية ويُعدّ خطة مزامنة (الفحص للقراءة فقط).
-3075	يزامن قائمة النماذج والنموذج الافتراضي وطريقة المصادقة فقط؛ لا يشغّل/يوقف الخدمة ولا يغيّر المفاتيح أو ملفات التشغيل أو قفل الاستعادة أو الجلسة الحالية (صالح لـ 60 ثانية).
-3076	تأكيد مزامنة السجل
-3077	تأكد من تحديث التطبيق والمكوّن؛ وإذا كانت هناك جلسة قيد التشغيل فانتظر انتهاءها قبل الفحص.
-3078	عند توقف الاستعادة التلقائية أو فشل التحقق، لن ترفع المزامنة قفل الاستعادة؛ راجع التشخيص أولاً ثم حدّث أو أعد التثبيت من الإضافات دون حذف مجلد التشغيل.
-3079	عند الإبلاغ عن مشكلة أرفق رقم الإصدار ورمز التشخيص فقط، ولا ترفق المفاتيح أو الإعدادات الكاملة.
-3080	ستؤدي إعادة الفحص إلى مسح المدخلات غير المحفوظة في هذه الصفحة. متابعة؟
-3081	يتطلب إضافة عدة واجهات تحديث مكوّن الجسر أولاً؛ ويظل الإعداد الفردي الحالي صالحاً للاستخدام.
-3082	حرّر واجهة واحدة في كل مرة؛ تسري جميع التغييرات عند الضغط على «حفظ الإعدادات».
-3083	حدّد الخيار لجلب القائمة تلقائياً، أو اكتب الاسم يدوياً.
-3084	إزالة الواجهة «{name}» ونماذجها؟ (يسري بعد حفظ الإعدادات)
-3085	الجسر مشغول، يرجى المحاولة لاحقاً.
-3086	انتهت صلاحية خطة الإصلاح أو تغيرت الحالة؛ يرجى إعادة الفحص.
-3087	لم يُعثر على فروق قابلة للمزامنة؛ إذا استمرت المشكلة فافتح التعليمات أدناه.
-3088	تعذّرت المزامنة التلقائية في الحالة الراهنة؛ اتبع الخطوات أدناه ولا تحذف المجلدات.
-3089	جارٍ فحص العناصر القابلة للمزامنة…
-3090	يمكن مزامنة {n} نماذج وطريقة المصادقة.
-3091	خطة المزامنة جاهزة — أكّد للكتابة.
-3092	تأكيد مزامنة سجل واجهة الجسر؟\n\nيحدّث قائمة النماذج والنموذج الافتراضي وطريقة المصادقة فقط دون المساس بالعنوان والمفتاح.
-3093	جارٍ مزامنة سجل الواجهة…
-3094	لم تتأكد نتيجة المزامنة؛ أعد فحص الحالة ولا تكرر الإرسال.
-3095	كُتبت الواجهة لكن لم يكتمل الربط؛ يرجى إعادة فحص الحالة.
-3096	تمت مزامنة سجل الواجهة.
-3097	عنوان الواجهة أو طريقة المصادقة أو سجل الاتصال المحلي لا يطابق الجسر.
-3098	تنسيق قائمة النماذج المحفوظة أو محتواها غير متطابق.
-3099	فشل قراءة سجل ربط واجهة الجسر أو التحقق من تنسيقه.
-3100	تسجيل الخدمة المحلية لا يطابق سجل الاتصال.
-3101	علامة ملكية مجلد التشغيل الافتراضي غير متطابقة؛ تحقق من الإعداد السابق أو حالة المجلد.
-3102	فشل الفحص الذاتي لأمان المكوّن (دون تحديد العنصر).
-3103	تعارض في الإعدادات (لم يُحدّد المكوّن القديم السبب؛ قد يتعلق بملفات التشغيل أو الملكية أو سجل الواجهة).
-3104	المكوّن غير متاح
-3105	الجسر مشغول
-3106	تعذّر قراءة حالة الجسر
-3107	كُتبت الإعدادات لكن لم تكتمل الخطوات اللاحقة؛ أعد فحص الحالة أولاً.
-3108	لم يكتمل الحفظ؛ راجع التنبيه أعلاه.
-3109	تحقق أولاً من إصداري التطبيق والمكوّن ولا تحذف أو تعدّل مجلدات التشغيل.
-3110	تغيّر عنوان الخدمة — أعد إدخال مفتاح API (لن يُرسل المفتاح القديم إلى عنوان جديد).
-3111	المفتاح المحفوظ لا يُعرض؛ اتركه فارغاً للإبقاء عليه أو أدخل مفتاحاً جديداً لاستبداله.
-3112	جارٍ حفظ الإعدادات…
-3113	الحفظ لا يستدعي النماذج البعيدة ولا يبدّل الجلسة الحالية (تمت قراءة قائمة النماذج؛ الاستدلال لم يُختبر).
-3114	أدخل عدداً صحيحاً بين 1024 و16777216 (يدعم 256k و1m)، أو اتركه فارغاً للقيمة الافتراضية.
-3115	أدخل اسم نموذج صالحاً (دون فواصل أو أسطر جديدة).
-3116	أدخل مفتاح API صالحاً لجلب القائمة تلقائياً.
-3117	أُلغي الجلب — أعد المحاولة أو اكتب الاسم يدوياً.
-3118	جارٍ التحضير لجلب قائمة النماذج…
-3119	أعد إدخال مفتاح API ثم حاول مجدداً.
-3120	قائمة النماذج فارغة — اكتب الاسم يدوياً أو أعد المحاولة.
-3121	تم جلب {count} نموذجاً (الحد 500) — ابحث أو اكتب يدوياً.
-3122	جارٍ الحفظ…
-3123	تم جلب القائمة، لم يُختبر الاستدلال
-3124	الجسر المحلي جاهز
-3125	توقفت الاستعادة التلقائية
-3126	فشل التحقق من الجسر
-3127	الجسر معطّل
-3128	حُفظت الإعدادات، الجسر غير جاهز
-3129	تعارض في معرّف النموذج أو تجاوز 200 حرف أو 100 نموذج إجمالاً؛ عدّل القائمة قبل الحفظ.
-3130	تأكيد حفظ جميع إعدادات الواجهات؟\n\nستُرسل المحادثات ونتائج الأدوات والصور حسب النموذج إلى:\n{origins}
-3131	تأكيد حفظ إعداد هذه الواجهة؟\n\nستُرسل المحادثات ونتائج الأدوات والصور إلى {origin}.\n({verification})
-3132	لم يجتز عنوان API التحقق؛ راجعه وأعد المحاولة.
-3133	أعد إدخال مفتاح API (لا يمكن استخدام المفتاح القديم مع عنوان جديد).
-3134	لم يكتمل الحفظ؛ تحقق من الحالة المحلية وأعد المحاولة.
-3135	تعذّر اختيار هذه الواجهة لجلسة جديدة؛ أعد المحاولة.
-3136	انتهى أمر الخلفية لكن المحرك لم يستجب منذ {d}؛ يمكنك الضغط على إيقاف أو إرسال رسالة جديدة.
-3137	لم يكتمل إعداد الجسر؛ تحقق من الحقول أو حالة المكوّن وأعد المحاولة.
-3138	تعارض في حالة الإرسال — يرجى إعادة الإرسال.
-3139	انقطع اتصال المزوّد مبكراً وقد يكون الرد ناقصاً؛ أرسل «متابعة» لإكماله.
-3140	هذه الواجهة غير مدعومة في Antigravity: يلزم ضبط protocol:"gemini" (نقطة نهاية Gemini) أو التبديل لتسجيل دخول Google.
-3141	إعداد Claude المسبق ({id}) غير متاح في وضع Antigravity الخالص؛ استخدم تسجيل دخول Google أو واجهة Gemini.
-3142	مداخلة (إضافة إلى الجولة الحالية)
-3143	↩ استعادة المسودة الممسوحة
-3144	تسري التعديلات اعتباراً من الرسالة التالية.
-3145	سجل عام (دون مراجعة رسمية)؛ تعمل حزم npm محلياً على جهازك، فتحقق من المصدر قبل التثبيت.
-3146	تشغيل أوامر تلقائياً عند أحداث محددة (قبل/بعد الأدوات أو الإرسال أو انتهاء الرد) لاعتراض العمليات أو إثراء السياق أو التنسيق.
-3147	لون الأزرار والروابط والعناصر المحددة (يتكيف التباين تلقائياً مع المظهر الفاتح والداكن)
-3148	تثبيت في الشريط أو نقل إلى «⋯» أو إخفاء؛ اسحب المقبض الأيسر لإعادة الترتيب
-3149	يدعم ttf / otf / woff / woff2 (حتى 40 ميغابايت، بحد أقصى 10)؛ فعّله من «مخصص…» أعلاه بعد الاستيراد
-3150	عند الإيقاف يُخفى من قائمة النماذج مع الاحتفاظ بالإعدادات والمفتاح
-3151	توليد عنوان الجلسة تلقائياً بعد أول رد (يستهلك رموزاً قليلة ويمكن تخصيص نموذج خفيف)
-3152	يطلب التأكيد دائماً عند قراءة بيانات الاعتماد (.env / SSH / API Key) أو قراءة/لمس الشاشة أو الحافظة أو المشاركة الخارجية (حتى مع «السماح للكل») للحماية من حقن الأوامر.
-3153	يضغط الجلسات التي تتجاوز 200 ألف رمز تلقائياً بعد خمول ~54 دقيقة لتقليل التأخير واستهلاك الرموز.
-3154	يتطلب تطبيق «Work Island» لعرض التقدم وطلبات التأكيد على سحابة ColorOS 16 التفاعلية (يختفي بعد 8 ثوانٍ).
-3155	يتيح القراءة والكتابة خارج مساحة العمل عبر additionalDirectories ويضيف اختصارات في متصفح الملفات.
-3156	يتجاوز مؤقتاً القواعد المخصصة والمهارات والإضافات وHooks وMCP دون تعديل الملفات؛ أوقفه للاستعادة.
-3157	تشغيل جلسات مختلفة بالتوازي (تستهلك كل منها بضع مئات ميغابايت من الذاكرة؛ 1 = بالتسلسل).
-3158	يعترض استدعاءات النظام المحظورة في أندرويد للعودة لمسار متوافق ومنع انهيار أدوات Go الثابتة (يسري من الرسالة التالية).
-3159	يُختار تلقائياً حسب الحزمة: تنفيذ مباشر على targetSdk 28، وعبر محمّل النظام على targetSdk 36 (يسري بعد إعادة تشغيل البوابة).
-3160	السماح بإيقاف تطبيقات الخلفية خارج القائمة البيضاء (يتطلب Shizuku)
-3161	يوقف تطبيقات الخلفية قبل الأوامر الثقيلة (<code>cc-mem run -- cmd</code>)؛ ويُبقي الواجهة وتقسيم الشاشة وتطبيقات الإشعارات الدائمة (الوكيل/الموسيقى) والمشغّل ولوحة المفاتيح وإمكانية الوصول وVPN وShizuku والقائمة البيضاء.
-3162	يحتفظ بالجلسات المحلية دائماً ولا تُنقل لسلة المحذوفات إلا بالحذف اليدوي.
-3163	عدم طلب تأكيد لكل أمر مميّز (على مسؤوليتك): تنفيذ أوامر Shizuku دون نافذة خلال المهلة؛ يظل اعتراض الأوامر التي تمسّ هذا التطبيق أو Shizuku قدر الإمكان دون ضمان رصد كل صيغ الالتفاف. للسماح في جلسة واحدة حدّد الخيار في نافذة التأكيد
-3164	يوفر targetSdk 28 أفضل توافق افتراضياً؛ وعند رفض التثبيت على الأجهزة الحديثة يتحول تلقائياً إلى targetSdk 36 دون فقدان البيانات.
-3165	يحدّث Antigravity CLI بصمت؛ وينبّه لتثبيت تحديث التطبيق بعد تنزيله (أو يثبته وقت الخمول عبر Shizuku)؛ وتُنزّل الحزمة مسبقاً عبر Wi‑Fi للتثبيت عند التشغيل التالي.
-3166	يجلب إشعارات الصيانة الموقّعة كل 3 ساعات (طلب ثابت بلا أي بيانات عن الجهاز)؛ ويتوقف تماماً عند الإغلاق.
-3167	مغلق افتراضياً: يستخدم وسيط طرف ثالث فقط عند تعذر المصدر الرسمي والمرآة معاً (يرى الوسيط عنوان IP العام، مع استمرار التحقق الإلزامي من التجزئة والتوقيع).
-3168	تصدير السجلات المنقّاة وحالة البيئة (دون المفاتيح أو البريد أو المحادثات) لتسهيل التشخيص أو إرفاقها ببلاغ.
-3169	تصدير حزمة التشخيص
-3170	يفتح صفحة بلاغ جديد مع تعبئة الطراز وإصدار النظام والفحص الذاتي مسبقاً (دون سجلات أو محادثات).
-3171	يعيد ضبط إعدادات المستخدم والتطبيق وملفات بدء الصدفة (مع نسخها احتياطياً إلى ~/.ccapp-reset)؛ ويحتفظ بالجلسات ومساحة العمل والحزمة والمفاتيح افتراضياً.
-3172	يفحص حالة المترجمات وPython وNode وgit وغيرها ويزود Antigravity بالنتيجة (يُعاد تلقائياً بعد التحديث).
-3173	تعذّر تحميل الواجهة — اضغط لإعادة المحاولة
-3174	الحفظ لا يستدعي النماذج البعيدة ولا يبدّل الجلسة الحالية.
-3175	لم يجتز Antigravity CLI فحص السلامة، لذلك لم يُشغَّل: {why}
-3176	المحرك الحالي (Antigravity CLI) لا يدعم التراجع عن نقاط التحقق للملفات بعد
-3177	المحرك الحالي (Antigravity CLI) لا يدعم إدارة متاجر الإضافات بعد
-3178	المحرك الحالي (Antigravity CLI) لا يدعم هذا الأمر الفرعي لـ MCP بعد
-3179	إعداد MCP ليس JSON صالحاً
-3180	المجلد المشترك /sdcard/hachimia
-3181	تم حظر كتابة محتوى قد يؤثر على أمان الجولة التالية: {what}
-3182	رفض الوكيل تعيين النموذج «{model}» ({msg})، ويتم التشغيل بالنموذج الافتراضي.
+2432	اكتمل الرد
+2433	حدث خطأ في الرد
+2434	نُقل {n} إلى المهملات، وفشل {m}: {msg}
+2435	أُرفق {n}، وفشل {m}: {msg}
+2436	فشل البحث: {msg}
+2437	تعذّرت قراءة قائمة الملفات: {msg}
+2438	الملف كبير جدًا ولم يقبله الخادم
+2439	لم يتعرّف الخادم على الملف المرفوع
+2440	أعاد الخادم {status}
+2441	جارٍ تحميل المحادثة…
+2442	لم يتم الحذف: {msg}
+2443	لا يزال رفع {n} ملف(ات) جاريًا؛ أرسل بعد الانتهاء.
+2444	لم يتم تثبيت النص البرمجي المدمج: {msg}
+2445	لم يتم تثبيت النص البرمجي المدمج: {msg}؛ لم تُحفظ القاعدة
+2446	تعذّر الحصول على حالة التحديث: {msg}
+2447	تُعرض أول 1000 عنصر فقط
+2448	لم يُثبَّت الدمج بعد: إمّا تثبيت كل التغييرات معًا، أو التراجع أولًا عن التغييرات التي لا تريد تثبيتها.
+2449	فشل النسخ؛ اضغط مطوّلًا لتحديد النص ثم انسخه
+2450	مشروع محذوف ({id})
+2451	نُسخت آخر 3000 سطر
+2452	مضبوط على {line} (نافذة النموذج غير معروفة؛ تُستخدم قيمتك)
+2453	تعذّرت قراءة متاجر الإضافات: {msg}
+2454	اسم الملف طويل جدًا (الحد الأقصى 255 بايت؛ الحرف الصيني يُحسب 3)
+2455	الملف غير موجود بعد
+2456	فشل التحقق من التحديثات
+2457	لا إذن للوصول إلى هذا الموقع (يتطلب التخزين المشترك «الوصول إلى كل الملفات» في إعدادات النظام)
+2458	لا إذن للوصول إلى هذا المجلد (يتطلب التخزين المشترك «الوصول إلى كل الملفات» في إعدادات النظام)
+2459	لا إذن لقراءة هذا الموقع (يتطلب التخزين المشترك «الوصول إلى كل الملفات» في إعدادات النظام)
+2460	فشل المسح: {msg}
+2461	انتهت عملية الطرفية؛ لم يُرسل الإدخال
+2462	تعذّرت قراءة قائمة المكوّنات المخصّصة: {msg}
+2463	تعذّرت قراءة سجلّ التثبيتات
+2464	تعذّرت قراءة حالة هذا الملف
+2465	تعذّرت قراءة قائمة ملفات هذا التثبيت
+2466	هناك تعارضات لم تُحلّ؛ أكملها قبل التثبيت.
+2467	تعذّر رسم هذه الصفحة
+2468	لا يمكن قراءة هذا الموقع
+2469	هذا المجلد لم يعد مستودع git
+2470	لا يحتوي هذا المجلد على SKILL.md (ربما بقي من استيراد لم يكتمل)؛ يمكنك حذفه.
+2471	يتوسّع هذا الجدول داخليًا أكثر من اللازم لفتحه بأمان.
+2472	معلومات نطاق هذه الورقة تالفة ولا يمكن قراءتها
+2473	لا يمكن قراءة هذه الملفات النظامية الوهمية بهذه الطريقة
+2474	تعليمات المشروع غير محفوظة؛ الرجوع سيتجاهل هذه التغييرات. هل تريد الرجوع؟
+2475	لم تُرجع خدمة المعاينة عنوانًا
+2476	تعذّر تحميل المساعدة: {msg}
+2477	تعذّر تحميل سجلّ التغييرات: {msg}
+2478	حزمة المهارات أكبر من 64 ميغابايت؛ فكّ ضغطها واستورد المهارات واحدة تلو الأخرى
+2479	قيمة حقل cron غير صالحة: {f}
+2480	قيمة حقل cron خارج النطاق: {f}
+2481	خطوة cron غير صالحة: {f}
+2482	تعبير cron يحتاج إلى خمسة حقول: الدقيقة الساعة اليوم الشهر يوم الأسبوع
+2483	«{n}»: مجلد مشروع المهمة لم يعد موجودًا. حرّر المهمة واختر مشروعًا أو مجلدًا آخر
+2484	لم تُحفظ الإشارات المرجعية: التخزين ممتلئ أو لا توجد صلاحية
+2485	مجلد مشروع المهمة لم يعد موجودًا. حرّر المهمة واختر مشروعًا أو مجلدًا آخر
+2486	تعذّر كتابة الجلسة المتفرعة على القرص: {err}
+2487	المهمة التي تُنفَّذ مرة واحدة تحتاج إلى تاريخ
+2488	وقت البدء يجب أن يكون 0–23 ساعة، 0–59 دقيقة
+2489	يجب أن يكون التاريخ بصيغة YYYY-MM-DD
+2490	الوقت يجب أن يكون 0–23 ساعة، 0–59 دقيقة
+2491	اختر يومًا واحدًا على الأقل (أعداد صحيحة 1–7)
+2492	يوم الشهر يجب أن يكون 1–31 أو «آخر يوم»
+2493	الفاصل يجب أن يكون عددًا صحيحًا من 1 إلى 24 ساعة
+2494	تعذّر الحفظ: التخزين ممتلئ أو لا توجد صلاحية
+2495	وقت الانتهاء يجب أن يكون 0–23 ساعة، 0–59 دقيقة
+2496	(النص طويل جدًا؛ تُعرض أول {n} حرفًا)
+2497	في الوضع الآمن لا تُطبَّق الأوضاع التي لا تسأل؛ الآن «السؤال في كل مرة»
+2498	لم تُحفظ الإعدادات؛ سيعود وضع الأذونات السابق بعد إعادة التشغيل
+2499	كانت الرسالة الأصلية طويلة جدًا؛ تمت استعادة أول 65,000 حرف فقط
+2500	لا يمكن جلب إشعارات الأمان الآن
+2501	جارٍ جلب إشعارات الأمان…
+2502	تغيّر المضيف وتم مسح المفتاح القديم؛ يرجى إدخاله من جديد
+2503	انقضى وقت إعادة الضبط؛ سيُحدَّث بعد الرسالة التالية
+2504	تم إنشاء المشروع؛ كان المجلد يحتوي على CLAUDE.md بالفعل، لذا لم تُكتب التعليمات التي أدخلتها
+2505	دخول رسمي · مسجّل للدخول
+2506	دخول رسمي · غير مسجّل للدخول
+2507	دخول رسمي · تعذّر تحديد حالة تسجيل الدخول
+2508	دخول رسمي · كان مسجّلًا للدخول عند آخر فحص
+2509	دخول رسمي · لم يكن مسجّلًا للدخول عند آخر فحص
+2510	سجّل الدخول إلى حسابك
+2511	تسجيل الدخول ما زال جاريًا؛ سيُفتح رابط التفويض بمجرد وصوله.
+2512	حذف الطراز «{id}»؟ سيُحذف الملف من مجلد الطرازات.
+2513	تم حذف الطراز «{id}»
+2514	تم استيراد {n}؛ ثم فشل: {msg}
+2515	تم تحديث صندوق الأدوات؛ لا يوجد إصدار متوافق بعد
+2516	تم تحديث صندوق الأدوات ولا يوجد في فهرس المكوّنات إصدار متوافق معه بعد. حدّث صندوق الأدوات أولًا، أو اضغط «البحث عن تحديثات» لإعادة جلب الفهرس.
+2517	الحد الأدنى لخط الضغط هو 100k؛ تم الحفظ على 100k
+2518	تعذّر كتابة سجل التثبيت (التخزين ممتلئ أو لا توجد صلاحية)، ولم يستمر هذا التثبيت
+2519	وُضعت الملفات في مكانها، لكن سجل التثبيت لم يُكتب (التخزين ممتلئ أو لا توجد صلاحية). أعد التثبيت أو أزل
+2520	تعذّر كتابة سجل المكوّن (التخزين ممتلئ أو لا توجد صلاحية)، ولم يكتمل هذا التثبيت
+2521	أعادت نقطة النهاية {s} لكن ليس بالتنسيق المتوقع، لذا لا يمكن تأكيد صلاحية المفتاح: {what}
+2522	(فارغ)
+2523	أبلغ الخادم عن خطأ في نهاية الرد ({msg})؛ عُدّ الرد مكتملاً. إن بدا ناقصاً فأرسل «تابع».
+2524	المسار «{ep}» الذي اختير لـ {name} لم يعد موجوداً. اختر مساراً من الإعدادات وأدخل مفتاحه من جديد.
+2525	يستخدم هذا العنوان http غير مشفّر: يُرسل مفتاحك والمحادثة إلى الجهاز الآخر دون تشفير. انتقل إلى https إن أمكن.
+2526	تعمل المهام المجدولة في دور مستقل: تُنقل إلى المقدمة وتبدأ فور انتهاء الدور الحالي
+2527	يتوقف عند التجاوز ويُحتسب فشلًا؛ ينطبق على الواجهة الرسمية فقط
+2528	تغيّر المسار — حُذف المفتاح القديم، أدخله مجددًا
+2529	تعذّر تحميل السجل: {msg} 
+2530	أثناء التثبيت حُذف {n} من الملفات المشتركة بسبب إزالة تثبيت — أعد التثبيت
+2531	النموذج المحلي {model} المثبّت لهذه الجلسة لم يعد موجودًا — اختر نموذجًا آخر من لوحة النماذج
+2532	جارٍ التحقق من ملف النموذج المحلي…
+2533	عُدّل ملف النموذج المحلي (المجموع الاختباري غير مطابق)، فلن يُحمَّل حفاظًا على الأمان: {file}
+2534	ملف النموذج المحلي ليس بصيغة GGUF (ربما عُدّل)، فلن يُحمَّل: {file}
+2535	انتهت مهلة تسجيل الدخول (15 دقيقة)
+2536	لا يزال تسجيل الدخول جاريًا — ستُفتح صفحة التفويض فور وصول عنوانها
+2537	معلومات تنزيل هذه الوحدة غير مكتملة — حدّث حزمة الأدوات أولًا
+2538	حزمة الوحدة تفتقد قائمة الملفات (MANIFEST)، فلن تُثبَّت حفاظًا على الأمان
+2539	تحتوي قائمة ملفات حزمة الوحدة على مسار غير صالح: {file}
+2540	لم تكتمل الإعدادات الأولى للوحدة «{name}» ({err})؛ ستُعاد المحاولة عند تثبيتها مجددًا
+2541	تعذّر حفظ قائمة المشاريع (التخزين ممتلئ أو غير قابل للكتابة)؛ سيضيع هذا التغيير بعد إعادة التشغيل
+2542	تعذّر نقل {n} من المحادثات إلى سلة المحذوفات، لذا لم يُحذف المجلد: {why}
+2543	حُذف {n} من الملفات المشتركة التي يعتمد عليها المكوّن «{id}»
+2544	أوقف النظام البوابة قبل أن ينتهي هذا التشغيل
+2545	انتهت المهلة
+2546	لا يوجد ناتج
+2547	جارٍ الفحص الذاتي… (يستغرق دقيقة أو دقيقتين)
+2548	آخر تشغيل {time}: نجح {pass}، وفشل {fail}
+2549	قيس قبل تحديث حزمة الأدوات أو التطبيق
+2550	لا توجد نتائج للفحص الذاتي بعد
+2551	لم يُخرج التشغيل الأخير أي نتيجة: {why}
+2552	الفحوص الفاشلة
+2553	لا يسمح النظام لهذا التطبيق بتشغيل خدمة Work Island، لذا لا يظهر شيء.
+2554	لم يُعثر على تطبيق Work Island — ثبّته ثم اضغط إعادة المحاولة.
+2555	الفحص الذاتي للجهاز
+2556	إعادة الفحص الذاتي
+2557	أسبوعيًا · {model}
+2558	المدة
+2559	ساعة واحدة
+2560	4 ساعات
+2561	يوم واحد
+2562	3 أيام
+2563	7 أيام
+2564	تعذّر حذف سجل الجلسة الأصلي، لذا بقيت الجلسة في مكانها: {err}
+2565	لم يكتمل هذا الدور: أُعيد تشغيل البوابة أثناء تحديث التطبيق (بدأ {when}).
+2566	لم يكتمل هذا الدور: أُوقفت البوابة أو أُعيد تشغيلها (بدأ {when}).
+2567	مجلد العمل {dir} لم يعد موجودًا (حُذف أو أُعيدت تسميته أو أُزيلت بطاقة التخزين)، لذلك لم يُنفَّذ هذا الدور. أعد المجلد أو غيّر المسار في إعدادات المشروع ثم أرسل مجددًا.
+2568	انقطع هذا الدور قبل أن يبدأ (أُرسل {when}).
+2569	المحادثة أطول من حد سياق النموذج. شغّل ‎/compact ثم تابع، أو ابدأ محادثة جديدة.
+2570	رفضت الواجهة المفتاح: تحقّق في الإعدادات ← الواجهات من أن مفتاح API صحيح ولم تنتهِ صلاحيته أو يُعطَّل.
+2571	نفد رصيد الحساب أو حصته: اشحن الرصيد أو راجع الحصة من لوحة تحكم المزوّد.
+2572	طلبات كثيرة جدًا أو بلغت حد الاستخدام: انتظر قليلًا ثم أعد المحاولة.
+2573	لا تجد الواجهة هذا النموذج أو العنوان: تحقّق من اسم النموذج وعنوان الواجهة.
+2574	حدث خطأ لدى المزوّد أو أنه مُثقل: أعد المحاولة لاحقًا. إن تكرر ذلك فبدّل النموذج أو الواجهة.
+2575	تعذّر الوصول إلى الواجهة: تحقّق من الشبكة أو من صحة عنوان الواجهة.
+2576	يحتوي الأرشيف على ملفات كثيرة جدًا ({n}، بحد أقصى {max})؛ لم يتم الاستيراد
+2577	تُعرض أول {n} فقط؛ استخدم عامل التصفية
+2578	استخراج المحدد ({n})
+2579	ضغط ({n})
+2580	أرشيف: اضغط «فتح الأرشيف» لتصفح ملفاته، أو استخرجه مباشرة
+2581	فتح الأرشيف
+2582	استخراج…
+2583	عند التعطيل لن يراه Claude. تبقى ملفات الأوامر، ويمكنك تفعيله في أي وقت.
+2584	الاسم فقط
+2585	فقط عندما تستدعيه أنت
+2586	وضع المهارة
+2587	يسري من الدور التالي
+2588	معطّل: لن يتصل به Claude. إعداداته محفوظة؛ اضغط تفعيل لإعادته.
+2589	تعطيل خادم MCP {name}؟ تُحفظ إعداداته أولاً، ويمكنك تفعيله في أي وقت.
+2590	تفعيل خادم MCP {name}؟ ستتم إعادة إضافة: {target}
+2591	حذف خادم MCP المعطّل {name}؟ لن تتمكن من تفعيله بنقرة واحدة بعد ذلك.
+2592	الملف ~/.claude/settings.json ليس JSON صالحًا. أصلحه أولاً
+2593	يمكن تعطيل خوادم MCP التي أضفتها بنفسك (نطاق المستخدم) فقط
+2594	تعذّرت كتابة قائمة المعطّلات
+2595	غير موجود في قائمة المعطّلات
+2596	هذا المكوّن غير مثبّت
+2597	لا يمكن تعطيل هذه الوحدة
+2598	ضغط…
+2599	ترميز أسماء الملفات
+2600	إذا ظهرت الأسماء مشوّهة فجرّب ترميزًا آخر
+2601	{n} عنصر
+2602	مشفّر
+2603	استخراج الكل…
+2604	إغلاق الأرشيف
+2605	العودة إلى الأرشيف
+2606	هذا الإصدار لا يتضمن 7-Zip، لذا لا يمكنه فتح هذا النوع من الأرشيفات
+2607	تعذّر فتح الأرشيف: {msg}
+2608	{size} بعد الضغط
+2609	رابط رمزي (لا يُستخرج)
+2610	جارٍ الاستخراج…
+2611	كلمة المرور غير صحيحة
+2612	الملف أكبر من أن يُعاين؛ استخرجه أولًا
+2613	لا توجد مساحة تخزين كافية
+2614	فشل الاستخراج: {msg}
+2615	أدخل كلمة المرور
+2616	كلمة المرور غير صحيحة، حاول مرة أخرى
+2617	موافق
+2618	{n} عنصر محدد
+2619	استخراج {what}
+2620	استخراج إلى
+2621	المجلد الحالي
+2622	كلمة المرور (اتركها فارغة إن لم يكن مشفّرًا)
+2623	لا تُستبدل الملفات الموجودة بالاسم نفسه أبدًا؛ تُعاد تسمية الجديدة إلى «الاسم (2)». لا تُستخرج الروابط الرمزية.
+2624	استخراج
+2625	اكتب مسارًا كاملًا (يبدأ بـ /)
+2626	ضغط «{name}»
+2627	ضغط {n} عنصر
+2628	اسم الأرشيف
+2629	الصيغة
+2630	مستوى الضغط
+2631	تخزين فقط
+2632	الأسرع
+2633	عادي
+2634	أصغر حجم (بطيء)
+2635	كلمة المرور (اختيارية، zip / 7z)
+2636	تشفير أسماء الملفات أيضًا (7z)
+2637	يستخدم zip المشفّر AES-256 وقد لا تفتحه بعض الأدوات القديمة؛ اترك كلمة المرور فارغة لأقصى توافق. لا تُضمَّن مجلدات بيانات الاعتماد مثل .ssh.
+2638	ضغط
+2639	لا يمكن الاستخراج أو الضغط إلى هذا الموقع
+2640	هذا الإصدار لا يتضمن 7-Zip
+2641	لا يمكن حفظ الأرشيف داخل مجلد يجري ضغطه
+2642	جارٍ الاستخراج
+2643	جارٍ الضغط
+2644	تم الاستخراج إلى {path}
+2645	تم الضغط إلى {path}
+2646	تحديد متعدد
+2647	تعذّرت كتابة موجّه النظام في ملف، لذا لم يبدأ هذا الدور: {msg}
+2648	إعادة الإعدادات الأولية
+2649	لم يظهر مربع التأكيد
+2650	إعادة تثبيت هذا المكوّن (سيُنزَّل من جديد)
+2651	إعادة تثبيت وحدة مجموعة الأدوات هذه (ستُنزَّل من جديد)
+2652	إصلاح مجموعة الأدوات: تنزيل هذا الإصدار من جديد وإعادة تثبيته؛ تتوقف الخدمة دقيقة إلى دقيقتين أثناء التثبيت
+2653	إصلاح الكل
+2654	إصلاح
+2655	في الانتظار
+2656	قيد التنفيذ…
+2657	سُلِّم إلى التطبيق
+2658	جارٍ الإصلاح. إغلاق هذه الصفحة لا يوقفه؛ وعند الانتهاء يُعاد الفحص تلقائيًا:
+2659	انتهى الإصلاح:
+2660	تابع الخطوات المسلَّمة إلى التطبيق في الإعدادات ← تحديث، ثم اضغط «تحقق من السجلات» مجددًا بعد انتهائها.
+2661	انتهى الإصلاح، وفشلت {n} خطوة
+2662	انتهى الإصلاح
+2663	سيُصلَح بهذا الترتيب، ثم يُعاد الفحص تلقائيًا:
+2664	إصلاح هذا البند:
+2665	إعادة التثبيت تتطلب التنزيل من الإنترنت؛ ولا تتأثر ملفاتك ومحادثاتك وإعداداتك. متابعة؟
+2666	لم يجتز الفهرس التحقق من التوقيع، فلا يمكن تثبيت المكوّنات
+2667	الإصدار في الفهرس ({v}) أقدم من المثبَّت ({now})؛ رُفض الرجوع إلى إصدار أقدم
+2668	يجري إصلاح أو فحص بالفعل؛ أعد المحاولة عند انتهائه
+2669	لا توجد مشكلات يمكن إصلاحها تلقائيًا
+2670	لا تزال بعض الخطوات قيد التنفيذ في التطبيق:
+2671	الخطوات المسلَّمة إلى التطبيق ما زالت قيد التنفيذ؛ اضغط «تحقق من السجلات» بعد انتهائها
+2672	المتصفح المدمج
+2673	الحزم التي نزّلها pkg
+2674	فهرس السلالة
+2675	جارٍ الفحص…
+2676	يشغل هذا التطبيق {app}؛ والمساحة الحرة على الجهاز {free}
+2677	آخر فحص: {when}
+2678	لم يُفحص بعد
+2679	{n} يومًا حسب إعدادك
+2680	تُحفظ دائمًا
+2681	آخر تنظيف تلقائي: {when}، وتحرّر {size}
+2682	لم يجرِ تنظيف تلقائي بعد
+2683	ذاكرات التخزين المؤقت
+2684	المجموع {size}؛ يُعاد تنزيلها أو بناؤها تلقائيًا عند الحاجة
+2685	قيد الاستخدام
+2686	الجلسة قيد التشغيل
+2687	لم يتغير منذ 7 أيام
+2688	آخر تغيير: {when}
+2689	حذف المحدد
+2690	الملفات المؤقتة
+2691	المجموع {size}، منها {old} لم تتغير منذ 7 أيام. تشمل مخرجات أوامر الخلفية والمجلدات المؤقتة التي تخلّفها الاختبارات وعمليات البناء
+2692	أكبر {n}
+2693	تنظيف الأقدم من 7 أيام
+2694	سجلات التصحيح ولقطات shell وسجلات MCP ونسخ ‎.claude.json الاحتياطية: المجموع {size}؛ يمكن تنظيف {n} عنصرًا ({auto}) (الأقدم من 30 يومًا، مع الإبقاء على أحدث 5 نسخ)
+2695	{n} جلسة، المجموع {size}. لا تُحذف الجلسات تلقائيًا أبدًا؛ احذفها من قائمة الجلسات وستذهب إلى سلة المهملات أولًا
+2696	بيانات تشغيل المكوّنات (~/.cccodroid)
+2697	{name} (مثبّت عبر pkg)
+2698	المجلد المشترك ‎/sdcard/cccodroid
+2699	البرامج وملفاتك
+2700	الأحجام فقط؛ لا يُحذف شيء هنا
+2701	سلة مهملات الجلسات
+2702	{n} عنصرًا، {size}؛ تُفرَغ تلقائيًا بعد 30 يومًا
+2703	برامج متبقية من حزمة أدوات قديمة
+2704	مراجعة
+2705	بيانات تشغيل تركها المكوّن المحذوف {id}
+2706	إحصاءات الاستخدام
+2707	أماكن تنظيف أخرى
+2708	✓ حُذف {n} عنصرًا وتحرّر {size}
+2709	{n} عنصرًا لم يُحذف (قيد الاستخدام أو خارج المجلدات المسموح بها)
+2710	لم يُحدَّد شيء
+2711	حذف {n} من العناصر المؤقتة المحددة؟ لا يمكن التراجع.
+2712	حذف بيانات التشغيل التي تركها {id}؟ ستُنزَّل من جديد عند إعادة التثبيت.
+2713	✓ حُذف
+2714	التخزين
+2715	المساحة المستخدمة
+2716	فحص
+2717	الاحتفاظ بالجلسات
+2718	التنظيف التلقائي
+2719	قائمة API
+2720	إضافة API
+2721	{n} نماذج
+2722	حذف ({n})
+2723	حذف {what} نهائيًا؟ لا يمكن التراجع عن ذلك.
+2724	سيتم حذف المجلدات مع كل ما بداخلها.
+2725	تم حذف {n} عنصر
+2726	يحتوي هذا المجلد على أدلة التطبيق الخاصة أو مساحة العمل ولا يمكن حذفه
+2727	(لم ينتهِ الدور السابق بشكل طبيعي؛ قد يكون الرد أعلاه غير مكتمل)
+2728	تم استيراد الجلسات، لكن تعذّر حفظ العناوين المخصصة (قد تكون المساحة ممتلئة أو لا توجد صلاحية). ستظهر العناوين الأصلية بعد إعادة التشغيل
+2729	تعذّرت قراءة قائمة الجلسات ({msg})، وهذا لا يعني عدم وجود جلسات. تحقق من أذونات التخزين ثم حدّث.
+2730	انتهت مهلة الطلب: لم تستجب البوابة ({n} ث)
+2731	البوابة غير متصلة: {msg} · انقر لإعادة المحاولة
+2732	فشلت الجولة السابقة في الخلفية: {msg}
+2733	أعاد العنوان {s}، لكن نص الاستجابة كبير جداً (أكثر من 8 ميغابايت) لتأكيد صلاحية المفتاح
+2734	انتهت الجولة السابقة، لكن الجولة التالية لم تتلقَّ نتيجة (مقاطَعة)
+2735	المجلد غير موجود: {dir}؛ يُستخدم {cwd} بدلاً منه
+2736	أعادت الواجهة خطأً وليس رداً عادياً:
+2737	الحد الأقصى لسطر الضغط هو 1M؛ تم الحفظ كـ 1M
+2738	تقوم أنظمة HONOR / Huawei وما شابهها بتجميد Shizuku في الخلفية وإبطاء التفعيل: في إدارة التطبيقات → Shizuku فعّل «تجاهل تحسين البطارية».
+2739	أول تسجيل: {time}
+2740	الوقت غير معروف
+2741	متغيرات البيئة، اختياري، مفصولة بفواصل (KEY=قيمة)
+2742	الترويسات، اختياري، مفصولة بفواصل (Header: قيمة)، مثل Authorization: Bearer رمزك
+2743	الترويسات
+2744	الترويسات مطلوبة لـ MCP البعيد: اكتب {bad} بنقطتين بدلًا من =، مثل Authorization: Bearer رمزك
+2745	لا يدعم MCP البعيد متغيرات البيئة: اكتب الترويسات بصيغة Header: قيمة، مثل Authorization: Bearer رمزك
+2746	إزالة من الإعداد
+2747	الترويسات الحالية
+2748	متغيرات البيئة الحالية
+2749	تم حفظ تعديلات {name}
+2750	فشل التعديل: {msg}
+2751	فشل الحفظ: {msg}؛ أُعيد الإعداد القديم كما كان
+2752	فشل الحفظ: {msg}، وتعذّر استعادة الإعداد القديم — يُرجى التحقق يدويًا
+2753	تعذّر فتح المحرر: {msg}
+2754	جارٍ تعديل {name}: اتركه فارغًا = احتفظ بالقيمة، اضغط × للحذف، واكتب للاستبدال
+2755	لم يتم العثور على خادم MCP هذا (لا يمكن تعديل موصلات الحساب)
+2756	يوجد بالفعل خادم MCP بهذا الاسم
+2757	stdio لا يخزّن الترويسات: سيتم إسقاط {names}. متابعة؟
+2758	إذا كان الخادم يعمل على هذا الجهاز، فاملأ http://127.0.0.1:منفذ — عنوان IP المحلي يتغير عند تبديل الشبكة فينقطع الاتصال
+2759	يبدو هذا عنوان شبكة محلية: إذا كان الخادم على هذا الجهاز، فغيّره إلى http://127.0.0.1:منفذ — يتغير IP المحلي فينقطع الاتصال
+2760	دمج ملفات PDF
+2761	استخراج الصفحات
+2762	تقسيم إلى صفحات منفصلة
+2763	تدوير الصفحات
+2764	ضغط PDF
+2765	تحويل PDF إلى صور
+2766	أرقام الصفحات غير صحيحة. استخدم تنسيقًا مثل 1-3,5 وتحقق من عدد الصفحات.
+2767	فشلت معالجة PDF: {code}
+2768	الملف المحدد ليس PDF
+2769	نقل لأعلى
+2770	نقل لأسفل
+2771	حدد ملفات PDF في لوحة الملفات أو اضغط «اختيار PDF…».
+2772	أدوات PDF مفقودة: {tools}. ثبّت «أدوات PDF» من الإضافات ← المكونات الاختيارية.
+2773	جارٍ استيراد PDF…
+2774	جارٍ معالجة PDF…
+2775	اكتملت المعالجة
+2776	لم يقل الحجم بعد الضغط. الملف الأصلي محفوظ.
+2777	فتح مجلد النتائج
+2778	انقطع الاتصال. جارٍ إعادة المحاولة…
+2779	أدوات PDF
+2780	تُعالج الملفات على هذا الجهاز فقط دون استبدال الملفات الأصلية.
+2781	العملية
+2782	فتح المكونات الاختيارية
+2783	إضافة من لوحة الملفات
+2784	اختيار PDF…
+2785	يمكن دمج 20 ملف PDF كحد أقصى. اختر ملفًا واحدًا للعمليات الأخرى.
+2786	الصفحات
+2787	التنسيق: 1-3,5. اتركه فارغًا لتحديد جميع الصفحات.
+2788	زاوية التدوير
+2789	جودة الضغط
+2790	كتاب إلكتروني (ebook)
+2791	ملف صغير (screen)
+2792	طباعة (printer)
+2793	تنسيق الصور
+2794	الدقة
+2795	منخفضة (72 DPI)
+2796	عالية (150 DPI)
+2797	حوّل حتى 100 صفحة في المرة الواحدة. الحد الأقصى للضلع الأطول 2048 بكسل.
+2798	مجلد النتائج (جديد)
+2799	بدء المعالجة
+2800	اختر حتى 20 ملف PDF بحجم إجمالي لا يتجاوز 256 ميغابايت.
+2801	يجب ألا يتجاوز إجمالي صفحات PDF عدد 1000.
+2802	تعذرت معالجة PDF. تأكد من سلامته وعدم وجود كلمة مرور.
+2803	انتهت مهلة المعالجة. قلّل عدد الصفحات وأعد المحاولة.
+2804	هناك مهمة PDF قيد التنفيذ. حاول لاحقًا.
+2805	ثبّت مكون أدوات PDF ثم أعد فتح الأدوات.
+2806	أدخل مجلد نتائج جديدًا في موقع قابل للكتابة.
+2807	تجاوزت النتائج 512 ميغابايت. قلّل الصفحات أو الدقة.
+2808	ملفات
+2809	لم تتم استعادة النسخة الاحتياطية من التثبيت السابق بعد. أعد المحاولة، أو ألغِ التثبيت ثم أعد التثبيت.
+2810	[cc] Error in a script injected by the shell (details hidden by WebView)
+2811	\\[Attachment: (\\/[^\\n]+?) · [^\\n·,\\]]+, file is large and was not read directly, read by path when needed\\]
+2812	Antigravity is requesting tool authorization: {w}
+2813	Antigravity wants to ask you
+2814	Say how it should change (sent back to Antigravity)
+2815	Optional: tell Antigravity why / what to do
+2816	Scheduled
+2817	Antigravity is waiting for your confirmation
+2818	Let Antigravity decide which actions need confirmation
+2819	Ask nothing. Antigravity can delete files and run any command without asking you
+2820	Switch to “Allow everything”?\n\nAntigravity will stop asking and can edit or delete files, run any command and access the network. Only use it when you trust the task and can live with the consequences.
+2821	Sign in with a Google Antigravity account
+2822	Use a personal Google account (Free / Pro / Ultra) or an enterprise account: authorize once in the browser, no key needed.
+2823	Enter a Gemini API Key
+2824	Use a Gemini API Key from Google AI Studio or a custom compatible endpoint, billed by usage.
+2825	Context has reached the auto-compact line; compacting history…
+2826	Background task finished, reported automatically:
+2827	[Attachment: 
+2828	, file is large and was not read directly, read by path when needed]
+2829	Starting Google Antigravity sign-in…
+2830	Google account signed in
+2831	Open the address below in your browser to complete Google authorization, then paste the authorization code under Settings → Providers to submit:
+2832	You can also run {cmd} in the in-app terminal to sign in.
+2833	Interruption sent — it will be seen once the current step finishes
+2834	Antigravity CLI (agy) itself
+2835	The system or hachimia already has a command with this name; pick another one
+2836	hachimia checks these skills before handing them to Antigravity; when calling one with a slash, prefix the name with user:, e.g. /user:{name}.
+2837	This build does not run the hooks configured here: hooks can execute arbitrary commands and put arbitrary content into the conversation, and hachimia cannot check them. The rules stay in the file and will not be deleted.
+2838	Reinstall Antigravity CLI (agy)
+2839	Claude (compatible)
+2840	Third-party provider
+2841	Sign in to a Google Antigravity account
+2842	Google Cloud / enterprise account
+2843	Billed by your Google Antigravity account subscription tier; on-device token stats are on the “Usage” page
+2844	Sign out of the Google Antigravity account on this device?
+2845	The key is stored only in this app's private directory on this device, and is passed to Antigravity CLI only as needed to connect to the matching endpoint.
+2846	AGY blue
+2847	Antigravity's replies
+2848	Shizuku is running but has not been authorized for hachimia
+2849	vivo / iQOO: Settings → Battery → Background power consumption → allow hachimia <b>high background power usage</b>; in iManager allow <b>auto-start</b> (common path)
+2850	Huawei / Honor: Settings → App launch → turn off “Manage automatically” for hachimia, then manually allow <b>auto-start</b> and <b>background activity</b> (common path)
+2851	hachimia has been frozen in the background by the system {n} times (most recent: about {sec} seconds, {at}).
+2852	In system settings, allow hachimia to run in the background, turn off battery optimization, and allow auto-start (each vendor names these differently).
+2853	Authorize for hachimia
+2854	hachimia's wireless debugging pairing has been removed: it still works now, but it cannot auto-activate after a reboot.
+2855	Shizuku was not activated by hachimia: hachimia cannot auto-activate it after a reboot. Pair it once and you're set.
+2856	The system did not notify hachimia at this boot (blocked by the system's “auto-start” management), so it could not auto-activate; opening hachimia will catch up.
+2857	To activate at boot: allow hachimia auto-start / background start in the app details; takes effect at the next boot.
+2858	Antigravity CLI (agy) version
+2859	Uninstall Antigravity CLI (agy)?\n\nThis deletes the downloaded agy program; it will not be reinstalled automatically. Tap “Install” here to download it again when you need it.\n\nSign-in, sessions and settings are kept; sending a message while it is not installed will prompt you to install it first.
+2860	Install the devkit from a local file?\n\nPick a devkit-ha.chi.mia.tar.gz (or .tar), downloadable from the GitHub releases page or hachimia.net. It is checked against the published release before installing; the service pauses for 1–2 minutes during installation.\nThings you installed into the devkit with pip / npm -g are kept.
+2861	Shizuku is not activated yet, so the app cannot toggle accessibility itself: turn on hachimia manually in the system accessibility settings. From Android 13, sideloaded apps must first allow restricted settings via App info → menu in the top-right corner.
+2862	This build has no native layer and only records CPU time (battery, screen-on and foreground time come from hachimia).
+2863	Name (e.g. self-hosted Gemini proxy)
+2864	Auth: x-goog-api-key (Gemini / Antigravity)
+2865	Auth: Authorization: Bearer
+2866	Auth: x-api-key
+2867	Default model name (required, e.g. gemini-3.8-flash)
+2868	Model list URL (optional; Gemini endpoints auto-probe /v1beta/models)
+2869	Context window (optional, in tokens, e.g. 1m; leave empty for the default)
+2870	More models (optional, one per line; you may put the window after the name, separated by a space, e.g. gemini-4-neon 1m)
+2871	Send images with the message (compat): check this when the model cannot read attached images; attachments are then sent directly as multimodal blocks with the message.
+2872	Choosing <b>Gemini / Antigravity</b> auth drives the official <code>agy</code> CLI via <code>GOOGLE_GEMINI_BASE_URL</code> + <code>GEMINI_API_KEY</code>.
+2873	Running Antigravity diagnostics…
+2874	Currently available capabilities
+2875	Fixed
+2876	Workaround
+2877	(Merged from 
+2878	Direct (not needed)
+2879	(Decided by Antigravity)
+2880	Antigravity CLI failed: {msg}
+2881	The Antigravity CLI user-level config has unconfirmed changes. Send a message first, confirm in the card that pops up, then try again.
+2882	Could not fetch the Antigravity CLI version list
+2883	agy install script not found ({p})
+2884	The dev side only manages Antigravity CLI (agy) (you build and install the app itself on this device)
+2885	Updating Antigravity CLI (agy)…
+2886	Could not fetch the Antigravity CLI version list: {err}
+2887	The gateway's own runtime was modified; Antigravity CLI was not started this round. The gateway will restart when idle and restore itself from the install package; send again shortly.
+2888	Antigravity CLI (agy) is not installed. Install it under Settings → Updates first.
+2889	Antigravity CLI (agy) not found
+2890	Settings → Updates: reinstall Antigravity CLI (agy)
+2891	Antigravity CLI (agy) is not installed. Tap “Install” under Settings → Updates.
+2892	The Antigravity CLI user-level config has unconfirmed changes, or an earlier session left background processes behind, so this run did not start. Open hachimia, send a message, and confirm in the card that pops up, then try again.
+2893	Antigravity CLI (agy) is not installed. Install it under Settings → Updates first, then come back to sign in.
+2894	Enterprise sign-in: in the agy sign-in screen, choose “Use a Google Cloud project” → “Continue with Google Cloud” and authorize with your enterprise account.
+2895	Personal sign-in: in the agy sign-in screen, choose “Google OAuth” and authorize with your personal Google account.
+2896	The slash commands, tools, skills and extensions currently available to Antigravity. Tap a slash command to insert it into the input box; a tool's “Allow / Ask / Deny” follows the permission mode and rules.
+2897	For things not in the marketplace, import a Linux arm64 program yourself: a single binary, or a .tar.gz / .zip archive. Missing libraries are filled in automatically and a command is generated, ready to use in Antigravity and in the terminal.
+2898	Save a long prompt you send often as a command and pick it with / in the input box. Text after /command fills $ARGUMENTS in the body, expanded automatically by the gateway when sent to Antigravity.
+2899	Antigravity behavior
+2900	Default color pick (AGY Monet palette); switchable to native, Qiusuo, Zhuyue or Construct
+2901	Font for Antigravity's reply text
+2902	Thinking level (thought_level)
+2903	Levels vary by model (low / medium / high / xhigh). You can also type <code>/effort &lt;level&gt;</code> in the input box.
+2904	Let Antigravity decide
+2905	Empty = let Antigravity decide by window
+2906	Confirm each item by default, same as official agy: it asks in the conversation before editing files or running commands. Allow everything means Antigravity can delete files and run any command without asking. You can also switch anytime via the permission tag under the input box.
+2907	Only clears caches, temp files untouched for 7 days, and expired logs; sessions, your files and programs are never auto-deleted
+2908	When on, run <code>priv 'command'</code> in the terminal as shell (pm / am / settings / dumpsys / logcat / screencap…); Antigravity uses it too. Without Shizuku, basic dev features work as usual — only these debugging abilities are unavailable.
+2909	Auto-activate again after a reboot (needs Wi-Fi; starts the hachimia background service at boot)
+2910	Let Antigravity use device tools (notifications, clipboard, opening links / calendar / alarms, sharing files…)
+2911	Off by default. Turn it on when you want Antigravity to test an app you built, or send files it generated to other apps; while on, each round carries an extra one or two thousand tokens of tool descriptions.
+2912	Antigravity CLI channel
+2913	Plan first
+2914	Interview to align the plan
+2915	Long-term goal
+2916	Multi-agent teamwork
+2917	Deep orchestration
+2918	Capabilities & tools
+2919	Failed to switch permission mode (agent rejected {mode}): {msg}
+2920	Could not restore the previous session (the agent doesn't support resume, or resume failed), so a new session was started. This turn was written to the new session; the old session's history is still kept in local records.
+2921	Compaction not confirmed: context did not shrink (before {pre}, after {post}). Please retry /compact or start a new session.
+2922	Enterprise login: please sign in with your company Google account in the browser
+2923	The authorization code could not be written to agy (stdin is closed). Please start login again.
+2924	The authorization code could not be written to agy (the login process's stdin is closed). Please start login again.
+2925	Login-based providers don't need an API key; sign in through the official flow. The key you entered was not saved.
+2926	Already queued; skipping this duplicate run
+2927	Open this in the app
+2928	Needs npx (included in the hachimia toolkit)
+2929	This build has no native layer, so only CPU time is recorded (battery and screen-on need hachimia).
+2930	The Antigravity CLI program was modified and was not started; 
+2931	Antigravity CLI housekeeping files
+2932	These Claude Code config files contain override-style instructions (telling the model to ignore its rules, posing as system messages and the like). hachimia won't load them, so this turn did not run. Edit or remove the following, then send again:\n{list}
+2933	The command {c} is built into the system or hachimia. Pick another name
+2934	Not a hachimia session archive
+2935	{p}: {n}
+2936	«{n}» {w}
+2937	API Key
+2938	Google Antigravity / Gemini
+2939	عرض النموذج أو تبديله
+2940	السياق
+2941	ضغط سجل المحادثة لتحرير مساحة السياق
+2942	ما الذي حدث
+2943	ماذا فعلت، وما النتيجة المتوقعة، وما الذي حدث فعلًا. يمكنك سحب لقطات الشاشة إلى هنا.
+2944	خطوات إعادة الإنتاج
+2945	تعذّر حفظ حالة التشغيل (قد تكون المساحة ممتلئة أو لا توجد صلاحية). إذا أنهى النظام التطبيق، فقد لا يكون هذا الدور قابلاً للاستعادة.
+2946	تعذّر استعادة حالة التشغيل السابقة (السجل غير قابل للقراءة أو تالف)، لذا لن تظهر الجولات المتقطعة والرسائل المنتظرة؛ تم الاحتفاظ بالملف الأصلي.
+2947	يمكن أن يحتوي الاسم على أحرف لاتينية وأرقام و- و_ فقط، حتى 40 حرفًا
+2948	هذا اسم أمر مدمج. اختر اسمًا آخر
+2949	لا يمكن أن يكون نص الأمر فارغًا
+2950	نص الأمر طويل جدًا (64 كيلوبايت كحد أقصى)
+2951	يوجد أمر بهذا الاسم بالفعل
+2952	يمكنك استيراد 10 خطوط كحد أقصى. احذف واحدًا أولًا
+2953	هذه مجموعة خطوط (.ttc) ولا يمكن لعارض الويب استخدامها. استخدم ملف ttf / otf منفردًا
+2954	ليس ملف خط صالحًا. الصيغ المدعومة فقط: ttf وotf وwoff وwoff2
+2955	This model doesn't support thinking level "{effort}"; running with the default instead.
+2956	The agent rejected thinking level "{effort}" ({msg}); running with the default instead.
+2957	Not supported under Antigravity
+2958	Not supported under Antigravity: the Antigravity CLI has no generic third-party API key channel. Declare protocol:"gemini" (the endpoint must speak the Gemini protocol), or switch to a Gemini / sign-in provider.
+2959	On-device models need Claude Code; this device only has the Antigravity CLI, so they're unavailable for now.
+2960	Not set (no default compaction line under ACP)
+2961	No Google Cloud ADC credentials found (Application Default Credentials). Run `gcloud auth application-default login` in a terminal first, then come back and pick ADC.
+2962	Application Default Credentials found.
+2963	The old configuration was still using a Claude preset, which doesn't work in Antigravity-only mode; it has been switched back to Google Antigravity sign-in.
+2964	Protocol: not declared
+2965	Protocol: Gemini (endpoint speaks the Gemini protocol)
+2966	Checking ADC credentials…
+2967	Failed to create a session: the agent returned no session ID. Please try again.
+2968	المخرجات (قيد التشغيل)
+2969	رصيد AI Credits المتبقي: {n}
+2970	جارٍ مزامنة حصة اشتراك Google Antigravity؛ يتم عرض استهلاك الرموز المحلي حالياً (اضغط تحديث بالأعلى للاستعلام فوراً).
+2971	تعذّر استعادة الجلسة السابقة ({why}). تم الاحتفاظ بالجلسة الحالية دون إنشاء جلسة جديدة؛ يُرجى المحاولة مجدداً أو بدء محادثة جديدة يدوياً.
+2972	تعذّر التحقق مما إذا كان الجهاز قيد الشحن
+2973	تعذّر قراءة مستوى البطارية الحالي
+2974	فهرس
+2975	اسم ملف الذاكرة غير صالح
+2976	الذاكرة غير موجودة
+2977	يُسمح فقط بعرض ملفات الذاكرة العادية
+2978	ملف الذاكرة كبير جدًا (يتجاوز 1 ميغابايت)
+2979	الذاكرة للقراءة فقط ولا يمكن تعديلها هنا
+2980	بانتظار المهام في الخلفية
+2981	خامل {d}
+2982	متبقي {d}
+2983	إشعارات الصيانة
+2984	وكيل GitHub خارجي احتياطي (gh-proxy.com)
+2985	فحص أولي: تسري هذه الإعدادات العامة في كل جولة. أكّد أنك أضفتها بنفسك (التراجع ينقلها كنسخة احتياطية إلى ~/.ccapp-userconf/quarantine).
+2986	اختر «تراجع» إذا لم تُجرِ هذه التعديلات (لاستعادة الإعدادات وإنهاء العمليات المتبقية وعزل الملفات الجديدة)، أو «إبقاء» إذا كانت منك.
+2987	حدث خطأ في فحص الأمان. يُنصح بالرفض إذا لم تكن متأكداً من الإجراء.
+2988	تُشغّل إعدادات المشروع برامج محلية مباشرة. اختر «عدم التحميل» للمشاريع غير الموثوقة (تستمر المحادثة بشكل طبيعي)؛ وبعد السماح لن يُسأل مجدداً إلا عند التغيير.
+2989	إذا لم تطلب ذلك بنفسك فقد يكون أمراً محقوناً من صفحة ويب أو ملف، ويُنصح بالرفض. السماح يتجاوز السؤال عن العمليات المماثلة في هذه الجولة.
+2990	تم رصد تعديلات غير مؤكدة في إعدادات المستخدم
+2991	خطأ في فحص الأمان — يرجى التأكيد يدوياً
+2992	سيتم تعديل ملف التعليمات أو قواعد الأمان: {w}
+2993	سيتم الوصول إلى مفاتيح أو بيانات اعتماد: {w}
+2994	انقطع الاتصال، جارٍ إعادة الاتصال… (يستمر التوليد في الخلفية)
+2995	خامل منذ قرابة ساعة؛ يجري ضغط السياق تلقائياً لتقليل الاستهلاك اللاحق (يمكن إيقافه من الإعدادات).
+2996	سجل سابق بانتظار التأكيد
+2997	تغيير جديد
+2998	تغيّر ملف الإعدادات خارجياً وتمت استعادته للإعدادات الحالية: 
+2999	تغيّرت ملفات التشغيل خارجياً وتم تفعيل الحماية: 
+3000	محادثة جديدة بانتظار التأكيد · راجع «محادثات غير محفوظة» في الشريط الجانبي
+3001	جاهز · {n} مهام تعمل في الخلفية
+3002	جاهز · جارٍ إنهاء مهام الخلفية
+3003	تعذر التحقق من حالة {n} عمليات عند الانقطاع ({list}). يرجى مراجعة النتائج قبل المتابعة.
+3004	انتهت مهلة التأكيد ({n} دقائق دون رد)، ولم تبدأ الجولة ({when}).
+3005	تم حفظ التقدم المنجز. اضغط «متابعة» للاستئناف من نقطة التوقف.
+3006	وصلت الرسالة، لا داعي لإعادة الإرسال
+3007	لم يتأكد الإرسال: {msg}
+3008	المساحة غير كافية ولم تُحفظ المسودة. انسخ النص أو أرسله الآن.
+3009	تُحفظ في /sdcard/cccodroid/models (تكميم Q4_K_M)، وتُفعّل من «الإعدادات ← خدمات النماذج». ذاكرة الجهاز {ram} غيغابايت، يُنصح بـ 1–4B.
+3010	إلغاء تثبيت المكوّن {name}؟ (لن تتأثر ملفاتك الخاصة.)
+3011	هل تريد أيضاً حذف {size} من ذاكرة التشغيل المتبقية لـ {name} ({path})؟
+3012	تصدير حزمة التشخيص ومشاركتها؟\n\nتتضمن: الإصدار والطراز، حالة الحزمة والفحص الذاتي، السجلات الحديثة المنقّاة، سجل الإصلاح، ونتائج الاتصال.\nلا تتضمن: المفاتيح، بيانات الاعتماد، البريد الإلكتروني، نصوص الرسائل، وسجل المحادثات.
+3013	يقتصر الوضع المحلي افتراضياً على المحادثة فقط. لتخصيص الأدوات والمعاملات، حرر {file} أو انتقل لنموذج سحابي وأرسل الأمر التالي:
+3014	(حالة مخزنة مؤقتاً؛ تعذر التحديث: {msg})
+3015	أكمل التفويض في المتصفح ثم الصق رمز التفويض أدناه.
+3016	أو نفّذ أمر تسجيل الدخول مباشرة في الطرفية المدمجة:
+3017	توقّف المسار السابق. يرجى اختيار مسار جديد وإعادة إدخال المفتاح.
+3018	يُنصح بتحديد سقف للإنفاق في لوحة المزوّد وتدوير المفتاح فوراً عند الاشتباه بتسربه.
+3019	ملخص الاستخدام الشهري
+3020	قالب توضيحي (استبدله بعنوان الخدمة الفعلي)
+3021	يتم إعداد الاتصال بطرف ثالث من قِبلك، ويمكن للخدمة الاطلاع على مفتاحك وكودك ومحادثاتك. استخدم خدمات موثوقة فقط.
+3022	محادثات غير محفوظة
+3023	تشغيل الآن
+3024	يعمل تلقائياً في الموعد المحدد داخل المجلد المختار ويحفظ النتيجة كجلسة؛ تُرفض طلبات التأكيد تلقائياً، وتُعالج المهام الفائتة حسب إعداد كل مهمة.
+3025	عند بلوغ الحد تُتخطى بقية مهام اليوم (يُحتسب إنفاق الواجهة الرسمية فقط دون استدعاءات الطرف الثالث).
+3026	تُعطَّل المهام المجدولة افتراضياً للاشتراكات الشخصية؛ تحقّق من شروط الخدمة قبل التفعيل (مفاتيح API غير مقيدة).
+3027	تم تجاهل هذه المرة
+3028	تستخدم حالياً استدعاء طرف ثالث: لا يدخل في سقف التكلفة ويخضع فقط لحد المدة لكل تشغيل.
+3029	مسجّل باشتراك شخصي: التشغيل التلقائي المتكرر قد يفعّل قيود المزوّد، لذا يُنصح باستخدام مفتاح API.
+3030	مرحباً بك في المجموعة للنقاش العام؛ وللإبلاغ عن الأخطاء يُفضّل «الإعدادات ← ملاحظات على GitHub» (يرفق الطراز والفحص الذاتي تلقائياً).
+3031	نرحّب بالمساهمة في الترجمة والاختبار والتوثيق والتطوير — راجع دليل المساهمة في المستودع.
+3032	المتصفح الخارجي غير محمي بصندوق العزل؛ يمكن للنصوص قراءة ملفات المجلد والوصول للخدمات المحلية. تابع للصفحات الموثوقة فقط.
+3033	ملف ثنائي، لا يمكن فتحه كنص.
+3034	السماح لهذه الصفحة بالاتصال بالإنترنت؟\n\nعند الاتصال قد ترسل النصوص البرمجية ملفات المجلدات المجاورة (حتى 3 مستويات للأعلى). فعّله للصفحات الموثوقة فقط.
+3035	الملف كبير جداً ({size}). انتقل إلى «التخطيط الأصلي» لمعاينته كـ PDF أو افتحه بتطبيق خارجي.
+3036	جارٍ تثبيت LibreOffice في الخلفية…
+3037	[انتهت العملية]
+3038	[فشل الإرسال، البوابة تعيد الاتصال]
+3039	عرض مدة كل جولة والخط الزمني لاستدعاء الأدوات
+3040	للمرة الأولى؟ اضغط «كيفية القراءة» أعلى اليسار للتعرّف السريع
+3041	توجد رسالة مماثلة بالأسفل لم تُحفظ بعد؛ انتظر انتهاء الجولة الحالية قبل إضافة علامة
+3042	لا توجد علامات بعد. اضغط أيقونة العلامة أسفل أي رسالة لإضافتها.
+3043	صفحة تفاعلية (HTML)
+3044	جارٍ إعادة تحميل الواجهة…
+3045	لا يدعم إصدار التطبيق الحالي الاستعادة التلقائية؛ حدّث التطبيق أو أعد تشغيل البوابة
+3046	إذا علِق التمرير، اضغط مطولاً على شريط العنوان العلوي لنحو 0.6 ثانية للاستعادة
+3047	توقفت الاستعادة التلقائية؛ تعديل الإعدادات لن يرفع القفل. شغّل التشخيص أدناه وأعد ضبط عدّاد المحاولات.
+3048	فشل التحقق من الجسر وتوقفت الاستعادة التلقائية (حفظ الإعدادات لن يزيل العطل)؛ شخّص وأصلح أولاً.
+3049	الجسر معطّل (حفظ الإعدادات لن يعيد تفعيله). فعّل المكوّن من صفحة الإضافات أولاً.
+3050	مكوّن الجسر غير متاح حالياً؛ تحقق من حالة التثبيت (لا يُعاد ضبط محاولات الاستعادة تلقائياً).
+3051	يلزم تحديث مكوّن الجسر قبل استخدامه.
+3052	الجسر غير جاهز؛ راجع التشخيص أدناه (الجلسة الحالية دون تغيير وحفظ الإعدادات لا يعيد ضبط محاولات الاستعادة).
+3053	الجسر مشغول حالياً، حاول مجدداً بعد قليل.
+3054	فشل فحص اتساق الإعدادات. اتبع التعليمات أدناه ولا تحذف المجلدات مباشرة.
+3055	تعذّر قراءة إعدادات الجسر. ارجع إلى الإضافات وأعد المحاولة.
+3056	استخدم عنوان HTTPS API خالياً من بيانات الدخول والمعاملات والأجزاء.
+3057	أدخل عنوان Chat Completions — واجهة Responses API غير مدعومة حالياً.
+3058	تعذّر إكمال المسار تلقائياً؛ أدخل عنوان /chat/completions كاملاً.
+3059	يدعم إعداد عدة واجهات متوافقة مع OpenAI ويسري بعد الحفظ.
+3060	يقرأ الحالة المحلية فقط دون تعديل الإعدادات أو الاتصال بالمزوّد.
+3061	انسخ إعدادات الجسر احتياطياً قبل النقل أو إعادة التثبيت (العناوين والمفاتيح والنماذج فقط؛ دون سجل المحادثات).
+3062	لا تشارك ملفات الإعدادات التي تحتوي على مفاتيح بشكل علني.
+3063	أدخل عنوان API الخاص بالمزوّد (وليس صفحة تسجيل الدخول).
+3064	جلب قائمة النماذج تلقائياً (يرسل مفتاح API إلى الخدمة المحددة)
+3065	إعادة الجلب
+3066	ابحث عن اسم النموذج أو اكتبه يدوياً
+3067	بعد الإضافة يمكنك ضبط نافذة السياق والنموذج الافتراضي لكل نموذج.
+3068	يعتمد النافذة المُعادة من الواجهة، أو 200,000 رمز افتراضياً مع إمكانية التعديل.
+3069	ستُرسل المحادثات ونتائج الأدوات والصور إلى الخدمة المحددة.
+3070	لم يُختبر الاستدلال
+3071	تمت المزامنة مع «الإعدادات ← المزودات والنماذج».
+3072	يمكن للجلسات الأخرى التبديل إليه من شريحة النموذج أسفل حقل الإدخال.
+3073	يفحص فروق الإعدادات المحلية ويُعدّ خطة مزامنة (الفحص للقراءة فقط).
+3074	يزامن قائمة النماذج والنموذج الافتراضي وطريقة المصادقة فقط؛ لا يشغّل/يوقف الخدمة ولا يغيّر المفاتيح أو ملفات التشغيل أو قفل الاستعادة أو الجلسة الحالية (صالح لـ 60 ثانية).
+3075	تأكيد مزامنة السجل
+3076	تأكد من تحديث التطبيق والمكوّن؛ وإذا كانت هناك جلسة قيد التشغيل فانتظر انتهاءها قبل الفحص.
+3077	عند توقف الاستعادة التلقائية أو فشل التحقق، لن ترفع المزامنة قفل الاستعادة؛ راجع التشخيص أولاً ثم حدّث أو أعد التثبيت من الإضافات دون حذف مجلد التشغيل.
+3078	عند الإبلاغ عن مشكلة أرفق رقم الإصدار ورمز التشخيص فقط، ولا ترفق المفاتيح أو الإعدادات الكاملة.
+3079	ستؤدي إعادة الفحص إلى مسح المدخلات غير المحفوظة في هذه الصفحة. متابعة؟
+3080	يتطلب إضافة عدة واجهات تحديث مكوّن الجسر أولاً؛ ويظل الإعداد الفردي الحالي صالحاً للاستخدام.
+3081	حرّر واجهة واحدة في كل مرة؛ تسري جميع التغييرات عند الضغط على «حفظ الإعدادات».
+3082	حدّد الخيار لجلب القائمة تلقائياً، أو اكتب الاسم يدوياً.
+3083	إزالة الواجهة «{name}» ونماذجها؟ (يسري بعد حفظ الإعدادات)
+3084	الجسر مشغول، يرجى المحاولة لاحقاً.
+3085	انتهت صلاحية خطة الإصلاح أو تغيرت الحالة؛ يرجى إعادة الفحص.
+3086	لم يُعثر على فروق قابلة للمزامنة؛ إذا استمرت المشكلة فافتح التعليمات أدناه.
+3087	تعذّرت المزامنة التلقائية في الحالة الراهنة؛ اتبع الخطوات أدناه ولا تحذف المجلدات.
+3088	جارٍ فحص العناصر القابلة للمزامنة…
+3089	يمكن مزامنة {n} نماذج وطريقة المصادقة.
+3090	خطة المزامنة جاهزة — أكّد للكتابة.
+3091	تأكيد مزامنة سجل واجهة الجسر؟\n\nيحدّث قائمة النماذج والنموذج الافتراضي وطريقة المصادقة فقط دون المساس بالعنوان والمفتاح.
+3092	جارٍ مزامنة سجل الواجهة…
+3093	لم تتأكد نتيجة المزامنة؛ أعد فحص الحالة ولا تكرر الإرسال.
+3094	كُتبت الواجهة لكن لم يكتمل الربط؛ يرجى إعادة فحص الحالة.
+3095	تمت مزامنة سجل الواجهة.
+3096	عنوان الواجهة أو طريقة المصادقة أو سجل الاتصال المحلي لا يطابق الجسر.
+3097	تنسيق قائمة النماذج المحفوظة أو محتواها غير متطابق.
+3098	فشل قراءة سجل ربط واجهة الجسر أو التحقق من تنسيقه.
+3099	تسجيل الخدمة المحلية لا يطابق سجل الاتصال.
+3100	علامة ملكية مجلد التشغيل الافتراضي غير متطابقة؛ تحقق من الإعداد السابق أو حالة المجلد.
+3101	فشل الفحص الذاتي لأمان المكوّن (دون تحديد العنصر).
+3102	تعارض في الإعدادات (لم يُحدّد المكوّن القديم السبب؛ قد يتعلق بملفات التشغيل أو الملكية أو سجل الواجهة).
+3103	المكوّن غير متاح
+3104	الجسر مشغول
+3105	تعذّر قراءة حالة الجسر
+3106	كُتبت الإعدادات لكن لم تكتمل الخطوات اللاحقة؛ أعد فحص الحالة أولاً.
+3107	لم يكتمل الحفظ؛ راجع التنبيه أعلاه.
+3108	تحقق أولاً من إصداري التطبيق والمكوّن ولا تحذف أو تعدّل مجلدات التشغيل.
+3109	تغيّر عنوان الخدمة — أعد إدخال مفتاح API (لن يُرسل المفتاح القديم إلى عنوان جديد).
+3110	المفتاح المحفوظ لا يُعرض؛ اتركه فارغاً للإبقاء عليه أو أدخل مفتاحاً جديداً لاستبداله.
+3111	جارٍ حفظ الإعدادات…
+3112	الحفظ لا يستدعي النماذج البعيدة ولا يبدّل الجلسة الحالية (تمت قراءة قائمة النماذج؛ الاستدلال لم يُختبر).
+3113	أدخل عدداً صحيحاً بين 1024 و16777216 (يدعم 256k و1m)، أو اتركه فارغاً للقيمة الافتراضية.
+3114	أدخل اسم نموذج صالحاً (دون فواصل أو أسطر جديدة).
+3115	أدخل مفتاح API صالحاً لجلب القائمة تلقائياً.
+3116	أُلغي الجلب — أعد المحاولة أو اكتب الاسم يدوياً.
+3117	جارٍ التحضير لجلب قائمة النماذج…
+3118	أعد إدخال مفتاح API ثم حاول مجدداً.
+3119	قائمة النماذج فارغة — اكتب الاسم يدوياً أو أعد المحاولة.
+3120	تم جلب {count} نموذجاً (الحد 500) — ابحث أو اكتب يدوياً.
+3121	جارٍ الحفظ…
+3122	تم جلب القائمة، لم يُختبر الاستدلال
+3123	الجسر المحلي جاهز
+3124	توقفت الاستعادة التلقائية
+3125	فشل التحقق من الجسر
+3126	الجسر معطّل
+3127	حُفظت الإعدادات، الجسر غير جاهز
+3128	تعارض في معرّف النموذج أو تجاوز 200 حرف أو 100 نموذج إجمالاً؛ عدّل القائمة قبل الحفظ.
+3129	تأكيد حفظ جميع إعدادات الواجهات؟\n\nستُرسل المحادثات ونتائج الأدوات والصور حسب النموذج إلى:\n{origins}
+3130	تأكيد حفظ إعداد هذه الواجهة؟\n\nستُرسل المحادثات ونتائج الأدوات والصور إلى {origin}.\n({verification})
+3131	لم يجتز عنوان API التحقق؛ راجعه وأعد المحاولة.
+3132	أعد إدخال مفتاح API (لا يمكن استخدام المفتاح القديم مع عنوان جديد).
+3133	لم يكتمل الحفظ؛ تحقق من الحالة المحلية وأعد المحاولة.
+3134	تعذّر اختيار هذه الواجهة لجلسة جديدة؛ أعد المحاولة.
+3135	انتهى أمر الخلفية لكن المحرك لم يستجب منذ {d}؛ يمكنك الضغط على إيقاف أو إرسال رسالة جديدة.
+3136	لم يكتمل إعداد الجسر؛ تحقق من الحقول أو حالة المكوّن وأعد المحاولة.
+3137	تعارض في حالة الإرسال — يرجى إعادة الإرسال.
+3138	انقطع اتصال المزوّد مبكراً وقد يكون الرد ناقصاً؛ أرسل «متابعة» لإكماله.
+3139	هذه الواجهة غير مدعومة في Antigravity: يلزم ضبط protocol:"gemini" (نقطة نهاية Gemini) أو التبديل لتسجيل دخول Google.
+3140	إعداد Claude المسبق ({id}) غير متاح في وضع Antigravity الخالص؛ استخدم تسجيل دخول Google أو واجهة Gemini.
+3141	مداخلة (إضافة إلى الجولة الحالية)
+3142	↩ استعادة المسودة الممسوحة
+3143	تسري التعديلات اعتباراً من الرسالة التالية.
+3144	سجل عام (دون مراجعة رسمية)؛ تعمل حزم npm محلياً على جهازك، فتحقق من المصدر قبل التثبيت.
+3145	تشغيل أوامر تلقائياً عند أحداث محددة (قبل/بعد الأدوات أو الإرسال أو انتهاء الرد) لاعتراض العمليات أو إثراء السياق أو التنسيق.
+3146	لون الأزرار والروابط والعناصر المحددة (يتكيف التباين تلقائياً مع المظهر الفاتح والداكن)
+3147	تثبيت في الشريط أو نقل إلى «⋯» أو إخفاء؛ اسحب المقبض الأيسر لإعادة الترتيب
+3148	يدعم ttf / otf / woff / woff2 (حتى 40 ميغابايت، بحد أقصى 10)؛ فعّله من «مخصص…» أعلاه بعد الاستيراد
+3149	عند الإيقاف يُخفى من قائمة النماذج مع الاحتفاظ بالإعدادات والمفتاح
+3150	توليد عنوان الجلسة تلقائياً بعد أول رد (يستهلك رموزاً قليلة ويمكن تخصيص نموذج خفيف)
+3151	يطلب التأكيد دائماً عند قراءة بيانات الاعتماد (.env / SSH / API Key) أو قراءة/لمس الشاشة أو الحافظة أو المشاركة الخارجية (حتى مع «السماح للكل») للحماية من حقن الأوامر.
+3152	يضغط الجلسات التي تتجاوز 200 ألف رمز تلقائياً بعد خمول ~54 دقيقة لتقليل التأخير واستهلاك الرموز.
+3153	يتطلب تطبيق «Work Island» لعرض التقدم وطلبات التأكيد على سحابة ColorOS 16 التفاعلية (يختفي بعد 8 ثوانٍ).
+3154	يتيح القراءة والكتابة خارج مساحة العمل عبر additionalDirectories ويضيف اختصارات في متصفح الملفات.
+3155	يتجاوز مؤقتاً القواعد المخصصة والمهارات والإضافات وHooks وMCP دون تعديل الملفات؛ أوقفه للاستعادة.
+3156	تشغيل جلسات مختلفة بالتوازي (تستهلك كل منها بضع مئات ميغابايت من الذاكرة؛ 1 = بالتسلسل).
+3157	يعترض استدعاءات النظام المحظورة في أندرويد للعودة لمسار متوافق ومنع انهيار أدوات Go الثابتة (يسري من الرسالة التالية).
+3158	يُختار تلقائياً حسب الحزمة: تنفيذ مباشر على targetSdk 28، وعبر محمّل النظام على targetSdk 36 (يسري بعد إعادة تشغيل البوابة).
+3159	السماح بإيقاف تطبيقات الخلفية خارج القائمة البيضاء (يتطلب Shizuku)
+3160	يوقف تطبيقات الخلفية قبل الأوامر الثقيلة (<code>cc-mem run -- cmd</code>)؛ ويُبقي الواجهة وتقسيم الشاشة وتطبيقات الإشعارات الدائمة (الوكيل/الموسيقى) والمشغّل ولوحة المفاتيح وإمكانية الوصول وVPN وShizuku والقائمة البيضاء.
+3161	يحتفظ بالجلسات المحلية دائماً ولا تُنقل لسلة المحذوفات إلا بالحذف اليدوي.
+3162	عدم طلب تأكيد لكل أمر مميّز (على مسؤوليتك): تنفيذ أوامر Shizuku دون نافذة خلال المهلة؛ يظل اعتراض الأوامر التي تمسّ هذا التطبيق أو Shizuku قدر الإمكان دون ضمان رصد كل صيغ الالتفاف. للسماح في جلسة واحدة حدّد الخيار في نافذة التأكيد
+3163	يوفر targetSdk 28 أفضل توافق افتراضياً؛ وعند رفض التثبيت على الأجهزة الحديثة يتحول تلقائياً إلى targetSdk 36 دون فقدان البيانات.
+3164	يحدّث Antigravity CLI بصمت؛ وينبّه لتثبيت تحديث التطبيق بعد تنزيله (أو يثبته وقت الخمول عبر Shizuku)؛ وتُنزّل الحزمة مسبقاً عبر Wi‑Fi للتثبيت عند التشغيل التالي.
+3165	يجلب إشعارات الصيانة الموقّعة كل 3 ساعات (طلب ثابت بلا أي بيانات عن الجهاز)؛ ويتوقف تماماً عند الإغلاق.
+3166	مغلق افتراضياً: يستخدم وسيط طرف ثالث فقط عند تعذر المصدر الرسمي والمرآة معاً (يرى الوسيط عنوان IP العام، مع استمرار التحقق الإلزامي من التجزئة والتوقيع).
+3167	تصدير السجلات المنقّاة وحالة البيئة (دون المفاتيح أو البريد أو المحادثات) لتسهيل التشخيص أو إرفاقها ببلاغ.
+3168	تصدير حزمة التشخيص
+3169	يفتح صفحة بلاغ جديد مع تعبئة الطراز وإصدار النظام والفحص الذاتي مسبقاً (دون سجلات أو محادثات).
+3170	يعيد ضبط إعدادات المستخدم والتطبيق وملفات بدء الصدفة (مع نسخها احتياطياً إلى ~/.ccapp-reset)؛ ويحتفظ بالجلسات ومساحة العمل والحزمة والمفاتيح افتراضياً.
+3171	يفحص حالة المترجمات وPython وNode وgit وغيرها ويزود Antigravity بالنتيجة (يُعاد تلقائياً بعد التحديث).
+3172	تعذّر تحميل الواجهة — اضغط لإعادة المحاولة
+3173	الحفظ لا يستدعي النماذج البعيدة ولا يبدّل الجلسة الحالية.
+3174	لم يجتز Antigravity CLI فحص السلامة، لذلك لم يُشغَّل: {why}
+3175	المحرك الحالي (Antigravity CLI) لا يدعم التراجع عن نقاط التحقق للملفات بعد
+3176	المحرك الحالي (Antigravity CLI) لا يدعم إدارة متاجر الإضافات بعد
+3177	المحرك الحالي (Antigravity CLI) لا يدعم هذا الأمر الفرعي لـ MCP بعد
+3178	إعداد MCP ليس JSON صالحاً
+3179	المجلد المشترك /sdcard/hachimia
+3180	رفض الوكيل تعيين النموذج «{model}» ({msg})، ويتم التشغيل بالنموذج الافتراضي.

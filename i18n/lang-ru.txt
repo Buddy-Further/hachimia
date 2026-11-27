@@ -2429,754 +2429,752 @@
 2429	Эндпоинт проекта по умолчанию («{id}») удалён, поэтому ход не отправлен. Выберите эндпоинт заново в настройках проекта.
 2430	Эндпоинт задачи удалён: отредактируйте задачу и выберите другой
 2431	Эндпоинт задачи «{n}» удалён: отредактируйте задачу и выберите другой
-2432	Текст, внедрённый хуком ({ev}), совпал с шаблоном обхода защиты, поэтому этот ход остановлен; внедрённый текст свёрнут выше.
-2433	Ответ завершён
-2434	Ошибка ответа
-2435	Перемещено в корзину: {n}, ошибок: {m}: {msg}
-2436	Прикреплено: {n}, ошибок: {m}: {msg}
-2437	Ошибка поиска: {msg}
-2438	Не удалось прочитать список файлов: {msg}
-2439	Файл слишком большой; сервер его не принял
-2440	Сервер не распознал загруженный файл
-2441	Сервер вернул {status}
-2442	Загрузка беседы…
-2443	Не удалено: {msg}
-2444	Ещё загружается файлов: {n}. Отправьте после завершения.
-2445	Встроенный скрипт не установлен: {msg}
-2446	Встроенный скрипт не установлен: {msg}; правило не сохранено
-2447	Не удалось получить состояние обновления: {msg}
-2448	Показаны только первые 1000 элементов
-2449	Слияние ещё не зафиксировано: либо зафиксируйте все изменения вместе, либо сначала отмените ненужные.
-2450	Не удалось скопировать; нажмите и удерживайте, чтобы выделить текст и скопировать
-2451	Удалённый проект ({id})
-2452	Скопированы последние 3000 строк
-2453	Задано {line} (окно модели неизвестно; используется ваше значение)
-2454	Не удалось прочитать магазины плагинов: {msg}
-2455	Имя файла слишком длинное (не более 255 байт; один китайский символ — 3 байта)
-2456	Файла ещё нет
-2457	Не удалось проверить обновления
-2458	Нет разрешения на доступ к этому месту (для общего хранилища нужен «Доступ ко всем файлам» в настройках системы)
-2459	Нет разрешения на доступ к этой папке (для общего хранилища нужен «Доступ ко всем файлам» в настройках системы)
-2460	Нет разрешения на чтение этого места (для общего хранилища нужен «Доступ ко всем файлам» в настройках системы)
-2461	Не удалось очистить: {msg}
-2462	Процесс терминала завершён; ввод не отправлен
-2463	Не удалось прочитать список пользовательских компонентов: {msg}
-2464	Не удалось прочитать историю коммитов
-2465	Не удалось прочитать состояние этого файла
-2466	Не удалось прочитать список файлов этого коммита
-2467	Есть неразрешённые конфликты; сначала завершите их, потом коммитьте.
-2468	Эту страницу не удалось отрисовать
-2469	Это место нельзя прочитать
-2470	Эта папка больше не является репозиторием git
-2471	В этой папке нет SKILL.md (возможно, осталось от прерванного импорта); её можно удалить.
-2472	Внутри эта таблица разворачивается слишком сильно, чтобы безопасно её открыть.
-2473	Информация о диапазоне этого листа повреждена и не читается
-2474	Такие системные псевдофайлы нельзя читать этим способом
-2475	Инструкции проекта не сохранены; возврат отменит эти изменения. Всё равно вернуться?
-2476	Служба предпросмотра не вернула адрес
-2477	Не удалось загрузить справку: {msg}
-2478	Не удалось загрузить журнал изменений: {msg}
-2479	Пакет навыков больше 64 МБ; распакуйте его и импортируйте навыки по одному
-2480	Недопустимое значение поля cron: {f}
-2481	Значение поля cron вне диапазона: {f}
-2482	Недопустимый шаг cron: {f}
-2483	В выражении cron должно быть пять полей: минута час день месяц день недели
-2484	«{n}»: папка проекта задачи больше не существует. Отредактируйте задачу и выберите другой проект или папку
-2485	Закладки не сохранены: хранилище заполнено или нет разрешения
-2486	Папка проекта задачи больше не существует. Отредактируйте задачу и выберите другой проект или папку
-2487	Не удалось записать разветвлённую сессию на диск: {err}
-2488	Для одноразовой задачи нужно указать дату
-2489	Время начала должно быть 0–23 ч, 0–59 мин
-2490	Дата должна быть в формате ГГГГ-ММ-ДД
-2491	Время должно быть 0–23 ч, 0–59 мин
-2492	Выберите хотя бы один день недели (целые числа 1–7)
-2493	День месяца должен быть 1–31 или «последний день»
-2494	Интервал должен быть целым числом от 1 до 24 часов
-2495	Не удалось сохранить: хранилище заполнено или нет разрешения
-2496	Время окончания должно быть 0–23 ч, 0–59 мин
-2497	(Текст слишком длинный; показаны первые {n} символов)
-2498	В безопасном режиме режимы без запроса не действуют; сейчас — «Спрашивать каждый раз»
-2499	Настройки не сохранены; после перезапуска вернётся прежний режим разрешений
-2500	Исходное сообщение слишком длинное; восстановлены только первые 65 000 символов
-2501	Сейчас не удаётся получить уведомления о безопасности
-2502	Получаем уведомления о безопасности…
-2503	Хост изменился, старый ключ удалён — введите его заново
-2504	Время сброса прошло; обновится после следующего сообщения
-2505	Проект создан; в папке уже был CLAUDE.md, поэтому введённые инструкции не записаны
-2506	официальный вход · вход выполнен
-2507	официальный вход · вход не выполнен
-2508	официальный вход · не удаётся определить состояние входа
-2509	официальный вход · при последней проверке вход был выполнен
-2510	официальный вход · при последней проверке вход не был выполнен
-2511	Войдите в аккаунт
-2512	Вход ещё выполняется; ссылка для авторизации откроется, как только появится.
-2513	Удалить модель «{id}»? Файл будет удалён из папки моделей.
-2514	Модель «{id}» удалена
-2515	Импортировано {n}; затем ошибка: {msg}
-2516	Набор инструментов обновлён; совместимой версии пока нет
-2517	Набор инструментов обновлён, но в каталоге компонентов пока нет сборки для текущего набора. Сначала обновите набор инструментов или нажмите «Проверить обновления», чтобы загрузить каталог заново.
-2518	Минимальная граница сжатия — 100k; сохранено как 100k
-2519	Не удалось записать запись об установке (хранилище заполнено или нет разрешения); эта установка не была продолжена
-2520	Файлы уже на месте, но запись об установке не записалась (хранилище заполнено или нет разрешения). Переустановите или удалите
-2521	Не удалось записать запись компонента (хранилище заполнено или нет разрешения); эта установка не завершена
-2522	Адрес вернул {s}, но не в ожидаемом формате, поэтому подтвердить ключ нельзя: {what}
-2523	(пусто)
-2524	Сервер сообщил об ошибке в конце ответа ({msg}); ответ считается завершённым. Если он неполный, отправьте «продолжай».
-2525	Маршрут «{ep}», выбранный для {name}, больше не существует. Выберите маршрут в настройках и заново введите для него ключ.
-2526	Этот адрес использует незашифрованный http: ключ и переписка уходят на другую машину без шифрования. По возможности перейдите на https.
-2527	Запланированные задачи выполняются отдельным ходом: задача переместится в начало и запустится сразу после текущего хода
-2528	При превышении останавливается и считается неудачей; действует только для официального API
-2529	Маршрут изменён — старый ключ удалён, введите его снова
-2530	Не удалось загрузить историю: {msg} 
-2531	Во время установки удаление стёрло {n} общих файлов — установите заново
-2532	Локальная модель {model}, закреплённая за сессией, больше не существует — выберите другую в панели моделей
-2533	Проверка файла локальной модели…
-2534	Файл локальной модели изменён (контрольная сумма не совпадает) — из соображений безопасности он не загружается: {file}
-2535	Файл локальной модели не в формате GGUF (возможно, изменён) — не загружается: {file}
-2536	Время входа истекло (15 минут)
-2537	Вход ещё выполняется — страница авторизации откроется, как только придёт её адрес
-2538	Сведения для загрузки этого модуля неполные — сначала обновите набор инструментов
-2539	В пакете модуля нет списка файлов (MANIFEST) — из соображений безопасности он не устанавливается
-2540	Список файлов пакета модуля содержит недопустимый путь: {file}
-2541	Модуль «{name}» не завершил первичную настройку ({err}); повторная установка запустит её снова
-2542	Не удалось сохранить список проектов (хранилище заполнено или недоступно для записи); после перезапуска это изменение пропадёт
-2543	{n} чатов не удалось переместить в корзину, поэтому папка не удалена: {why}
-2544	Удалены {n} общих файлов, от которых зависит компонент «{id}»
-2545	Шлюз был остановлен системой до завершения этого запуска
-2546	истекло время ожидания
-2547	нет вывода
-2548	Идёт самопроверка… (минута-две)
-2549	Последний запуск {time}: пройдено {pass}, не пройдено {fail}
-2550	получено до обновления набора инструментов или приложения
-2551	Результатов самопроверки пока нет
-2552	Последний запуск не дал результата: {why}
-2553	Непройденные проверки
-2554	Система не разрешает этому приложению запускать службу Work Island, поэтому ничего не отображается.
-2555	Приложение Work Island не найдено — установите его и нажмите «Повторить».
-2556	Самопроверка устройства
-2557	Повторить самопроверку
-2558	Неделя · {model}
-2559	Длительность
-2560	1 час
-2561	4 часа
-2562	1 день
-2563	3 дня
-2564	7 дней
-2565	Не удалось удалить исходную запись сеанса, сеанс остался на месте: {err}
-2566	Этот ход не завершился: шлюз перезапустился во время обновления приложения (начат {when}).
-2567	Этот ход не завершился: шлюз был остановлен или перезапущен (начат {when}).
-2568	Рабочая папка {dir} пропала (удалена, переименована или извлечена карта памяти), поэтому этот ход не выполнен. Верните папку или измените путь в настройках проекта и отправьте снова.
-2569	Этот ход прервался, не успев начаться (отправлен {when}).
-2570	Разговор длиннее предела контекста модели. Выполните /compact и продолжайте или начните новый разговор.
-2571	Сервис отклонил ключ: проверьте в Настройки → Подключения, что API-ключ верный, не истёк и не отключён.
-2572	На счёте закончились средства или квота: пополните счёт или проверьте квоту в консоли провайдера.
-2573	Слишком много запросов или достигнут лимит: подождите немного и попробуйте снова.
-2574	Сервис не находит эту модель или адрес: проверьте имя модели и адрес подключения.
-2575	У провайдера ошибка или перегрузка: попробуйте позже. Если повторяется, смените модель или подключение.
-2576	Не удаётся подключиться: проверьте сеть или правильность адреса подключения.
-2577	В архиве слишком много файлов ({n}, не больше {max}); импорт не выполнен
-2578	Показаны только первые {n}; используйте фильтр
-2579	Извлечь выбранное ({n})
-2580	Сжать ({n})
-2581	Архив: нажмите «Открыть архив», чтобы просмотреть файлы, или сразу извлеките его
-2582	Открыть архив
-2583	Извлечь…
-2584	После отключения Claude его не видит. Файлы команд остаются, включить можно в любой момент.
-2585	Только имя
-2586	Только когда вы вызываете
-2587	Режим навыка
-2588	Действует со следующего хода
-2589	Отключён: Claude к нему не подключается. Настройки сохранены — нажмите «Включить», чтобы вернуть.
-2590	Отключить MCP-сервер {name}? Его настройки сначала сохранятся, включить можно в любой момент.
-2591	Включить MCP-сервер {name}? Будет добавлено обратно: {target}
-2592	Удалить отключённый MCP-сервер {name}? Включить его одним нажатием больше не получится.
-2593	~/.claude/settings.json — некорректный JSON. Сначала исправьте его
-2594	Отключать можно только MCP-серверы, добавленные вами (уровень пользователя)
-2595	Не удалось записать список отключённых
-2596	Его нет в списке отключённых
-2597	Этот компонент не установлен
-2598	Этот модуль нельзя отключить
-2599	Сжать…
-2600	Кодировка имён
-2601	Если имена искажены, выберите другую кодировку
-2602	элементов: {n}
-2603	Зашифрован
-2604	Извлечь всё…
-2605	Закрыть архив
-2606	Вернуться к архиву
-2607	В этой сборке нет 7-Zip, поэтому такой архив не открыть
-2608	Не удалось открыть архив: {msg}
-2609	сжато: {size}
-2610	Символьная ссылка (не извлекается)
-2611	Извлечение…
-2612	Неверный пароль
-2613	Слишком большой для просмотра; сначала извлеките его
-2614	Недостаточно места
-2615	Ошибка извлечения: {msg}
-2616	Введите пароль
-2617	Неверный пароль, попробуйте ещё раз
-2618	ОК
-2619	выбранное ({n})
-2620	Извлечь: {what}
-2621	Извлечь в
-2622	Текущая папка
-2623	Пароль (оставьте пустым, если не зашифровано)
-2624	Существующие файлы с тем же именем не перезаписываются: новые получают имя «имя (2)». Символьные ссылки не извлекаются.
-2625	Извлечь
-2626	Укажите полный путь (начиная с /)
-2627	Сжать «{name}»
-2628	Сжать элементы: {n}
-2629	Имя архива
-2630	Формат
-2631	Степень сжатия
-2632	Без сжатия
-2633	Быстрее всего
-2634	Обычная
-2635	Минимальный размер (медленно)
-2636	Пароль (необязательно, zip / 7z)
-2637	Шифровать и имена файлов (7z)
-2638	Зашифрованный zip использует AES-256 — старые распаковщики его не откроют; для совместимости не ставьте пароль. Папки с учётными данными вроде .ssh не включаются.
-2639	Сжать
-2640	Сюда нельзя извлекать или сохранять архив
-2641	В этой сборке нет 7-Zip
-2642	Архив нельзя сохранить внутри сжимаемой папки
-2643	Извлечение
-2644	Сжатие
-2645	Извлечено в {path}
-2646	Сжато в {path}
-2647	Выбрать
-2648	Не удалось записать системный промпт в файл, этот ход не запущен: {msg}
-2649	Сбросить настройки
-2650	Окно подтверждения не появилось
-2651	Переустановить этот компонент (скачается заново)
-2652	Переустановить этот модуль набора инструментов (скачается заново)
-2653	Восстановить набор инструментов: скачать эту версию заново и переустановить; на время установки служба приостановится на 1–2 минуты
-2654	Исправить всё
-2655	Исправить
-2656	Ожидание
-2657	Выполняется…
-2658	Передано приложению
-2659	Идёт исправление. Если закрыть страницу, оно не прервётся; по завершении проверка повторится автоматически:
-2660	Исправление завершено:
-2661	Шаги, переданные приложению, видны в «Настройки → Обновить»; когда они закончатся, снова нажмите «Проверить записи».
-2662	Исправление завершено, не удалось шагов: {n}
-2663	Исправление завершено
-2664	Исправление в таком порядке, затем автоматическая повторная проверка:
-2665	Исправить этот пункт:
-2666	Для переустановки нужна загрузка из сети; ваши файлы, диалоги и настройки не затрагиваются. Продолжить?
-2667	Индекс не прошёл проверку подписи, компоненты установить нельзя
-2668	Версия в индексе ({v}) старее установленной ({now}); откат отклонён
-2669	Уже идёт исправление или проверка; повторите, когда закончится
-2670	Нет проблем, которые можно исправить автоматически
-2671	Часть шагов ещё выполняется в приложении:
-2672	Шаги, переданные приложению, ещё выполняются; когда закончатся, нажмите «Проверить записи»
-2673	Встроенный браузер
-2674	Пакеты, загруженные pkg
-2675	Индекс родословной
-2676	Сканирование…
-2677	Приложение занимает {app}; на устройстве свободно {free}
-2678	Последнее сканирование: {when}
-2679	Ещё не сканировалось
-2680	{n} дн., как вы задали
-2681	Хранятся бессрочно
-2682	Последняя автоочистка: {when}, освобождено {size}
-2683	Автоочистки ещё не было
-2684	Кэши
-2685	Всего {size}; при необходимости загрузятся или пересоберутся заново
-2686	Используется
-2687	Сеанс выполняется
-2688	Не менялось 7 дней
-2689	Последнее изменение: {when}
-2690	Удалить отмеченное
-2691	Временные файлы
-2692	Всего {size}, из них {old} не менялись 7 дней. Сюда входят вывод фоновых команд и временные папки после тестов и сборок
-2693	{n} самых больших
-2694	Очистить старше 7 дней
-2695	Журналы отладки, снимки shell, журналы MCP и резервные копии .claude.json: всего {size}; можно очистить {n} шт. ({auto}) — старше 30 дней, 5 новейших копий сохраняются
-2696	{n} сеансов, всего {size}. Сеансы никогда не удаляются автоматически; удаляйте их в списке сеансов — сначала они попадут в корзину
-2697	Рабочие данные компонентов (~/.cccodroid)
-2698	{name} (установлен через pkg)
-2699	Общая папка /sdcard/cccodroid
-2700	Программы и ваши файлы
-2701	Только размеры; здесь ничего не удаляется
-2702	Корзина сеансов
-2703	{n} шт., {size}; очищаются автоматически через 30 дней
-2704	Программы, оставшиеся от старого набора инструментов
-2705	Перейти
-2706	Рабочие данные удалённого компонента {id}
-2707	Статистика использования
-2708	Другие места очистки
-2709	✓ Удалено {n} шт., освобождено {size}
-2710	{n} шт. не удалено (используются или вне разрешённых папок)
-2711	Ничего не отмечено
-2712	Удалить {n} отмеченных временных элементов? Отменить нельзя.
-2713	Удалить рабочие данные, оставшиеся от {id}? При переустановке они загрузятся заново.
-2714	✓ Удалено
-2715	Хранилище
-2716	Занятое место
-2717	Сканировать
-2718	Хранение сеансов
-2719	Автоочистка
-2720	Список API
-2721	Добавить API
-2722	Моделей: {n}
-2723	Удалить ({n})
-2724	Удалить {what} без возможности восстановления?
-2725	Папки будут удалены вместе со всем содержимым.
-2726	Удалено элементов: {n}
-2727	Эта папка содержит собственные каталоги приложения или рабочую область, её нельзя удалить
-2728	(Предыдущий ход завершился нештатно; ответ выше может быть неполным)
-2729	Сеансы импортированы, но пользовательские заголовки сохранить не удалось (хранилище заполнено или нет прав). После перезапуска появятся исходные заголовки
-2730	Не удалось прочитать список сеансов ({msg}); это не значит, что сеансов нет. Проверьте права доступа к хранилищу и обновите.
-2731	Время ожидания истекло: шлюз не ответил ({n} с)
-2732	Шлюз не в сети: {msg} · Нажмите, чтобы повторить
-2733	Предыдущий ход завершился ошибкой в фоне: {msg}
-2734	Адрес вернул {s}, но тело ответа слишком большое (больше 8 МБ), чтобы подтвердить, что ключ действителен
-2735	Предыдущий ход завершён, но следующий не получил результата (прерван)
-2736	Папка не найдена: {dir}; вместо неё используется {cwd}
-2737	API вернул ошибку, а не обычный ответ:
-2738	Максимум линии сжатия — 1M; сохранено как 1M
-2739	HONOR / Huawei и подобные системы замораживают фоновый Shizuku и замедляют активацию: в управлении приложениями → Shizuku включите «Игнорировать оптимизацию батареи».
-2740	Впервые записано: {time}
-2741	Время неизвестно
-2742	Переменные окружения, необязательно, через запятую (KEY=значение)
-2743	Заголовки, необязательно, через запятую (Header: значение), напр. Authorization: Bearer ваш-токен
-2744	Заголовки
-2745	Удалённый MCP принимает заголовки: напишите {bad} через двоеточие, напр. Authorization: Bearer ваш-токен
-2746	Удалённый MCP не принимает переменные окружения: заголовки пишутся как Header: значение, напр. Authorization: Bearer ваш-токен
-2747	Удалить из конфигурации
-2748	Текущие заголовки
-2749	Текущие переменные окружения
-2750	Изменения для {name} сохранены
-2751	Не удалось изменить: {msg}
-2752	Не удалось сохранить: {msg}; прежняя конфигурация восстановлена как была
-2753	Не удалось сохранить: {msg}, и прежнюю конфигурацию восстановить не удалось — проверьте вручную
-2754	Не удалось открыть редактор: {msg}
-2755	Изменение {name}: пусто = сохранить значение, × — удалить, вписать — заменить
-2756	Этот MCP-сервер не найден (коннекторы учётной записи редактировать нельзя)
-2757	MCP-сервер с таким именем уже есть
-2758	stdio не хранит заголовки: {names} будут удалены. Продолжить?
-2759	Если сервер работает на этом устройстве, укажите http://127.0.0.1:порт — локальный IP меняется при смене сети, и соединение рвётся
-2760	Похоже на адрес локальной сети: если сервер на этом устройстве, замените на http://127.0.0.1:порт — локальный IP меняется, и соединение рвётся
-2761	Объединить PDF
-2762	Извлечь страницы
-2763	Разделить по страницам
-2764	Повернуть страницы
-2765	Сжать PDF
-2766	PDF в изображения
-2767	Неверные страницы. Используйте формат 1-3,5 и проверьте число страниц.
-2768	Ошибка обработки PDF: {code}
-2769	Выбранный файл не является PDF
-2770	Вверх
-2771	Вниз
-2772	Выберите PDF в панели файлов или нажмите «Выбрать PDF…».
-2773	Отсутствуют инструменты PDF: {tools}. Установите «Инструменты PDF» в разделе Расширения → Дополнительные компоненты.
-2774	Импорт PDF…
-2775	Обработка PDF…
-2776	Обработка завершена
-2777	Сжатие не уменьшило размер. Исходный файл сохранён.
-2778	Открыть папку результатов
-2779	Соединение потеряно. Повторная попытка…
-2780	Инструменты PDF
-2781	Файлы обрабатываются на устройстве. Оригиналы не перезаписываются.
-2782	Операция
-2783	Открыть дополнительные компоненты
-2784	Добавить из панели файлов
-2785	Выбрать PDF…
-2786	Можно объединить до 20 PDF. Для других операций выберите один файл.
-2787	Страницы
-2788	Формат: 1-3,5. Пустое поле — все страницы.
-2789	Угол поворота
-2790	Качество сжатия
-2791	Электронная книга (ebook)
-2792	Малый файл (screen)
-2793	Печать (printer)
-2794	Формат изображений
-2795	Разрешение
-2796	Низкое (72 DPI)
-2797	Высокое (150 DPI)
-2798	До 100 страниц за раз. Длинная сторона изображения — до 2048 пикселей.
-2799	Папка результатов (новая)
-2800	Начать обработку
-2801	Выберите до 20 PDF общим размером до 256 МБ.
-2802	Общее число страниц PDF не должно превышать 1000.
-2803	Не удалось обработать PDF. Убедитесь, что он не повреждён и не защищён паролем.
-2804	Время обработки истекло. Выберите меньше страниц и повторите.
-2805	Уже выполняется задача PDF. Повторите позже.
-2806	Установите компонент инструментов PDF и откройте их заново.
-2807	Укажите новую папку результатов в доступном для записи месте.
-2808	Результат превышает 512 МБ. Уменьшите число страниц или разрешение.
-2809	файл.
-2810	Резервная копия с прошлой установки ещё не восстановлена. Попробуйте ещё раз или удалите и установите заново.
-2811	[cc] Error in a script injected by the shell (details hidden by WebView)
-2812	\\[Attachment: (\\/[^\\n]+?) · [^\\n·,\\]]+, file is large and was not read directly, read by path when needed\\]
-2813	Antigravity is requesting tool authorization: {w}
-2814	Antigravity wants to ask you
-2815	Say how it should change (sent back to Antigravity)
-2816	Optional: tell Antigravity why / what to do
-2817	Scheduled
-2818	Antigravity is waiting for your confirmation
-2819	Let Antigravity decide which actions need confirmation
-2820	Ask nothing. Antigravity can delete files and run any command without asking you
-2821	Switch to “Allow everything”?\n\nAntigravity will stop asking and can edit or delete files, run any command and access the network. Only use it when you trust the task and can live with the consequences.
-2822	Sign in with a Google Antigravity account
-2823	Use a personal Google account (Free / Pro / Ultra) or an enterprise account: authorize once in the browser, no key needed.
-2824	Enter a Gemini API Key
-2825	Use a Gemini API Key from Google AI Studio or a custom compatible endpoint, billed by usage.
-2826	Context has reached the auto-compact line; compacting history…
-2827	Background task finished, reported automatically:
-2828	[Attachment: 
-2829	, file is large and was not read directly, read by path when needed]
-2830	Starting Google Antigravity sign-in…
-2831	Google account signed in
-2832	Open the address below in your browser to complete Google authorization, then paste the authorization code under Settings → Providers to submit:
-2833	You can also run {cmd} in the in-app terminal to sign in.
-2834	Interruption sent — it will be seen once the current step finishes
-2835	Antigravity CLI (agy) itself
-2836	The system or hachimia already has a command with this name; pick another one
-2837	hachimia checks these skills before handing them to Antigravity; when calling one with a slash, prefix the name with user:, e.g. /user:{name}.
-2838	This build does not run the hooks configured here: hooks can execute arbitrary commands and put arbitrary content into the conversation, and hachimia cannot check them. The rules stay in the file and will not be deleted.
-2839	Reinstall Antigravity CLI (agy)
-2840	Claude (compatible)
-2841	Third-party provider
-2842	Sign in to a Google Antigravity account
-2843	Google Cloud / enterprise account
-2844	Billed by your Google Antigravity account subscription tier; on-device token stats are on the “Usage” page
-2845	Sign out of the Google Antigravity account on this device?
-2846	The key is stored only in this app's private directory on this device, and is passed to Antigravity CLI only as needed to connect to the matching endpoint.
-2847	AGY blue
-2848	Antigravity's replies
-2849	Shizuku is running but has not been authorized for hachimia
-2850	vivo / iQOO: Settings → Battery → Background power consumption → allow hachimia <b>high background power usage</b>; in iManager allow <b>auto-start</b> (common path)
-2851	Huawei / Honor: Settings → App launch → turn off “Manage automatically” for hachimia, then manually allow <b>auto-start</b> and <b>background activity</b> (common path)
-2852	hachimia has been frozen in the background by the system {n} times (most recent: about {sec} seconds, {at}).
-2853	In system settings, allow hachimia to run in the background, turn off battery optimization, and allow auto-start (each vendor names these differently).
-2854	Authorize for hachimia
-2855	hachimia's wireless debugging pairing has been removed: it still works now, but it cannot auto-activate after a reboot.
-2856	Shizuku was not activated by hachimia: hachimia cannot auto-activate it after a reboot. Pair it once and you're set.
-2857	The system did not notify hachimia at this boot (blocked by the system's “auto-start” management), so it could not auto-activate; opening hachimia will catch up.
-2858	To activate at boot: allow hachimia auto-start / background start in the app details; takes effect at the next boot.
-2859	Antigravity CLI (agy) version
-2860	Uninstall Antigravity CLI (agy)?\n\nThis deletes the downloaded agy program; it will not be reinstalled automatically. Tap “Install” here to download it again when you need it.\n\nSign-in, sessions and settings are kept; sending a message while it is not installed will prompt you to install it first.
-2861	Install the devkit from a local file?\n\nPick a devkit-ha.chi.mia.tar.gz (or .tar), downloadable from the GitHub releases page or hachimia.net. It is checked against the published release before installing; the service pauses for 1–2 minutes during installation.\nThings you installed into the devkit with pip / npm -g are kept.
-2862	Shizuku is not activated yet, so the app cannot toggle accessibility itself: turn on hachimia manually in the system accessibility settings. From Android 13, sideloaded apps must first allow restricted settings via App info → menu in the top-right corner.
-2863	This build has no native layer and only records CPU time (battery, screen-on and foreground time come from hachimia).
-2864	Name (e.g. self-hosted Gemini proxy)
-2865	Auth: x-goog-api-key (Gemini / Antigravity)
-2866	Auth: Authorization: Bearer
-2867	Auth: x-api-key
-2868	Default model name (required, e.g. gemini-3.8-flash)
-2869	Model list URL (optional; Gemini endpoints auto-probe /v1beta/models)
-2870	Context window (optional, in tokens, e.g. 1m; leave empty for the default)
-2871	More models (optional, one per line; you may put the window after the name, separated by a space, e.g. gemini-4-neon 1m)
-2872	Send images with the message (compat): check this when the model cannot read attached images; attachments are then sent directly as multimodal blocks with the message.
-2873	Choosing <b>Gemini / Antigravity</b> auth drives the official <code>agy</code> CLI via <code>GOOGLE_GEMINI_BASE_URL</code> + <code>GEMINI_API_KEY</code>.
-2874	Running Antigravity diagnostics…
-2875	Currently available capabilities
-2876	Fixed
-2877	Workaround
-2878	(Merged from 
-2879	Direct (not needed)
-2880	(Decided by Antigravity)
-2881	Antigravity CLI failed: {msg}
-2882	The Antigravity CLI user-level config has unconfirmed changes. Send a message first, confirm in the card that pops up, then try again.
-2883	Could not fetch the Antigravity CLI version list
-2884	agy install script not found ({p})
-2885	The dev side only manages Antigravity CLI (agy) (you build and install the app itself on this device)
-2886	Updating Antigravity CLI (agy)…
-2887	Could not fetch the Antigravity CLI version list: {err}
-2888	The gateway's own runtime was modified; Antigravity CLI was not started this round. The gateway will restart when idle and restore itself from the install package; send again shortly.
-2889	Antigravity CLI (agy) is not installed. Install it under Settings → Updates first.
-2890	Antigravity CLI (agy) not found
-2891	Settings → Updates: reinstall Antigravity CLI (agy)
-2892	Antigravity CLI (agy) is not installed. Tap “Install” under Settings → Updates.
-2893	The Antigravity CLI user-level config has unconfirmed changes, or an earlier session left background processes behind, so this run did not start. Open hachimia, send a message, and confirm in the card that pops up, then try again.
-2894	Antigravity CLI (agy) is not installed. Install it under Settings → Updates first, then come back to sign in.
-2895	Enterprise sign-in: in the agy sign-in screen, choose “Use a Google Cloud project” → “Continue with Google Cloud” and authorize with your enterprise account.
-2896	Personal sign-in: in the agy sign-in screen, choose “Google OAuth” and authorize with your personal Google account.
-2897	The slash commands, tools, skills and extensions currently available to Antigravity. Tap a slash command to insert it into the input box; a tool's “Allow / Ask / Deny” follows the permission mode and rules.
-2898	For things not in the marketplace, import a Linux arm64 program yourself: a single binary, or a .tar.gz / .zip archive. Missing libraries are filled in automatically and a command is generated, ready to use in Antigravity and in the terminal.
-2899	Save a long prompt you send often as a command and pick it with / in the input box. Text after /command fills $ARGUMENTS in the body, expanded automatically by the gateway when sent to Antigravity.
-2900	Antigravity behavior
-2901	Default color pick (AGY Monet palette); switchable to native, Qiusuo, Zhuyue or Construct
-2902	Font for Antigravity's reply text
-2903	Thinking level (thought_level)
-2904	Levels vary by model (low / medium / high / xhigh). You can also type <code>/effort &lt;level&gt;</code> in the input box.
-2905	Let Antigravity decide
-2906	Empty = let Antigravity decide by window
-2907	Confirm each item by default, same as official agy: it asks in the conversation before editing files or running commands. Allow everything means Antigravity can delete files and run any command without asking. You can also switch anytime via the permission tag under the input box.
-2908	Only clears caches, temp files untouched for 7 days, and expired logs; sessions, your files and programs are never auto-deleted
-2909	When on, run <code>priv 'command'</code> in the terminal as shell (pm / am / settings / dumpsys / logcat / screencap…); Antigravity uses it too. Without Shizuku, basic dev features work as usual — only these debugging abilities are unavailable.
-2910	Auto-activate again after a reboot (needs Wi-Fi; starts the hachimia background service at boot)
-2911	Let Antigravity use device tools (notifications, clipboard, opening links / calendar / alarms, sharing files…)
-2912	Off by default. Turn it on when you want Antigravity to test an app you built, or send files it generated to other apps; while on, each round carries an extra one or two thousand tokens of tool descriptions.
-2913	Antigravity CLI channel
-2914	Plan first
-2915	Interview to align the plan
-2916	Long-term goal
-2917	Multi-agent teamwork
-2918	Deep orchestration
-2919	Capabilities & tools
-2920	Failed to switch permission mode (agent rejected {mode}): {msg}
-2921	Could not restore the previous session (the agent doesn't support resume, or resume failed), so a new session was started. This turn was written to the new session; the old session's history is still kept in local records.
-2922	Compaction not confirmed: context did not shrink (before {pre}, after {post}). Please retry /compact or start a new session.
-2923	Enterprise login: please sign in with your company Google account in the browser
-2924	The authorization code could not be written to agy (stdin is closed). Please start login again.
-2925	The authorization code could not be written to agy (the login process's stdin is closed). Please start login again.
-2926	Login-based providers don't need an API key; sign in through the official flow. The key you entered was not saved.
-2927	Already queued; skipping this duplicate run
-2928	Open this in the app
-2929	Needs npx (included in the hachimia toolkit)
-2930	This build has no native layer, so only CPU time is recorded (battery and screen-on need hachimia).
-2931	The Antigravity CLI program was modified and was not started; 
-2932	Antigravity CLI housekeeping files
-2933	These Claude Code config files contain override-style instructions (telling the model to ignore its rules, posing as system messages and the like). hachimia won't load them, so this turn did not run. Edit or remove the following, then send again:\n{list}
-2934	The command {c} is built into the system or hachimia. Pick another name
-2935	Not a hachimia session archive
-2936	{p}: {n}
-2937	«{n}» {w}
-2938	API Key
-2939	Google Antigravity / Gemini
-2940	Посмотреть или сменить модель
-2941	Контекст
-2942	Сжать историю диалога, освободив контекст
-2943	Что произошло
-2944	Что вы делали, что ожидали и что произошло на самом деле. Скриншоты можно перетащить сюда.
-2945	Как воспроизвести
-2946	Не удалось сохранить состояние запуска (возможно, хранилище заполнено или нет разрешения). Если система закроет приложение, этот ход может не восстановиться.
-2947	Не удалось восстановить предыдущее состояние запуска (запись не читается или повреждена). Прерванные ходы и сообщения в очереди не появятся; исходный файл сохранён.
-2948	В имени допустимы только латиница, цифры, - и _, до 40 символов
-2949	Так называется встроенная команда. Выберите другое имя
-2950	Текст запроса не может быть пустым
-2951	Текст запроса слишком длинный (до 64 КБ)
-2952	Запрос с таким именем уже есть
-2953	Можно импортировать не больше 10 шрифтов. Сначала удалите один
-2954	Это коллекция шрифтов (.ttc), WebView её не поддерживает. Используйте отдельный ttf / otf
-2955	Это не подходящий файл шрифта. Поддерживаются только ttf, otf, woff и woff2
-2956	This model doesn't support thinking level "{effort}"; running with the default instead.
-2957	The agent rejected thinking level "{effort}" ({msg}); running with the default instead.
-2958	Not supported under Antigravity
-2959	Not supported under Antigravity: the Antigravity CLI has no generic third-party API key channel. Declare protocol:"gemini" (the endpoint must speak the Gemini protocol), or switch to a Gemini / sign-in provider.
-2960	On-device models need Claude Code; this device only has the Antigravity CLI, so they're unavailable for now.
-2961	Not set (no default compaction line under ACP)
-2962	No Google Cloud ADC credentials found (Application Default Credentials). Run `gcloud auth application-default login` in a terminal first, then come back and pick ADC.
-2963	Application Default Credentials found.
-2964	The old configuration was still using a Claude preset, which doesn't work in Antigravity-only mode; it has been switched back to Google Antigravity sign-in.
-2965	Protocol: not declared
-2966	Protocol: Gemini (endpoint speaks the Gemini protocol)
-2967	Checking ADC credentials…
-2968	Failed to create a session: the agent returned no session ID. Please try again.
-2969	Вывод (выполняется)
-2970	Остаток AI Credits: {n}
-2971	Синхронизация квоты подписки Google Antigravity; пока показан локальный расход токенов (нажмите «Обновить» выше для немедленного запроса).
-2972	Не удалось восстановить предыдущую сессию ({why}). Текущая сессия сохранена без создания новой; повторите попытку или начните новый чат вручную.
-2973	Не удалось определить, заряжается ли устройство
-2974	Не удалось узнать текущий уровень заряда
-2975	Индекс
-2976	Недопустимое имя файла памяти
-2977	Память не найдена
-2978	Разрешён просмотр только обычных файлов памяти
-2979	Файл памяти слишком большой (более 1 МБ)
-2980	Память доступна только для чтения и не может быть изменена здесь
-2981	Ожидание фоновых задач
-2982	тишина {d}
-2983	осталось {d}
-2984	Объявления сопровождающего
-2985	Резервный сторонний прокси GitHub (gh-proxy.com)
-2986	Первая проверка: эти глобальные настройки применяются на каждом шаге. Подтвердите, что добавили их сами (откат сохранит копию в ~/.ccapp-userconf/quarantine).
-2987	Выберите «Откатить», если изменения внесли не вы (настройки вернутся, процессы завершатся, новые файлы попадут в карантин), или «Оставить», если это ваши правки.
-2988	Сбой проверки безопасности. Отклоните действие, если не уверены в нём.
-2989	Настройки проекта напрямую запускают локальные программы. Для незнакомых проектов выберите «Не загружать» (чат продолжит работать); после разрешения повторный запрос будет только при изменениях.
-2990	Если вы этого не просили, возможна инъекция из веб-страницы или файла — лучше отклонить. После разрешения однотипные действия на этом шаге не переспрашиваются.
-2991	Неподтверждённые изменения пользовательских настроек
-2992	Ошибка проверки безопасности — подтвердите вручную
-2993	Изменение файла промптов или правил безопасности: {w}
-2994	Доступ к ключам или учётным данным: {w}
-2995	Связь прервана, переподключение… (генерация продолжается)
-2996	Простой почти 1 час — автосжатие контекста для экономии токенов (отключается в Настройках).
-2997	Ожидает подтверждения
-2998	Новое изменение
-2999	Конфигурация изменена извне, восстановлены текущие настройки: 
-3000	Рабочие файлы изменены извне, сработала защита: 
-3001	Новый чат ждёт подтверждения · см. «Несохранённые чаты» в боковой панели
-3002	Готово · фоновых задач: {n}
-3003	Готово · завершение фоновых задач
-3004	При прерывании статус {n} операций остался неизвестен ({list}). Проверьте результат перед продолжением.
-3005	Время подтверждения истекло ({n} мин без ответа), шаг не запущен ({when}).
-3006	Выполненная часть сохранена. Нажмите «Продолжить», чтобы возобновить с места остановки.
-3007	Сообщение доставлено, повтор не требуется
-3008	Отправка не подтверждена: {msg}
-3009	Недостаточно места, черновик не сохранён. Скопируйте или отправьте текст.
-3010	Хранится в /sdcard/cccodroid/models (Q4_K_M). Включается в «Настройки → Сервисы моделей». ОЗУ: {ram} ГБ, рекомендуется 1–4B.
-3011	Удалить компонент {name}? (Ваши собственные файлы не будут затронуты.)
-3012	Также удалить {size} рабочего кэша {name} ({path})?
-3013	Экспортировать и отправить диагностический пакет?\n\nВключает: версии и модель устройства, состояние набора и самопроверки, недавние очищенные логи, журнал восстановления, проверку сети.\nНе включает: ключи, учётные данные, почту, тексты сообщений и историю сеансов.
-3014	Локальный режим по умолчанию работает только как чат. Чтобы настроить инструменты и параметры, измените {file} или отправьте облачной модели:
-3015	(кэшированный статус, ошибка обновления: {msg})
-3016	Завершите авторизацию в браузере и вставьте код ниже.
-3017	Либо войдите напрямую через встроенный терминал:
-3018	Прежний маршрут удалён. Выберите новый и введите ключ заново.
-3019	Рекомендуется задать лимит расходов в панели провайдера и сразу перевыпустить ключ при подозрении на утечку.
-3020	Обзор за месяц
-3021	Шаблон-пример (замените на реальный адрес сервиса)
-3022	Сторонние сервисы вы настраиваете сами: провайдер видит ваш ключ, код и диалоги. Используйте только доверенные сервисы.
-3023	Несохранённые чаты
-3024	Запустить сейчас
-3025	Автоматически запускается по расписанию в выбранной папке и сохраняет результат как сеанс. Запросы подтверждения отклоняются, пропущенные запуски обрабатываются по правилам задачи.
-3026	По достижении лимита остальные задачи на день пропускаются (учитываются только официальные API, сторонние вызовы не входят).
-3027	Для личных подписок задачи по расписанию по умолчанию отключены. Перед включением проверьте условия провайдера (для API Key ограничений нет).
-3028	Пропущено в этот раз
-3029	Используется сторонний вызов: лимиты расходов не действуют, работает только ограничение по времени запуска.
-3030	Вход по личной подписке: частые автозапуски могут вызвать ограничения провайдера, рекомендуется использовать API Key.
-3031	Для общения заходите в группу; об ошибках лучше сообщать через «Настройки → Отзыв на GitHub» (модель и самопроверка подставятся автоматически).
-3032	Будем рады помощи с переводом, тестированием, документацией и кодом — см. руководство в репозитории.
-3033	Внешний браузер не изолирован песочницей: скрипты могут читать соседние файлы и обращаться к локальным службам. Продолжайте только для доверенных страниц.
-3034	Бинарный файл нельзя открыть как текст.
-3035	Разрешить этой странице выход в сеть?\n\nС доступом к сети скрипты смогут отправлять наружу файлы из соседних папок (до 3 уровней вверх). Включайте только для доверенных страниц.
-3036	Файл слишком велик ({size}). Переключитесь на «Исходный макет» (PDF) или откройте во внешнем приложении.
-3037	Фоновая установка LibreOffice…
-3038	[Процесс завершён]
-3039	[Ошибка отправки, переподключение шлюза]
-3040	Время шагов и хронология вызовов инструментов
-3041	Впервые здесь? Нажмите «Как читать» справа вверху
-3042	Ниже есть такое же ещё не сохранённое сообщение — дождитесь конца шага перед добавлением закладки
-3043	Закладок пока нет. Нажмите значок закладки под сообщением, чтобы добавить.
-3044	Интерактивная страница (HTML)
-3045	Перезагрузка интерфейса…
-3046	Эта версия приложения не поддерживает автовосстановление — обновите приложение или перезапустите шлюз
-3047	Если прокрутка зависла, удерживайте заголовок сверху ~0,6 с для восстановления
-3048	Автовосстановление остановлено; изменение настроек не снимет блокировку. Выполните диагностику ниже и сбросьте счётчик попыток.
-3049	Проверка моста не пройдена, автовосстановление остановлено (сохранение настроек не устранит сбой); сначала выполните диагностику.
-3050	Мост отключён (сохранение настроек не включит его). Сначала включите компонент на вкладке «Расширения».
-3051	Компонент моста недоступен; проверьте установку (счётчик попыток восстановления автоматически не сбрасывается).
-3052	Для работы необходимо обновить компонент моста.
-3053	Мост не готов; проверьте диагностику ниже (текущая сессия не меняется, сохранение настроек не сбрасывает счётчик попыток).
-3054	Мост занят, повторите попытку чуть позже.
-3055	Проверка целостности настроек не пройдена. Следуйте инструкции ниже и не удаляйте рабочие папки вручную.
-3056	Не удалось прочитать настройки моста. Вернитесь в «Расширения» и повторите попытку.
-3057	Укажите HTTPS-адрес API без логина, параметров запроса и якоря.
-3058	Укажите адрес Chat Completions — Responses API пока не поддерживается.
-3059	Не удалось дополнить путь автоматически — укажите полный адрес с /chat/completions.
-3060	Поддерживается несколько OpenAI-совместимых интерфейсов; применяется после сохранения.
-3061	Только чтение локального статуса — без изменения настроек и запросов к серверу.
-3062	Перед переносом или переустановкой сохраните копию настроек моста (только адреса, ключи и модели; без истории чатов).
-3063	Не публикуйте конфигурационные файлы, содержащие ключи.
-3064	Укажите API-адрес провайдера (не страницу входа на сайт).
-3065	Автоматически загрузить список моделей (отправит API Key указанному сервису)
-3066	Повторить
-3067	Найдите или введите имя модели
-3068	После добавления можно задать окно контекста и модель по умолчанию.
-3069	Берётся окно из ответа API, иначе 200 000 токенов; можно изменить вручную.
-3070	Сообщения, результаты инструментов и изображения будут отправляться в этот сервис.
-3071	Инференс не проверен
-3072	Синхронизировано с «Настройки → Интерфейсы и модели».
-3073	В других сеансах его можно выбрать через плашку модели под полем ввода.
-3074	Проверяет расхождения локальных настроек и формирует план синхронизации (без изменений).
-3075	Синхронизирует только список моделей, модель по умолчанию и тип авторизации; не запускает/останавливает службу и не меняет ключи, файлы, блокировку восстановления или текущую сессию (60 с).
-3076	Синхронизировать запись
-3077	Убедитесь, что приложение и компонент обновлены; дождитесь завершения активных сеансов перед проверкой.
-3078	При остановке автовосстановления или ошибке проверки синхронизация записей не снимет блокировку; сначала проверьте диагностику, затем обновите или переустановите компонент в «Расширениях», не удаляя каталог.
-3079	При обращении укажите версию и код диагностики; никогда не прикладывайте ключи или полный конфиг.
-3080	Повторная проверка очистит несохранённый ввод на странице. Продолжить?
-3081	Для добавления нескольких интерфейсов обновите компонент моста; текущая одиночная настройка продолжает работать.
-3082	Редактируйте по одному интерфейсу; изменения вступят в силу вместе после нажатия «Сохранить настройки».
-3083	Отметьте для автозагрузки списка или введите имя модели вручную.
-3084	Удалить интерфейс «{name}» и его модели? (Применится после сохранения.)
-3085	Мост занят, попробуйте позже.
-3086	План устарел или состояние изменилось — выполните проверку заново.
-3087	Расхождений для синхронизации не найдено; если проблема остаётся, разверните инструкцию ниже.
-3088	Автосинхронизация в текущем состоянии невозможна — следуйте инструкции ниже, не удаляйте папки.
-3089	Проверка элементов для синхронизации…
-3090	Можно синхронизировать моделей: {n} (и способ авторизации).
-3091	План синхронизации готов — подтвердите для записи.
-3092	Синхронизировать запись интерфейса моста?\n\nОбновятся только список моделей, модель по умолчанию и тип авторизации; адрес и ключ не изменятся.
-3093	Синхронизация записи интерфейса…
-3094	Результат синхронизации не подтверждён — перепроверьте статус, не отправляйте повторно.
-3095	Интерфейс записан, но привязка не завершена — перепроверьте статус.
-3096	Запись интерфейса синхронизирована.
-3097	Адрес, способ авторизации или локальная запись подключения не совпадают с мостом.
-3098	Формат или содержимое сохранённого списка моделей не совпадает.
-3099	Не удалось прочитать или проверить запись привязки моста.
-3100	Регистрация локальной службы не совпадает с записью подключения.
-3101	Метка принадлежности рабочей папки не совпадает — проверьте старые настройки или состояние каталога.
-3102	Самопроверка безопасности компонента не пройдена (без уточнения пункта).
-3103	Конфликт настроек (старая версия компонента не уточнила причину: проверьте рабочие файлы, метку принадлежности или запись интерфейса).
-3104	Компонент недоступен
-3105	Мост занят
-3106	Не удалось прочитать статус моста
-3107	Настройки записаны, но следующие шаги не завершились — сначала перепроверьте статус.
-3108	Сохранение не завершено — см. подсказку выше.
-3109	Сначала сверьте версии приложения и компонента; не удаляйте и не правьте рабочие папки.
-3110	Адрес сервиса изменился — введите API Key заново (старый ключ не отправляется на новый адрес).
-3111	Сохранённый ключ скрыт: оставьте поле пустым, чтобы не менять, или введите новый.
-3112	Сохранение настроек…
-3113	Сохранение не вызывает удалённые модели и не переключает текущую сессию (список моделей загружен; вывод не проверялся).
-3114	Введите целое число от 1024 до 16777216 (можно 256k, 1m) или оставьте пустым.
-3115	Укажите корректное имя модели (без запятых и переносов строк).
-3116	Введите действительный API Key для автозагрузки списка.
-3117	Загрузка отменена — повторите или введите вручную.
-3118	Подготовка к загрузке списка моделей…
-3119	Введите API Key заново и повторите попытку.
-3120	Список моделей пуст — введите имя вручную или повторите.
-3121	Загружено моделей: {count} (макс. 500) — ищите или введите своё.
-3122	Сохранение…
-3123	Список получен, инференс не проверен
-3124	Локальный мост готов
-3125	Автовосстановление остановлено
-3126	Ошибка проверки моста
-3127	Мост отключён
-3128	Настройки сохранены, мост не готов
-3129	Конфликт ID модели, длина >200 символов или всего >100 моделей — исправьте перед сохранением.
-3130	Сохранить все настройки интерфейсов?\n\nСообщения, результаты инструментов и изображения будут направляться по моделям на:\n{origins}
-3131	Сохранить настройки этого интерфейса?\n\nСообщения, результаты инструментов и изображения будут отправляться на {origin}.\n({verification})
-3132	Адрес API не прошёл проверку — проверьте и повторите.
-3133	Введите API Key заново (при смене адреса старый ключ не переносится).
-3134	Сохранение не завершено — проверьте локальный статус и повторите.
-3135	Не удалось выбрать интерфейс для нового сеанса — повторите попытку.
-3136	Фоновая команда завершилась, но движок не отвечает более {d}; нажмите «Стоп» или отправьте новое сообщение.
-3137	Настройка моста не завершена — проверьте поля или состояние компонента.
-3138	Конфликт маркера отправки — отправьте сообщение заново.
-3139	Соединение с сервером оборвалось раньше времени; если ответ неполный, отправьте «Продолжить».
-3140	Этот интерфейс не поддерживается в Antigravity: укажите protocol:"gemini" (Gemini-совместимый адрес) или войдите через Google.
-3141	Пресет Claude ({id}) недоступен в режиме только Antigravity — выберите вход через Google или интерфейс Gemini.
-3142	Вставить реплику (в текущий шаг)
-3143	↩ Вернуть очищенный черновик
-3144	Изменения вступят в силу со следующего сообщения.
-3145	Публичный реестр (без модерации); npm-пакеты выполняются локально — проверяйте источник перед установкой.
-3146	Автозапуск команд по событиям (до/после инструментов, при отправке, в конце ответа) для перехвата действий, добавления контекста или форматирования.
-3147	Акцентный цвет кнопок, ссылок и выделения (контраст подстраивается под тему)
-3148	Закрепить на панели, убрать в «⋯» или скрыть; перетащите за ручку слева для сортировки
-3149	Поддержка ttf / otf / woff / woff2 (≤ 40 МБ, до 10 шт.); после импорта выберите выше в «Свой…»
-3150	Скрывает интерфейс из меню выбора моделей, сохраняя настройки и ключ
-3151	Автоматически создавать заголовок после первого ответа (тратит немного токенов, можно выбрать лёгкую модель)
-3152	Всегда запрашивать подтверждение при чтении секретов (.env / SSH / API Key), управлении экраном, чтении буфера обмена или внешней отправке (даже в режиме «Разрешить всё») для защиты от инъекций.
-3153	Автосжатие сеансов >200k токенов после ~54 мин простоя для снижения задержки и расхода токенов.
-3154	Требуется приложение «Work Island» для показа прогресса и запросов в Fluid Cloud на ColorOS 16 (скрывается через 8 с).
-3155	Разрешает чтение и запись вне рабочей папки через additionalDirectories и добавляет ярлыки в файловый менеджер.
-3156	Временно пропускает пользовательские правила, навыки, плагины, Hooks и MCP без изменения файлов; выключите для возврата.
-3157	Параллельный запуск разных сеансов (по несколько сотен МБ ОЗУ на каждый; 1 = по очереди).
-3158	Перехватывает запрещённые в Android системные вызовы для работы статических бинарников вроде Go без падений (со следующего сообщения).
-3159	Автовыбор по пакету: прямой запуск на targetSdk 28, через системный загрузчик на targetSdk 36 (нужен перезапуск шлюза).
-3160	Разрешить остановку фоновых приложений вне белого списка (нужен Shizuku)
-3161	Останавливает фоновые приложения перед тяжёлыми командами (<code>cc-mem run -- команда</code>); не трогает активное окно, разделённый экран, приложения с постоянным уведомлением (прокси/музыка), лаунчер, клавиатуру, спецвозможности, VPN, Shizuku и белый список.
-3162	Локальные сеансы хранятся бессрочно и перемещаются в корзину только вручную.
-3163	Не запрашивать подтверждение каждой привилегированной команды (на ваш риск): команды Shizuku выполняются без окна до конца срока; обращения к этому приложению и Shizuku по возможности перехватываются, но все обходные формы отследить нельзя. Для одной сессии отметьте галочку в окне
-3164	По умолчанию targetSdk 28 обеспечивает лучшую совместимость; при запрете установки на новых устройствах автоматически выбирается targetSdk 36 без потери данных.
-3165	Тихо обновляет Antigravity CLI; предлагает установить новую версию приложения (или ставит в простое через Shizuku); набор инструментов предзагружается по Wi‑Fi до следующего запуска.
-3166	Каждые 3 часа запрашивает подписанные уведомления (статический запрос без данных устройства); при отключении запросы не отправляются.
-3167	По умолчанию выключено: скачивание через сторонний прокси только при недоступности основного источника и зеркала (прокси видит ваш IP; хеш и подпись по-прежнему проверяются).
-3168	Экспорт очищенных логов и состояния среды (без ключей, почты и переписки) для диагностики или прикрепления к Issue.
-3169	Экспорт диагностики
-3170	Открывает создание Issue с предзаполненной моделью, версией ОС и результатом самопроверки (без логов и чатов).
-3171	Сбрасывает пользовательские настройки, параметры приложения и файлы shell (копия в ~/.ccapp-reset); сеансы, рабочая папка, набор и ключи по умолчанию сохраняются.
-3172	Проверяет компиляторы, Python, Node, git и др. и передаёт сводку Antigravity (автоповтор после обновлений).
-3173	Не удалось загрузить интерфейс — нажмите для повтора
-3174	Сохранение не вызывает удалённые модели и не переключает текущую сессию.
-3175	Antigravity CLI не прошёл проверку целостности, поэтому не был запущен: {why}
-3176	Текущий движок (Antigravity CLI) пока не поддерживает откат контрольных точек файлов
-3177	Текущий движок (Antigravity CLI) пока не поддерживает управление каталогами плагинов
-3178	Текущий движок (Antigravity CLI) пока не поддерживает эту подкоманду MCP
-3179	Конфигурация MCP не является корректным JSON
-3180	Общая папка /sdcard/hachimia
-3181	Заблокирована запись содержимого, способного повлиять на безопасность следующего шага: {what}
-3182	Агент отклонил выбор модели «{model}» ({msg}); выполняется с моделью по умолчанию.
+2432	Ответ завершён
+2433	Ошибка ответа
+2434	Перемещено в корзину: {n}, ошибок: {m}: {msg}
+2435	Прикреплено: {n}, ошибок: {m}: {msg}
+2436	Ошибка поиска: {msg}
+2437	Не удалось прочитать список файлов: {msg}
+2438	Файл слишком большой; сервер его не принял
+2439	Сервер не распознал загруженный файл
+2440	Сервер вернул {status}
+2441	Загрузка беседы…
+2442	Не удалено: {msg}
+2443	Ещё загружается файлов: {n}. Отправьте после завершения.
+2444	Встроенный скрипт не установлен: {msg}
+2445	Встроенный скрипт не установлен: {msg}; правило не сохранено
+2446	Не удалось получить состояние обновления: {msg}
+2447	Показаны только первые 1000 элементов
+2448	Слияние ещё не зафиксировано: либо зафиксируйте все изменения вместе, либо сначала отмените ненужные.
+2449	Не удалось скопировать; нажмите и удерживайте, чтобы выделить текст и скопировать
+2450	Удалённый проект ({id})
+2451	Скопированы последние 3000 строк
+2452	Задано {line} (окно модели неизвестно; используется ваше значение)
+2453	Не удалось прочитать магазины плагинов: {msg}
+2454	Имя файла слишком длинное (не более 255 байт; один китайский символ — 3 байта)
+2455	Файла ещё нет
+2456	Не удалось проверить обновления
+2457	Нет разрешения на доступ к этому месту (для общего хранилища нужен «Доступ ко всем файлам» в настройках системы)
+2458	Нет разрешения на доступ к этой папке (для общего хранилища нужен «Доступ ко всем файлам» в настройках системы)
+2459	Нет разрешения на чтение этого места (для общего хранилища нужен «Доступ ко всем файлам» в настройках системы)
+2460	Не удалось очистить: {msg}
+2461	Процесс терминала завершён; ввод не отправлен
+2462	Не удалось прочитать список пользовательских компонентов: {msg}
+2463	Не удалось прочитать историю коммитов
+2464	Не удалось прочитать состояние этого файла
+2465	Не удалось прочитать список файлов этого коммита
+2466	Есть неразрешённые конфликты; сначала завершите их, потом коммитьте.
+2467	Эту страницу не удалось отрисовать
+2468	Это место нельзя прочитать
+2469	Эта папка больше не является репозиторием git
+2470	В этой папке нет SKILL.md (возможно, осталось от прерванного импорта); её можно удалить.
+2471	Внутри эта таблица разворачивается слишком сильно, чтобы безопасно её открыть.
+2472	Информация о диапазоне этого листа повреждена и не читается
+2473	Такие системные псевдофайлы нельзя читать этим способом
+2474	Инструкции проекта не сохранены; возврат отменит эти изменения. Всё равно вернуться?
+2475	Служба предпросмотра не вернула адрес
+2476	Не удалось загрузить справку: {msg}
+2477	Не удалось загрузить журнал изменений: {msg}
+2478	Пакет навыков больше 64 МБ; распакуйте его и импортируйте навыки по одному
+2479	Недопустимое значение поля cron: {f}
+2480	Значение поля cron вне диапазона: {f}
+2481	Недопустимый шаг cron: {f}
+2482	В выражении cron должно быть пять полей: минута час день месяц день недели
+2483	«{n}»: папка проекта задачи больше не существует. Отредактируйте задачу и выберите другой проект или папку
+2484	Закладки не сохранены: хранилище заполнено или нет разрешения
+2485	Папка проекта задачи больше не существует. Отредактируйте задачу и выберите другой проект или папку
+2486	Не удалось записать разветвлённую сессию на диск: {err}
+2487	Для одноразовой задачи нужно указать дату
+2488	Время начала должно быть 0–23 ч, 0–59 мин
+2489	Дата должна быть в формате ГГГГ-ММ-ДД
+2490	Время должно быть 0–23 ч, 0–59 мин
+2491	Выберите хотя бы один день недели (целые числа 1–7)
+2492	День месяца должен быть 1–31 или «последний день»
+2493	Интервал должен быть целым числом от 1 до 24 часов
+2494	Не удалось сохранить: хранилище заполнено или нет разрешения
+2495	Время окончания должно быть 0–23 ч, 0–59 мин
+2496	(Текст слишком длинный; показаны первые {n} символов)
+2497	В безопасном режиме режимы без запроса не действуют; сейчас — «Спрашивать каждый раз»
+2498	Настройки не сохранены; после перезапуска вернётся прежний режим разрешений
+2499	Исходное сообщение слишком длинное; восстановлены только первые 65 000 символов
+2500	Сейчас не удаётся получить уведомления о безопасности
+2501	Получаем уведомления о безопасности…
+2502	Хост изменился, старый ключ удалён — введите его заново
+2503	Время сброса прошло; обновится после следующего сообщения
+2504	Проект создан; в папке уже был CLAUDE.md, поэтому введённые инструкции не записаны
+2505	официальный вход · вход выполнен
+2506	официальный вход · вход не выполнен
+2507	официальный вход · не удаётся определить состояние входа
+2508	официальный вход · при последней проверке вход был выполнен
+2509	официальный вход · при последней проверке вход не был выполнен
+2510	Войдите в аккаунт
+2511	Вход ещё выполняется; ссылка для авторизации откроется, как только появится.
+2512	Удалить модель «{id}»? Файл будет удалён из папки моделей.
+2513	Модель «{id}» удалена
+2514	Импортировано {n}; затем ошибка: {msg}
+2515	Набор инструментов обновлён; совместимой версии пока нет
+2516	Набор инструментов обновлён, но в каталоге компонентов пока нет сборки для текущего набора. Сначала обновите набор инструментов или нажмите «Проверить обновления», чтобы загрузить каталог заново.
+2517	Минимальная граница сжатия — 100k; сохранено как 100k
+2518	Не удалось записать запись об установке (хранилище заполнено или нет разрешения); эта установка не была продолжена
+2519	Файлы уже на месте, но запись об установке не записалась (хранилище заполнено или нет разрешения). Переустановите или удалите
+2520	Не удалось записать запись компонента (хранилище заполнено или нет разрешения); эта установка не завершена
+2521	Адрес вернул {s}, но не в ожидаемом формате, поэтому подтвердить ключ нельзя: {what}
+2522	(пусто)
+2523	Сервер сообщил об ошибке в конце ответа ({msg}); ответ считается завершённым. Если он неполный, отправьте «продолжай».
+2524	Маршрут «{ep}», выбранный для {name}, больше не существует. Выберите маршрут в настройках и заново введите для него ключ.
+2525	Этот адрес использует незашифрованный http: ключ и переписка уходят на другую машину без шифрования. По возможности перейдите на https.
+2526	Запланированные задачи выполняются отдельным ходом: задача переместится в начало и запустится сразу после текущего хода
+2527	При превышении останавливается и считается неудачей; действует только для официального API
+2528	Маршрут изменён — старый ключ удалён, введите его снова
+2529	Не удалось загрузить историю: {msg} 
+2530	Во время установки удаление стёрло {n} общих файлов — установите заново
+2531	Локальная модель {model}, закреплённая за сессией, больше не существует — выберите другую в панели моделей
+2532	Проверка файла локальной модели…
+2533	Файл локальной модели изменён (контрольная сумма не совпадает) — из соображений безопасности он не загружается: {file}
+2534	Файл локальной модели не в формате GGUF (возможно, изменён) — не загружается: {file}
+2535	Время входа истекло (15 минут)
+2536	Вход ещё выполняется — страница авторизации откроется, как только придёт её адрес
+2537	Сведения для загрузки этого модуля неполные — сначала обновите набор инструментов
+2538	В пакете модуля нет списка файлов (MANIFEST) — из соображений безопасности он не устанавливается
+2539	Список файлов пакета модуля содержит недопустимый путь: {file}
+2540	Модуль «{name}» не завершил первичную настройку ({err}); повторная установка запустит её снова
+2541	Не удалось сохранить список проектов (хранилище заполнено или недоступно для записи); после перезапуска это изменение пропадёт
+2542	{n} чатов не удалось переместить в корзину, поэтому папка не удалена: {why}
+2543	Удалены {n} общих файлов, от которых зависит компонент «{id}»
+2544	Шлюз был остановлен системой до завершения этого запуска
+2545	истекло время ожидания
+2546	нет вывода
+2547	Идёт самопроверка… (минута-две)
+2548	Последний запуск {time}: пройдено {pass}, не пройдено {fail}
+2549	получено до обновления набора инструментов или приложения
+2550	Результатов самопроверки пока нет
+2551	Последний запуск не дал результата: {why}
+2552	Непройденные проверки
+2553	Система не разрешает этому приложению запускать службу Work Island, поэтому ничего не отображается.
+2554	Приложение Work Island не найдено — установите его и нажмите «Повторить».
+2555	Самопроверка устройства
+2556	Повторить самопроверку
+2557	Неделя · {model}
+2558	Длительность
+2559	1 час
+2560	4 часа
+2561	1 день
+2562	3 дня
+2563	7 дней
+2564	Не удалось удалить исходную запись сеанса, сеанс остался на месте: {err}
+2565	Этот ход не завершился: шлюз перезапустился во время обновления приложения (начат {when}).
+2566	Этот ход не завершился: шлюз был остановлен или перезапущен (начат {when}).
+2567	Рабочая папка {dir} пропала (удалена, переименована или извлечена карта памяти), поэтому этот ход не выполнен. Верните папку или измените путь в настройках проекта и отправьте снова.
+2568	Этот ход прервался, не успев начаться (отправлен {when}).
+2569	Разговор длиннее предела контекста модели. Выполните /compact и продолжайте или начните новый разговор.
+2570	Сервис отклонил ключ: проверьте в Настройки → Подключения, что API-ключ верный, не истёк и не отключён.
+2571	На счёте закончились средства или квота: пополните счёт или проверьте квоту в консоли провайдера.
+2572	Слишком много запросов или достигнут лимит: подождите немного и попробуйте снова.
+2573	Сервис не находит эту модель или адрес: проверьте имя модели и адрес подключения.
+2574	У провайдера ошибка или перегрузка: попробуйте позже. Если повторяется, смените модель или подключение.
+2575	Не удаётся подключиться: проверьте сеть или правильность адреса подключения.
+2576	В архиве слишком много файлов ({n}, не больше {max}); импорт не выполнен
+2577	Показаны только первые {n}; используйте фильтр
+2578	Извлечь выбранное ({n})
+2579	Сжать ({n})
+2580	Архив: нажмите «Открыть архив», чтобы просмотреть файлы, или сразу извлеките его
+2581	Открыть архив
+2582	Извлечь…
+2583	После отключения Claude его не видит. Файлы команд остаются, включить можно в любой момент.
+2584	Только имя
+2585	Только когда вы вызываете
+2586	Режим навыка
+2587	Действует со следующего хода
+2588	Отключён: Claude к нему не подключается. Настройки сохранены — нажмите «Включить», чтобы вернуть.
+2589	Отключить MCP-сервер {name}? Его настройки сначала сохранятся, включить можно в любой момент.
+2590	Включить MCP-сервер {name}? Будет добавлено обратно: {target}
+2591	Удалить отключённый MCP-сервер {name}? Включить его одним нажатием больше не получится.
+2592	~/.claude/settings.json — некорректный JSON. Сначала исправьте его
+2593	Отключать можно только MCP-серверы, добавленные вами (уровень пользователя)
+2594	Не удалось записать список отключённых
+2595	Его нет в списке отключённых
+2596	Этот компонент не установлен
+2597	Этот модуль нельзя отключить
+2598	Сжать…
+2599	Кодировка имён
+2600	Если имена искажены, выберите другую кодировку
+2601	элементов: {n}
+2602	Зашифрован
+2603	Извлечь всё…
+2604	Закрыть архив
+2605	Вернуться к архиву
+2606	В этой сборке нет 7-Zip, поэтому такой архив не открыть
+2607	Не удалось открыть архив: {msg}
+2608	сжато: {size}
+2609	Символьная ссылка (не извлекается)
+2610	Извлечение…
+2611	Неверный пароль
+2612	Слишком большой для просмотра; сначала извлеките его
+2613	Недостаточно места
+2614	Ошибка извлечения: {msg}
+2615	Введите пароль
+2616	Неверный пароль, попробуйте ещё раз
+2617	ОК
+2618	выбранное ({n})
+2619	Извлечь: {what}
+2620	Извлечь в
+2621	Текущая папка
+2622	Пароль (оставьте пустым, если не зашифровано)
+2623	Существующие файлы с тем же именем не перезаписываются: новые получают имя «имя (2)». Символьные ссылки не извлекаются.
+2624	Извлечь
+2625	Укажите полный путь (начиная с /)
+2626	Сжать «{name}»
+2627	Сжать элементы: {n}
+2628	Имя архива
+2629	Формат
+2630	Степень сжатия
+2631	Без сжатия
+2632	Быстрее всего
+2633	Обычная
+2634	Минимальный размер (медленно)
+2635	Пароль (необязательно, zip / 7z)
+2636	Шифровать и имена файлов (7z)
+2637	Зашифрованный zip использует AES-256 — старые распаковщики его не откроют; для совместимости не ставьте пароль. Папки с учётными данными вроде .ssh не включаются.
+2638	Сжать
+2639	Сюда нельзя извлекать или сохранять архив
+2640	В этой сборке нет 7-Zip
+2641	Архив нельзя сохранить внутри сжимаемой папки
+2642	Извлечение
+2643	Сжатие
+2644	Извлечено в {path}
+2645	Сжато в {path}
+2646	Выбрать
+2647	Не удалось записать системный промпт в файл, этот ход не запущен: {msg}
+2648	Сбросить настройки
+2649	Окно подтверждения не появилось
+2650	Переустановить этот компонент (скачается заново)
+2651	Переустановить этот модуль набора инструментов (скачается заново)
+2652	Восстановить набор инструментов: скачать эту версию заново и переустановить; на время установки служба приостановится на 1–2 минуты
+2653	Исправить всё
+2654	Исправить
+2655	Ожидание
+2656	Выполняется…
+2657	Передано приложению
+2658	Идёт исправление. Если закрыть страницу, оно не прервётся; по завершении проверка повторится автоматически:
+2659	Исправление завершено:
+2660	Шаги, переданные приложению, видны в «Настройки → Обновить»; когда они закончатся, снова нажмите «Проверить записи».
+2661	Исправление завершено, не удалось шагов: {n}
+2662	Исправление завершено
+2663	Исправление в таком порядке, затем автоматическая повторная проверка:
+2664	Исправить этот пункт:
+2665	Для переустановки нужна загрузка из сети; ваши файлы, диалоги и настройки не затрагиваются. Продолжить?
+2666	Индекс не прошёл проверку подписи, компоненты установить нельзя
+2667	Версия в индексе ({v}) старее установленной ({now}); откат отклонён
+2668	Уже идёт исправление или проверка; повторите, когда закончится
+2669	Нет проблем, которые можно исправить автоматически
+2670	Часть шагов ещё выполняется в приложении:
+2671	Шаги, переданные приложению, ещё выполняются; когда закончатся, нажмите «Проверить записи»
+2672	Встроенный браузер
+2673	Пакеты, загруженные pkg
+2674	Индекс родословной
+2675	Сканирование…
+2676	Приложение занимает {app}; на устройстве свободно {free}
+2677	Последнее сканирование: {when}
+2678	Ещё не сканировалось
+2679	{n} дн., как вы задали
+2680	Хранятся бессрочно
+2681	Последняя автоочистка: {when}, освобождено {size}
+2682	Автоочистки ещё не было
+2683	Кэши
+2684	Всего {size}; при необходимости загрузятся или пересоберутся заново
+2685	Используется
+2686	Сеанс выполняется
+2687	Не менялось 7 дней
+2688	Последнее изменение: {when}
+2689	Удалить отмеченное
+2690	Временные файлы
+2691	Всего {size}, из них {old} не менялись 7 дней. Сюда входят вывод фоновых команд и временные папки после тестов и сборок
+2692	{n} самых больших
+2693	Очистить старше 7 дней
+2694	Журналы отладки, снимки shell, журналы MCP и резервные копии .claude.json: всего {size}; можно очистить {n} шт. ({auto}) — старше 30 дней, 5 новейших копий сохраняются
+2695	{n} сеансов, всего {size}. Сеансы никогда не удаляются автоматически; удаляйте их в списке сеансов — сначала они попадут в корзину
+2696	Рабочие данные компонентов (~/.cccodroid)
+2697	{name} (установлен через pkg)
+2698	Общая папка /sdcard/cccodroid
+2699	Программы и ваши файлы
+2700	Только размеры; здесь ничего не удаляется
+2701	Корзина сеансов
+2702	{n} шт., {size}; очищаются автоматически через 30 дней
+2703	Программы, оставшиеся от старого набора инструментов
+2704	Перейти
+2705	Рабочие данные удалённого компонента {id}
+2706	Статистика использования
+2707	Другие места очистки
+2708	✓ Удалено {n} шт., освобождено {size}
+2709	{n} шт. не удалено (используются или вне разрешённых папок)
+2710	Ничего не отмечено
+2711	Удалить {n} отмеченных временных элементов? Отменить нельзя.
+2712	Удалить рабочие данные, оставшиеся от {id}? При переустановке они загрузятся заново.
+2713	✓ Удалено
+2714	Хранилище
+2715	Занятое место
+2716	Сканировать
+2717	Хранение сеансов
+2718	Автоочистка
+2719	Список API
+2720	Добавить API
+2721	Моделей: {n}
+2722	Удалить ({n})
+2723	Удалить {what} без возможности восстановления?
+2724	Папки будут удалены вместе со всем содержимым.
+2725	Удалено элементов: {n}
+2726	Эта папка содержит собственные каталоги приложения или рабочую область, её нельзя удалить
+2727	(Предыдущий ход завершился нештатно; ответ выше может быть неполным)
+2728	Сеансы импортированы, но пользовательские заголовки сохранить не удалось (хранилище заполнено или нет прав). После перезапуска появятся исходные заголовки
+2729	Не удалось прочитать список сеансов ({msg}); это не значит, что сеансов нет. Проверьте права доступа к хранилищу и обновите.
+2730	Время ожидания истекло: шлюз не ответил ({n} с)
+2731	Шлюз не в сети: {msg} · Нажмите, чтобы повторить
+2732	Предыдущий ход завершился ошибкой в фоне: {msg}
+2733	Адрес вернул {s}, но тело ответа слишком большое (больше 8 МБ), чтобы подтвердить, что ключ действителен
+2734	Предыдущий ход завершён, но следующий не получил результата (прерван)
+2735	Папка не найдена: {dir}; вместо неё используется {cwd}
+2736	API вернул ошибку, а не обычный ответ:
+2737	Максимум линии сжатия — 1M; сохранено как 1M
+2738	HONOR / Huawei и подобные системы замораживают фоновый Shizuku и замедляют активацию: в управлении приложениями → Shizuku включите «Игнорировать оптимизацию батареи».
+2739	Впервые записано: {time}
+2740	Время неизвестно
+2741	Переменные окружения, необязательно, через запятую (KEY=значение)
+2742	Заголовки, необязательно, через запятую (Header: значение), напр. Authorization: Bearer ваш-токен
+2743	Заголовки
+2744	Удалённый MCP принимает заголовки: напишите {bad} через двоеточие, напр. Authorization: Bearer ваш-токен
+2745	Удалённый MCP не принимает переменные окружения: заголовки пишутся как Header: значение, напр. Authorization: Bearer ваш-токен
+2746	Удалить из конфигурации
+2747	Текущие заголовки
+2748	Текущие переменные окружения
+2749	Изменения для {name} сохранены
+2750	Не удалось изменить: {msg}
+2751	Не удалось сохранить: {msg}; прежняя конфигурация восстановлена как была
+2752	Не удалось сохранить: {msg}, и прежнюю конфигурацию восстановить не удалось — проверьте вручную
+2753	Не удалось открыть редактор: {msg}
+2754	Изменение {name}: пусто = сохранить значение, × — удалить, вписать — заменить
+2755	Этот MCP-сервер не найден (коннекторы учётной записи редактировать нельзя)
+2756	MCP-сервер с таким именем уже есть
+2757	stdio не хранит заголовки: {names} будут удалены. Продолжить?
+2758	Если сервер работает на этом устройстве, укажите http://127.0.0.1:порт — локальный IP меняется при смене сети, и соединение рвётся
+2759	Похоже на адрес локальной сети: если сервер на этом устройстве, замените на http://127.0.0.1:порт — локальный IP меняется, и соединение рвётся
+2760	Объединить PDF
+2761	Извлечь страницы
+2762	Разделить по страницам
+2763	Повернуть страницы
+2764	Сжать PDF
+2765	PDF в изображения
+2766	Неверные страницы. Используйте формат 1-3,5 и проверьте число страниц.
+2767	Ошибка обработки PDF: {code}
+2768	Выбранный файл не является PDF
+2769	Вверх
+2770	Вниз
+2771	Выберите PDF в панели файлов или нажмите «Выбрать PDF…».
+2772	Отсутствуют инструменты PDF: {tools}. Установите «Инструменты PDF» в разделе Расширения → Дополнительные компоненты.
+2773	Импорт PDF…
+2774	Обработка PDF…
+2775	Обработка завершена
+2776	Сжатие не уменьшило размер. Исходный файл сохранён.
+2777	Открыть папку результатов
+2778	Соединение потеряно. Повторная попытка…
+2779	Инструменты PDF
+2780	Файлы обрабатываются на устройстве. Оригиналы не перезаписываются.
+2781	Операция
+2782	Открыть дополнительные компоненты
+2783	Добавить из панели файлов
+2784	Выбрать PDF…
+2785	Можно объединить до 20 PDF. Для других операций выберите один файл.
+2786	Страницы
+2787	Формат: 1-3,5. Пустое поле — все страницы.
+2788	Угол поворота
+2789	Качество сжатия
+2790	Электронная книга (ebook)
+2791	Малый файл (screen)
+2792	Печать (printer)
+2793	Формат изображений
+2794	Разрешение
+2795	Низкое (72 DPI)
+2796	Высокое (150 DPI)
+2797	До 100 страниц за раз. Длинная сторона изображения — до 2048 пикселей.
+2798	Папка результатов (новая)
+2799	Начать обработку
+2800	Выберите до 20 PDF общим размером до 256 МБ.
+2801	Общее число страниц PDF не должно превышать 1000.
+2802	Не удалось обработать PDF. Убедитесь, что он не повреждён и не защищён паролем.
+2803	Время обработки истекло. Выберите меньше страниц и повторите.
+2804	Уже выполняется задача PDF. Повторите позже.
+2805	Установите компонент инструментов PDF и откройте их заново.
+2806	Укажите новую папку результатов в доступном для записи месте.
+2807	Результат превышает 512 МБ. Уменьшите число страниц или разрешение.
+2808	файл.
+2809	Резервная копия с прошлой установки ещё не восстановлена. Попробуйте ещё раз или удалите и установите заново.
+2810	[cc] Error in a script injected by the shell (details hidden by WebView)
+2811	\\[Attachment: (\\/[^\\n]+?) · [^\\n·,\\]]+, file is large and was not read directly, read by path when needed\\]
+2812	Antigravity is requesting tool authorization: {w}
+2813	Antigravity wants to ask you
+2814	Say how it should change (sent back to Antigravity)
+2815	Optional: tell Antigravity why / what to do
+2816	Scheduled
+2817	Antigravity is waiting for your confirmation
+2818	Let Antigravity decide which actions need confirmation
+2819	Ask nothing. Antigravity can delete files and run any command without asking you
+2820	Switch to “Allow everything”?\n\nAntigravity will stop asking and can edit or delete files, run any command and access the network. Only use it when you trust the task and can live with the consequences.
+2821	Sign in with a Google Antigravity account
+2822	Use a personal Google account (Free / Pro / Ultra) or an enterprise account: authorize once in the browser, no key needed.
+2823	Enter a Gemini API Key
+2824	Use a Gemini API Key from Google AI Studio or a custom compatible endpoint, billed by usage.
+2825	Context has reached the auto-compact line; compacting history…
+2826	Background task finished, reported automatically:
+2827	[Attachment: 
+2828	, file is large and was not read directly, read by path when needed]
+2829	Starting Google Antigravity sign-in…
+2830	Google account signed in
+2831	Open the address below in your browser to complete Google authorization, then paste the authorization code under Settings → Providers to submit:
+2832	You can also run {cmd} in the in-app terminal to sign in.
+2833	Interruption sent — it will be seen once the current step finishes
+2834	Antigravity CLI (agy) itself
+2835	The system or hachimia already has a command with this name; pick another one
+2836	hachimia checks these skills before handing them to Antigravity; when calling one with a slash, prefix the name with user:, e.g. /user:{name}.
+2837	This build does not run the hooks configured here: hooks can execute arbitrary commands and put arbitrary content into the conversation, and hachimia cannot check them. The rules stay in the file and will not be deleted.
+2838	Reinstall Antigravity CLI (agy)
+2839	Claude (compatible)
+2840	Third-party provider
+2841	Sign in to a Google Antigravity account
+2842	Google Cloud / enterprise account
+2843	Billed by your Google Antigravity account subscription tier; on-device token stats are on the “Usage” page
+2844	Sign out of the Google Antigravity account on this device?
+2845	The key is stored only in this app's private directory on this device, and is passed to Antigravity CLI only as needed to connect to the matching endpoint.
+2846	AGY blue
+2847	Antigravity's replies
+2848	Shizuku is running but has not been authorized for hachimia
+2849	vivo / iQOO: Settings → Battery → Background power consumption → allow hachimia <b>high background power usage</b>; in iManager allow <b>auto-start</b> (common path)
+2850	Huawei / Honor: Settings → App launch → turn off “Manage automatically” for hachimia, then manually allow <b>auto-start</b> and <b>background activity</b> (common path)
+2851	hachimia has been frozen in the background by the system {n} times (most recent: about {sec} seconds, {at}).
+2852	In system settings, allow hachimia to run in the background, turn off battery optimization, and allow auto-start (each vendor names these differently).
+2853	Authorize for hachimia
+2854	hachimia's wireless debugging pairing has been removed: it still works now, but it cannot auto-activate after a reboot.
+2855	Shizuku was not activated by hachimia: hachimia cannot auto-activate it after a reboot. Pair it once and you're set.
+2856	The system did not notify hachimia at this boot (blocked by the system's “auto-start” management), so it could not auto-activate; opening hachimia will catch up.
+2857	To activate at boot: allow hachimia auto-start / background start in the app details; takes effect at the next boot.
+2858	Antigravity CLI (agy) version
+2859	Uninstall Antigravity CLI (agy)?\n\nThis deletes the downloaded agy program; it will not be reinstalled automatically. Tap “Install” here to download it again when you need it.\n\nSign-in, sessions and settings are kept; sending a message while it is not installed will prompt you to install it first.
+2860	Install the devkit from a local file?\n\nPick a devkit-ha.chi.mia.tar.gz (or .tar), downloadable from the GitHub releases page or hachimia.net. It is checked against the published release before installing; the service pauses for 1–2 minutes during installation.\nThings you installed into the devkit with pip / npm -g are kept.
+2861	Shizuku is not activated yet, so the app cannot toggle accessibility itself: turn on hachimia manually in the system accessibility settings. From Android 13, sideloaded apps must first allow restricted settings via App info → menu in the top-right corner.
+2862	This build has no native layer and only records CPU time (battery, screen-on and foreground time come from hachimia).
+2863	Name (e.g. self-hosted Gemini proxy)
+2864	Auth: x-goog-api-key (Gemini / Antigravity)
+2865	Auth: Authorization: Bearer
+2866	Auth: x-api-key
+2867	Default model name (required, e.g. gemini-3.8-flash)
+2868	Model list URL (optional; Gemini endpoints auto-probe /v1beta/models)
+2869	Context window (optional, in tokens, e.g. 1m; leave empty for the default)
+2870	More models (optional, one per line; you may put the window after the name, separated by a space, e.g. gemini-4-neon 1m)
+2871	Send images with the message (compat): check this when the model cannot read attached images; attachments are then sent directly as multimodal blocks with the message.
+2872	Choosing <b>Gemini / Antigravity</b> auth drives the official <code>agy</code> CLI via <code>GOOGLE_GEMINI_BASE_URL</code> + <code>GEMINI_API_KEY</code>.
+2873	Running Antigravity diagnostics…
+2874	Currently available capabilities
+2875	Fixed
+2876	Workaround
+2877	(Merged from 
+2878	Direct (not needed)
+2879	(Decided by Antigravity)
+2880	Antigravity CLI failed: {msg}
+2881	The Antigravity CLI user-level config has unconfirmed changes. Send a message first, confirm in the card that pops up, then try again.
+2882	Could not fetch the Antigravity CLI version list
+2883	agy install script not found ({p})
+2884	The dev side only manages Antigravity CLI (agy) (you build and install the app itself on this device)
+2885	Updating Antigravity CLI (agy)…
+2886	Could not fetch the Antigravity CLI version list: {err}
+2887	The gateway's own runtime was modified; Antigravity CLI was not started this round. The gateway will restart when idle and restore itself from the install package; send again shortly.
+2888	Antigravity CLI (agy) is not installed. Install it under Settings → Updates first.
+2889	Antigravity CLI (agy) not found
+2890	Settings → Updates: reinstall Antigravity CLI (agy)
+2891	Antigravity CLI (agy) is not installed. Tap “Install” under Settings → Updates.
+2892	The Antigravity CLI user-level config has unconfirmed changes, or an earlier session left background processes behind, so this run did not start. Open hachimia, send a message, and confirm in the card that pops up, then try again.
+2893	Antigravity CLI (agy) is not installed. Install it under Settings → Updates first, then come back to sign in.
+2894	Enterprise sign-in: in the agy sign-in screen, choose “Use a Google Cloud project” → “Continue with Google Cloud” and authorize with your enterprise account.
+2895	Personal sign-in: in the agy sign-in screen, choose “Google OAuth” and authorize with your personal Google account.
+2896	The slash commands, tools, skills and extensions currently available to Antigravity. Tap a slash command to insert it into the input box; a tool's “Allow / Ask / Deny” follows the permission mode and rules.
+2897	For things not in the marketplace, import a Linux arm64 program yourself: a single binary, or a .tar.gz / .zip archive. Missing libraries are filled in automatically and a command is generated, ready to use in Antigravity and in the terminal.
+2898	Save a long prompt you send often as a command and pick it with / in the input box. Text after /command fills $ARGUMENTS in the body, expanded automatically by the gateway when sent to Antigravity.
+2899	Antigravity behavior
+2900	Default color pick (AGY Monet palette); switchable to native, Qiusuo, Zhuyue or Construct
+2901	Font for Antigravity's reply text
+2902	Thinking level (thought_level)
+2903	Levels vary by model (low / medium / high / xhigh). You can also type <code>/effort &lt;level&gt;</code> in the input box.
+2904	Let Antigravity decide
+2905	Empty = let Antigravity decide by window
+2906	Confirm each item by default, same as official agy: it asks in the conversation before editing files or running commands. Allow everything means Antigravity can delete files and run any command without asking. You can also switch anytime via the permission tag under the input box.
+2907	Only clears caches, temp files untouched for 7 days, and expired logs; sessions, your files and programs are never auto-deleted
+2908	When on, run <code>priv 'command'</code> in the terminal as shell (pm / am / settings / dumpsys / logcat / screencap…); Antigravity uses it too. Without Shizuku, basic dev features work as usual — only these debugging abilities are unavailable.
+2909	Auto-activate again after a reboot (needs Wi-Fi; starts the hachimia background service at boot)
+2910	Let Antigravity use device tools (notifications, clipboard, opening links / calendar / alarms, sharing files…)
+2911	Off by default. Turn it on when you want Antigravity to test an app you built, or send files it generated to other apps; while on, each round carries an extra one or two thousand tokens of tool descriptions.
+2912	Antigravity CLI channel
+2913	Plan first
+2914	Interview to align the plan
+2915	Long-term goal
+2916	Multi-agent teamwork
+2917	Deep orchestration
+2918	Capabilities & tools
+2919	Failed to switch permission mode (agent rejected {mode}): {msg}
+2920	Could not restore the previous session (the agent doesn't support resume, or resume failed), so a new session was started. This turn was written to the new session; the old session's history is still kept in local records.
+2921	Compaction not confirmed: context did not shrink (before {pre}, after {post}). Please retry /compact or start a new session.
+2922	Enterprise login: please sign in with your company Google account in the browser
+2923	The authorization code could not be written to agy (stdin is closed). Please start login again.
+2924	The authorization code could not be written to agy (the login process's stdin is closed). Please start login again.
+2925	Login-based providers don't need an API key; sign in through the official flow. The key you entered was not saved.
+2926	Already queued; skipping this duplicate run
+2927	Open this in the app
+2928	Needs npx (included in the hachimia toolkit)
+2929	This build has no native layer, so only CPU time is recorded (battery and screen-on need hachimia).
+2930	The Antigravity CLI program was modified and was not started; 
+2931	Antigravity CLI housekeeping files
+2932	These Claude Code config files contain override-style instructions (telling the model to ignore its rules, posing as system messages and the like). hachimia won't load them, so this turn did not run. Edit or remove the following, then send again:\n{list}
+2933	The command {c} is built into the system or hachimia. Pick another name
+2934	Not a hachimia session archive
+2935	{p}: {n}
+2936	«{n}» {w}
+2937	API Key
+2938	Google Antigravity / Gemini
+2939	Посмотреть или сменить модель
+2940	Контекст
+2941	Сжать историю диалога, освободив контекст
+2942	Что произошло
+2943	Что вы делали, что ожидали и что произошло на самом деле. Скриншоты можно перетащить сюда.
+2944	Как воспроизвести
+2945	Не удалось сохранить состояние запуска (возможно, хранилище заполнено или нет разрешения). Если система закроет приложение, этот ход может не восстановиться.
+2946	Не удалось восстановить предыдущее состояние запуска (запись не читается или повреждена). Прерванные ходы и сообщения в очереди не появятся; исходный файл сохранён.
+2947	В имени допустимы только латиница, цифры, - и _, до 40 символов
+2948	Так называется встроенная команда. Выберите другое имя
+2949	Текст запроса не может быть пустым
+2950	Текст запроса слишком длинный (до 64 КБ)
+2951	Запрос с таким именем уже есть
+2952	Можно импортировать не больше 10 шрифтов. Сначала удалите один
+2953	Это коллекция шрифтов (.ttc), WebView её не поддерживает. Используйте отдельный ttf / otf
+2954	Это не подходящий файл шрифта. Поддерживаются только ttf, otf, woff и woff2
+2955	This model doesn't support thinking level "{effort}"; running with the default instead.
+2956	The agent rejected thinking level "{effort}" ({msg}); running with the default instead.
+2957	Not supported under Antigravity
+2958	Not supported under Antigravity: the Antigravity CLI has no generic third-party API key channel. Declare protocol:"gemini" (the endpoint must speak the Gemini protocol), or switch to a Gemini / sign-in provider.
+2959	On-device models need Claude Code; this device only has the Antigravity CLI, so they're unavailable for now.
+2960	Not set (no default compaction line under ACP)
+2961	No Google Cloud ADC credentials found (Application Default Credentials). Run `gcloud auth application-default login` in a terminal first, then come back and pick ADC.
+2962	Application Default Credentials found.
+2963	The old configuration was still using a Claude preset, which doesn't work in Antigravity-only mode; it has been switched back to Google Antigravity sign-in.
+2964	Protocol: not declared
+2965	Protocol: Gemini (endpoint speaks the Gemini protocol)
+2966	Checking ADC credentials…
+2967	Failed to create a session: the agent returned no session ID. Please try again.
+2968	Вывод (выполняется)
+2969	Остаток AI Credits: {n}
+2970	Синхронизация квоты подписки Google Antigravity; пока показан локальный расход токенов (нажмите «Обновить» выше для немедленного запроса).
+2971	Не удалось восстановить предыдущую сессию ({why}). Текущая сессия сохранена без создания новой; повторите попытку или начните новый чат вручную.
+2972	Не удалось определить, заряжается ли устройство
+2973	Не удалось узнать текущий уровень заряда
+2974	Индекс
+2975	Недопустимое имя файла памяти
+2976	Память не найдена
+2977	Разрешён просмотр только обычных файлов памяти
+2978	Файл памяти слишком большой (более 1 МБ)
+2979	Память доступна только для чтения и не может быть изменена здесь
+2980	Ожидание фоновых задач
+2981	тишина {d}
+2982	осталось {d}
+2983	Объявления сопровождающего
+2984	Резервный сторонний прокси GitHub (gh-proxy.com)
+2985	Первая проверка: эти глобальные настройки применяются на каждом шаге. Подтвердите, что добавили их сами (откат сохранит копию в ~/.ccapp-userconf/quarantine).
+2986	Выберите «Откатить», если изменения внесли не вы (настройки вернутся, процессы завершатся, новые файлы попадут в карантин), или «Оставить», если это ваши правки.
+2987	Сбой проверки безопасности. Отклоните действие, если не уверены в нём.
+2988	Настройки проекта напрямую запускают локальные программы. Для незнакомых проектов выберите «Не загружать» (чат продолжит работать); после разрешения повторный запрос будет только при изменениях.
+2989	Если вы этого не просили, возможна инъекция из веб-страницы или файла — лучше отклонить. После разрешения однотипные действия на этом шаге не переспрашиваются.
+2990	Неподтверждённые изменения пользовательских настроек
+2991	Ошибка проверки безопасности — подтвердите вручную
+2992	Изменение файла промптов или правил безопасности: {w}
+2993	Доступ к ключам или учётным данным: {w}
+2994	Связь прервана, переподключение… (генерация продолжается)
+2995	Простой почти 1 час — автосжатие контекста для экономии токенов (отключается в Настройках).
+2996	Ожидает подтверждения
+2997	Новое изменение
+2998	Конфигурация изменена извне, восстановлены текущие настройки: 
+2999	Рабочие файлы изменены извне, сработала защита: 
+3000	Новый чат ждёт подтверждения · см. «Несохранённые чаты» в боковой панели
+3001	Готово · фоновых задач: {n}
+3002	Готово · завершение фоновых задач
+3003	При прерывании статус {n} операций остался неизвестен ({list}). Проверьте результат перед продолжением.
+3004	Время подтверждения истекло ({n} мин без ответа), шаг не запущен ({when}).
+3005	Выполненная часть сохранена. Нажмите «Продолжить», чтобы возобновить с места остановки.
+3006	Сообщение доставлено, повтор не требуется
+3007	Отправка не подтверждена: {msg}
+3008	Недостаточно места, черновик не сохранён. Скопируйте или отправьте текст.
+3009	Хранится в /sdcard/cccodroid/models (Q4_K_M). Включается в «Настройки → Сервисы моделей». ОЗУ: {ram} ГБ, рекомендуется 1–4B.
+3010	Удалить компонент {name}? (Ваши собственные файлы не будут затронуты.)
+3011	Также удалить {size} рабочего кэша {name} ({path})?
+3012	Экспортировать и отправить диагностический пакет?\n\nВключает: версии и модель устройства, состояние набора и самопроверки, недавние очищенные логи, журнал восстановления, проверку сети.\nНе включает: ключи, учётные данные, почту, тексты сообщений и историю сеансов.
+3013	Локальный режим по умолчанию работает только как чат. Чтобы настроить инструменты и параметры, измените {file} или отправьте облачной модели:
+3014	(кэшированный статус, ошибка обновления: {msg})
+3015	Завершите авторизацию в браузере и вставьте код ниже.
+3016	Либо войдите напрямую через встроенный терминал:
+3017	Прежний маршрут удалён. Выберите новый и введите ключ заново.
+3018	Рекомендуется задать лимит расходов в панели провайдера и сразу перевыпустить ключ при подозрении на утечку.
+3019	Обзор за месяц
+3020	Шаблон-пример (замените на реальный адрес сервиса)
+3021	Сторонние сервисы вы настраиваете сами: провайдер видит ваш ключ, код и диалоги. Используйте только доверенные сервисы.
+3022	Несохранённые чаты
+3023	Запустить сейчас
+3024	Автоматически запускается по расписанию в выбранной папке и сохраняет результат как сеанс. Запросы подтверждения отклоняются, пропущенные запуски обрабатываются по правилам задачи.
+3025	По достижении лимита остальные задачи на день пропускаются (учитываются только официальные API, сторонние вызовы не входят).
+3026	Для личных подписок задачи по расписанию по умолчанию отключены. Перед включением проверьте условия провайдера (для API Key ограничений нет).
+3027	Пропущено в этот раз
+3028	Используется сторонний вызов: лимиты расходов не действуют, работает только ограничение по времени запуска.
+3029	Вход по личной подписке: частые автозапуски могут вызвать ограничения провайдера, рекомендуется использовать API Key.
+3030	Для общения заходите в группу; об ошибках лучше сообщать через «Настройки → Отзыв на GitHub» (модель и самопроверка подставятся автоматически).
+3031	Будем рады помощи с переводом, тестированием, документацией и кодом — см. руководство в репозитории.
+3032	Внешний браузер не изолирован песочницей: скрипты могут читать соседние файлы и обращаться к локальным службам. Продолжайте только для доверенных страниц.
+3033	Бинарный файл нельзя открыть как текст.
+3034	Разрешить этой странице выход в сеть?\n\nС доступом к сети скрипты смогут отправлять наружу файлы из соседних папок (до 3 уровней вверх). Включайте только для доверенных страниц.
+3035	Файл слишком велик ({size}). Переключитесь на «Исходный макет» (PDF) или откройте во внешнем приложении.
+3036	Фоновая установка LibreOffice…
+3037	[Процесс завершён]
+3038	[Ошибка отправки, переподключение шлюза]
+3039	Время шагов и хронология вызовов инструментов
+3040	Впервые здесь? Нажмите «Как читать» справа вверху
+3041	Ниже есть такое же ещё не сохранённое сообщение — дождитесь конца шага перед добавлением закладки
+3042	Закладок пока нет. Нажмите значок закладки под сообщением, чтобы добавить.
+3043	Интерактивная страница (HTML)
+3044	Перезагрузка интерфейса…
+3045	Эта версия приложения не поддерживает автовосстановление — обновите приложение или перезапустите шлюз
+3046	Если прокрутка зависла, удерживайте заголовок сверху ~0,6 с для восстановления
+3047	Автовосстановление остановлено; изменение настроек не снимет блокировку. Выполните диагностику ниже и сбросьте счётчик попыток.
+3048	Проверка моста не пройдена, автовосстановление остановлено (сохранение настроек не устранит сбой); сначала выполните диагностику.
+3049	Мост отключён (сохранение настроек не включит его). Сначала включите компонент на вкладке «Расширения».
+3050	Компонент моста недоступен; проверьте установку (счётчик попыток восстановления автоматически не сбрасывается).
+3051	Для работы необходимо обновить компонент моста.
+3052	Мост не готов; проверьте диагностику ниже (текущая сессия не меняется, сохранение настроек не сбрасывает счётчик попыток).
+3053	Мост занят, повторите попытку чуть позже.
+3054	Проверка целостности настроек не пройдена. Следуйте инструкции ниже и не удаляйте рабочие папки вручную.
+3055	Не удалось прочитать настройки моста. Вернитесь в «Расширения» и повторите попытку.
+3056	Укажите HTTPS-адрес API без логина, параметров запроса и якоря.
+3057	Укажите адрес Chat Completions — Responses API пока не поддерживается.
+3058	Не удалось дополнить путь автоматически — укажите полный адрес с /chat/completions.
+3059	Поддерживается несколько OpenAI-совместимых интерфейсов; применяется после сохранения.
+3060	Только чтение локального статуса — без изменения настроек и запросов к серверу.
+3061	Перед переносом или переустановкой сохраните копию настроек моста (только адреса, ключи и модели; без истории чатов).
+3062	Не публикуйте конфигурационные файлы, содержащие ключи.
+3063	Укажите API-адрес провайдера (не страницу входа на сайт).
+3064	Автоматически загрузить список моделей (отправит API Key указанному сервису)
+3065	Повторить
+3066	Найдите или введите имя модели
+3067	После добавления можно задать окно контекста и модель по умолчанию.
+3068	Берётся окно из ответа API, иначе 200 000 токенов; можно изменить вручную.
+3069	Сообщения, результаты инструментов и изображения будут отправляться в этот сервис.
+3070	Инференс не проверен
+3071	Синхронизировано с «Настройки → Интерфейсы и модели».
+3072	В других сеансах его можно выбрать через плашку модели под полем ввода.
+3073	Проверяет расхождения локальных настроек и формирует план синхронизации (без изменений).
+3074	Синхронизирует только список моделей, модель по умолчанию и тип авторизации; не запускает/останавливает службу и не меняет ключи, файлы, блокировку восстановления или текущую сессию (60 с).
+3075	Синхронизировать запись
+3076	Убедитесь, что приложение и компонент обновлены; дождитесь завершения активных сеансов перед проверкой.
+3077	При остановке автовосстановления или ошибке проверки синхронизация записей не снимет блокировку; сначала проверьте диагностику, затем обновите или переустановите компонент в «Расширениях», не удаляя каталог.
+3078	При обращении укажите версию и код диагностики; никогда не прикладывайте ключи или полный конфиг.
+3079	Повторная проверка очистит несохранённый ввод на странице. Продолжить?
+3080	Для добавления нескольких интерфейсов обновите компонент моста; текущая одиночная настройка продолжает работать.
+3081	Редактируйте по одному интерфейсу; изменения вступят в силу вместе после нажатия «Сохранить настройки».
+3082	Отметьте для автозагрузки списка или введите имя модели вручную.
+3083	Удалить интерфейс «{name}» и его модели? (Применится после сохранения.)
+3084	Мост занят, попробуйте позже.
+3085	План устарел или состояние изменилось — выполните проверку заново.
+3086	Расхождений для синхронизации не найдено; если проблема остаётся, разверните инструкцию ниже.
+3087	Автосинхронизация в текущем состоянии невозможна — следуйте инструкции ниже, не удаляйте папки.
+3088	Проверка элементов для синхронизации…
+3089	Можно синхронизировать моделей: {n} (и способ авторизации).
+3090	План синхронизации готов — подтвердите для записи.
+3091	Синхронизировать запись интерфейса моста?\n\nОбновятся только список моделей, модель по умолчанию и тип авторизации; адрес и ключ не изменятся.
+3092	Синхронизация записи интерфейса…
+3093	Результат синхронизации не подтверждён — перепроверьте статус, не отправляйте повторно.
+3094	Интерфейс записан, но привязка не завершена — перепроверьте статус.
+3095	Запись интерфейса синхронизирована.
+3096	Адрес, способ авторизации или локальная запись подключения не совпадают с мостом.
+3097	Формат или содержимое сохранённого списка моделей не совпадает.
+3098	Не удалось прочитать или проверить запись привязки моста.
+3099	Регистрация локальной службы не совпадает с записью подключения.
+3100	Метка принадлежности рабочей папки не совпадает — проверьте старые настройки или состояние каталога.
+3101	Самопроверка безопасности компонента не пройдена (без уточнения пункта).
+3102	Конфликт настроек (старая версия компонента не уточнила причину: проверьте рабочие файлы, метку принадлежности или запись интерфейса).
+3103	Компонент недоступен
+3104	Мост занят
+3105	Не удалось прочитать статус моста
+3106	Настройки записаны, но следующие шаги не завершились — сначала перепроверьте статус.
+3107	Сохранение не завершено — см. подсказку выше.
+3108	Сначала сверьте версии приложения и компонента; не удаляйте и не правьте рабочие папки.
+3109	Адрес сервиса изменился — введите API Key заново (старый ключ не отправляется на новый адрес).
+3110	Сохранённый ключ скрыт: оставьте поле пустым, чтобы не менять, или введите новый.
+3111	Сохранение настроек…
+3112	Сохранение не вызывает удалённые модели и не переключает текущую сессию (список моделей загружен; вывод не проверялся).
+3113	Введите целое число от 1024 до 16777216 (можно 256k, 1m) или оставьте пустым.
+3114	Укажите корректное имя модели (без запятых и переносов строк).
+3115	Введите действительный API Key для автозагрузки списка.
+3116	Загрузка отменена — повторите или введите вручную.
+3117	Подготовка к загрузке списка моделей…
+3118	Введите API Key заново и повторите попытку.
+3119	Список моделей пуст — введите имя вручную или повторите.
+3120	Загружено моделей: {count} (макс. 500) — ищите или введите своё.
+3121	Сохранение…
+3122	Список получен, инференс не проверен
+3123	Локальный мост готов
+3124	Автовосстановление остановлено
+3125	Ошибка проверки моста
+3126	Мост отключён
+3127	Настройки сохранены, мост не готов
+3128	Конфликт ID модели, длина >200 символов или всего >100 моделей — исправьте перед сохранением.
+3129	Сохранить все настройки интерфейсов?\n\nСообщения, результаты инструментов и изображения будут направляться по моделям на:\n{origins}
+3130	Сохранить настройки этого интерфейса?\n\nСообщения, результаты инструментов и изображения будут отправляться на {origin}.\n({verification})
+3131	Адрес API не прошёл проверку — проверьте и повторите.
+3132	Введите API Key заново (при смене адреса старый ключ не переносится).
+3133	Сохранение не завершено — проверьте локальный статус и повторите.
+3134	Не удалось выбрать интерфейс для нового сеанса — повторите попытку.
+3135	Фоновая команда завершилась, но движок не отвечает более {d}; нажмите «Стоп» или отправьте новое сообщение.
+3136	Настройка моста не завершена — проверьте поля или состояние компонента.
+3137	Конфликт маркера отправки — отправьте сообщение заново.
+3138	Соединение с сервером оборвалось раньше времени; если ответ неполный, отправьте «Продолжить».
+3139	Этот интерфейс не поддерживается в Antigravity: укажите protocol:"gemini" (Gemini-совместимый адрес) или войдите через Google.
+3140	Пресет Claude ({id}) недоступен в режиме только Antigravity — выберите вход через Google или интерфейс Gemini.
+3141	Вставить реплику (в текущий шаг)
+3142	↩ Вернуть очищенный черновик
+3143	Изменения вступят в силу со следующего сообщения.
+3144	Публичный реестр (без модерации); npm-пакеты выполняются локально — проверяйте источник перед установкой.
+3145	Автозапуск команд по событиям (до/после инструментов, при отправке, в конце ответа) для перехвата действий, добавления контекста или форматирования.
+3146	Акцентный цвет кнопок, ссылок и выделения (контраст подстраивается под тему)
+3147	Закрепить на панели, убрать в «⋯» или скрыть; перетащите за ручку слева для сортировки
+3148	Поддержка ttf / otf / woff / woff2 (≤ 40 МБ, до 10 шт.); после импорта выберите выше в «Свой…»
+3149	Скрывает интерфейс из меню выбора моделей, сохраняя настройки и ключ
+3150	Автоматически создавать заголовок после первого ответа (тратит немного токенов, можно выбрать лёгкую модель)
+3151	Всегда запрашивать подтверждение при чтении секретов (.env / SSH / API Key), управлении экраном, чтении буфера обмена или внешней отправке (даже в режиме «Разрешить всё») для защиты от инъекций.
+3152	Автосжатие сеансов >200k токенов после ~54 мин простоя для снижения задержки и расхода токенов.
+3153	Требуется приложение «Work Island» для показа прогресса и запросов в Fluid Cloud на ColorOS 16 (скрывается через 8 с).
+3154	Разрешает чтение и запись вне рабочей папки через additionalDirectories и добавляет ярлыки в файловый менеджер.
+3155	Временно пропускает пользовательские правила, навыки, плагины, Hooks и MCP без изменения файлов; выключите для возврата.
+3156	Параллельный запуск разных сеансов (по несколько сотен МБ ОЗУ на каждый; 1 = по очереди).
+3157	Перехватывает запрещённые в Android системные вызовы для работы статических бинарников вроде Go без падений (со следующего сообщения).
+3158	Автовыбор по пакету: прямой запуск на targetSdk 28, через системный загрузчик на targetSdk 36 (нужен перезапуск шлюза).
+3159	Разрешить остановку фоновых приложений вне белого списка (нужен Shizuku)
+3160	Останавливает фоновые приложения перед тяжёлыми командами (<code>cc-mem run -- команда</code>); не трогает активное окно, разделённый экран, приложения с постоянным уведомлением (прокси/музыка), лаунчер, клавиатуру, спецвозможности, VPN, Shizuku и белый список.
+3161	Локальные сеансы хранятся бессрочно и перемещаются в корзину только вручную.
+3162	Не запрашивать подтверждение каждой привилегированной команды (на ваш риск): команды Shizuku выполняются без окна до конца срока; обращения к этому приложению и Shizuku по возможности перехватываются, но все обходные формы отследить нельзя. Для одной сессии отметьте галочку в окне
+3163	По умолчанию targetSdk 28 обеспечивает лучшую совместимость; при запрете установки на новых устройствах автоматически выбирается targetSdk 36 без потери данных.
+3164	Тихо обновляет Antigravity CLI; предлагает установить новую версию приложения (или ставит в простое через Shizuku); набор инструментов предзагружается по Wi‑Fi до следующего запуска.
+3165	Каждые 3 часа запрашивает подписанные уведомления (статический запрос без данных устройства); при отключении запросы не отправляются.
+3166	По умолчанию выключено: скачивание через сторонний прокси только при недоступности основного источника и зеркала (прокси видит ваш IP; хеш и подпись по-прежнему проверяются).
+3167	Экспорт очищенных логов и состояния среды (без ключей, почты и переписки) для диагностики или прикрепления к Issue.
+3168	Экспорт диагностики
+3169	Открывает создание Issue с предзаполненной моделью, версией ОС и результатом самопроверки (без логов и чатов).
+3170	Сбрасывает пользовательские настройки, параметры приложения и файлы shell (копия в ~/.ccapp-reset); сеансы, рабочая папка, набор и ключи по умолчанию сохраняются.
+3171	Проверяет компиляторы, Python, Node, git и др. и передаёт сводку Antigravity (автоповтор после обновлений).
+3172	Не удалось загрузить интерфейс — нажмите для повтора
+3173	Сохранение не вызывает удалённые модели и не переключает текущую сессию.
+3174	Antigravity CLI не прошёл проверку целостности, поэтому не был запущен: {why}
+3175	Текущий движок (Antigravity CLI) пока не поддерживает откат контрольных точек файлов
+3176	Текущий движок (Antigravity CLI) пока не поддерживает управление каталогами плагинов
+3177	Текущий движок (Antigravity CLI) пока не поддерживает эту подкоманду MCP
+3178	Конфигурация MCP не является корректным JSON
+3179	Общая папка /sdcard/hachimia
+3180	Агент отклонил выбор модели «{model}» ({msg}); выполняется с моделью по умолчанию.

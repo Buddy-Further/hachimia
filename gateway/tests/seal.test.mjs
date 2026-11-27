@@ -105,31 +105,7 @@ test("Prompt Cache TTL：只回填 5m / 1h，非法值丢弃（cccodroid #257）
   sealCleanup(82);
 });
 
-test("任何一处命中破甲特征：整轮不跑，列出文件", () => {
-  for (const [where, file] of [
-    ["用户 CLAUDE.md", () => H(".claude/CLAUDE.md")],
-    ["@ 引用的文件", () => (put(H(".claude/CLAUDE.md"), "见 @inc.md\n"), H(".claude/inc.md"))],
-    ["rules", () => H(".claude/rules/a.md")],
-    ["项目 CLAUDE.local.md", () => path.join(W(), "CLAUDE.local.md")],
-    // 「上级目录的 CLAUDE.md」：P1-14 起工作区外、没登记的目录不再往上读（不进上下文也就不用扫），见 a0610-main-seal.test.mjs
-    ["skill", () => H(".claude/skills/x/SKILL.md")],
-    ["项目里的命令", () => path.join(W(), ".claude/commands/c.md")],
-    ["子代理", () => H(".claude/agents/a.md")],
-    ["输出风格", () => H(".claude/output-styles/s.md")],
-    ["自动记忆", () => path.join(memoryDir(W()), "MEMORY.md")],
-  ]) {
-    fresh();
-    const f = file();
-    put(f, BAD);
-    const p = sealPrepare({ cwd: W(), runId: 1 });
-    assert.ok(p.block, where);
-    assert.ok(p.block.found.some((x) => x.name === f), where + " 列出文件");
-    fs.rmSync(f);
-    fs.rmSync(path.join(CFG.home, "CLAUDE.md"), { force: true });
-  }
-});
-
-test("扩展页装的插件：拷一份、去掉钩子和设置；插件里的 skill 命中照样拦", () => {
+test("扩展页装的插件：拷一份、去掉钩子和设置；未启用不回填", () => {
   fresh();
   const dir = H(".claude/plugins/cache/mk/demo/1.0.0");
   put(path.join(dir, ".claude-plugin/plugin.json"), JSON.stringify({ name: "demo", version: "1.0.0", hooks: "./hooks/hooks.json" }));
@@ -149,28 +125,17 @@ test("扩展页装的插件：拷一份、去掉钩子和设置；插件里的 s
   // 没启用的、不在 cache 里的不回填
   put(H(".claude/settings.json"), JSON.stringify({ enabledPlugins: { "demo@mk": false } }));
   assert.ok(!at(sealPrepare({ cwd: W(), runId: 2 }).args, "--plugin-dir").some((x) => x.includes("demo")));
-  put(H(".claude/settings.json"), JSON.stringify({ enabledPlugins: { "demo@mk": true } }));
-  put(path.join(dir, "skills/s/SKILL.md"), BAD);
-  p = sealPrepare({ cwd: W(), runId: 2 });
-  assert.ok(p.block && p.block.found.some((x) => x.name.endsWith("skills/s/SKILL.md")));
 });
 
-test("插件 data/*.json 是运行时数据：不扫，命中也放行；其余文件照样拦", () => {
+test("已移除破甲文本检查：CLAUDE.md / skill / 记忆含原破甲样本文本不再拦截", () => {
   fresh();
-  const dir = H(".claude/plugins/cache/mk/demo/1.0.0");
-  put(path.join(dir, ".claude-plugin/plugin.json"), JSON.stringify({ name: "demo", version: "1.0.0" }));
-  put(path.join(dir, "data/plugins.json"), BAD);
-  put(path.join(dir, "skills/s/SKILL.md"), "---\nname: s\ndescription: d\n---\nok\n");
-  put(H(".claude/plugins/installed_plugins.json"), JSON.stringify({ version: 2, plugins: { "demo@mk": [{ scope: "user", installPath: dir, version: "1.0.0" }] } }));
-  put(H(".claude/settings.json"), JSON.stringify({ enabledPlugins: { "demo@mk": true } }));
-  let p = sealPrepare({ cwd: W(), runId: 21 });
+  put(H(".claude/CLAUDE.md"), BAD);
+  put(H(".claude/skills/x/SKILL.md"), "---\nname: x\ndescription: d\n---\n" + BAD);
+  put(path.join(memoryDir(W()), "MEMORY.md"), BAD);
+  const p = sealPrepare({ cwd: W(), runId: 21 });
   assert.equal(p.block, null);
-  const d = at(p.args, "--plugin-dir").find((x) => x.includes("demo"));
-  assert.ok(fs.existsSync(path.join(d, "data/plugins.json")));
-  // 同一插件里其它文本文件命中照拦
-  put(path.join(dir, "docs/evil.md"), BAD);
-  p = sealPrepare({ cwd: W(), runId: 21 });
-  assert.ok(p.block && p.block.found.some((x) => x.name.endsWith("docs/evil.md")));
+  assert.equal(sealRecheck(p), null);
+  sealCleanup(21);
 });
 
 test("副本复用前核对：私有副本被改了就重拷", () => {
@@ -193,17 +158,6 @@ test("副本复用前核对：副本里多出清单外的文件，也不走 stat
   assert.equal(p.block, null);
   assert.equal(d1, d2);
   assert.ok(!fs.existsSync(path.join(d2, "skills/extra")));
-});
-
-test("记忆目录：准备之后被改、起进程前再核就拦；没改就过", () => {
-  fresh();
-  const m = path.join(memoryDir(W()), "MEMORY.md");
-  put(m, "- 用户喜欢中文\n");
-  const p = sealPrepare({ cwd: W(), runId: 4 });
-  assert.equal(p.block, null);
-  assert.equal(sealRecheck(p), null);
-  put(m, "- 用户喜欢中文\n" + BAD);
-  assert.ok(sealRecheck(p));
 });
 
 test("记忆目录：软链的记忆文件不读，拦下时记成 symlink 而不是 toolarge", () => {

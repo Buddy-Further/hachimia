@@ -885,10 +885,18 @@ export async function routeSched(req, res, u, p) {
     const b = await body();
     const i = DB.missed.findIndex((m) => m.taskId === b.taskId && (!b.at || m.at === b.at));
     if (i < 0) return sendJson(res, 404, { error: "not missed" });
-    const m = DB.missed.splice(i, 1)[0]; save();
+    const m = DB.missed[i];
     const t = byId(m.taskId);
     // 只有「跳过」标记早于这次错过时才消费；用户是在错过卡出现之后才设的跳过，要留给下一次计划
-    if (t && t.skipNext && (!t.skipAt || t.skipAt <= m.at)) { t.skipNext = false; t.skipAt = 0; save(); }
+    const hadSkip = !!(t && t.skipNext && (!t.skipAt || t.skipAt <= m.at));
+    const prevSkipAt = t ? t.skipAt : 0;
+    DB.missed.splice(i, 1);
+    if (hadSkip) { t.skipNext = false; t.skipAt = 0; }
+    if (!save()) {
+      DB.missed.splice(i, 0, m);
+      if (hadSkip) { t.skipNext = true; t.skipAt = prevSkipAt; }
+      return sendJson(res, 500, { ok: false, error: "write_failed", message: tz("没保存上：存储满了或没有权限") });
+    }
     if (t && b.act === "run") fire(t, { reason: "manual" });   // 人点的补跑，不是 tick 自动补跑
     else if (t) addRun({ taskId: t.id, at: m.at, st: "skip", msg: tz("错过了，没补跑") });
     return sendJson(res, 200, { ok: true });

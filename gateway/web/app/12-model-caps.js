@@ -751,8 +751,8 @@
 
   // 工具的权限：规则优先（deny > ask > allow，Bash(git:*) 这种带括号的算「按规则」），否则看权限模式；只读的工具默认允许
   const READ_TOOLS = new Set([
-    "Read", "Grep", "Glob", "LS", "TodoWrite", "TodoRead", "Task", "Agent", "NotebookRead", "ExitPlanMode", "BashOutput", "KillShell", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet",
-    "read_file", "search_web", "ask_question", "update_steps", "manage_task", "manage_subagents", "define_subagent", "invoke_subagent", "send_message", "schedule", "run_workflow",
+    "Read", "Grep", "Glob", "LS", "TodoWrite", "TodoRead", "Task", "Agent", "NotebookRead", "ExitPlanMode", "exit_plan_mode", "BashOutput", "KillShell", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet",
+    "read_file", "grep_search", "find_by_name", "list_dir", "search_web", "ask_question", "update_steps", "manage_task", "manage_subagents", "define_subagent", "invoke_subagent", "send_message", "schedule", "run_workflow",
   ]);
   const EDIT_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit", "edit_file", "write_file", "replace_file_content", "multi_replace_file_content"]);
   function toolPerm(name, mode, rules) {

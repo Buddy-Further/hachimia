@@ -18,12 +18,21 @@ import { CFG, log } from "./config.mjs";
 import { SAFE_KEYS } from "./projtrust.mjs";
 import { saveState, writeAtomic as stateWriteAtomic } from "./statefile.mjs";
 
-// 单个文件；JSON 的几个只看会让东西跑起来的那部分（claude 自己常写的统计、提示次数之类不算）
-const FILES = [".claude/CLAUDE.md", ".claude/settings.json", ".claude/settings.local.json", ".claude.json",
-  ".claude/plugins/installed_plugins.json", ".claude/plugins/known_marketplaces.json"];
+// 单个文件；JSON 的几个只看会让东西跑起来的那部分（claude / agy 自己常写的统计、提示次数之类不算）
+const FILES = [
+  ".claude/CLAUDE.md", ".claude/settings.json", ".claude/settings.local.json", ".claude.json",
+  ".claude/plugins/installed_plugins.json", ".claude/plugins/known_marketplaces.json",
+  ".gemini/antigravity-cli/GEMINI.md", ".gemini/antigravity-cli/CLAUDE.md",
+  ".gemini/antigravity-cli/settings.json", ".gemini/antigravity-cli/settings.local.json",
+];
 // 整个目录：规则、输出风格、skill、子代理、斜杠命令、钩子脚本、插件本体（打开就运行，2.1.311 实测在 plugins/cache/<市场>/<插件>/<版本>）
-const TREES = [".claude/rules", ".claude/output-styles", ".claude/skills", ".claude/agents", ".claude/commands", ".claude/hooks",
-  ".claude/plugins/cache", ".claude/plugins/marketplaces", ".claude/plugins/repos"];
+// 注：~/.gemini/antigravity-cli/ 仅纳管配置与扩展目录，刻意排除 brain/log/cache/bin/builtin/凭据等运行态文件避免误报
+const TREES = [
+  ".claude/rules", ".claude/output-styles", ".claude/skills", ".claude/agents", ".claude/commands", ".claude/hooks",
+  ".claude/plugins/cache", ".claude/plugins/marketplaces", ".claude/plugins/repos",
+  ".gemini/antigravity-cli/rules", ".gemini/antigravity-cli/skills", ".gemini/antigravity-cli/agents",
+  ".gemini/antigravity-cli/commands", ".gemini/antigravity-cli/hooks", ".gemini/antigravity-cli/plugins",
+];
 const MAX_FILES = 3000, MAX_DEPTH = 8;
 const BIG = 4 << 20;            // 超过的不读内容，指纹按大小 + 修改时间 + ctime
 const COPY_MAX = 256 << 10, COPY_TOTAL = 16 << 20;
@@ -161,7 +170,7 @@ const PEND = new Set();
 let pendT = null;
 const ACTIVE = new Map();     // 正在跑的轮次 runId → sessionId（记是哪一轮期间改的）
 const FILE_SET = new Set(FILES), TREE_SET = new Set(TREES);
-const PARENTS = ["", ".claude", ".claude/plugins"];
+const PARENTS = ["", ".claude", ".claude/plugins", ".gemini", ".gemini/antigravity-cli"];
 
 function onParent(prel, name) {
   // 没有名字（监视出错后的重扫，或者平台没给文件名）：这一层底下要盯的全部过一遍（DeepSeek 复核 11-04 建议）
@@ -262,7 +271,16 @@ export function ucAppWrote(prefixes, before, keys) {
 }
 
 // 第一次检查（升级上来、还没有记录）：这些直接进每次对话、或者会自己运行的（插件本体带钩子、MCP），先给用户看一眼；其余的（skill、命令…）直接认下
-const STRONG = (rel) => rel === ".claude/CLAUDE.md" || rel.startsWith(".claude/rules/") || rel.startsWith(".claude/output-styles/") || rel.startsWith(".claude/plugins/") || isJsonPart(rel);
+const STRONG = (rel) => rel === ".claude/CLAUDE.md"
+  || rel.startsWith(".claude/rules/")
+  || rel.startsWith(".claude/output-styles/")
+  || rel.startsWith(".claude/plugins/")
+  || rel === ".gemini/antigravity-cli/GEMINI.md"
+  || rel === ".gemini/antigravity-cli/CLAUDE.md"
+  || rel.startsWith(".gemini/antigravity-cli/rules/")
+  || rel.startsWith(".gemini/antigravity-cli/hooks/")
+  || rel.startsWith(".gemini/antigravity-cli/plugins/")
+  || isJsonPart(rel);
 
 // ── 归因：哪一轮运行期间改的 ──
 const SNAP = new Map();      // runId → Map(rel → h)
@@ -330,7 +348,12 @@ function preview(rel, f, oldText) {
 
 // 发行版只问这两份：CLAUDE.md、rules、skill、插件这些发行版根本不读（edition.mjs），回填进来的只有 MCP 与权限规则（seal.mjs），
 // 这两样过了破甲扫描也照样能让程序跑起来、放宽自动批准，被注入驱动着改了要人点头（0.6.9 审计 199-11-06）
-export const UC_SEALED = [".claude.json", ".claude/settings.json"];
+export const UC_SEALED = [
+  ".claude.json",
+  ".claude/settings.json",
+  ".gemini/antigravity-cli/settings.json",
+  ".gemini/antigravity-cli/settings.local.json",
+];
 
 /** 起一轮前：有没有没确认的改动。没有返回 null。only：只看这几项（发行版给 UC_SEALED） */
 export function ucPending(only = null) {
@@ -385,10 +408,20 @@ export function ucKeep(rels, ticket) {
 
 function writeAtomic(abs, data, mode = 0o600) {
   fs.mkdirSync(path.dirname(abs), { recursive: true });
-  const tmp = abs + ".ccapp-" + crypto.randomBytes(4).toString("hex");
-  fs.writeFileSync(tmp, data, { mode });
-  if (mode !== 0o600) fs.chmodSync(tmp, mode);     // umask 会吃掉建文件时给的位，可执行脚本还原后得能照样执行（#151-1）
-  fs.renameSync(tmp, abs);
+  const tmp = abs + ".ccapp-" + process.pid + "-" + crypto.randomBytes(6).toString("hex");
+  let fd = null;
+  try {
+    fd = fs.openSync(tmp, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_NOFOLLOW, mode);
+    fs.writeFileSync(fd, data);
+    fs.fsyncSync(fd);
+    fs.closeSync(fd); fd = null;
+    if (mode !== 0o600) fs.chmodSync(tmp, mode);     // umask 会吃掉建文件时给的位，可执行脚本还原后得能照样执行（#151-1）
+    fs.renameSync(tmp, abs);
+  } catch (e) {
+    if (fd != null) { try { fs.closeSync(fd); } catch {} }
+    try { fs.rmSync(tmp, { force: true }); } catch {}
+    throw e;
+  }
 }
 /** 把现在的样子先拷一份进隔离目录（还原会覆盖掉的、看不懂的） */
 function stash(qdir, rel, abs) {

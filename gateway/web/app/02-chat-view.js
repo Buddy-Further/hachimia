@@ -449,7 +449,7 @@
 
   function summarizeTool(name, input) {
     if (!input) return "";
-    const n = displayToolName(name, input);
+    const n = baseToolName(name, input);
     const clip = (s) => {
       const t = String(s || "").replace(/\s+/g, " ").trim();
       return t.length > 90 ? t.slice(0, 90) + "…" : t;
@@ -508,7 +508,8 @@
       if (typeof inp.Script === "string" || typeof inp.ScriptPath === "string") return "run_workflow";
       if (typeof inp.Recipient === "string" && typeof inp.Message === "string") return "send_message";
       if (typeof inp.Path === "string" || typeof inp.AbsolutePath === "string" || typeof inp.file_path === "string" || typeof inp.TargetFile === "string" || typeof inp.path === "string") {
-        if (inp.Target !== undefined || inp.Replacement !== undefined || inp.old_string !== undefined || inp.new_string !== undefined || inp.TargetContent !== undefined || inp.ReplacementContent !== undefined || Array.isArray(inp.ReplacementChunks)) return "edit_file";
+        if (Array.isArray(inp.ReplacementChunks) || Array.isArray(inp.edits)) return "multi_replace_file_content";
+        if (inp.Target !== undefined || inp.Replacement !== undefined || inp.old_string !== undefined || inp.new_string !== undefined || inp.TargetContent !== undefined || inp.ReplacementContent !== undefined) return "edit_file";
         if (inp.Content !== undefined || inp.content !== undefined || inp.CodeContent !== undefined || inp.Overwrite !== undefined) return "write_file";
         return "read_file";
       }
@@ -523,11 +524,24 @@
     return raw.replace(/\s+/g, " ");
   }
 
-  const isAgentToolName = (n) => n === "Agent" || n === "Task" || n === "invoke_subagent" || n === "run_workflow" || /^(?:spawn|invoke)\s+(?:sub)?agent/i.test(String(n || ""));
+  // 供逻辑分派使用的规范基础工具名：保留 displayToolName 里的 "tool (label)" 给界面展示，
+  // 匹配工具类型时统一剥除 "run " 前缀与末尾括号标签（防止子代理卡/权限卡/摘要全线失配）
+  function baseToolName(name, input) {
+    const d = input !== undefined ? displayToolName(name, input) : String(name || "").trim();
+    return d.replace(/^run\s+/i, "").replace(/\s*\([^)]+\)$/, "").trim();
+  }
+
+  const isAgentToolName = (n) => {
+    const b = baseToolName(n);
+    return b === "Agent" || b === "Task" || b === "invoke_subagent" || b === "run_workflow" || /^(?:spawn|invoke)\s+(?:sub)?agent/i.test(b);
+  };
   const isAsyncAgentResult = (name, txt) => /^Async agent launched/.test(txt)
     || (isAgentToolName(name) && (/conversationId|running in (?:the )?background|launched/i.test(txt)));
-  const isShellToolName = (n, inp) => n === "Bash" || n === "PowerShell" || n === "run_command" || n === "run_shell"
-    || !!(inp && (typeof inp.CommandLine === "string" || typeof inp.command === "string"));
+  const isShellToolName = (n, inp) => {
+    const b = baseToolName(n);
+    return b === "Bash" || b === "PowerShell" || b === "run_command" || b === "run_shell"
+      || !!(inp && (typeof inp.CommandLine === "string" || typeof inp.command === "string"));
+  };
   const isBgShellResult = (name, inp, txt) => {
     if (!isShellToolName(name, inp)) return false;
     if (inp && inp.IsDaemon) return false;   // 常驻服务启动即算该步完成，存活态由底部 runStrip「常驻」单独追踪，避免对话步骤组永久转圈

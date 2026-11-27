@@ -8,6 +8,7 @@ import { ledger } from "./claude.mjs";
 import { onSealUnknown } from "./claudeseal.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
 import { SETTINGS, saveSettings } from "./settings-store.mjs";
+import { writeAtomic } from "./statefile.mjs";
 import { termEnv } from "./terminal.mjs";
 import { ccMem, privCall } from "./usage.mjs";
 
@@ -33,8 +34,8 @@ try {
 const devUpdSave = () => {
   try {
     const { checkedOnce: _co, ...disk } = devUpd;
-    fs.writeFileSync(DEV_UPD_FILE, JSON.stringify(disk));
-  } catch {}
+    return writeAtomic(DEV_UPD_FILE, JSON.stringify(disk), { mode: 0o600 });
+  } catch { return false; }
 };
 const cmpVer = (a, b) => {
   const x = String(a).split(/[^0-9]+/).map(Number), y = String(b).split(/[^0-9]+/).map(Number);
@@ -205,13 +206,34 @@ async function devApp(op, b) {
   if (op === "upd_set") {
     if (b.channel === "pinned") return { ok: false, message: tz("开发端不支持固定版本（只跟随 stable / latest）") };
     if (typeof b.auto === "boolean") {
+      const prevAuto = devUpd.auto;
+      if (CFG.runtime) {
+        try {
+          fs.mkdirSync(CFG.runtime, { recursive: true });
+          const uf = path.join(CFG.runtime, ".upd-auto-off");
+          if (!b.auto) {
+            if (!writeAtomic(uf, "1\n", { mode: 0o600 })) throw new Error("write .upd-auto-off failed");
+          } else {
+            fs.rmSync(uf, { force: true });
+          }
+        } catch (e) {
+          devUpd.auto = prevAuto;
+          return { ok: false, message: e.message };
+        }
+      }
       devUpd.auto = b.auto;
-      if (CFG.runtime) { try { fs.mkdirSync(CFG.runtime, { recursive: true }); const uf = path.join(CFG.runtime, ".upd-auto-off"); if (!b.auto) fs.writeFileSync(uf, "1\n"); else fs.rmSync(uf, { force: true }); } catch {} }
     }
     if (typeof b.ghProxy === "boolean") {
       if (CFG.runtime) {
-        try { fs.mkdirSync(CFG.runtime, { recursive: true }); const gf = path.join(CFG.runtime, ".gh-proxy"); if (b.ghProxy) fs.writeFileSync(gf, "1\n"); else fs.rmSync(gf, { force: true }); }
-        catch (e) { return { ok: false, message: e.message }; }
+        try {
+          fs.mkdirSync(CFG.runtime, { recursive: true });
+          const gf = path.join(CFG.runtime, ".gh-proxy");
+          if (b.ghProxy) {
+            if (!writeAtomic(gf, "1\n", { mode: 0o600 })) throw new Error("write .gh-proxy failed");
+          } else {
+            fs.rmSync(gf, { force: true });
+          }
+        } catch (e) { return { ok: false, message: e.message }; }
       }
       SETTINGS.ghProxy = b.ghProxy;
       saveSettings();
@@ -282,11 +304,32 @@ function isLocalAgyDirValid(dest, d) {
   return ok;
 }
 
+const DEFAULT_AGY_MANIFEST_BASE = "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests";
+const TRUSTED_AGY_MANIFEST_ORIGINS = new Set([
+  "https://antigravity.google",
+  "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app",
+]);
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+
+export function resolveAgyManifestBase(raw = process.env.HACHIMIA_AGY_MANIFEST_BASE, { isTest = process.env.CCAPP_TEST === "1" } = {}) {
+  const s = String(raw || "").trim();
+  if (!s) return DEFAULT_AGY_MANIFEST_BASE;
+  let u;
+  try { u = new URL(s); } catch { return DEFAULT_AGY_MANIFEST_BASE; }
+  if (u.username || u.password) return DEFAULT_AGY_MANIFEST_BASE;
+  if (u.protocol === "https:" && TRUSTED_AGY_MANIFEST_ORIGINS.has(u.origin)) return s.replace(/\/+$/, "");
+  if (isTest && (u.protocol === "http:" || u.protocol === "https:") && LOOPBACK_HOSTS.has(u.hostname.toLowerCase())) {
+    return s.replace(/\/+$/, "");
+  }
+  log(`[devside] 拒绝不受信任的 HACHIMIA_AGY_MANIFEST_BASE：${s}`);
+  return DEFAULT_AGY_MANIFEST_BASE;
+}
+
 async function claudeVersions(force) {
   if (!force && ccVersions.data && Date.now() - ccVersions.at < 600e3) return ccVersions.data;
   if (ccVersionsInFlight) return ccVersionsInFlight;
   const run = (async () => {
-    const manifestBase = process.env.HACHIMIA_AGY_MANIFEST_BASE || "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests";
+    const manifestBase = resolveAgyManifestBase();
     const arch = process.arch === "arm64" ? "arm64" : "amd64";
     const url = `${manifestBase}/android_${arch}.json`;
     let latest = "", err = "";

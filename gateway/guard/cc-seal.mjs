@@ -2,7 +2,7 @@
 // cc-seal.mjs —— 应用内终端里敲的 claude（bin/claude 包装）在发行版下的封口与回填，和网关起的一样（见 gw/edition.mjs、gw/seal.mjs）。
 // 用法：node cc-seal.mjs <工作目录> -- <包装给的参数…> -- <用户的参数…>
 // 成功：stdout 一行，按 sh 单引号转义好的完整参数，包装 eval "set -- …" 后 exec；退出码 0。
-// 拒绝：stderr 说明，退出码 3（命中破甲特征）、2（用了发行版不认的旗标）或 4（claude 程序没核过）。
+// 拒绝：stderr 说明，退出码 3（配置结构检查未通过）、2（用了发行版不认的旗标）或 4（claude 程序没核过）。
 // 包装给的参数（guard 钩子、密钥读取器的 --settings）可以带 --settings；用户自己带的那些能往上下文里塞东西的旗标一律不认。
 import fs from "node:fs";
 import path from "node:path";
@@ -28,15 +28,21 @@ if (!sealed()) { process.stdout.write([...ours, ...user].map(q).join(" ") + "\n"
   const { claudeSeal } = await import("../gw/claudeseal.mjs");
   const { PATHS } = await import("../gw/config.mjs");
   // 和 bin/agy / bin/claude 最后 exec 的是同一条路径：优先按 $HOME 算（CCAPP_HOME 终端里能随便改，不能让核的和跑的是两份）
+  // bin/claude 传入 CCAPP_SEAL_TARGET=claude 时必须核验 claude 二进制本身，不能因本机装有 agy 或注入 CCAPP_AGY 而跳过 claude 核验
   const home = process.env.HOME || "/nonexistent";
   const agyDef = path.join(home, ".local", "share", "hachimia", "agy", "current", "agy");
   const claudeDef = path.join(home, ".local", "share", "cccodroid", "claude", "current", "claude");
+  const target = process.env.CCAPP_SEAL_TARGET || "";
   const agyBin = process.env.CCAPP_AGY || agyDef;
   const claudeBin = process.env.CCAPP_CLAUDE || claudeDef;
-  const BIN = fs.existsSync(agyBin) ? agyBin
-    : (fs.existsSync(claudeBin) ? claudeBin
-      : (PATHS.agy && fs.existsSync(PATHS.agy) ? PATHS.agy
-        : (PATHS.claude && fs.existsSync(PATHS.claude) ? PATHS.claude : agyBin)));
+  const BIN = target === "claude"
+    ? claudeDef
+    : (target === "agy"
+      ? agyDef
+      : (fs.existsSync(agyBin) ? agyBin
+        : (fs.existsSync(claudeBin) ? claudeBin
+          : (PATHS.agy && fs.existsSync(PATHS.agy) ? PATHS.agy
+            : (PATHS.claude && fs.existsSync(PATHS.claude) ? PATHS.claude : agyBin)))));
   const check = () => claudeSeal(BIN, { home }).catch((e) => ({ ok: false, why: e.message }));
   const cs = await check();
   // 核验未过时直接 fail-closed 拒停（不再联网补核或执行外部脚本，0.6.9 审计 195-M.4 / Wave 4）

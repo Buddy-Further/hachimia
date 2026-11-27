@@ -2432,7 +2432,6 @@ window.I18N_DICT["fr"] = {
   "项目默认的接口「{id}」已经删掉了，这一轮没有发出去。到项目设置里重新选个接口。": "Le point de terminaison par défaut du projet (« {id} ») a été supprimé : ce tour n'a pas été envoyé. Choisissez-en un dans les réglages du projet.",
   "任务指定的接口已经删掉了：编辑任务重新选个接口": "Le point de terminaison de la tâche a été supprimé : modifiez la tâche et choisissez-en un autre",
   "「{n}」指定的接口已经删掉了：编辑任务重新选个接口": "Le point de terminaison de « {n} » a été supprimé : modifiez la tâche et choisissez-en un autre",
-  "钩子（{ev}）注入的文字命中破甲特征，这一轮已中止；注入原文折叠在上方。": "Le texte injecté par le hook ({ev}) correspond à un motif de contournement ; ce tour a été arrêté, le texte injecté est replié ci-dessus.",
   "回复完成": "Réponse terminée",
   "回复出错": "Erreur lors de la réponse",
   "已移进回收站 {n} 个，{m} 个失败：{msg}": "{n} déplacés dans la corbeille, {m} échecs : {msg}",
@@ -3181,6 +3180,5 @@ window.I18N_DICT["fr"] = {
   "当前引擎 (Antigravity CLI) 暂不支持该 MCP 子命令": "Le moteur actuel (Antigravity CLI) ne prend pas encore en charge cette sous-commande MCP",
   "MCP 配置不是合法的 JSON": "La configuration MCP n’est pas un JSON valide",
   "共享目录 /sdcard/hachimia": "Dossier partagé /sdcard/hachimia",
-  "拒绝写入可能影响下一轮安全性的内容：{what}": "Écriture bloquée car le contenu pourrait compromettre la sécurité du tour suivant : {what}",
   "模型「{model}」设置被 agent 拒绝（{msg}），已按默认跑。": "Le modèle « {model} » a été refusé par l’agent ({msg}) ; poursuite avec le modèle par défaut.",
 };

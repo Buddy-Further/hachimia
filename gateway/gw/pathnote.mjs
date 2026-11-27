@@ -11,15 +11,29 @@ const NOTES = new Map();          // sessionId → 下一轮要带的提醒
 export function pathWatch() {
   const files = new Set();
   let text = "";
+  let inDelta = false;
   return {
     feed(ev) {
       if (ev.type !== "assistant" || ev.parent_tool_use_id || ev.isSidechain || !Array.isArray(ev.message?.content)) return;
       for (const c of ev.message.content) {
-        if (c?.type === "tool_use" && WRITE_TOOLS.has(c.name)) {
-          const p = c.input?.file_path || c.input?.notebook_path || c.input?.Path || c.input?.TargetFile;
-          if (typeof p === "string" && p.startsWith("/")) files.add(p);
-        } else if (c?.type === "text" && c.text) text += "\n" + c.text;
+        if (c?.type === "tool_use") {
+          inDelta = false;
+          const base = String(c.name || "").trim().replace(/^run\s+/i, "").replace(/\s*\([^)]+\)$/, "").trim();
+          if (WRITE_TOOLS.has(base)) {
+            const p = c.input?.file_path || c.input?.notebook_path || c.input?.Path || c.input?.TargetFile;
+            if (typeof p === "string" && p.startsWith("/")) files.add(p);
+          }
+        } else if (c?.type === "text" && c.text) {
+          inDelta = false;
+          text += "\n" + c.text;
+        }
       }
+    },
+    /** 流式 text_delta 连续拼接（不插换行），避免被拆在两片里的绝对路径误判成只写了文件名 */
+    feedDelta(chunk) {
+      if (!chunk) return;
+      if (!inDelta) { text += "\n"; inDelta = true; }
+      text += String(chunk);
     },
     /** 只提了名字（或相对路径）、全路径一次没出现的文件：[{ file, said }] */
     lazy() {

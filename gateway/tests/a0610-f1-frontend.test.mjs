@@ -73,6 +73,21 @@ test("196-聊天.6 围栏带 info string：后面的正文不会被吞进代码�
   assert.match(h2, /<p>出了吗<\/p>/);
 });
 
+test("引用块合并：连续 > 合成单个 blockquote 并解析内部列表/多段/嵌套，深嵌套不栈溢出", () => {
+  const h = R.renderMd("> - **审计日期**：2026-11-27\n> - **目标仓库**：hachimia\n\n正文");
+  assert.equal((h.match(/<blockquote>/g) || []).length, 1, "连续 > 应合并成单个 blockquote");
+  assert.match(h, /^<blockquote><ul><li><strong>审计日期<\/strong>：2026-11-27<\/li><li><strong>目标仓库<\/strong>：hachimia<\/li><\/ul><\/blockquote><p>正文<\/p>$/);
+
+  const multi = R.renderMd("> 第一段\n>\n> 第二段");
+  assert.equal(multi, "<blockquote><p>第一段</p><p>第二段</p></blockquote>");
+
+  const nested = R.renderMd("> 外层\n> > 内层");
+  assert.equal(nested, "<blockquote><p>外层</p><blockquote><p>内层</p></blockquote></blockquote>");
+
+  const deep = R.renderMd("> ".repeat(20) + "deep");
+  assert.ok(deep.includes("deep") && (deep.match(/<blockquote>/g) || []).length <= 9);
+});
+
 test("前端注入：图片地址白名单、同源接口不带 Cookie、项目颜色校验", () => {
   assert.match(src01, /function safeImgSrc/);
   assert.ok(src01.includes("url.origin === location.origin"));

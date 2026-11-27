@@ -2429,754 +2429,752 @@
 2429	Penyedia bawaan proyek ("{id}") sudah dihapus, jadi giliran ini tidak dikirim. Pilih ulang penyedia di pengaturan proyek.
 2430	Penyedia tugas sudah dihapus: edit tugas dan pilih yang lain
 2431	Penyedia untuk "{n}" sudah dihapus: edit tugas dan pilih yang lain
-2432	Teks yang disisipkan hook ({ev}) cocok dengan pola jailbreak, jadi giliran ini dihentikan; teks sisipan dilipat di atas.
-2433	Balasan selesai
-2434	Balasan error
-2435	{n} dipindahkan ke sampah, {m} gagal: {msg}
-2436	{n} terlampir, {m} gagal: {msg}
-2437	Pencarian gagal: {msg}
-2438	Daftar file tidak terbaca: {msg}
-2439	File terlalu besar; server tidak menerimanya
-2440	Server tidak mengenali file yang diunggah
-2441	Server mengembalikan {status}
-2442	Memuat percakapan…
-2443	Gagal menghapus: {msg}
-2444	Masih mengunggah {n} file; kirim setelah selesai.
-2445	Skrip bawaan gagal dipasang: {msg}
-2446	Skrip bawaan gagal dipasang: {msg}; aturan tidak disimpan
-2447	Gagal mengambil status pembaruan: {msg}
-2448	Hanya 1000 item pertama yang ditampilkan
-2449	Merge belum di-commit: commit semua perubahan sekaligus, atau batalkan dulu perubahan yang tidak ingin di-commit.
-2450	Gagal menyalin; tekan lama untuk memilih teks lalu salin
-2451	Proyek yang dihapus ({id})
-2452	3000 baris terakhir disalin
-2453	Disetel ke {line} (jendela model tidak diketahui; nilai Anda dipakai)
-2454	Gagal membaca marketplace plugin: {msg}
-2455	Nama file terlalu panjang (maks. 255 byte; satu karakter Tionghoa dihitung 3)
-2456	File belum ada
-2457	Gagal memeriksa pembaruan
-2458	Tidak ada izin mengakses lokasi ini (penyimpanan bersama memerlukan “Akses semua file” di pengaturan sistem)
-2459	Tidak ada izin mengakses folder ini (penyimpanan bersama memerlukan “Akses semua file” di pengaturan sistem)
-2460	Tidak ada izin membaca lokasi ini (penyimpanan bersama memerlukan “Akses semua file” di pengaturan sistem)
-2461	Gagal menghapus: {msg}
-2462	Proses terminal sudah berhenti; input tidak terkirim
-2463	Gagal membaca daftar komponen kustom: {msg}
-2464	Gagal membaca riwayat commit
-2465	Gagal membaca status file ini
-2466	Gagal membaca daftar file commit ini
-2467	Masih ada konflik yang belum selesai; selesaikan dulu sebelum commit.
-2468	Halaman ini gagal digambar
-2469	Lokasi ini tidak bisa dibaca
-2470	Folder ini bukan lagi repositori git
-2471	Folder ini tidak memiliki SKILL.md (mungkin sisa impor yang gagal); boleh dihapus.
-2472	Spreadsheet ini mengembang terlalu besar di dalamnya untuk dibuka dengan aman.
-2473	Informasi rentang sheet ini rusak dan tidak bisa dibaca
-2474	Pseudo-file sistem seperti ini tidak bisa dibaca dengan cara ini
-2475	Instruksi proyek belum disimpan; kembali akan membuang perubahan ini. Tetap kembali?
-2476	Layanan pratinjau tidak mengembalikan alamat
-2477	Gagal memuat bantuan: {msg}
-2478	Gagal memuat log perubahan: {msg}
-2479	Paket skill melebihi 64 MB; ekstrak lalu impor skill satu per satu
-2480	Nilai kolom cron tidak valid: {f}
-2481	Nilai kolom cron di luar rentang: {f}
-2482	Langkah cron tidak valid: {f}
-2483	Ekspresi cron harus terdiri dari lima kolom: menit jam hari bulan hari minggu
-2484	「{n}」: folder proyek tugas sudah tidak ada. Edit tugas dan pilih proyek atau folder lain
-2485	Bookmark tidak tersimpan: penyimpanan penuh atau tidak ada izin
-2486	Folder proyek tugas sudah tidak ada. Edit tugas dan pilih proyek atau folder lain
-2487	Sesi hasil percabangan tidak dapat ditulis ke disk: {err}
-2488	Tugas sekali jalan perlu tanggal
-2489	Waktu mulai harus 0–23 jam, 0–59 menit
-2490	Tanggal harus berformat YYYY-MM-DD
-2491	Waktu harus 0–23 jam, 0–59 menit
-2492	Pilih setidaknya satu hari (bilangan bulat 1–7)
-2493	Tanggal bulan harus 1–31 atau 「hari terakhir」
-2494	Interval harus bilangan bulat 1–24 jam
-2495	Gagal menyimpan: penyimpanan penuh atau tidak ada izin
-2496	Waktu selesai harus 0–23 jam, 0–59 menit
-2497	(Teks terlalu panjang; hanya menampilkan {n} karakter pertama)
-2498	Dalam mode aman, mode yang tidak bertanya tidak berlaku; sekarang «Tanya setiap kali»
-2499	Pengaturan tidak tersimpan; mode izin sebelumnya akan kembali setelah mulai ulang
-2500	Pesan asli terlalu panjang; hanya 65.000 karakter pertama yang dipulihkan
-2501	Sementara tidak dapat mengambil pemberitahuan keamanan
-2502	Mengambil pemberitahuan keamanan…
-2503	Host berubah, kunci lama telah dihapus; silakan isi ulang
-2504	Waktu reset sudah lewat; akan diperbarui setelah pesan berikutnya
-2505	Proyek dibuat; folder sudah berisi CLAUDE.md, jadi instruksi yang Anda isi tidak ditulis
-2506	Login resmi · sudah masuk
-2507	Login resmi · belum masuk
-2508	Login resmi · status masuk tidak dapat dipastikan
-2509	Login resmi · saat terakhir diperiksa sudah masuk
-2510	Login resmi · saat terakhir diperiksa belum masuk
-2511	Masuk ke akun Anda
-2512	Proses masuk masih berlangsung; tautan otorisasi akan terbuka begitu tersedia.
-2513	Hapus model «{id}»? File akan dihapus dari folder model.
-2514	Model «{id}» dihapus
-2515	{n} diimpor; lalu gagal: {msg}
-2516	Toolkit diperbarui; belum ada versi yang cocok
-2517	Toolkit diperbarui dan indeks komponen belum memiliki versi untuk toolkit saat ini. Perbarui toolkit dulu, atau ketuk «Periksa pembaruan» untuk memuat ulang indeks.
-2518	Garis pemadatan minimal 100k; disimpan sebagai 100k
-2519	Tidak bisa menulis catatan pemasangan (penyimpanan penuh atau tidak ada izin); pemasangan ini tidak dilanjutkan
-2520	Berkas sudah ditempatkan, tetapi catatan pemasangan gagal ditulis (penyimpanan penuh atau tidak ada izin). Silakan pasang ulang atau hapus
-2521	Tidak bisa menulis catatan komponen (penyimpanan penuh atau tidak ada izin); pemasangan ini tidak selesai
-2522	Endpoint mengembalikan {s}, tetapi formatnya tidak sesuai, jadi kunci tidak bisa dipastikan: {what}
-2523	(kosong)
-2524	Upstream melaporkan galat di akhir jawaban ({msg}); dianggap selesai. Jika jawaban belum lengkap, kirim “lanjutkan”.
-2525	Jalur “{ep}” yang dipilih untuk {name} sudah tidak ada. Pilih ulang jalur di Pengaturan dan masukkan kunci untuk jalur itu.
-2526	Alamat ini memakai http tanpa enkripsi: kunci dan percakapan dikirim ke mesin lain tanpa dienkripsi. Ganti ke https jika bisa.
-2527	Tugas terjadwal berjalan di gilirannya sendiri: dipindah ke depan dan dimulai begitu giliran saat ini selesai
-2528	Berhenti jika terlampaui dan dihitung gagal; hanya berlaku untuk API resmi
-2529	Rute diganti — kunci lama dihapus, silakan masukkan lagi
-2530	Gagal memuat riwayat: {msg} 
-2531	Selama pemasangan, {n} file bersama terhapus oleh pencopotan — silakan pasang ulang
-2532	Model di perangkat {model} yang disematkan ke sesi ini sudah tidak ada — pilih yang lain di panel model
-2533	Memeriksa file model di perangkat…
-2534	File model di perangkat telah diubah (checksum tidak cocok), jadi demi keamanan tidak dimuat: {file}
-2535	File model di perangkat bukan GGUF (mungkin telah diubah), jadi tidak dimuat: {file}
-2536	Waktu masuk habis (15 menit)
-2537	Proses masuk masih berjalan — halaman otorisasi akan terbuka setelah alamatnya diterima
-2538	Info unduhan modul ini tidak lengkap — perbarui Devkit dulu
-2539	Paket modul tidak memiliki daftar file (MANIFEST), jadi demi keamanan tidak dipasang
-2540	Daftar file paket modul berisi jalur yang tidak valid: {file}
-2541	Modul "{name}" belum menyelesaikan penyiapan awal ({err}); memasang ulang akan mencobanya lagi
-2542	Daftar proyek tidak dapat disimpan (penyimpanan penuh atau tidak dapat ditulis); perubahan ini akan hilang setelah dimulai ulang
-2543	{n} percakapan tidak dapat dipindahkan ke tempat sampah, jadi folder tidak dihapus: {why}
-2544	{n} file bersama yang dibutuhkan komponen "{id}" telah dihapus
-2545	Gateway dihentikan sistem sebelum proses ini selesai
-2546	waktu habis
-2547	tidak ada keluaran
-2548	Menjalankan swauji… (butuh satu-dua menit)
-2549	Terakhir {time}: {pass} lulus, {fail} gagal
-2550	diukur sebelum Devkit atau aplikasi diperbarui
-2551	Belum ada hasil swauji
-2552	Proses terakhir tidak menghasilkan apa pun: {why}
-2553	Pemeriksaan yang gagal
-2554	Sistem tidak mengizinkan aplikasi ini memulai layanan Work Island, jadi tidak ada yang ditampilkan.
-2555	Aplikasi Work Island tidak terdeteksi — pasang dulu, lalu ketuk Coba lagi.
-2556	Swauji perangkat
-2557	Ulangi swauji
-2558	Mingguan · {model}
-2559	Durasi
-2560	1 jam
-2561	4 jam
-2562	1 hari
-2563	3 hari
-2564	7 hari
-2565	Catatan sesi asli tidak bisa dihapus, jadi sesi tetap di tempat semula: {err}
-2566	Giliran ini tidak selesai: gateway dimulai ulang saat aplikasi diperbarui (dimulai {when}).
-2567	Giliran ini tidak selesai: gateway dihentikan atau dimulai ulang (dimulai {when}).
-2568	Folder kerja {dir} sudah tidak ada (dihapus, diganti nama, atau kartu penyimpanan dilepas), jadi giliran ini tidak dijalankan. Kembalikan foldernya, atau ubah path di pengaturan proyek, lalu kirim lagi.
-2569	Giliran ini terhenti sebelum dimulai (dikirim {when}).
-2570	Percakapan melebihi batas konteks model. Jalankan /compact lalu lanjutkan, atau mulai percakapan baru.
-2571	Endpoint menolak kunci: periksa di Pengaturan → Endpoint apakah API key sudah benar dan belum kedaluwarsa atau dinonaktifkan.
-2572	Saldo atau kuota akun habis: isi ulang atau cek kuota di konsol penyedia.
-2573	Terlalu banyak permintaan, atau batas penggunaan tercapai: tunggu sebentar lalu coba lagi.
-2574	Endpoint tidak menemukan model atau alamat ini: periksa nama model dan URL endpoint.
-2575	Penyedia mengalami galat atau kelebihan beban: coba lagi nanti. Jika terus terjadi, ganti model atau endpoint.
-2576	Tidak bisa menjangkau endpoint: periksa jaringan, atau apakah URL endpoint salah.
-2577	Arsip berisi terlalu banyak berkas ({n}, maksimal {max}); tidak ada yang diimpor
-2578	Hanya {n} pertama yang ditampilkan; gunakan filter
-2579	Ekstrak pilihan ({n})
-2580	Kompres ({n})
-2581	Arsip: ketuk “Buka arsip” untuk melihat isinya, atau langsung ekstrak
-2582	Buka arsip
-2583	Ekstrak…
-2584	Setelah dinonaktifkan, Claude tidak melihatnya. File perintah tetap ada; bisa diaktifkan lagi kapan saja.
-2585	Hanya nama
-2586	Hanya saat kamu memanggilnya
-2587	Mode skill
-2588	Berlaku mulai giliran berikutnya
-2589	Nonaktif: Claude tidak akan terhubung. Pengaturannya disimpan; ketuk Aktifkan untuk menambahkannya lagi.
-2590	Nonaktifkan server MCP {name}? Pengaturannya disimpan dulu, jadi bisa diaktifkan lagi kapan saja.
-2591	Aktifkan server MCP {name}? Ini akan ditambahkan kembali: {target}
-2592	Hapus server MCP nonaktif {name}? Tidak bisa diaktifkan lagi dengan sekali ketuk.
-2593	~/.claude/settings.json bukan JSON yang valid. Perbaiki dulu
-2594	Hanya server MCP yang kamu tambahkan sendiri (cakupan pengguna) yang bisa dinonaktifkan
-2595	Daftar nonaktif tidak bisa ditulis
-2596	Tidak ada di daftar nonaktif
-2597	Komponen ini tidak terpasang
-2598	Modul ini tidak bisa dinonaktifkan
-2599	Kompres…
-2600	Encoding nama file
-2601	Jika nama rusak, coba encoding lain
-2602	{n} entri
-2603	Terenkripsi
-2604	Ekstrak semua…
-2605	Tutup arsip
-2606	Kembali ke arsip
-2607	Versi ini tidak menyertakan 7-Zip, jadi tidak bisa membuka arsip jenis ini
-2608	Tidak bisa membuka arsip: {msg}
-2609	{size} terkompresi
-2610	Tautan simbolik (tidak diekstrak)
-2611	Mengekstrak…
-2612	Kata sandi salah
-2613	Terlalu besar untuk pratinjau; ekstrak dulu
-2614	Ruang penyimpanan tidak cukup
-2615	Gagal mengekstrak: {msg}
-2616	Masukkan kata sandi
-2617	Kata sandi salah, coba lagi
-2618	OK
-2619	{n} item terpilih
-2620	Ekstrak {what}
-2621	Ekstrak ke
-2622	Folder saat ini
-2623	Kata sandi (kosongkan jika tidak terenkripsi)
-2624	File yang sudah ada dengan nama sama tidak ditimpa; yang baru diganti nama menjadi “nama (2)”. Tautan simbolik tidak diekstrak.
-2625	Ekstrak
-2626	Tulis path lengkap (diawali /)
-2627	Kompres “{name}”
-2628	Kompres {n} item
-2629	Nama arsip
-2630	Format
-2631	Tingkat kompresi
-2632	Simpan saja
-2633	Tercepat
-2634	Normal
-2635	Terkecil (lambat)
-2636	Kata sandi (opsional, zip / 7z)
-2637	Enkripsi juga nama file (7z)
-2638	Zip terenkripsi memakai AES-256, yang mungkin tidak bisa dibuka alat lama; jangan pakai kata sandi demi kompatibilitas. Folder kredensial seperti .ssh tidak dimasukkan.
-2639	Kompres
-2640	Tidak bisa mengekstrak atau mengompres ke lokasi ini
-2641	Versi ini tidak menyertakan 7-Zip
-2642	Arsip tidak bisa disimpan di dalam folder yang sedang dikompres
-2643	Mengekstrak
-2644	Mengompres
-2645	Diekstrak ke {path}
-2646	Dikompres menjadi {path}
-2647	Pilih
-2648	Prompt sistem tidak bisa ditulis ke file, jadi giliran ini tidak dimulai: {msg}
-2649	Kembalikan pengaturan awal
-2650	Dialog konfirmasi tidak muncul
-2651	Pasang ulang komponen ini (diunduh lagi)
-2652	Pasang ulang modul devkit ini (diunduh lagi)
-2653	Perbaiki devkit: unduh ulang versi ini dan pasang ulang; layanan dijeda 1–2 menit selama pemasangan
-2654	Perbaiki semua
-2655	Perbaiki
-2656	Menunggu
-2657	Sedang berjalan…
-2658	Diserahkan ke aplikasi
-2659	Sedang memperbaiki. Menutup halaman ini tidak menghentikannya; setelah selesai akan diperiksa ulang otomatis:
-2660	Perbaikan selesai:
-2661	Pantau langkah yang diserahkan ke aplikasi di Pengaturan → Pembaruan, lalu ketuk “Periksa catatan” lagi setelah selesai.
-2662	Perbaikan selesai, {n} langkah gagal
-2663	Perbaikan selesai
-2664	Akan diperbaiki dengan urutan ini, lalu diperiksa ulang otomatis:
-2665	Perbaiki item ini:
-2666	Pemasangan ulang mengunduh dari internet; file, percakapan, dan pengaturan Anda tidak terpengaruh. Lanjutkan?
-2667	Indeks gagal verifikasi tanda tangan, jadi komponen tidak bisa dipasang
-2668	Versi di indeks ({v}) lebih lama dari yang terpasang ({now}); penurunan versi ditolak
-2669	Perbaikan atau pemeriksaan sedang berjalan; coba lagi setelah selesai
-2670	Tidak ada masalah yang bisa diperbaiki otomatis
-2671	Masih ada langkah yang berjalan di aplikasi:
-2672	Langkah yang diserahkan ke aplikasi masih berjalan; ketuk “Periksa catatan” setelah selesai
-2673	Browser bawaan
-2674	Paket yang diunduh pkg
-2675	Indeks silsilah
-2676	Memindai…
-2677	Aplikasi ini memakai {app}; sisa di perangkat {free}
-2678	Pemindaian terakhir: {when}
-2679	Belum pernah dipindai
-2680	{n} hari, sesuai setelan Anda
-2681	Disimpan selamanya
-2682	Pembersihan otomatis terakhir: {when}, membebaskan {size}
-2683	Belum ada pembersihan otomatis
-2684	Cache
-2685	Total {size}; diunduh atau dibangun ulang otomatis bila perlu
-2686	Sedang dipakai
-2687	Sesi berjalan
-2688	Tak berubah 7 hari
-2689	Terakhir diubah: {when}
-2690	Hapus yang dipilih
-2691	File sementara
-2692	Total {size}, {old} di antaranya tak berubah 7 hari. Termasuk keluaran perintah latar belakang dan folder sementara sisa pengujian dan build
-2693	{n} terbesar
-2694	Bersihkan yang lebih dari 7 hari
-2695	Log debug, snapshot shell, log MCP, dan cadangan .claude.json: total {size}; {n} item ({auto}) bisa dibersihkan (lebih dari 30 hari; 5 cadangan terbaru disimpan)
-2696	{n} sesi, total {size}. Sesi tidak pernah dihapus otomatis; hapus dari daftar sesi, dan sesi masuk ke tempat sampah dulu
-2697	Data runtime komponen (~/.cccodroid)
-2698	{name} (dipasang dengan pkg)
-2699	Folder bersama /sdcard/cccodroid
-2700	Program dan file Anda
-2701	Hanya ukuran; tidak ada yang dihapus di sini
-2702	Tempat sampah sesi
-2703	{n} item, {size}; dikosongkan otomatis setelah 30 hari
-2704	Program sisa toolkit lama
-2705	Tinjau
-2706	Data runtime sisa komponen {id} yang dihapus
-2707	Statistik penggunaan
-2708	Tempat pembersihan lain
-2709	✓ Menghapus {n} item, membebaskan {size}
-2710	{n} item tidak dihapus (sedang dipakai atau di luar folder yang diizinkan)
-2711	Tidak ada yang dipilih
-2712	Hapus {n} item sementara yang dipilih? Tidak bisa dibatalkan.
-2713	Hapus data runtime sisa {id}? Saat dipasang ulang akan diunduh lagi.
-2714	✓ Dihapus
-2715	Penyimpanan
-2716	Ruang terpakai
-2717	Pindai
-2718	Penyimpanan sesi
-2719	Pembersihan otomatis
-2720	Daftar API
-2721	Tambah API
-2722	{n} model
-2723	Hapus ({n})
-2724	Hapus {what} secara permanen? Tindakan ini tidak dapat dibatalkan.
-2725	Folder akan dihapus beserta seluruh isinya.
-2726	{n} item dihapus
-2727	Folder ini berisi direktori milik aplikasi atau ruang kerja dan tidak dapat dihapus
-2728	(Giliran sebelumnya tidak selesai dengan normal; balasan di atas mungkin tidak lengkap)
-2729	Sesi berhasil diimpor, tetapi judul kustom tidak dapat disimpan (penyimpanan mungkin penuh atau tidak ada izin). Judul asli akan tampil setelah mulai ulang
-2730	Daftar sesi tidak dapat dibaca ({msg}); ini bukan berarti tidak ada sesi. Periksa izin penyimpanan lalu segarkan.
-2731	Permintaan habis waktu: gateway tidak merespons ({n} dtk)
-2732	Gateway offline: {msg} · Ketuk untuk mencoba lagi
-2733	Giliran sebelumnya gagal di latar belakang: {msg}
-2734	Alamat mengembalikan {s}, tetapi isi responsnya terlalu besar (lebih dari 8 MB) untuk memastikan kunci valid
-2735	Giliran sebelumnya selesai, tetapi giliran berikutnya tidak mendapat hasil (terputus)
-2736	Direktori tidak ada: {dir}; memakai {cwd} sebagai gantinya
-2737	API mengembalikan error, bukan balasan normal:
-2738	Batas maksimum garis pemadatan adalah 1M; disimpan sebagai 1M
-2739	HONOR / Huawei dan sistem serupa membekukan Shizuku di latar belakang dan memperlambat aktivasi: di Pengelolaan aplikasi → Shizuku, aktifkan "Abaikan pengoptimalan baterai".
-2740	Pertama dicatat: {time}
-2741	Waktu tidak diketahui
-2742	Variabel lingkungan, opsional, dipisahkan koma (KEY=nilai)
-2743	Header, opsional, dipisahkan koma (Header: nilai), mis. Authorization: Bearer token-anda
-2744	Header
-2745	MCP jarak jauh memakai header: tulis {bad} dengan titik dua, mis. Authorization: Bearer token-anda
-2746	MCP jarak jauh tidak mendukung variabel lingkungan: tulis header sebagai Header: nilai, mis. Authorization: Bearer token-anda
-2747	Hapus dari konfigurasi
-2748	Header saat ini
-2749	Variabel lingkungan saat ini
-2750	Perubahan {name} tersimpan
-2751	Gagal mengedit: {msg}
-2752	Gagal menyimpan: {msg}; konfigurasi lama dipulihkan apa adanya
-2753	Gagal menyimpan: {msg}, dan konfigurasi lama tidak bisa dipulihkan — silakan periksa manual
-2754	Tidak bisa membuka editor: {msg}
-2755	Mengedit {name}: kosongkan = pertahankan nilai, ketuk × untuk hapus, isi untuk mengganti
-2756	Server MCP ini tidak ditemukan (konektor akun tidak bisa diedit)
-2757	Sudah ada server MCP dengan nama ini
-2758	stdio tidak menyimpan header: {names} akan dibuang. Lanjutkan?
-2759	Jika server ada di perangkat ini, isi http://127.0.0.1:port — IP LAN berubah saat jaringan berganti dan koneksi putus
-2760	Ini tampak seperti alamat LAN: jika server ada di perangkat ini, ganti ke http://127.0.0.1:port — IP LAN berubah dan koneksi putus
-2761	Gabungkan PDF
-2762	Ekstrak halaman
-2763	Pisahkan per halaman
-2764	Putar halaman
-2765	Kompres PDF
-2766	PDF ke gambar
-2767	Halaman tidak valid. Gunakan format 1-3,5 dan periksa jumlah halaman.
-2768	Pemrosesan PDF gagal: {code}
-2769	File yang dipilih bukan PDF
-2770	Pindah ke atas
-2771	Pindah ke bawah
-2772	Pilih PDF di panel file atau klik “Pilih PDF…”.
-2773	Alat PDF belum tersedia: {tools}. Instal “Kotak alat PDF” di Ekstensi → Komponen opsional.
-2774	Mengimpor PDF…
-2775	Memproses PDF…
-2776	Pemrosesan selesai
-2777	Kompresi tidak memperkecil ukuran. File asli tetap tersimpan.
-2778	Buka folder hasil
-2779	Koneksi terputus. Mencoba lagi…
-2780	Kotak alat PDF
-2781	File hanya diproses di perangkat ini. File asli tidak ditimpa.
-2782	Operasi
-2783	Buka komponen opsional
-2784	Tambah dari panel file
-2785	Pilih PDF…
-2786	Gabungkan hingga 20 PDF. Pilih satu PDF untuk operasi lain.
-2787	Halaman
-2788	Format: 1-3,5. Kosongkan untuk semua halaman.
-2789	Sudut rotasi
-2790	Kualitas kompresi
-2791	Buku elektronik (ebook)
-2792	File kecil (screen)
-2793	Cetak (printer)
-2794	Format gambar
-2795	Resolusi
-2796	Rendah (72 DPI)
-2797	Tinggi (150 DPI)
-2798	Maksimal 100 halaman per proses. Sisi panjang gambar dibatasi 2048 piksel.
-2799	Folder hasil (baru)
-2800	Mulai pemrosesan
-2801	Pilih maksimal 20 PDF dengan total 256 MB.
-2802	Jumlah halaman PDF tidak boleh melebihi 1000.
-2803	PDF tidak dapat diproses. Pastikan file tidak rusak dan tanpa kata sandi.
-2804	Waktu pemrosesan habis. Kurangi halaman lalu coba lagi.
-2805	Tugas PDF sedang berjalan. Coba lagi nanti.
-2806	Instal komponen kotak alat PDF, lalu buka kembali.
-2807	Masukkan folder hasil baru di lokasi yang dapat ditulis.
-2808	Hasil melebihi 512 MB. Kurangi halaman atau resolusi.
-2809	berkas
-2810	Cadangan dari pemasangan sebelumnya belum dipulihkan. Coba lagi, atau hapus lalu pasang ulang.
-2811	[cc] Error in a script injected by the shell (details hidden by WebView)
-2812	\\[Attachment: (\\/[^\\n]+?) · [^\\n·,\\]]+, file is large and was not read directly, read by path when needed\\]
-2813	Antigravity is requesting tool authorization: {w}
-2814	Antigravity wants to ask you
-2815	Say how it should change (sent back to Antigravity)
-2816	Optional: tell Antigravity why / what to do
-2817	Scheduled
-2818	Antigravity is waiting for your confirmation
-2819	Let Antigravity decide which actions need confirmation
-2820	Ask nothing. Antigravity can delete files and run any command without asking you
-2821	Switch to “Allow everything”?\n\nAntigravity will stop asking and can edit or delete files, run any command and access the network. Only use it when you trust the task and can live with the consequences.
-2822	Sign in with a Google Antigravity account
-2823	Use a personal Google account (Free / Pro / Ultra) or an enterprise account: authorize once in the browser, no key needed.
-2824	Enter a Gemini API Key
-2825	Use a Gemini API Key from Google AI Studio or a custom compatible endpoint, billed by usage.
-2826	Context has reached the auto-compact line; compacting history…
-2827	Background task finished, reported automatically:
-2828	[Attachment: 
-2829	, file is large and was not read directly, read by path when needed]
-2830	Starting Google Antigravity sign-in…
-2831	Google account signed in
-2832	Open the address below in your browser to complete Google authorization, then paste the authorization code under Settings → Providers to submit:
-2833	You can also run {cmd} in the in-app terminal to sign in.
-2834	Interruption sent — it will be seen once the current step finishes
-2835	Antigravity CLI (agy) itself
-2836	The system or hachimia already has a command with this name; pick another one
-2837	hachimia checks these skills before handing them to Antigravity; when calling one with a slash, prefix the name with user:, e.g. /user:{name}.
-2838	This build does not run the hooks configured here: hooks can execute arbitrary commands and put arbitrary content into the conversation, and hachimia cannot check them. The rules stay in the file and will not be deleted.
-2839	Reinstall Antigravity CLI (agy)
-2840	Claude (compatible)
-2841	Third-party provider
-2842	Sign in to a Google Antigravity account
-2843	Google Cloud / enterprise account
-2844	Billed by your Google Antigravity account subscription tier; on-device token stats are on the “Usage” page
-2845	Sign out of the Google Antigravity account on this device?
-2846	The key is stored only in this app's private directory on this device, and is passed to Antigravity CLI only as needed to connect to the matching endpoint.
-2847	AGY blue
-2848	Antigravity's replies
-2849	Shizuku is running but has not been authorized for hachimia
-2850	vivo / iQOO: Settings → Battery → Background power consumption → allow hachimia <b>high background power usage</b>; in iManager allow <b>auto-start</b> (common path)
-2851	Huawei / Honor: Settings → App launch → turn off “Manage automatically” for hachimia, then manually allow <b>auto-start</b> and <b>background activity</b> (common path)
-2852	hachimia has been frozen in the background by the system {n} times (most recent: about {sec} seconds, {at}).
-2853	In system settings, allow hachimia to run in the background, turn off battery optimization, and allow auto-start (each vendor names these differently).
-2854	Authorize for hachimia
-2855	hachimia's wireless debugging pairing has been removed: it still works now, but it cannot auto-activate after a reboot.
-2856	Shizuku was not activated by hachimia: hachimia cannot auto-activate it after a reboot. Pair it once and you're set.
-2857	The system did not notify hachimia at this boot (blocked by the system's “auto-start” management), so it could not auto-activate; opening hachimia will catch up.
-2858	To activate at boot: allow hachimia auto-start / background start in the app details; takes effect at the next boot.
-2859	Antigravity CLI (agy) version
-2860	Uninstall Antigravity CLI (agy)?\n\nThis deletes the downloaded agy program; it will not be reinstalled automatically. Tap “Install” here to download it again when you need it.\n\nSign-in, sessions and settings are kept; sending a message while it is not installed will prompt you to install it first.
-2861	Install the devkit from a local file?\n\nPick a devkit-ha.chi.mia.tar.gz (or .tar), downloadable from the GitHub releases page or hachimia.net. It is checked against the published release before installing; the service pauses for 1–2 minutes during installation.\nThings you installed into the devkit with pip / npm -g are kept.
-2862	Shizuku is not activated yet, so the app cannot toggle accessibility itself: turn on hachimia manually in the system accessibility settings. From Android 13, sideloaded apps must first allow restricted settings via App info → menu in the top-right corner.
-2863	This build has no native layer and only records CPU time (battery, screen-on and foreground time come from hachimia).
-2864	Name (e.g. self-hosted Gemini proxy)
-2865	Auth: x-goog-api-key (Gemini / Antigravity)
-2866	Auth: Authorization: Bearer
-2867	Auth: x-api-key
-2868	Default model name (required, e.g. gemini-3.8-flash)
-2869	Model list URL (optional; Gemini endpoints auto-probe /v1beta/models)
-2870	Context window (optional, in tokens, e.g. 1m; leave empty for the default)
-2871	More models (optional, one per line; you may put the window after the name, separated by a space, e.g. gemini-4-neon 1m)
-2872	Send images with the message (compat): check this when the model cannot read attached images; attachments are then sent directly as multimodal blocks with the message.
-2873	Choosing <b>Gemini / Antigravity</b> auth drives the official <code>agy</code> CLI via <code>GOOGLE_GEMINI_BASE_URL</code> + <code>GEMINI_API_KEY</code>.
-2874	Running Antigravity diagnostics…
-2875	Currently available capabilities
-2876	Fixed
-2877	Workaround
-2878	(Merged from 
-2879	Direct (not needed)
-2880	(Decided by Antigravity)
-2881	Antigravity CLI failed: {msg}
-2882	The Antigravity CLI user-level config has unconfirmed changes. Send a message first, confirm in the card that pops up, then try again.
-2883	Could not fetch the Antigravity CLI version list
-2884	agy install script not found ({p})
-2885	The dev side only manages Antigravity CLI (agy) (you build and install the app itself on this device)
-2886	Updating Antigravity CLI (agy)…
-2887	Could not fetch the Antigravity CLI version list: {err}
-2888	The gateway's own runtime was modified; Antigravity CLI was not started this round. The gateway will restart when idle and restore itself from the install package; send again shortly.
-2889	Antigravity CLI (agy) is not installed. Install it under Settings → Updates first.
-2890	Antigravity CLI (agy) not found
-2891	Settings → Updates: reinstall Antigravity CLI (agy)
-2892	Antigravity CLI (agy) is not installed. Tap “Install” under Settings → Updates.
-2893	The Antigravity CLI user-level config has unconfirmed changes, or an earlier session left background processes behind, so this run did not start. Open hachimia, send a message, and confirm in the card that pops up, then try again.
-2894	Antigravity CLI (agy) is not installed. Install it under Settings → Updates first, then come back to sign in.
-2895	Enterprise sign-in: in the agy sign-in screen, choose “Use a Google Cloud project” → “Continue with Google Cloud” and authorize with your enterprise account.
-2896	Personal sign-in: in the agy sign-in screen, choose “Google OAuth” and authorize with your personal Google account.
-2897	The slash commands, tools, skills and extensions currently available to Antigravity. Tap a slash command to insert it into the input box; a tool's “Allow / Ask / Deny” follows the permission mode and rules.
-2898	For things not in the marketplace, import a Linux arm64 program yourself: a single binary, or a .tar.gz / .zip archive. Missing libraries are filled in automatically and a command is generated, ready to use in Antigravity and in the terminal.
-2899	Save a long prompt you send often as a command and pick it with / in the input box. Text after /command fills $ARGUMENTS in the body, expanded automatically by the gateway when sent to Antigravity.
-2900	Antigravity behavior
-2901	Default color pick (AGY Monet palette); switchable to native, Qiusuo, Zhuyue or Construct
-2902	Font for Antigravity's reply text
-2903	Thinking level (thought_level)
-2904	Levels vary by model (low / medium / high / xhigh). You can also type <code>/effort &lt;level&gt;</code> in the input box.
-2905	Let Antigravity decide
-2906	Empty = let Antigravity decide by window
-2907	Confirm each item by default, same as official agy: it asks in the conversation before editing files or running commands. Allow everything means Antigravity can delete files and run any command without asking. You can also switch anytime via the permission tag under the input box.
-2908	Only clears caches, temp files untouched for 7 days, and expired logs; sessions, your files and programs are never auto-deleted
-2909	When on, run <code>priv 'command'</code> in the terminal as shell (pm / am / settings / dumpsys / logcat / screencap…); Antigravity uses it too. Without Shizuku, basic dev features work as usual — only these debugging abilities are unavailable.
-2910	Auto-activate again after a reboot (needs Wi-Fi; starts the hachimia background service at boot)
-2911	Let Antigravity use device tools (notifications, clipboard, opening links / calendar / alarms, sharing files…)
-2912	Off by default. Turn it on when you want Antigravity to test an app you built, or send files it generated to other apps; while on, each round carries an extra one or two thousand tokens of tool descriptions.
-2913	Antigravity CLI channel
-2914	Plan first
-2915	Interview to align the plan
-2916	Long-term goal
-2917	Multi-agent teamwork
-2918	Deep orchestration
-2919	Capabilities & tools
-2920	Failed to switch permission mode (agent rejected {mode}): {msg}
-2921	Could not restore the previous session (the agent doesn't support resume, or resume failed), so a new session was started. This turn was written to the new session; the old session's history is still kept in local records.
-2922	Compaction not confirmed: context did not shrink (before {pre}, after {post}). Please retry /compact or start a new session.
-2923	Enterprise login: please sign in with your company Google account in the browser
-2924	The authorization code could not be written to agy (stdin is closed). Please start login again.
-2925	The authorization code could not be written to agy (the login process's stdin is closed). Please start login again.
-2926	Login-based providers don't need an API key; sign in through the official flow. The key you entered was not saved.
-2927	Already queued; skipping this duplicate run
-2928	Open this in the app
-2929	Needs npx (included in the hachimia toolkit)
-2930	This build has no native layer, so only CPU time is recorded (battery and screen-on need hachimia).
-2931	The Antigravity CLI program was modified and was not started; 
-2932	Antigravity CLI housekeeping files
-2933	These Claude Code config files contain override-style instructions (telling the model to ignore its rules, posing as system messages and the like). hachimia won't load them, so this turn did not run. Edit or remove the following, then send again:\n{list}
-2934	The command {c} is built into the system or hachimia. Pick another name
-2935	Not a hachimia session archive
-2936	{p}: {n}
-2937	"{n}" {w}
-2938	API Key
-2939	Google Antigravity / Gemini
-2940	Lihat atau ganti model
-2941	Konteks
-2942	Padatkan riwayat percakapan untuk membebaskan ruang konteks
-2943	Apa yang terjadi
-2944	Apa yang Anda lakukan, apa yang diharapkan, dan apa yang sebenarnya terjadi. Tangkapan layar bisa langsung diseret ke sini.
-2945	Cara mereproduksi
-2946	Status proses tidak dapat disimpan (penyimpanan mungkin penuh atau tanpa izin). Jika aplikasi ditutup oleh sistem, giliran ini mungkin tidak dapat dipulihkan.
-2947	Status proses sebelumnya tidak dapat dipulihkan (catatan tidak terbaca atau formatnya salah), jadi giliran yang terputus dan pesan dalam antrean tidak akan muncul; berkas aslinya tetap disimpan.
-2948	Nama hanya boleh huruf, angka, - dan _, maksimal 40 karakter
-2949	Namanya sama dengan perintah bawaan. Pilih nama lain
-2950	Isi perintah tidak boleh kosong
-2951	Isi perintah terlalu panjang (maksimal 64 KB)
-2952	Perintah dengan nama itu sudah ada
-2953	Maksimal 10 font. Hapus satu dulu sebelum mengimpor
-2954	Ini file kumpulan font (.ttc) yang tidak bisa dipakai browser; gunakan ttf / otf tunggal
-2955	Bukan file font yang bisa dipakai. Hanya ttf, otf, woff, dan woff2 yang didukung
-2956	This model doesn't support thinking level "{effort}"; running with the default instead.
-2957	The agent rejected thinking level "{effort}" ({msg}); running with the default instead.
-2958	Not supported under Antigravity
-2959	Not supported under Antigravity: the Antigravity CLI has no generic third-party API key channel. Declare protocol:"gemini" (the endpoint must speak the Gemini protocol), or switch to a Gemini / sign-in provider.
-2960	On-device models need Claude Code; this device only has the Antigravity CLI, so they're unavailable for now.
-2961	Not set (no default compaction line under ACP)
-2962	No Google Cloud ADC credentials found (Application Default Credentials). Run `gcloud auth application-default login` in a terminal first, then come back and pick ADC.
-2963	Application Default Credentials found.
-2964	The old configuration was still using a Claude preset, which doesn't work in Antigravity-only mode; it has been switched back to Google Antigravity sign-in.
-2965	Protocol: not declared
-2966	Protocol: Gemini (endpoint speaks the Gemini protocol)
-2967	Checking ADC credentials…
-2968	Failed to create a session: the agent returned no session ID. Please try again.
-2969	Output (berjalan)
-2970	Sisa AI Credits: {n}
-2971	Menyinkronkan kuota langganan Google Antigravity; sementara menampilkan penggunaan token lokal (ketuk Muat ulang di atas untuk memeriksa sekarang).
-2972	Gagal memulihkan sesi sebelumnya ({why}). Sesi saat ini dipertahankan tanpa membuat sesi baru; silakan coba lagi atau mulai obrolan baru secara manual.
-2973	Tidak dapat mengetahui apakah perangkat sedang diisi daya
-2974	Tidak dapat membaca level baterai saat ini
-2975	Indeks
-2976	Nama file memori tidak valid
-2977	Memori tidak ditemukan
-2978	Hanya file memori biasa yang boleh dilihat
-2979	File memori terlalu besar (lebih dari 1 MB)
-2980	Memori hanya-baca dan tidak dapat diubah di sini
-2981	Menunggu tugas latar belakang
-2982	diam {d}
-2983	sisa {d}
-2984	Terima pengumuman pemeliharaan
-2985	Cadangan proksi pihak ketiga GitHub (gh-proxy.com)
-2986	Pemeriksaan pertama: konfigurasi global berikut berlaku di setiap giliran. Pastikan Anda sendiri yang menambahkannya (membatalkan akan mencadangkannya ke ~/.ccapp-userconf/quarantine).
-2987	Pilih Urungkan jika bukan Anda yang mengubahnya (memulihkan konfigurasi, menghentikan proses sisa, dan mengarantina file baru), atau Simpan jika perubahan Anda.
-2988	Pemeriksaan keamanan bermasalah. Tolak jika Anda ragu dengan tindakan ini.
-2989	Konfigurasi proyek menjalankan program lokal secara langsung. Pilih Jangan muat jika sumbernya tidak dikenal (chat tetap berjalan); setelah diizinkan, konfirmasi hanya diminta saat ada perubahan.
-2990	Jika bukan permintaan Anda, ini mungkin injeksi instruksi dari halaman web atau file—sebaiknya tolak. Mengizinkan tidak akan menanyakan lagi aksi serupa pada giliran ini.
-2991	Perubahan konfigurasi pengguna belum dikonfirmasi
-2992	Pemeriksaan keamanan gagal — konfirmasi manual
-2993	Akan mengubah file prompt atau aturan keamanan: {w}
-2994	Akan mengakses kunci atau kredensial login: {w}
-2995	Terputus, menyambung ulang… (generasi tetap berjalan)
-2996	Menganggur hampir 1 jam; memadatkan konteks otomatis untuk menghemat pemakaian berikutnya (dapat dimatikan di Pengaturan).
-2997	Menunggu konfirmasi
-2998	Perubahan baru
-2999	File konfigurasi diubah dari luar; dipulihkan ke pengaturan saat ini: 
-3000	File runtime diubah dari luar; proteksi pemulihan aktif: 
-3001	Chat baru menunggu konfirmasi · lihat “Chat belum disimpan” di bilah samping
-3002	Siap · {n} tugas latar berjalan
-3003	Siap · menyelesaikan tugas latar
-3004	Status {n} operasi tidak diketahui saat terputus ({list}). Periksa hasilnya sebelum melanjutkan.
-3005	Konfirmasi kedaluwarsa ({n} mnt tanpa respons); giliran tidak dimulai ({when}).
-3006	Progres sebelumnya tersimpan. Ketuk Lanjutkan untuk meneruskan dari titik henti.
-3007	Pesan terkirim — tidak perlu kirim ulang
-3008	Pengiriman belum terkonfirmasi: {msg}
-3009	Penyimpanan penuh, draf tidak tersimpan. Salin atau kirim sekarang.
-3010	Disimpan di /sdcard/cccodroid/models (Q4_K_M). Aktifkan di Pengaturan → Layanan model. RAM perangkat {ram} GB, disarankan 1–4B.
-3011	Copot komponen {name}? (File milik Anda tidak terpengaruh.)
-3012	Hapus juga cache runtime {size} milik {name} ({path})?
-3013	Ekspor dan bagikan paket diagnostik?\n\nBerisi: versi & perangkat, status toolkit & pemeriksaan mandiri, log terbaru yang telah disensor, catatan perbaikan, hasil koneksi jaringan.\nTidak berisi: kunci, kredensial, email, isi pesan, maupun riwayat sesi.
-3014	Mode lokal secara bawaan hanya mengaktifkan chat. Untuk menyesuaikan alat & parameter, edit {file} atau kirim perintah ini ke model cloud:
-3015	(status cache; gagal memuat ulang: {msg})
-3016	Selesaikan otorisasi di browser, lalu tempel kode otorisasi di bawah.
-3017	Atau jalankan perintah login langsung di terminal bawaan:
-3018	Jalur sebelumnya sudah dihapus. Pilih jalur baru dan masukkan ulang Key.
-3019	Sebaiknya atur batas pemakaian di konsol penyedia, dan segera ganti Key jika dicurigai bocor.
-3020	Ringkasan bulan ini
-3021	Contoh templat (ganti dengan alamat layanan sebenarnya)
-3022	Pemanggilan pihak ketiga dikonfigurasi sendiri; penyedia dapat melihat Key, kode, dan percakapan Anda. Gunakan hanya layanan tepercaya.
-3023	Chat belum disimpan
-3024	Jalankan sekarang
-3025	Berjalan otomatis sesuai jadwal di direktori terpilih dan menyimpan hasilnya sebagai sesi. Aksi yang butuh konfirmasi otomatis ditolak; jadwal terlewat mengikuti kebijakan tiap tugas.
-3026	Melewati sisa tugas hari itu saat batas tercapai (hanya menghitung biaya API resmi; pemanggilan pihak ketiga tidak dihitung).
-3027	Tugas terjadwal nonaktif secara bawaan untuk langganan pribadi. Pastikan sesuai ketentuan layanan sebelum mengaktifkan (API Key bebas batas).
-3028	Dilewati kali ini
-3029	Menggunakan pemanggilan pihak ketiga: tidak masuk batas biaya, hanya dibatasi durasi sekali jalan.
-3030	Login dengan langganan pribadi: eksekusi terjadwal yang sering dapat memicu pembatasan akun; disarankan memakai API Key.
-3031	Silakan gabung grup untuk diskusi umum; untuk lapor bug gunakan Pengaturan → Umpan balik di GitHub (otomatis menyertakan info perangkat & cek mandiri).
-3032	Kontribusi terjemahan, pengujian, dokumentasi, dan kode sangat terbuka — lihat panduan kontribusi di repositori.
-3033	Browser eksternal tidak dilindungi sandbox; skrip dapat membaca file sekitar dan mengakses layanan lokal. Lanjutkan hanya untuk halaman tepercaya.
-3034	File biner — tidak dapat dibuka sebagai teks.
-3035	Izinkan halaman ini mengakses internet?\n\nSaat online, skrip dapat mengirim keluar file hingga 3 tingkat folder di atasnya. Aktifkan hanya untuk halaman tepercaya.
-3036	File terlalu besar ({size}). Beralih ke Tata letak asli (PDF) atau buka dengan aplikasi eksternal.
-3037	Menginstal LibreOffice di latar belakang…
-3038	[Proses berhenti]
-3039	[Gagal mengirim, menyambung ulang gateway]
-3040	Lihat durasi per giliran & linimasa panggilan alat
-3041	Baru pertama? Ketuk “Cara membaca” di kanan atas
-3042	Ada pesan serupa di bawah yang belum tersimpan — tunggu giliran ini selesai sebelum menandai
-3043	Belum ada markah. Ketuk ikon markah di bawah pesan untuk menambahkan.
-3044	Halaman interaktif (HTML)
-3045	Memuat ulang antarmuka…
-3046	Versi aplikasi ini belum mendukung pemulihan otomatis; perbarui aplikasi atau mulai ulang gateway
-3047	Guliran macet? Tekan lama judul bilah atas ~0,6 dtk untuk memulihkan
-3048	Pemulihan otomatis berhenti; mengubah konfigurasi tidak membukanya. Jalankan diagnostik di bawah lalu atur ulang jumlah pemulihan.
-3049	Verifikasi bridge gagal dan pemulihan otomatis berhenti (menyimpan konfigurasi tidak menghapusnya); jalankan diagnostik terlebih dulu.
-3050	Bridge dinonaktifkan (menyimpan konfigurasi tidak mengaktifkannya). Aktifkan komponen di halaman Ekstensi terlebih dulu.
-3051	Komponen bridge tidak tersedia; periksa status instalasi (jumlah pemulihan tidak diatur ulang otomatis).
-3052	Perbarui komponen bridge terlebih dahulu sebelum digunakan.
-3053	Bridge belum siap; lihat diagnostik di bawah (sesi saat ini tetap sama dan menyimpan konfigurasi tidak mengatur ulang pemulihan).
-3054	Bridge sedang sibuk. Coba lagi sebentar lagi.
-3055	Pemeriksaan konsistensi konfigurasi gagal. Ikuti petunjuk di bawah dan jangan langsung menghapus direktori.
-3056	Gagal membaca konfigurasi bridge. Kembali ke Ekstensi lalu coba lagi.
-3057	Gunakan alamat HTTPS API tanpa kredensial, parameter kueri, atau fragmen.
-3058	Masukkan alamat Chat Completions — Responses API belum didukung.
-3059	Path tidak dapat dilengkapi otomatis; masukkan URL /chat/completions lengkap.
-3060	Mendukung beberapa endpoint kompatibel OpenAI; berlaku setelah disimpan.
-3061	Hanya membaca status lokal — tidak mengubah konfigurasi maupun menghubungi server.
-3062	Cadangkan konfigurasi bridge sebelum migrasi atau instal ulang (hanya endpoint, kunci, dan daftar model; tanpa riwayat chat).
-3063	Jangan bagikan file konfigurasi yang berisi kunci secara publik.
-3064	Masukkan URL API penyedia (bukan halaman login web).
-3065	Ambil daftar model otomatis (mengirim API Key ke layanan tersebut)
-3066	Ambil ulang
-3067	Cari atau ketik nama model
-3068	Setelah ditambahkan, atur jendela konteks dan model bawaan masing-masing.
-3069	Menggunakan ukuran jendela dari API atau bawaan 200.000 token; dapat diubah manual.
-3070	Percakapan, hasil alat, dan gambar akan dikirim ke layanan ini.
-3071	Inferensi belum diuji
-3072	Disinkronkan ke Pengaturan → Penyedia & model.
-3073	Sesi lain dapat memilihnya lewat chip model di bawah kolom input.
-3074	Periksa perbedaan konfigurasi lokal dan buat rencana sinkronisasi (pemeriksaan tidak mengubah apa pun).
-3075	Hanya menyinkronkan daftar model, model default, dan mode autentikasi; tidak menjalankan/menghentikan layanan atau mengubah kunci, file runtime, kunci pemulihan, atau sesi aktif (berlaku 60 dtk).
-3076	Konfirmasi sinkronisasi
-3077	Pastikan aplikasi dan komponen sudah versi terbaru; tunggu sesi aktif selesai sebelum memeriksa ulang.
-3078	Saat pemulihan otomatis berhenti atau verifikasi gagal, sinkronisasi catatan tidak membuka kunci pemulihan; periksa diagnostik dulu lalu perbarui atau instal ulang di Ekstensi tanpa menghapus folder runtime.
-3079	Saat melaporkan masalah, sertakan versi & kode diagnostik — jangan pernah lampirkan kunci atau konfigurasi lengkap.
-3080	Memeriksa ulang akan menghapus input yang belum disimpan di halaman ini. Lanjutkan?
-3081	Perbarui komponen bridge untuk menambah beberapa endpoint; konfigurasi tunggal saat ini tetap dapat dipakai.
-3082	Edit satu endpoint setiap kali; semua perubahan berlaku setelah mengetuk Simpan konfigurasi.
-3083	Centang untuk mengambil daftar otomatis, atau ketik langsung secara manual.
-3084	Hapus endpoint “{name}” beserta modelnya? (Berlaku setelah konfigurasi disimpan.)
-3085	Bridge sedang sibuk, coba lagi nanti.
-3086	Rencana perbaikan kedaluwarsa atau status berubah; periksa ulang.
-3087	Tidak ditemukan perbedaan yang dapat disinkronkan; jika masih bermasalah, buka panduan di bawah.
-3088	Tidak dapat sinkron otomatis pada status saat ini; ikuti panduan di bawah dan jangan hapus direktori.
-3089	Memeriksa item yang dapat disinkronkan…
-3090	{n} model dan metode autentikasi siap disinkronkan.
-3091	Rencana sinkronisasi siap — konfirmasi untuk menyimpan.
-3092	Sinkronkan catatan penyedia bridge?\n\nHanya memperbarui daftar model, model bawaan, dan autentikasi; URL & kunci tetap.
-3093	Menyinkronkan catatan penyedia…
-3094	Hasil sinkronisasi belum terkonfirmasi; periksa ulang status dan jangan kirim berulang.
-3095	Penyedia telah ditulis namun pemetaan belum selesai; periksa ulang status.
-3096	Catatan penyedia berhasil disinkronkan.
-3097	Alamat penyedia, autentikasi, atau catatan koneksi lokal tidak cocok dengan bridge.
-3098	Format atau isi daftar model tersimpan tidak sesuai.
-3099	Gagal membaca atau memvalidasi catatan pemetaan penyedia bridge.
-3100	Pendaftaran layanan lokal tidak cocok dengan catatan koneksi.
-3101	Penanda kepemilikan direktori runtime bawaan tidak cocok; periksa konfigurasi lama atau status folder.
-3102	Pemeriksaan keamanan komponen gagal (tanpa rincian item).
-3103	Konflik konfigurasi (komponen versi lama tidak merinci penyebab; mungkin terkait file runtime, kepemilikan, atau catatan penyedia).
-3104	Komponen belum tersedia
-3105	Bridge sibuk
-3106	Tidak dapat membaca status bridge
-3107	Konfigurasi telah ditulis, tetapi langkah berikutnya belum selesai; periksa ulang status terlebih dahulu.
-3108	Penyimpanan belum selesai; periksa petunjuk di atas.
-3109	Periksa versi aplikasi & komponen terlebih dahulu — jangan hapus atau ubah direktori runtime.
-3110	Alamat layanan berubah — isi ulang API Key (kunci lama tidak dikirim ke alamat baru).
-3111	Kunci tersimpan disembunyikan; kosongkan jika tidak diubah atau isi nilai baru untuk mengganti.
-3112	Menyimpan konfigurasi…
-3113	Menyimpan tidak memanggil model jarak jauh atau mengalihkan sesi saat ini (daftar model dimuat; inferensi chat belum diuji).
-3114	Masukkan bilangan bulat 1024–16777216 (mendukung 256k, 1m), atau kosongkan untuk nilai bawaan.
-3115	Masukkan nama model yang valid (tanpa koma atau baris baru).
-3116	Masukkan API Key yang valid untuk mengambil daftar otomatis.
-3117	Pengambilan dibatalkan — coba lagi atau ketik manual.
-3118	Menyiapkan pengambilan daftar model…
-3119	Masukkan ulang API Key lalu coba lagi.
-3120	Daftar model kosong — ketik nama secara manual atau coba lagi.
-3121	{count} model dimuat (maks. 500) — cari atau ketik manual.
-3122	Menyimpan…
-3123	Daftar dimuat, inferensi belum diuji
-3124	Bridge lokal siap
-3125	Pemulihan otomatis berhenti
-3126	Verifikasi bridge gagal
-3127	Bridge nonaktif
-3128	Konfigurasi disimpan; bridge belum siap
-3129	ID model bentrok, >200 karakter, atau total >100 model; sesuaikan sebelum menyimpan.
-3130	Simpan semua konfigurasi endpoint?\n\nPercakapan, hasil alat, dan gambar akan dikirim sesuai model ke:\n{origins}
-3131	Simpan konfigurasi endpoint ini?\n\nPercakapan, hasil alat, dan gambar akan dikirim ke {origin}.\n({verification})
-3132	Alamat API gagal divalidasi; periksa lalu coba lagi.
-3133	Masukkan ulang API Key (kunci lama tidak dapat dipakai untuk alamat baru).
-3134	Penyimpanan belum selesai; periksa status lokal lalu coba lagi.
-3135	Gagal memilih penyedia ini untuk sesi baru; coba lagi.
-3136	Perintah latar telah selesai tetapi mesin tidak merespons lebih dari {d}; ketuk Hentikan atau kirim pesan baru.
-3137	Konfigurasi bridge belum selesai; periksa kolom atau status komponen lalu coba lagi.
-3138	Konflik status pengiriman — silakan kirim ulang.
-3139	Koneksi upstream terputus lebih awal; balasan mungkin belum lengkap, kirim “Lanjutkan” untuk meneruskan.
-3140	Penyedia ini belum didukung di Antigravity: atur protocol:"gemini" (endpoint protokol Gemini) atau gunakan login Google.
-3141	Preset Claude ({id}) tidak tersedia dalam mode khusus Antigravity; gunakan login Google atau antarmuka Gemini.
-3142	Sela (tambahkan ke giliran saat ini)
-3143	↩ Pulihkan draf yang dihapus
-3144	Perubahan berlaku mulai pesan berikutnya.
-3145	Registri publik (tanpa tinjauan resmi); paket npm berjalan di perangkat ini — pastikan sumbernya sebelum menginstal.
-3146	Jalankan perintah otomatis pada momen tertentu (sebelum/sesudah alat, kirim pesan, selesai balas) untuk menahan aksi, menambah konteks, atau memformat.
-3147	Warna aksen tombol, tautan, dan pilihan (kontras menyesuaikan tema terang/gelap otomatis)
-3148	Sematkan di bilah atas, masukkan ke “⋯”, atau sembunyikan; seret pegangan kiri untuk mengurutkan
-3149	Mendukung ttf / otf / woff / woff2 (≤ 40 MB, maks. 10); aktifkan lewat “Kustom…” di atas setelah diimpor
-3150	Menyembunyikan penyedia dari menu model namun tetap menyimpan konfigurasi dan kunci
-3151	Buat judul sesi otomatis setelah balasan pertama (memakai sedikit token; dapat memilih model ringan)
-3152	Selalu minta konfirmasi saat membaca kredensial (.env / SSH / API Key), baca/ketuk layar, papan klip, atau berbagi keluar (termasuk saat Izinkan Semua) untuk mencegah prompt injection.
-3153	Memadatkan otomatis sesi >200rb token setelah menganggur ~54 mnt untuk menekan jeda dan pemakaian token.
-3154	Memerlukan aplikasi “Work Island” untuk menampilkan progres & konfirmasi di Fluid Cloud ColorOS 16 (menutup setelah 8 dtk).
-3155	Izinkan baca/tulis di luar ruang kerja lewat additionalDirectories sekaligus menjadi pintasan di penjelajah file.
-3156	Lewati sementara aturan kustom, skill, plugin, Hooks, dan MCP tanpa mengubah file lokal; matikan untuk memulihkan.
-3157	Jalankan beberapa sesi secara paralel (~ratusan MB RAM per sesi; 1 = berurutan).
-3158	Tangkap syscall baru yang diblokir Android agar biner statis seperti Go tidak crash (berlaku pada pesan berikutnya).
-3159	Otomatis sesuai paket: eksekusi langsung pada targetSdk 28, lewat pemuat sistem pada targetSdk 36 (perlu mulai ulang gateway).
-3160	Izinkan menghentikan aplikasi latar di luar daftar putih (perlu Shizuku)
-3161	Menghentikan aplikasi latar sebelum perintah berat (<code>cc-mem run -- cmd</code>); mempertahankan layar depan, layar belah, aplikasi ber-notifikasi tetap (proksi/musik), peluncur, IME, aksesibilitas, VPN, Shizuku, dan daftar putih.
-3162	Menyimpan sesi lokal selamanya kecuali dihapus manual ke Sampah.
-3163	Lewati konfirmasi per perintah istimewa (risiko ditanggung sendiri): jalankan perintah Shizuku tanpa dialog selama batas waktu; perintah yang menyentuh aplikasi ini atau Shizuku tetap dicegat sebisa mungkin, namun tidak semua bentukbypass dapat tertangkap. Untuk satu sesi, centang pada kotak konfirmasi
-3164	targetSdk 28 paling kompatibel secara bawaan; otomatis beralih ke targetSdk 36 jika ditolak perangkat baru tanpa menghapus data.
-3165	Memperbarui Antigravity CLI otomatis; memberi tahu usai unduhan versi aplikasi baru (atau instal saat menganggur lewat Shizuku); toolkit diunduh lewat Wi‑Fi untuk dipasang saat buka berikutnya.
-3166	Mengambil pemberitahuan pemeliharaan bertanda tangan tiap 3 jam (permintaan statis tanpa data perangkat); berhenti saat dimatikan.
-3167	Mati secara bawaan: mengunduh lewat proksi pihak ketiga hanya jika sumber resmi & mirror gagal (proksi melihat IP publik; hash & tanda tangan tetap diverifikasi).
-3168	Ekspor log tersensor & status lingkungan (tanpa kunci, email, dan isi chat) untuk pelacakan masalah atau lampiran Issue.
-3169	Ekspor paket diagnostik
-3170	Membuka halaman Issue baru berisi model perangkat, versi OS, dan hasil cek mandiri (tanpa log maupun chat).
-3171	Mereset konfigurasi pengguna, pengaturan aplikasi, dan file startup shell (dicadangkan ke ~/.ccapp-reset); sesi, ruang kerja, toolkit, dan kunci tetap disimpan.
-3172	Memeriksa kompiler, Python, Node, git, dll. lalu menyinkronkan statusnya ke Antigravity (otomatis diuji ulang usai pembaruan).
-3173	Gagal memuat antarmuka — ketuk untuk mencoba lagi
-3174	Menyimpan tidak memanggil model jarak jauh atau mengalihkan sesi saat ini.
-3175	Antigravity CLI gagal pemeriksaan integritas, jadi tidak dijalankan: {why}
-3176	Mesin saat ini (Antigravity CLI) belum mendukung pemulihan titik pemeriksaan file
-3177	Mesin saat ini (Antigravity CLI) belum mendukung pengelolaan marketplace plugin
-3178	Mesin saat ini (Antigravity CLI) belum mendukung subperintah MCP ini
-3179	Konfigurasi MCP bukan JSON yang valid
-3180	Folder bersama /sdcard/hachimia
-3181	Penulisan konten yang dapat memengaruhi keamanan giliran berikutnya diblokir: {what}
-3182	Pengaturan model "{model}" ditolak oleh agen ({msg}); dijalankan dengan model bawaan.
+2432	Balasan selesai
+2433	Balasan error
+2434	{n} dipindahkan ke sampah, {m} gagal: {msg}
+2435	{n} terlampir, {m} gagal: {msg}
+2436	Pencarian gagal: {msg}
+2437	Daftar file tidak terbaca: {msg}
+2438	File terlalu besar; server tidak menerimanya
+2439	Server tidak mengenali file yang diunggah
+2440	Server mengembalikan {status}
+2441	Memuat percakapan…
+2442	Gagal menghapus: {msg}
+2443	Masih mengunggah {n} file; kirim setelah selesai.
+2444	Skrip bawaan gagal dipasang: {msg}
+2445	Skrip bawaan gagal dipasang: {msg}; aturan tidak disimpan
+2446	Gagal mengambil status pembaruan: {msg}
+2447	Hanya 1000 item pertama yang ditampilkan
+2448	Merge belum di-commit: commit semua perubahan sekaligus, atau batalkan dulu perubahan yang tidak ingin di-commit.
+2449	Gagal menyalin; tekan lama untuk memilih teks lalu salin
+2450	Proyek yang dihapus ({id})
+2451	3000 baris terakhir disalin
+2452	Disetel ke {line} (jendela model tidak diketahui; nilai Anda dipakai)
+2453	Gagal membaca marketplace plugin: {msg}
+2454	Nama file terlalu panjang (maks. 255 byte; satu karakter Tionghoa dihitung 3)
+2455	File belum ada
+2456	Gagal memeriksa pembaruan
+2457	Tidak ada izin mengakses lokasi ini (penyimpanan bersama memerlukan “Akses semua file” di pengaturan sistem)
+2458	Tidak ada izin mengakses folder ini (penyimpanan bersama memerlukan “Akses semua file” di pengaturan sistem)
+2459	Tidak ada izin membaca lokasi ini (penyimpanan bersama memerlukan “Akses semua file” di pengaturan sistem)
+2460	Gagal menghapus: {msg}
+2461	Proses terminal sudah berhenti; input tidak terkirim
+2462	Gagal membaca daftar komponen kustom: {msg}
+2463	Gagal membaca riwayat commit
+2464	Gagal membaca status file ini
+2465	Gagal membaca daftar file commit ini
+2466	Masih ada konflik yang belum selesai; selesaikan dulu sebelum commit.
+2467	Halaman ini gagal digambar
+2468	Lokasi ini tidak bisa dibaca
+2469	Folder ini bukan lagi repositori git
+2470	Folder ini tidak memiliki SKILL.md (mungkin sisa impor yang gagal); boleh dihapus.
+2471	Spreadsheet ini mengembang terlalu besar di dalamnya untuk dibuka dengan aman.
+2472	Informasi rentang sheet ini rusak dan tidak bisa dibaca
+2473	Pseudo-file sistem seperti ini tidak bisa dibaca dengan cara ini
+2474	Instruksi proyek belum disimpan; kembali akan membuang perubahan ini. Tetap kembali?
+2475	Layanan pratinjau tidak mengembalikan alamat
+2476	Gagal memuat bantuan: {msg}
+2477	Gagal memuat log perubahan: {msg}
+2478	Paket skill melebihi 64 MB; ekstrak lalu impor skill satu per satu
+2479	Nilai kolom cron tidak valid: {f}
+2480	Nilai kolom cron di luar rentang: {f}
+2481	Langkah cron tidak valid: {f}
+2482	Ekspresi cron harus terdiri dari lima kolom: menit jam hari bulan hari minggu
+2483	「{n}」: folder proyek tugas sudah tidak ada. Edit tugas dan pilih proyek atau folder lain
+2484	Bookmark tidak tersimpan: penyimpanan penuh atau tidak ada izin
+2485	Folder proyek tugas sudah tidak ada. Edit tugas dan pilih proyek atau folder lain
+2486	Sesi hasil percabangan tidak dapat ditulis ke disk: {err}
+2487	Tugas sekali jalan perlu tanggal
+2488	Waktu mulai harus 0–23 jam, 0–59 menit
+2489	Tanggal harus berformat YYYY-MM-DD
+2490	Waktu harus 0–23 jam, 0–59 menit
+2491	Pilih setidaknya satu hari (bilangan bulat 1–7)
+2492	Tanggal bulan harus 1–31 atau 「hari terakhir」
+2493	Interval harus bilangan bulat 1–24 jam
+2494	Gagal menyimpan: penyimpanan penuh atau tidak ada izin
+2495	Waktu selesai harus 0–23 jam, 0–59 menit
+2496	(Teks terlalu panjang; hanya menampilkan {n} karakter pertama)
+2497	Dalam mode aman, mode yang tidak bertanya tidak berlaku; sekarang «Tanya setiap kali»
+2498	Pengaturan tidak tersimpan; mode izin sebelumnya akan kembali setelah mulai ulang
+2499	Pesan asli terlalu panjang; hanya 65.000 karakter pertama yang dipulihkan
+2500	Sementara tidak dapat mengambil pemberitahuan keamanan
+2501	Mengambil pemberitahuan keamanan…
+2502	Host berubah, kunci lama telah dihapus; silakan isi ulang
+2503	Waktu reset sudah lewat; akan diperbarui setelah pesan berikutnya
+2504	Proyek dibuat; folder sudah berisi CLAUDE.md, jadi instruksi yang Anda isi tidak ditulis
+2505	Login resmi · sudah masuk
+2506	Login resmi · belum masuk
+2507	Login resmi · status masuk tidak dapat dipastikan
+2508	Login resmi · saat terakhir diperiksa sudah masuk
+2509	Login resmi · saat terakhir diperiksa belum masuk
+2510	Masuk ke akun Anda
+2511	Proses masuk masih berlangsung; tautan otorisasi akan terbuka begitu tersedia.
+2512	Hapus model «{id}»? File akan dihapus dari folder model.
+2513	Model «{id}» dihapus
+2514	{n} diimpor; lalu gagal: {msg}
+2515	Toolkit diperbarui; belum ada versi yang cocok
+2516	Toolkit diperbarui dan indeks komponen belum memiliki versi untuk toolkit saat ini. Perbarui toolkit dulu, atau ketuk «Periksa pembaruan» untuk memuat ulang indeks.
+2517	Garis pemadatan minimal 100k; disimpan sebagai 100k
+2518	Tidak bisa menulis catatan pemasangan (penyimpanan penuh atau tidak ada izin); pemasangan ini tidak dilanjutkan
+2519	Berkas sudah ditempatkan, tetapi catatan pemasangan gagal ditulis (penyimpanan penuh atau tidak ada izin). Silakan pasang ulang atau hapus
+2520	Tidak bisa menulis catatan komponen (penyimpanan penuh atau tidak ada izin); pemasangan ini tidak selesai
+2521	Endpoint mengembalikan {s}, tetapi formatnya tidak sesuai, jadi kunci tidak bisa dipastikan: {what}
+2522	(kosong)
+2523	Upstream melaporkan galat di akhir jawaban ({msg}); dianggap selesai. Jika jawaban belum lengkap, kirim “lanjutkan”.
+2524	Jalur “{ep}” yang dipilih untuk {name} sudah tidak ada. Pilih ulang jalur di Pengaturan dan masukkan kunci untuk jalur itu.
+2525	Alamat ini memakai http tanpa enkripsi: kunci dan percakapan dikirim ke mesin lain tanpa dienkripsi. Ganti ke https jika bisa.
+2526	Tugas terjadwal berjalan di gilirannya sendiri: dipindah ke depan dan dimulai begitu giliran saat ini selesai
+2527	Berhenti jika terlampaui dan dihitung gagal; hanya berlaku untuk API resmi
+2528	Rute diganti — kunci lama dihapus, silakan masukkan lagi
+2529	Gagal memuat riwayat: {msg} 
+2530	Selama pemasangan, {n} file bersama terhapus oleh pencopotan — silakan pasang ulang
+2531	Model di perangkat {model} yang disematkan ke sesi ini sudah tidak ada — pilih yang lain di panel model
+2532	Memeriksa file model di perangkat…
+2533	File model di perangkat telah diubah (checksum tidak cocok), jadi demi keamanan tidak dimuat: {file}
+2534	File model di perangkat bukan GGUF (mungkin telah diubah), jadi tidak dimuat: {file}
+2535	Waktu masuk habis (15 menit)
+2536	Proses masuk masih berjalan — halaman otorisasi akan terbuka setelah alamatnya diterima
+2537	Info unduhan modul ini tidak lengkap — perbarui Devkit dulu
+2538	Paket modul tidak memiliki daftar file (MANIFEST), jadi demi keamanan tidak dipasang
+2539	Daftar file paket modul berisi jalur yang tidak valid: {file}
+2540	Modul "{name}" belum menyelesaikan penyiapan awal ({err}); memasang ulang akan mencobanya lagi
+2541	Daftar proyek tidak dapat disimpan (penyimpanan penuh atau tidak dapat ditulis); perubahan ini akan hilang setelah dimulai ulang
+2542	{n} percakapan tidak dapat dipindahkan ke tempat sampah, jadi folder tidak dihapus: {why}
+2543	{n} file bersama yang dibutuhkan komponen "{id}" telah dihapus
+2544	Gateway dihentikan sistem sebelum proses ini selesai
+2545	waktu habis
+2546	tidak ada keluaran
+2547	Menjalankan swauji… (butuh satu-dua menit)
+2548	Terakhir {time}: {pass} lulus, {fail} gagal
+2549	diukur sebelum Devkit atau aplikasi diperbarui
+2550	Belum ada hasil swauji
+2551	Proses terakhir tidak menghasilkan apa pun: {why}
+2552	Pemeriksaan yang gagal
+2553	Sistem tidak mengizinkan aplikasi ini memulai layanan Work Island, jadi tidak ada yang ditampilkan.
+2554	Aplikasi Work Island tidak terdeteksi — pasang dulu, lalu ketuk Coba lagi.
+2555	Swauji perangkat
+2556	Ulangi swauji
+2557	Mingguan · {model}
+2558	Durasi
+2559	1 jam
+2560	4 jam
+2561	1 hari
+2562	3 hari
+2563	7 hari
+2564	Catatan sesi asli tidak bisa dihapus, jadi sesi tetap di tempat semula: {err}
+2565	Giliran ini tidak selesai: gateway dimulai ulang saat aplikasi diperbarui (dimulai {when}).
+2566	Giliran ini tidak selesai: gateway dihentikan atau dimulai ulang (dimulai {when}).
+2567	Folder kerja {dir} sudah tidak ada (dihapus, diganti nama, atau kartu penyimpanan dilepas), jadi giliran ini tidak dijalankan. Kembalikan foldernya, atau ubah path di pengaturan proyek, lalu kirim lagi.
+2568	Giliran ini terhenti sebelum dimulai (dikirim {when}).
+2569	Percakapan melebihi batas konteks model. Jalankan /compact lalu lanjutkan, atau mulai percakapan baru.
+2570	Endpoint menolak kunci: periksa di Pengaturan → Endpoint apakah API key sudah benar dan belum kedaluwarsa atau dinonaktifkan.
+2571	Saldo atau kuota akun habis: isi ulang atau cek kuota di konsol penyedia.
+2572	Terlalu banyak permintaan, atau batas penggunaan tercapai: tunggu sebentar lalu coba lagi.
+2573	Endpoint tidak menemukan model atau alamat ini: periksa nama model dan URL endpoint.
+2574	Penyedia mengalami galat atau kelebihan beban: coba lagi nanti. Jika terus terjadi, ganti model atau endpoint.
+2575	Tidak bisa menjangkau endpoint: periksa jaringan, atau apakah URL endpoint salah.
+2576	Arsip berisi terlalu banyak berkas ({n}, maksimal {max}); tidak ada yang diimpor
+2577	Hanya {n} pertama yang ditampilkan; gunakan filter
+2578	Ekstrak pilihan ({n})
+2579	Kompres ({n})
+2580	Arsip: ketuk “Buka arsip” untuk melihat isinya, atau langsung ekstrak
+2581	Buka arsip
+2582	Ekstrak…
+2583	Setelah dinonaktifkan, Claude tidak melihatnya. File perintah tetap ada; bisa diaktifkan lagi kapan saja.
+2584	Hanya nama
+2585	Hanya saat kamu memanggilnya
+2586	Mode skill
+2587	Berlaku mulai giliran berikutnya
+2588	Nonaktif: Claude tidak akan terhubung. Pengaturannya disimpan; ketuk Aktifkan untuk menambahkannya lagi.
+2589	Nonaktifkan server MCP {name}? Pengaturannya disimpan dulu, jadi bisa diaktifkan lagi kapan saja.
+2590	Aktifkan server MCP {name}? Ini akan ditambahkan kembali: {target}
+2591	Hapus server MCP nonaktif {name}? Tidak bisa diaktifkan lagi dengan sekali ketuk.
+2592	~/.claude/settings.json bukan JSON yang valid. Perbaiki dulu
+2593	Hanya server MCP yang kamu tambahkan sendiri (cakupan pengguna) yang bisa dinonaktifkan
+2594	Daftar nonaktif tidak bisa ditulis
+2595	Tidak ada di daftar nonaktif
+2596	Komponen ini tidak terpasang
+2597	Modul ini tidak bisa dinonaktifkan
+2598	Kompres…
+2599	Encoding nama file
+2600	Jika nama rusak, coba encoding lain
+2601	{n} entri
+2602	Terenkripsi
+2603	Ekstrak semua…
+2604	Tutup arsip
+2605	Kembali ke arsip
+2606	Versi ini tidak menyertakan 7-Zip, jadi tidak bisa membuka arsip jenis ini
+2607	Tidak bisa membuka arsip: {msg}
+2608	{size} terkompresi
+2609	Tautan simbolik (tidak diekstrak)
+2610	Mengekstrak…
+2611	Kata sandi salah
+2612	Terlalu besar untuk pratinjau; ekstrak dulu
+2613	Ruang penyimpanan tidak cukup
+2614	Gagal mengekstrak: {msg}
+2615	Masukkan kata sandi
+2616	Kata sandi salah, coba lagi
+2617	OK
+2618	{n} item terpilih
+2619	Ekstrak {what}
+2620	Ekstrak ke
+2621	Folder saat ini
+2622	Kata sandi (kosongkan jika tidak terenkripsi)
+2623	File yang sudah ada dengan nama sama tidak ditimpa; yang baru diganti nama menjadi “nama (2)”. Tautan simbolik tidak diekstrak.
+2624	Ekstrak
+2625	Tulis path lengkap (diawali /)
+2626	Kompres “{name}”
+2627	Kompres {n} item
+2628	Nama arsip
+2629	Format
+2630	Tingkat kompresi
+2631	Simpan saja
+2632	Tercepat
+2633	Normal
+2634	Terkecil (lambat)
+2635	Kata sandi (opsional, zip / 7z)
+2636	Enkripsi juga nama file (7z)
+2637	Zip terenkripsi memakai AES-256, yang mungkin tidak bisa dibuka alat lama; jangan pakai kata sandi demi kompatibilitas. Folder kredensial seperti .ssh tidak dimasukkan.
+2638	Kompres
+2639	Tidak bisa mengekstrak atau mengompres ke lokasi ini
+2640	Versi ini tidak menyertakan 7-Zip
+2641	Arsip tidak bisa disimpan di dalam folder yang sedang dikompres
+2642	Mengekstrak
+2643	Mengompres
+2644	Diekstrak ke {path}
+2645	Dikompres menjadi {path}
+2646	Pilih
+2647	Prompt sistem tidak bisa ditulis ke file, jadi giliran ini tidak dimulai: {msg}
+2648	Kembalikan pengaturan awal
+2649	Dialog konfirmasi tidak muncul
+2650	Pasang ulang komponen ini (diunduh lagi)
+2651	Pasang ulang modul devkit ini (diunduh lagi)
+2652	Perbaiki devkit: unduh ulang versi ini dan pasang ulang; layanan dijeda 1–2 menit selama pemasangan
+2653	Perbaiki semua
+2654	Perbaiki
+2655	Menunggu
+2656	Sedang berjalan…
+2657	Diserahkan ke aplikasi
+2658	Sedang memperbaiki. Menutup halaman ini tidak menghentikannya; setelah selesai akan diperiksa ulang otomatis:
+2659	Perbaikan selesai:
+2660	Pantau langkah yang diserahkan ke aplikasi di Pengaturan → Pembaruan, lalu ketuk “Periksa catatan” lagi setelah selesai.
+2661	Perbaikan selesai, {n} langkah gagal
+2662	Perbaikan selesai
+2663	Akan diperbaiki dengan urutan ini, lalu diperiksa ulang otomatis:
+2664	Perbaiki item ini:
+2665	Pemasangan ulang mengunduh dari internet; file, percakapan, dan pengaturan Anda tidak terpengaruh. Lanjutkan?
+2666	Indeks gagal verifikasi tanda tangan, jadi komponen tidak bisa dipasang
+2667	Versi di indeks ({v}) lebih lama dari yang terpasang ({now}); penurunan versi ditolak
+2668	Perbaikan atau pemeriksaan sedang berjalan; coba lagi setelah selesai
+2669	Tidak ada masalah yang bisa diperbaiki otomatis
+2670	Masih ada langkah yang berjalan di aplikasi:
+2671	Langkah yang diserahkan ke aplikasi masih berjalan; ketuk “Periksa catatan” setelah selesai
+2672	Browser bawaan
+2673	Paket yang diunduh pkg
+2674	Indeks silsilah
+2675	Memindai…
+2676	Aplikasi ini memakai {app}; sisa di perangkat {free}
+2677	Pemindaian terakhir: {when}
+2678	Belum pernah dipindai
+2679	{n} hari, sesuai setelan Anda
+2680	Disimpan selamanya
+2681	Pembersihan otomatis terakhir: {when}, membebaskan {size}
+2682	Belum ada pembersihan otomatis
+2683	Cache
+2684	Total {size}; diunduh atau dibangun ulang otomatis bila perlu
+2685	Sedang dipakai
+2686	Sesi berjalan
+2687	Tak berubah 7 hari
+2688	Terakhir diubah: {when}
+2689	Hapus yang dipilih
+2690	File sementara
+2691	Total {size}, {old} di antaranya tak berubah 7 hari. Termasuk keluaran perintah latar belakang dan folder sementara sisa pengujian dan build
+2692	{n} terbesar
+2693	Bersihkan yang lebih dari 7 hari
+2694	Log debug, snapshot shell, log MCP, dan cadangan .claude.json: total {size}; {n} item ({auto}) bisa dibersihkan (lebih dari 30 hari; 5 cadangan terbaru disimpan)
+2695	{n} sesi, total {size}. Sesi tidak pernah dihapus otomatis; hapus dari daftar sesi, dan sesi masuk ke tempat sampah dulu
+2696	Data runtime komponen (~/.cccodroid)
+2697	{name} (dipasang dengan pkg)
+2698	Folder bersama /sdcard/cccodroid
+2699	Program dan file Anda
+2700	Hanya ukuran; tidak ada yang dihapus di sini
+2701	Tempat sampah sesi
+2702	{n} item, {size}; dikosongkan otomatis setelah 30 hari
+2703	Program sisa toolkit lama
+2704	Tinjau
+2705	Data runtime sisa komponen {id} yang dihapus
+2706	Statistik penggunaan
+2707	Tempat pembersihan lain
+2708	✓ Menghapus {n} item, membebaskan {size}
+2709	{n} item tidak dihapus (sedang dipakai atau di luar folder yang diizinkan)
+2710	Tidak ada yang dipilih
+2711	Hapus {n} item sementara yang dipilih? Tidak bisa dibatalkan.
+2712	Hapus data runtime sisa {id}? Saat dipasang ulang akan diunduh lagi.
+2713	✓ Dihapus
+2714	Penyimpanan
+2715	Ruang terpakai
+2716	Pindai
+2717	Penyimpanan sesi
+2718	Pembersihan otomatis
+2719	Daftar API
+2720	Tambah API
+2721	{n} model
+2722	Hapus ({n})
+2723	Hapus {what} secara permanen? Tindakan ini tidak dapat dibatalkan.
+2724	Folder akan dihapus beserta seluruh isinya.
+2725	{n} item dihapus
+2726	Folder ini berisi direktori milik aplikasi atau ruang kerja dan tidak dapat dihapus
+2727	(Giliran sebelumnya tidak selesai dengan normal; balasan di atas mungkin tidak lengkap)
+2728	Sesi berhasil diimpor, tetapi judul kustom tidak dapat disimpan (penyimpanan mungkin penuh atau tidak ada izin). Judul asli akan tampil setelah mulai ulang
+2729	Daftar sesi tidak dapat dibaca ({msg}); ini bukan berarti tidak ada sesi. Periksa izin penyimpanan lalu segarkan.
+2730	Permintaan habis waktu: gateway tidak merespons ({n} dtk)
+2731	Gateway offline: {msg} · Ketuk untuk mencoba lagi
+2732	Giliran sebelumnya gagal di latar belakang: {msg}
+2733	Alamat mengembalikan {s}, tetapi isi responsnya terlalu besar (lebih dari 8 MB) untuk memastikan kunci valid
+2734	Giliran sebelumnya selesai, tetapi giliran berikutnya tidak mendapat hasil (terputus)
+2735	Direktori tidak ada: {dir}; memakai {cwd} sebagai gantinya
+2736	API mengembalikan error, bukan balasan normal:
+2737	Batas maksimum garis pemadatan adalah 1M; disimpan sebagai 1M
+2738	HONOR / Huawei dan sistem serupa membekukan Shizuku di latar belakang dan memperlambat aktivasi: di Pengelolaan aplikasi → Shizuku, aktifkan "Abaikan pengoptimalan baterai".
+2739	Pertama dicatat: {time}
+2740	Waktu tidak diketahui
+2741	Variabel lingkungan, opsional, dipisahkan koma (KEY=nilai)
+2742	Header, opsional, dipisahkan koma (Header: nilai), mis. Authorization: Bearer token-anda
+2743	Header
+2744	MCP jarak jauh memakai header: tulis {bad} dengan titik dua, mis. Authorization: Bearer token-anda
+2745	MCP jarak jauh tidak mendukung variabel lingkungan: tulis header sebagai Header: nilai, mis. Authorization: Bearer token-anda
+2746	Hapus dari konfigurasi
+2747	Header saat ini
+2748	Variabel lingkungan saat ini
+2749	Perubahan {name} tersimpan
+2750	Gagal mengedit: {msg}
+2751	Gagal menyimpan: {msg}; konfigurasi lama dipulihkan apa adanya
+2752	Gagal menyimpan: {msg}, dan konfigurasi lama tidak bisa dipulihkan — silakan periksa manual
+2753	Tidak bisa membuka editor: {msg}
+2754	Mengedit {name}: kosongkan = pertahankan nilai, ketuk × untuk hapus, isi untuk mengganti
+2755	Server MCP ini tidak ditemukan (konektor akun tidak bisa diedit)
+2756	Sudah ada server MCP dengan nama ini
+2757	stdio tidak menyimpan header: {names} akan dibuang. Lanjutkan?
+2758	Jika server ada di perangkat ini, isi http://127.0.0.1:port — IP LAN berubah saat jaringan berganti dan koneksi putus
+2759	Ini tampak seperti alamat LAN: jika server ada di perangkat ini, ganti ke http://127.0.0.1:port — IP LAN berubah dan koneksi putus
+2760	Gabungkan PDF
+2761	Ekstrak halaman
+2762	Pisahkan per halaman
+2763	Putar halaman
+2764	Kompres PDF
+2765	PDF ke gambar
+2766	Halaman tidak valid. Gunakan format 1-3,5 dan periksa jumlah halaman.
+2767	Pemrosesan PDF gagal: {code}
+2768	File yang dipilih bukan PDF
+2769	Pindah ke atas
+2770	Pindah ke bawah
+2771	Pilih PDF di panel file atau klik “Pilih PDF…”.
+2772	Alat PDF belum tersedia: {tools}. Instal “Kotak alat PDF” di Ekstensi → Komponen opsional.
+2773	Mengimpor PDF…
+2774	Memproses PDF…
+2775	Pemrosesan selesai
+2776	Kompresi tidak memperkecil ukuran. File asli tetap tersimpan.
+2777	Buka folder hasil
+2778	Koneksi terputus. Mencoba lagi…
+2779	Kotak alat PDF
+2780	File hanya diproses di perangkat ini. File asli tidak ditimpa.
+2781	Operasi
+2782	Buka komponen opsional
+2783	Tambah dari panel file
+2784	Pilih PDF…
+2785	Gabungkan hingga 20 PDF. Pilih satu PDF untuk operasi lain.
+2786	Halaman
+2787	Format: 1-3,5. Kosongkan untuk semua halaman.
+2788	Sudut rotasi
+2789	Kualitas kompresi
+2790	Buku elektronik (ebook)
+2791	File kecil (screen)
+2792	Cetak (printer)
+2793	Format gambar
+2794	Resolusi
+2795	Rendah (72 DPI)
+2796	Tinggi (150 DPI)
+2797	Maksimal 100 halaman per proses. Sisi panjang gambar dibatasi 2048 piksel.
+2798	Folder hasil (baru)
+2799	Mulai pemrosesan
+2800	Pilih maksimal 20 PDF dengan total 256 MB.
+2801	Jumlah halaman PDF tidak boleh melebihi 1000.
+2802	PDF tidak dapat diproses. Pastikan file tidak rusak dan tanpa kata sandi.
+2803	Waktu pemrosesan habis. Kurangi halaman lalu coba lagi.
+2804	Tugas PDF sedang berjalan. Coba lagi nanti.
+2805	Instal komponen kotak alat PDF, lalu buka kembali.
+2806	Masukkan folder hasil baru di lokasi yang dapat ditulis.
+2807	Hasil melebihi 512 MB. Kurangi halaman atau resolusi.
+2808	berkas
+2809	Cadangan dari pemasangan sebelumnya belum dipulihkan. Coba lagi, atau hapus lalu pasang ulang.
+2810	[cc] Error in a script injected by the shell (details hidden by WebView)
+2811	\\[Attachment: (\\/[^\\n]+?) · [^\\n·,\\]]+, file is large and was not read directly, read by path when needed\\]
+2812	Antigravity is requesting tool authorization: {w}
+2813	Antigravity wants to ask you
+2814	Say how it should change (sent back to Antigravity)
+2815	Optional: tell Antigravity why / what to do
+2816	Scheduled
+2817	Antigravity is waiting for your confirmation
+2818	Let Antigravity decide which actions need confirmation
+2819	Ask nothing. Antigravity can delete files and run any command without asking you
+2820	Switch to “Allow everything”?\n\nAntigravity will stop asking and can edit or delete files, run any command and access the network. Only use it when you trust the task and can live with the consequences.
+2821	Sign in with a Google Antigravity account
+2822	Use a personal Google account (Free / Pro / Ultra) or an enterprise account: authorize once in the browser, no key needed.
+2823	Enter a Gemini API Key
+2824	Use a Gemini API Key from Google AI Studio or a custom compatible endpoint, billed by usage.
+2825	Context has reached the auto-compact line; compacting history…
+2826	Background task finished, reported automatically:
+2827	[Attachment: 
+2828	, file is large and was not read directly, read by path when needed]
+2829	Starting Google Antigravity sign-in…
+2830	Google account signed in
+2831	Open the address below in your browser to complete Google authorization, then paste the authorization code under Settings → Providers to submit:
+2832	You can also run {cmd} in the in-app terminal to sign in.
+2833	Interruption sent — it will be seen once the current step finishes
+2834	Antigravity CLI (agy) itself
+2835	The system or hachimia already has a command with this name; pick another one
+2836	hachimia checks these skills before handing them to Antigravity; when calling one with a slash, prefix the name with user:, e.g. /user:{name}.
+2837	This build does not run the hooks configured here: hooks can execute arbitrary commands and put arbitrary content into the conversation, and hachimia cannot check them. The rules stay in the file and will not be deleted.
+2838	Reinstall Antigravity CLI (agy)
+2839	Claude (compatible)
+2840	Third-party provider
+2841	Sign in to a Google Antigravity account
+2842	Google Cloud / enterprise account
+2843	Billed by your Google Antigravity account subscription tier; on-device token stats are on the “Usage” page
+2844	Sign out of the Google Antigravity account on this device?
+2845	The key is stored only in this app's private directory on this device, and is passed to Antigravity CLI only as needed to connect to the matching endpoint.
+2846	AGY blue
+2847	Antigravity's replies
+2848	Shizuku is running but has not been authorized for hachimia
+2849	vivo / iQOO: Settings → Battery → Background power consumption → allow hachimia <b>high background power usage</b>; in iManager allow <b>auto-start</b> (common path)
+2850	Huawei / Honor: Settings → App launch → turn off “Manage automatically” for hachimia, then manually allow <b>auto-start</b> and <b>background activity</b> (common path)
+2851	hachimia has been frozen in the background by the system {n} times (most recent: about {sec} seconds, {at}).
+2852	In system settings, allow hachimia to run in the background, turn off battery optimization, and allow auto-start (each vendor names these differently).
+2853	Authorize for hachimia
+2854	hachimia's wireless debugging pairing has been removed: it still works now, but it cannot auto-activate after a reboot.
+2855	Shizuku was not activated by hachimia: hachimia cannot auto-activate it after a reboot. Pair it once and you're set.
+2856	The system did not notify hachimia at this boot (blocked by the system's “auto-start” management), so it could not auto-activate; opening hachimia will catch up.
+2857	To activate at boot: allow hachimia auto-start / background start in the app details; takes effect at the next boot.
+2858	Antigravity CLI (agy) version
+2859	Uninstall Antigravity CLI (agy)?\n\nThis deletes the downloaded agy program; it will not be reinstalled automatically. Tap “Install” here to download it again when you need it.\n\nSign-in, sessions and settings are kept; sending a message while it is not installed will prompt you to install it first.
+2860	Install the devkit from a local file?\n\nPick a devkit-ha.chi.mia.tar.gz (or .tar), downloadable from the GitHub releases page or hachimia.net. It is checked against the published release before installing; the service pauses for 1–2 minutes during installation.\nThings you installed into the devkit with pip / npm -g are kept.
+2861	Shizuku is not activated yet, so the app cannot toggle accessibility itself: turn on hachimia manually in the system accessibility settings. From Android 13, sideloaded apps must first allow restricted settings via App info → menu in the top-right corner.
+2862	This build has no native layer and only records CPU time (battery, screen-on and foreground time come from hachimia).
+2863	Name (e.g. self-hosted Gemini proxy)
+2864	Auth: x-goog-api-key (Gemini / Antigravity)
+2865	Auth: Authorization: Bearer
+2866	Auth: x-api-key
+2867	Default model name (required, e.g. gemini-3.8-flash)
+2868	Model list URL (optional; Gemini endpoints auto-probe /v1beta/models)
+2869	Context window (optional, in tokens, e.g. 1m; leave empty for the default)
+2870	More models (optional, one per line; you may put the window after the name, separated by a space, e.g. gemini-4-neon 1m)
+2871	Send images with the message (compat): check this when the model cannot read attached images; attachments are then sent directly as multimodal blocks with the message.
+2872	Choosing <b>Gemini / Antigravity</b> auth drives the official <code>agy</code> CLI via <code>GOOGLE_GEMINI_BASE_URL</code> + <code>GEMINI_API_KEY</code>.
+2873	Running Antigravity diagnostics…
+2874	Currently available capabilities
+2875	Fixed
+2876	Workaround
+2877	(Merged from 
+2878	Direct (not needed)
+2879	(Decided by Antigravity)
+2880	Antigravity CLI failed: {msg}
+2881	The Antigravity CLI user-level config has unconfirmed changes. Send a message first, confirm in the card that pops up, then try again.
+2882	Could not fetch the Antigravity CLI version list
+2883	agy install script not found ({p})
+2884	The dev side only manages Antigravity CLI (agy) (you build and install the app itself on this device)
+2885	Updating Antigravity CLI (agy)…
+2886	Could not fetch the Antigravity CLI version list: {err}
+2887	The gateway's own runtime was modified; Antigravity CLI was not started this round. The gateway will restart when idle and restore itself from the install package; send again shortly.
+2888	Antigravity CLI (agy) is not installed. Install it under Settings → Updates first.
+2889	Antigravity CLI (agy) not found
+2890	Settings → Updates: reinstall Antigravity CLI (agy)
+2891	Antigravity CLI (agy) is not installed. Tap “Install” under Settings → Updates.
+2892	The Antigravity CLI user-level config has unconfirmed changes, or an earlier session left background processes behind, so this run did not start. Open hachimia, send a message, and confirm in the card that pops up, then try again.
+2893	Antigravity CLI (agy) is not installed. Install it under Settings → Updates first, then come back to sign in.
+2894	Enterprise sign-in: in the agy sign-in screen, choose “Use a Google Cloud project” → “Continue with Google Cloud” and authorize with your enterprise account.
+2895	Personal sign-in: in the agy sign-in screen, choose “Google OAuth” and authorize with your personal Google account.
+2896	The slash commands, tools, skills and extensions currently available to Antigravity. Tap a slash command to insert it into the input box; a tool's “Allow / Ask / Deny” follows the permission mode and rules.
+2897	For things not in the marketplace, import a Linux arm64 program yourself: a single binary, or a .tar.gz / .zip archive. Missing libraries are filled in automatically and a command is generated, ready to use in Antigravity and in the terminal.
+2898	Save a long prompt you send often as a command and pick it with / in the input box. Text after /command fills $ARGUMENTS in the body, expanded automatically by the gateway when sent to Antigravity.
+2899	Antigravity behavior
+2900	Default color pick (AGY Monet palette); switchable to native, Qiusuo, Zhuyue or Construct
+2901	Font for Antigravity's reply text
+2902	Thinking level (thought_level)
+2903	Levels vary by model (low / medium / high / xhigh). You can also type <code>/effort &lt;level&gt;</code> in the input box.
+2904	Let Antigravity decide
+2905	Empty = let Antigravity decide by window
+2906	Confirm each item by default, same as official agy: it asks in the conversation before editing files or running commands. Allow everything means Antigravity can delete files and run any command without asking. You can also switch anytime via the permission tag under the input box.
+2907	Only clears caches, temp files untouched for 7 days, and expired logs; sessions, your files and programs are never auto-deleted
+2908	When on, run <code>priv 'command'</code> in the terminal as shell (pm / am / settings / dumpsys / logcat / screencap…); Antigravity uses it too. Without Shizuku, basic dev features work as usual — only these debugging abilities are unavailable.
+2909	Auto-activate again after a reboot (needs Wi-Fi; starts the hachimia background service at boot)
+2910	Let Antigravity use device tools (notifications, clipboard, opening links / calendar / alarms, sharing files…)
+2911	Off by default. Turn it on when you want Antigravity to test an app you built, or send files it generated to other apps; while on, each round carries an extra one or two thousand tokens of tool descriptions.
+2912	Antigravity CLI channel
+2913	Plan first
+2914	Interview to align the plan
+2915	Long-term goal
+2916	Multi-agent teamwork
+2917	Deep orchestration
+2918	Capabilities & tools
+2919	Failed to switch permission mode (agent rejected {mode}): {msg}
+2920	Could not restore the previous session (the agent doesn't support resume, or resume failed), so a new session was started. This turn was written to the new session; the old session's history is still kept in local records.
+2921	Compaction not confirmed: context did not shrink (before {pre}, after {post}). Please retry /compact or start a new session.
+2922	Enterprise login: please sign in with your company Google account in the browser
+2923	The authorization code could not be written to agy (stdin is closed). Please start login again.
+2924	The authorization code could not be written to agy (the login process's stdin is closed). Please start login again.
+2925	Login-based providers don't need an API key; sign in through the official flow. The key you entered was not saved.
+2926	Already queued; skipping this duplicate run
+2927	Open this in the app
+2928	Needs npx (included in the hachimia toolkit)
+2929	This build has no native layer, so only CPU time is recorded (battery and screen-on need hachimia).
+2930	The Antigravity CLI program was modified and was not started; 
+2931	Antigravity CLI housekeeping files
+2932	These Claude Code config files contain override-style instructions (telling the model to ignore its rules, posing as system messages and the like). hachimia won't load them, so this turn did not run. Edit or remove the following, then send again:\n{list}
+2933	The command {c} is built into the system or hachimia. Pick another name
+2934	Not a hachimia session archive
+2935	{p}: {n}
+2936	"{n}" {w}
+2937	API Key
+2938	Google Antigravity / Gemini
+2939	Lihat atau ganti model
+2940	Konteks
+2941	Padatkan riwayat percakapan untuk membebaskan ruang konteks
+2942	Apa yang terjadi
+2943	Apa yang Anda lakukan, apa yang diharapkan, dan apa yang sebenarnya terjadi. Tangkapan layar bisa langsung diseret ke sini.
+2944	Cara mereproduksi
+2945	Status proses tidak dapat disimpan (penyimpanan mungkin penuh atau tanpa izin). Jika aplikasi ditutup oleh sistem, giliran ini mungkin tidak dapat dipulihkan.
+2946	Status proses sebelumnya tidak dapat dipulihkan (catatan tidak terbaca atau formatnya salah), jadi giliran yang terputus dan pesan dalam antrean tidak akan muncul; berkas aslinya tetap disimpan.
+2947	Nama hanya boleh huruf, angka, - dan _, maksimal 40 karakter
+2948	Namanya sama dengan perintah bawaan. Pilih nama lain
+2949	Isi perintah tidak boleh kosong
+2950	Isi perintah terlalu panjang (maksimal 64 KB)
+2951	Perintah dengan nama itu sudah ada
+2952	Maksimal 10 font. Hapus satu dulu sebelum mengimpor
+2953	Ini file kumpulan font (.ttc) yang tidak bisa dipakai browser; gunakan ttf / otf tunggal
+2954	Bukan file font yang bisa dipakai. Hanya ttf, otf, woff, dan woff2 yang didukung
+2955	This model doesn't support thinking level "{effort}"; running with the default instead.
+2956	The agent rejected thinking level "{effort}" ({msg}); running with the default instead.
+2957	Not supported under Antigravity
+2958	Not supported under Antigravity: the Antigravity CLI has no generic third-party API key channel. Declare protocol:"gemini" (the endpoint must speak the Gemini protocol), or switch to a Gemini / sign-in provider.
+2959	On-device models need Claude Code; this device only has the Antigravity CLI, so they're unavailable for now.
+2960	Not set (no default compaction line under ACP)
+2961	No Google Cloud ADC credentials found (Application Default Credentials). Run `gcloud auth application-default login` in a terminal first, then come back and pick ADC.
+2962	Application Default Credentials found.
+2963	The old configuration was still using a Claude preset, which doesn't work in Antigravity-only mode; it has been switched back to Google Antigravity sign-in.
+2964	Protocol: not declared
+2965	Protocol: Gemini (endpoint speaks the Gemini protocol)
+2966	Checking ADC credentials…
+2967	Failed to create a session: the agent returned no session ID. Please try again.
+2968	Output (berjalan)
+2969	Sisa AI Credits: {n}
+2970	Menyinkronkan kuota langganan Google Antigravity; sementara menampilkan penggunaan token lokal (ketuk Muat ulang di atas untuk memeriksa sekarang).
+2971	Gagal memulihkan sesi sebelumnya ({why}). Sesi saat ini dipertahankan tanpa membuat sesi baru; silakan coba lagi atau mulai obrolan baru secara manual.
+2972	Tidak dapat mengetahui apakah perangkat sedang diisi daya
+2973	Tidak dapat membaca level baterai saat ini
+2974	Indeks
+2975	Nama file memori tidak valid
+2976	Memori tidak ditemukan
+2977	Hanya file memori biasa yang boleh dilihat
+2978	File memori terlalu besar (lebih dari 1 MB)
+2979	Memori hanya-baca dan tidak dapat diubah di sini
+2980	Menunggu tugas latar belakang
+2981	diam {d}
+2982	sisa {d}
+2983	Terima pengumuman pemeliharaan
+2984	Cadangan proksi pihak ketiga GitHub (gh-proxy.com)
+2985	Pemeriksaan pertama: konfigurasi global berikut berlaku di setiap giliran. Pastikan Anda sendiri yang menambahkannya (membatalkan akan mencadangkannya ke ~/.ccapp-userconf/quarantine).
+2986	Pilih Urungkan jika bukan Anda yang mengubahnya (memulihkan konfigurasi, menghentikan proses sisa, dan mengarantina file baru), atau Simpan jika perubahan Anda.
+2987	Pemeriksaan keamanan bermasalah. Tolak jika Anda ragu dengan tindakan ini.
+2988	Konfigurasi proyek menjalankan program lokal secara langsung. Pilih Jangan muat jika sumbernya tidak dikenal (chat tetap berjalan); setelah diizinkan, konfirmasi hanya diminta saat ada perubahan.
+2989	Jika bukan permintaan Anda, ini mungkin injeksi instruksi dari halaman web atau file—sebaiknya tolak. Mengizinkan tidak akan menanyakan lagi aksi serupa pada giliran ini.
+2990	Perubahan konfigurasi pengguna belum dikonfirmasi
+2991	Pemeriksaan keamanan gagal — konfirmasi manual
+2992	Akan mengubah file prompt atau aturan keamanan: {w}
+2993	Akan mengakses kunci atau kredensial login: {w}
+2994	Terputus, menyambung ulang… (generasi tetap berjalan)
+2995	Menganggur hampir 1 jam; memadatkan konteks otomatis untuk menghemat pemakaian berikutnya (dapat dimatikan di Pengaturan).
+2996	Menunggu konfirmasi
+2997	Perubahan baru
+2998	File konfigurasi diubah dari luar; dipulihkan ke pengaturan saat ini: 
+2999	File runtime diubah dari luar; proteksi pemulihan aktif: 
+3000	Chat baru menunggu konfirmasi · lihat “Chat belum disimpan” di bilah samping
+3001	Siap · {n} tugas latar berjalan
+3002	Siap · menyelesaikan tugas latar
+3003	Status {n} operasi tidak diketahui saat terputus ({list}). Periksa hasilnya sebelum melanjutkan.
+3004	Konfirmasi kedaluwarsa ({n} mnt tanpa respons); giliran tidak dimulai ({when}).
+3005	Progres sebelumnya tersimpan. Ketuk Lanjutkan untuk meneruskan dari titik henti.
+3006	Pesan terkirim — tidak perlu kirim ulang
+3007	Pengiriman belum terkonfirmasi: {msg}
+3008	Penyimpanan penuh, draf tidak tersimpan. Salin atau kirim sekarang.
+3009	Disimpan di /sdcard/cccodroid/models (Q4_K_M). Aktifkan di Pengaturan → Layanan model. RAM perangkat {ram} GB, disarankan 1–4B.
+3010	Copot komponen {name}? (File milik Anda tidak terpengaruh.)
+3011	Hapus juga cache runtime {size} milik {name} ({path})?
+3012	Ekspor dan bagikan paket diagnostik?\n\nBerisi: versi & perangkat, status toolkit & pemeriksaan mandiri, log terbaru yang telah disensor, catatan perbaikan, hasil koneksi jaringan.\nTidak berisi: kunci, kredensial, email, isi pesan, maupun riwayat sesi.
+3013	Mode lokal secara bawaan hanya mengaktifkan chat. Untuk menyesuaikan alat & parameter, edit {file} atau kirim perintah ini ke model cloud:
+3014	(status cache; gagal memuat ulang: {msg})
+3015	Selesaikan otorisasi di browser, lalu tempel kode otorisasi di bawah.
+3016	Atau jalankan perintah login langsung di terminal bawaan:
+3017	Jalur sebelumnya sudah dihapus. Pilih jalur baru dan masukkan ulang Key.
+3018	Sebaiknya atur batas pemakaian di konsol penyedia, dan segera ganti Key jika dicurigai bocor.
+3019	Ringkasan bulan ini
+3020	Contoh templat (ganti dengan alamat layanan sebenarnya)
+3021	Pemanggilan pihak ketiga dikonfigurasi sendiri; penyedia dapat melihat Key, kode, dan percakapan Anda. Gunakan hanya layanan tepercaya.
+3022	Chat belum disimpan
+3023	Jalankan sekarang
+3024	Berjalan otomatis sesuai jadwal di direktori terpilih dan menyimpan hasilnya sebagai sesi. Aksi yang butuh konfirmasi otomatis ditolak; jadwal terlewat mengikuti kebijakan tiap tugas.
+3025	Melewati sisa tugas hari itu saat batas tercapai (hanya menghitung biaya API resmi; pemanggilan pihak ketiga tidak dihitung).
+3026	Tugas terjadwal nonaktif secara bawaan untuk langganan pribadi. Pastikan sesuai ketentuan layanan sebelum mengaktifkan (API Key bebas batas).
+3027	Dilewati kali ini
+3028	Menggunakan pemanggilan pihak ketiga: tidak masuk batas biaya, hanya dibatasi durasi sekali jalan.
+3029	Login dengan langganan pribadi: eksekusi terjadwal yang sering dapat memicu pembatasan akun; disarankan memakai API Key.
+3030	Silakan gabung grup untuk diskusi umum; untuk lapor bug gunakan Pengaturan → Umpan balik di GitHub (otomatis menyertakan info perangkat & cek mandiri).
+3031	Kontribusi terjemahan, pengujian, dokumentasi, dan kode sangat terbuka — lihat panduan kontribusi di repositori.
+3032	Browser eksternal tidak dilindungi sandbox; skrip dapat membaca file sekitar dan mengakses layanan lokal. Lanjutkan hanya untuk halaman tepercaya.
+3033	File biner — tidak dapat dibuka sebagai teks.
+3034	Izinkan halaman ini mengakses internet?\n\nSaat online, skrip dapat mengirim keluar file hingga 3 tingkat folder di atasnya. Aktifkan hanya untuk halaman tepercaya.
+3035	File terlalu besar ({size}). Beralih ke Tata letak asli (PDF) atau buka dengan aplikasi eksternal.
+3036	Menginstal LibreOffice di latar belakang…
+3037	[Proses berhenti]
+3038	[Gagal mengirim, menyambung ulang gateway]
+3039	Lihat durasi per giliran & linimasa panggilan alat
+3040	Baru pertama? Ketuk “Cara membaca” di kanan atas
+3041	Ada pesan serupa di bawah yang belum tersimpan — tunggu giliran ini selesai sebelum menandai
+3042	Belum ada markah. Ketuk ikon markah di bawah pesan untuk menambahkan.
+3043	Halaman interaktif (HTML)
+3044	Memuat ulang antarmuka…
+3045	Versi aplikasi ini belum mendukung pemulihan otomatis; perbarui aplikasi atau mulai ulang gateway
+3046	Guliran macet? Tekan lama judul bilah atas ~0,6 dtk untuk memulihkan
+3047	Pemulihan otomatis berhenti; mengubah konfigurasi tidak membukanya. Jalankan diagnostik di bawah lalu atur ulang jumlah pemulihan.
+3048	Verifikasi bridge gagal dan pemulihan otomatis berhenti (menyimpan konfigurasi tidak menghapusnya); jalankan diagnostik terlebih dulu.
+3049	Bridge dinonaktifkan (menyimpan konfigurasi tidak mengaktifkannya). Aktifkan komponen di halaman Ekstensi terlebih dulu.
+3050	Komponen bridge tidak tersedia; periksa status instalasi (jumlah pemulihan tidak diatur ulang otomatis).
+3051	Perbarui komponen bridge terlebih dahulu sebelum digunakan.
+3052	Bridge belum siap; lihat diagnostik di bawah (sesi saat ini tetap sama dan menyimpan konfigurasi tidak mengatur ulang pemulihan).
+3053	Bridge sedang sibuk. Coba lagi sebentar lagi.
+3054	Pemeriksaan konsistensi konfigurasi gagal. Ikuti petunjuk di bawah dan jangan langsung menghapus direktori.
+3055	Gagal membaca konfigurasi bridge. Kembali ke Ekstensi lalu coba lagi.
+3056	Gunakan alamat HTTPS API tanpa kredensial, parameter kueri, atau fragmen.
+3057	Masukkan alamat Chat Completions — Responses API belum didukung.
+3058	Path tidak dapat dilengkapi otomatis; masukkan URL /chat/completions lengkap.
+3059	Mendukung beberapa endpoint kompatibel OpenAI; berlaku setelah disimpan.
+3060	Hanya membaca status lokal — tidak mengubah konfigurasi maupun menghubungi server.
+3061	Cadangkan konfigurasi bridge sebelum migrasi atau instal ulang (hanya endpoint, kunci, dan daftar model; tanpa riwayat chat).
+3062	Jangan bagikan file konfigurasi yang berisi kunci secara publik.
+3063	Masukkan URL API penyedia (bukan halaman login web).
+3064	Ambil daftar model otomatis (mengirim API Key ke layanan tersebut)
+3065	Ambil ulang
+3066	Cari atau ketik nama model
+3067	Setelah ditambahkan, atur jendela konteks dan model bawaan masing-masing.
+3068	Menggunakan ukuran jendela dari API atau bawaan 200.000 token; dapat diubah manual.
+3069	Percakapan, hasil alat, dan gambar akan dikirim ke layanan ini.
+3070	Inferensi belum diuji
+3071	Disinkronkan ke Pengaturan → Penyedia & model.
+3072	Sesi lain dapat memilihnya lewat chip model di bawah kolom input.
+3073	Periksa perbedaan konfigurasi lokal dan buat rencana sinkronisasi (pemeriksaan tidak mengubah apa pun).
+3074	Hanya menyinkronkan daftar model, model default, dan mode autentikasi; tidak menjalankan/menghentikan layanan atau mengubah kunci, file runtime, kunci pemulihan, atau sesi aktif (berlaku 60 dtk).
+3075	Konfirmasi sinkronisasi
+3076	Pastikan aplikasi dan komponen sudah versi terbaru; tunggu sesi aktif selesai sebelum memeriksa ulang.
+3077	Saat pemulihan otomatis berhenti atau verifikasi gagal, sinkronisasi catatan tidak membuka kunci pemulihan; periksa diagnostik dulu lalu perbarui atau instal ulang di Ekstensi tanpa menghapus folder runtime.
+3078	Saat melaporkan masalah, sertakan versi & kode diagnostik — jangan pernah lampirkan kunci atau konfigurasi lengkap.
+3079	Memeriksa ulang akan menghapus input yang belum disimpan di halaman ini. Lanjutkan?
+3080	Perbarui komponen bridge untuk menambah beberapa endpoint; konfigurasi tunggal saat ini tetap dapat dipakai.
+3081	Edit satu endpoint setiap kali; semua perubahan berlaku setelah mengetuk Simpan konfigurasi.
+3082	Centang untuk mengambil daftar otomatis, atau ketik langsung secara manual.
+3083	Hapus endpoint “{name}” beserta modelnya? (Berlaku setelah konfigurasi disimpan.)
+3084	Bridge sedang sibuk, coba lagi nanti.
+3085	Rencana perbaikan kedaluwarsa atau status berubah; periksa ulang.
+3086	Tidak ditemukan perbedaan yang dapat disinkronkan; jika masih bermasalah, buka panduan di bawah.
+3087	Tidak dapat sinkron otomatis pada status saat ini; ikuti panduan di bawah dan jangan hapus direktori.
+3088	Memeriksa item yang dapat disinkronkan…
+3089	{n} model dan metode autentikasi siap disinkronkan.
+3090	Rencana sinkronisasi siap — konfirmasi untuk menyimpan.
+3091	Sinkronkan catatan penyedia bridge?\n\nHanya memperbarui daftar model, model bawaan, dan autentikasi; URL & kunci tetap.
+3092	Menyinkronkan catatan penyedia…
+3093	Hasil sinkronisasi belum terkonfirmasi; periksa ulang status dan jangan kirim berulang.
+3094	Penyedia telah ditulis namun pemetaan belum selesai; periksa ulang status.
+3095	Catatan penyedia berhasil disinkronkan.
+3096	Alamat penyedia, autentikasi, atau catatan koneksi lokal tidak cocok dengan bridge.
+3097	Format atau isi daftar model tersimpan tidak sesuai.
+3098	Gagal membaca atau memvalidasi catatan pemetaan penyedia bridge.
+3099	Pendaftaran layanan lokal tidak cocok dengan catatan koneksi.
+3100	Penanda kepemilikan direktori runtime bawaan tidak cocok; periksa konfigurasi lama atau status folder.
+3101	Pemeriksaan keamanan komponen gagal (tanpa rincian item).
+3102	Konflik konfigurasi (komponen versi lama tidak merinci penyebab; mungkin terkait file runtime, kepemilikan, atau catatan penyedia).
+3103	Komponen belum tersedia
+3104	Bridge sibuk
+3105	Tidak dapat membaca status bridge
+3106	Konfigurasi telah ditulis, tetapi langkah berikutnya belum selesai; periksa ulang status terlebih dahulu.
+3107	Penyimpanan belum selesai; periksa petunjuk di atas.
+3108	Periksa versi aplikasi & komponen terlebih dahulu — jangan hapus atau ubah direktori runtime.
+3109	Alamat layanan berubah — isi ulang API Key (kunci lama tidak dikirim ke alamat baru).
+3110	Kunci tersimpan disembunyikan; kosongkan jika tidak diubah atau isi nilai baru untuk mengganti.
+3111	Menyimpan konfigurasi…
+3112	Menyimpan tidak memanggil model jarak jauh atau mengalihkan sesi saat ini (daftar model dimuat; inferensi chat belum diuji).
+3113	Masukkan bilangan bulat 1024–16777216 (mendukung 256k, 1m), atau kosongkan untuk nilai bawaan.
+3114	Masukkan nama model yang valid (tanpa koma atau baris baru).
+3115	Masukkan API Key yang valid untuk mengambil daftar otomatis.
+3116	Pengambilan dibatalkan — coba lagi atau ketik manual.
+3117	Menyiapkan pengambilan daftar model…
+3118	Masukkan ulang API Key lalu coba lagi.
+3119	Daftar model kosong — ketik nama secara manual atau coba lagi.
+3120	{count} model dimuat (maks. 500) — cari atau ketik manual.
+3121	Menyimpan…
+3122	Daftar dimuat, inferensi belum diuji
+3123	Bridge lokal siap
+3124	Pemulihan otomatis berhenti
+3125	Verifikasi bridge gagal
+3126	Bridge nonaktif
+3127	Konfigurasi disimpan; bridge belum siap
+3128	ID model bentrok, >200 karakter, atau total >100 model; sesuaikan sebelum menyimpan.
+3129	Simpan semua konfigurasi endpoint?\n\nPercakapan, hasil alat, dan gambar akan dikirim sesuai model ke:\n{origins}
+3130	Simpan konfigurasi endpoint ini?\n\nPercakapan, hasil alat, dan gambar akan dikirim ke {origin}.\n({verification})
+3131	Alamat API gagal divalidasi; periksa lalu coba lagi.
+3132	Masukkan ulang API Key (kunci lama tidak dapat dipakai untuk alamat baru).
+3133	Penyimpanan belum selesai; periksa status lokal lalu coba lagi.
+3134	Gagal memilih penyedia ini untuk sesi baru; coba lagi.
+3135	Perintah latar telah selesai tetapi mesin tidak merespons lebih dari {d}; ketuk Hentikan atau kirim pesan baru.
+3136	Konfigurasi bridge belum selesai; periksa kolom atau status komponen lalu coba lagi.
+3137	Konflik status pengiriman — silakan kirim ulang.
+3138	Koneksi upstream terputus lebih awal; balasan mungkin belum lengkap, kirim “Lanjutkan” untuk meneruskan.
+3139	Penyedia ini belum didukung di Antigravity: atur protocol:"gemini" (endpoint protokol Gemini) atau gunakan login Google.
+3140	Preset Claude ({id}) tidak tersedia dalam mode khusus Antigravity; gunakan login Google atau antarmuka Gemini.
+3141	Sela (tambahkan ke giliran saat ini)
+3142	↩ Pulihkan draf yang dihapus
+3143	Perubahan berlaku mulai pesan berikutnya.
+3144	Registri publik (tanpa tinjauan resmi); paket npm berjalan di perangkat ini — pastikan sumbernya sebelum menginstal.
+3145	Jalankan perintah otomatis pada momen tertentu (sebelum/sesudah alat, kirim pesan, selesai balas) untuk menahan aksi, menambah konteks, atau memformat.
+3146	Warna aksen tombol, tautan, dan pilihan (kontras menyesuaikan tema terang/gelap otomatis)
+3147	Sematkan di bilah atas, masukkan ke “⋯”, atau sembunyikan; seret pegangan kiri untuk mengurutkan
+3148	Mendukung ttf / otf / woff / woff2 (≤ 40 MB, maks. 10); aktifkan lewat “Kustom…” di atas setelah diimpor
+3149	Menyembunyikan penyedia dari menu model namun tetap menyimpan konfigurasi dan kunci
+3150	Buat judul sesi otomatis setelah balasan pertama (memakai sedikit token; dapat memilih model ringan)
+3151	Selalu minta konfirmasi saat membaca kredensial (.env / SSH / API Key), baca/ketuk layar, papan klip, atau berbagi keluar (termasuk saat Izinkan Semua) untuk mencegah prompt injection.
+3152	Memadatkan otomatis sesi >200rb token setelah menganggur ~54 mnt untuk menekan jeda dan pemakaian token.
+3153	Memerlukan aplikasi “Work Island” untuk menampilkan progres & konfirmasi di Fluid Cloud ColorOS 16 (menutup setelah 8 dtk).
+3154	Izinkan baca/tulis di luar ruang kerja lewat additionalDirectories sekaligus menjadi pintasan di penjelajah file.
+3155	Lewati sementara aturan kustom, skill, plugin, Hooks, dan MCP tanpa mengubah file lokal; matikan untuk memulihkan.
+3156	Jalankan beberapa sesi secara paralel (~ratusan MB RAM per sesi; 1 = berurutan).
+3157	Tangkap syscall baru yang diblokir Android agar biner statis seperti Go tidak crash (berlaku pada pesan berikutnya).
+3158	Otomatis sesuai paket: eksekusi langsung pada targetSdk 28, lewat pemuat sistem pada targetSdk 36 (perlu mulai ulang gateway).
+3159	Izinkan menghentikan aplikasi latar di luar daftar putih (perlu Shizuku)
+3160	Menghentikan aplikasi latar sebelum perintah berat (<code>cc-mem run -- cmd</code>); mempertahankan layar depan, layar belah, aplikasi ber-notifikasi tetap (proksi/musik), peluncur, IME, aksesibilitas, VPN, Shizuku, dan daftar putih.
+3161	Menyimpan sesi lokal selamanya kecuali dihapus manual ke Sampah.
+3162	Lewati konfirmasi per perintah istimewa (risiko ditanggung sendiri): jalankan perintah Shizuku tanpa dialog selama batas waktu; perintah yang menyentuh aplikasi ini atau Shizuku tetap dicegat sebisa mungkin, namun tidak semua bentukbypass dapat tertangkap. Untuk satu sesi, centang pada kotak konfirmasi
+3163	targetSdk 28 paling kompatibel secara bawaan; otomatis beralih ke targetSdk 36 jika ditolak perangkat baru tanpa menghapus data.
+3164	Memperbarui Antigravity CLI otomatis; memberi tahu usai unduhan versi aplikasi baru (atau instal saat menganggur lewat Shizuku); toolkit diunduh lewat Wi‑Fi untuk dipasang saat buka berikutnya.
+3165	Mengambil pemberitahuan pemeliharaan bertanda tangan tiap 3 jam (permintaan statis tanpa data perangkat); berhenti saat dimatikan.
+3166	Mati secara bawaan: mengunduh lewat proksi pihak ketiga hanya jika sumber resmi & mirror gagal (proksi melihat IP publik; hash & tanda tangan tetap diverifikasi).
+3167	Ekspor log tersensor & status lingkungan (tanpa kunci, email, dan isi chat) untuk pelacakan masalah atau lampiran Issue.
+3168	Ekspor paket diagnostik
+3169	Membuka halaman Issue baru berisi model perangkat, versi OS, dan hasil cek mandiri (tanpa log maupun chat).
+3170	Mereset konfigurasi pengguna, pengaturan aplikasi, dan file startup shell (dicadangkan ke ~/.ccapp-reset); sesi, ruang kerja, toolkit, dan kunci tetap disimpan.
+3171	Memeriksa kompiler, Python, Node, git, dll. lalu menyinkronkan statusnya ke Antigravity (otomatis diuji ulang usai pembaruan).
+3172	Gagal memuat antarmuka — ketuk untuk mencoba lagi
+3173	Menyimpan tidak memanggil model jarak jauh atau mengalihkan sesi saat ini.
+3174	Antigravity CLI gagal pemeriksaan integritas, jadi tidak dijalankan: {why}
+3175	Mesin saat ini (Antigravity CLI) belum mendukung pemulihan titik pemeriksaan file
+3176	Mesin saat ini (Antigravity CLI) belum mendukung pengelolaan marketplace plugin
+3177	Mesin saat ini (Antigravity CLI) belum mendukung subperintah MCP ini
+3178	Konfigurasi MCP bukan JSON yang valid
+3179	Folder bersama /sdcard/hachimia
+3180	Pengaturan model "{model}" ditolak oleh agen ({msg}); dijalankan dengan model bawaan.

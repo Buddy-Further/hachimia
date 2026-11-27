@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { CFG, PREFIX, log } from "./config.mjs";
+import { writeAtomic } from "./statefile.mjs";
 
 // ── 访问控制 ──────────────────────────────────────────────────────────
 // 只监听 127.0.0.1 在安卓上不是安全边界：同机任何有联网权限的应用都能连 127.0.0.1，
@@ -20,10 +21,9 @@ export const TOKEN = (() => {
     if (/^[0-9a-f]{64}$/.test(t)) { try { fs.chmodSync(TOKEN_FILE, 0o600); } catch {} return t; }
   } catch {}
   const t = crypto.randomBytes(32).toString("hex");
-  try { fs.mkdirSync(path.dirname(TOKEN_FILE), { recursive: true }); } catch {}
-  const tmp = TOKEN_FILE + ".tmp";
-  fs.writeFileSync(tmp, t + "\n", { mode: 0o600 });
-  fs.renameSync(tmp, TOKEN_FILE);
+  if (!writeAtomic(TOKEN_FILE, t + "\n", { mode: 0o600 })) {
+    throw new Error(`failed to persist gateway token: ${TOKEN_FILE}`);
+  }
   return t;
 })();
 // Cookie 不按端口隔离：同一个浏览器里开着两个网关（hachimia 9793 与 cccodroid 8791）时，同名 Cookie 会互相覆盖，

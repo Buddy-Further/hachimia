@@ -24,6 +24,35 @@ import { validateTitle } from "./archive-core.mjs";
 import { isInjected } from "./integrity.mjs";
 
 const SUM_HEAD = 1000, SUM_TAIL = 1400, OPEN_MAX = 1600, BATCH_CHARS = 48000, BATCH_N = 24;
+// Linux/Android 单个 argv[i] 硬上限 MAX_ARG_STRLEN = 128 KiB（131072 字节）：纯 agy 经 -p=<prompt> 传参，
+// 中文 3 字节/字，分批按 90 KiB 封顶（给第 2 轮重试修正说明留余量），ask() 再做 120 KiB 兜底截断防止 E2BIG
+const AGY_BATCH_BYTES = 90 * 1024;
+const AGY_ARG_HARD_CAP = 120 * 1024;
+
+export function trimUtf8Bytes(s, maxBytes) {
+  const str = String(s || "");
+  const buf = Buffer.from(str, "utf8");
+  if (buf.length <= maxBytes) return str;
+  let end = Math.max(0, maxBytes);
+  while (end > 0 && (buf[end] & 0xc0) === 0x80) end--;
+  return buf.subarray(0, end).toString("utf8");
+}
+
+export function planBackfillBatches(sessTitle, items, { agyOnly = isAgyOnlyCli() } = {}) {
+  const sysBytes = agyOnly ? Buffer.byteLength(`-p=${systemPrompt()}\n\n`, "utf8") : 0;
+  const maxPromptBytes = Math.max(8192, AGY_BATCH_BYTES - sysBytes);
+  const batches = [];
+  let cur = [], chars = 0;
+  for (const it of items) {
+    const overCount = cur.length >= BATCH_N || chars + it.src.length > BATCH_CHARS;
+    const overBytes = agyOnly && cur.length > 0
+      && Buffer.byteLength(userPrompt(sessTitle, [...cur, it]), "utf8") > maxPromptBytes;
+    if (cur.length && (overCount || overBytes)) { batches.push(cur); cur = []; chars = 0; }
+    cur.push(it); chars += it.src.length;
+  }
+  if (cur.length) batches.push(cur);
+  return batches;
+}
 const zh = () => /^zh/i.test(LAST_LANG);
 // 给模型看的语言名：以前非英文界面只写「the interface language (es)」，西语 / 日语界面容易被写成英文
 const LANG_NAME = { en: "English", es: "Spanish", fr: "French", ru: "Russian", ar: "Arabic", ja: "Japanese", ko: "Korean", id: "Indonesian" };
@@ -174,7 +203,10 @@ export async function ask(prompt, o = {}) {
     fs.mkdirSync(WORK, { recursive: true });
     const P = o.provider || PROVIDER, own = !o.provider;
     const agyOnly = isAgyOnlyCli();
-    const agyPrompt = agyOnly ? `${systemPrompt()}\n\n${prompt}` : "";
+    const rawAgyPrompt = agyOnly ? `${systemPrompt()}\n\n${prompt}` : "";
+    const agyPrompt = agyOnly && Buffer.byteLength(`-p=${rawAgyPrompt}`, "utf8") > AGY_ARG_HARD_CAP
+      ? trimUtf8Bytes(rawAgyPrompt, AGY_ARG_HARD_CAP - 3)
+      : rawAgyPrompt;
     const [cmd, args] = agyOnly
       ? agyCmd(["--output-format", "json", "--disable-slash-commands", ...(o.model ? ["--model", o.model] : []), `-p=${agyPrompt}`])
       : claudeCmd([...settingsArgs(P), "-p", "--no-session-persistence", "--tools", "", "--strict-mcp-config",
@@ -249,14 +281,8 @@ async function runSession(t) {
       : digestSummary(await summaryAt(found.file, rec.compacts[n - 1].off));
     items.push({ n, open, src: src || (zh() ? "（没有可用的内容）" : "(nothing usable)"), prev: titleOf(n - 1) });
   }
-  // 分批：章数、字数都封顶
-  const batches = [];
-  let cur = [], chars = 0;
-  for (const it of items) {
-    if (cur.length && (cur.length >= BATCH_N || chars + it.src.length > BATCH_CHARS)) { batches.push(cur); cur = []; chars = 0; }
-    cur.push(it); chars += it.src.length;
-  }
-  if (cur.length) batches.push(cur);
+  // 分批：章数、字数、纯 agy 命令行参数字节数都封顶
+  const batches = planBackfillBatches(t.title, items);
   for (const b of batches) {
     if (JOB.stop) return;
     let todo = b, fix = null;

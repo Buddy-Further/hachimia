@@ -2432,7 +2432,6 @@ window.I18N_DICT["id"] = {
   "项目默认的接口「{id}」已经删掉了，这一轮没有发出去。到项目设置里重新选个接口。": "Penyedia bawaan proyek (\"{id}\") sudah dihapus, jadi giliran ini tidak dikirim. Pilih ulang penyedia di pengaturan proyek.",
   "任务指定的接口已经删掉了：编辑任务重新选个接口": "Penyedia tugas sudah dihapus: edit tugas dan pilih yang lain",
   "「{n}」指定的接口已经删掉了：编辑任务重新选个接口": "Penyedia untuk \"{n}\" sudah dihapus: edit tugas dan pilih yang lain",
-  "钩子（{ev}）注入的文字命中破甲特征，这一轮已中止；注入原文折叠在上方。": "Teks yang disisipkan hook ({ev}) cocok dengan pola jailbreak, jadi giliran ini dihentikan; teks sisipan dilipat di atas.",
   "回复完成": "Balasan selesai",
   "回复出错": "Balasan error",
   "已移进回收站 {n} 个，{m} 个失败：{msg}": "{n} dipindahkan ke sampah, {m} gagal: {msg}",
@@ -3181,6 +3180,5 @@ window.I18N_DICT["id"] = {
   "当前引擎 (Antigravity CLI) 暂不支持该 MCP 子命令": "Mesin saat ini (Antigravity CLI) belum mendukung subperintah MCP ini",
   "MCP 配置不是合法的 JSON": "Konfigurasi MCP bukan JSON yang valid",
   "共享目录 /sdcard/hachimia": "Folder bersama /sdcard/hachimia",
-  "拒绝写入可能影响下一轮安全性的内容：{what}": "Penulisan konten yang dapat memengaruhi keamanan giliran berikutnya diblokir: {what}",
   "模型「{model}」设置被 agent 拒绝（{msg}），已按默认跑。": "Pengaturan model \"{model}\" ditolak oleh agen ({msg}); dijalankan dengan model bawaan.",
 };

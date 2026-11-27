@@ -233,7 +233,13 @@ function dropInterrupted(sid) {
   return true;
 }
 export function clearInterrupted(sid) {
-  if (dropInterrupted(sid)) persistInterrupted();
+  const prev = INTERRUPTED;
+  if (!dropInterrupted(sid)) return true;
+  if (!persistInterrupted()) {
+    INTERRUPTED = prev;
+    return false;
+  }
+  return true;
 }
 // 会话进了回收站：它的中断记录没用了（不然启动时还会拿它当目标会话打开、挂一张「继续」卡，#173-5）；
 // 正开着它的界面收到 session_gone 自己退回新对话（服务端删的：项目连目录删、定时任务不存对话、别的窗口，#173-4）
@@ -448,9 +454,12 @@ export function forceEnd(run) {
   if (typeof run.forceFinish === "function") {
     try { run.forceFinish(); } catch (e) { log(`${runTag(run)} 强制收尾出错: ${e.message}`); }
   }
-  killRunProcs(run.id, run.childStart);
+  const pooledPid = run.acpPooledPid > 0 ? run.acpPooledPid : 0;
+  const excludePids = pooledPid ? [pooledPid, ...descendants(pooledPid)] : null;
+  const killOpts = excludePids ? { excludePids } : undefined;
+  killRunProcs(run.id, run.childStart, killOpts);
   if (run.originRunId && run.originRunId !== run.id) {
-    killRunProcs(run.originRunId, run.turnStartTicks ?? run.childStart);
+    killRunProcs(run.originRunId, run.turnStartTicks ?? run.childStart, killOpts);
   }
   if (run.ended) return true;
   try { run.agents?.close(); } catch {}
@@ -782,10 +791,15 @@ export async function routeQueue(req, res, u, p) {
   if (req.method === "POST" && p === "/api/interrupted/dismiss") {
     // 带 id 只忽略那一条；不带（旧界面）全清
     let b; try { b = JSON.parse((await readBody(req)) || "{}"); } catch { return sendJson(res, 400, { error: "bad json" }); }
+    const prev = INTERRUPTED;
     const saved = setInterrupted(b && typeof b.id === "string" ? INTERRUPTED.filter((e) => e.id !== b.id) : []);
     const pub = publishState();   // 回执文件写不进时，运行标记里的中断快照是第二份权威（兜底）
-    // 两份权威都落不了盘就当没忽略：界面别把「下次启动还会回来」的卡片报成已忽略（复核 P2-1）
-    if (!saved && !pub) return sendJson(res, 500, { ok: false, error: "write_failed", message: tz("没保存上：存储满了或没有权限") });
+    // 两份权威都落不了盘就回滚内存并报 500：界面别把「下次启动还会回来」的卡片报成已忽略（复核 P2-1）
+    if (!saved && !pub) {
+      INTERRUPTED = prev;
+      publish({ type: "state", ...snapshot() });
+      return sendJson(res, 500, { ok: false, error: "write_failed", message: tz("没保存上：存储满了或没有权限") });
+    }
     return sendJson(res, 200, { ok: true });
   }
   if (req.method === "POST" && p.startsWith("/api/queue/")) {
