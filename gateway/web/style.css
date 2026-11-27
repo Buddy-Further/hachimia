@@ -204,6 +204,8 @@ html[data-skin="zhuyue"] #ctxbar:not(.warn):not(.danger) #ctxfill{background:lin
 .bubble strong{color:var(--strong);font-weight:600}
 .bubble hr{border:0;border-top:1px solid var(--line);margin:12px 0}
 .bubble blockquote{margin:8px 0;padding:2px 0;padding-inline-start:12px;border-inline-start:3px solid var(--accent-dim);color:var(--fg2)}
+.bubble blockquote > :first-child{margin-top:0}
+.bubble blockquote > :last-child{margin-bottom:0}
 
 code{
   background:var(--bg3);border:0;border-radius:5px;
@@ -247,8 +249,8 @@ pre.ln>code{flex:none}
 .hljs-deletion{color:var(--err)}
 .hljs-emphasis{font-style:italic}.hljs-strong{font-weight:600}
 html[data-theme="light"] .hljs-keyword,html[data-theme="light"] .hljs-selector-tag,html[data-theme="light"] .hljs-built_in,html[data-theme="light"] .hljs-literal,html[data-theme="light"] .hljs-doctag{color:#b4502e}
-html[data-theme="light"] .hljs-string,html[data-theme="light"] .hljs-regexp,html[data-theme="light"] .hljs-addition,html[data-theme="light"] .hljs-template-tag{color:#3d7a2a}
-html[data-theme="light"] .hljs-number,html[data-theme="light"] .hljs-symbol,html[data-theme="light"] .hljs-bullet{color:#9a6a00}
+html[data-theme="light"] .hljs-string,html[data-theme="light"] .hljs-regexp,html[data-theme="light"] .hljs-addition,html[data-theme="light"] .hljs-template-tag,html[data-theme="light"] .hljs-char.escape_{color:#3d7a2a}
+html[data-theme="light"] .hljs-number,html[data-theme="light"] .hljs-symbol,html[data-theme="light"] .hljs-bullet,html[data-theme="light"] .hljs-variable.constant_{color:#9a6a00}
 html[data-theme="light"] .hljs-title,html[data-theme="light"] .hljs-section{color:#2f6aa8}
 html[data-theme="light"] .hljs-attr,html[data-theme="light"] .hljs-attribute,html[data-theme="light"] .hljs-property,html[data-theme="light"] .hljs-params,html[data-theme="light"] .hljs-variable,html[data-theme="light"] .hljs-template-variable{color:#7650c0}
 html[data-theme="light"] .hljs-type,html[data-theme="light"] .hljs-name,html[data-theme="light"] .hljs-selector-class,html[data-theme="light"] .hljs-selector-id{color:#1f7a6c}
@@ -1624,7 +1626,7 @@ html[data-skin="qiusuo"][data-theme="light"]{
 /* 输入卡片：大圆角、底色单列；顶栏和输入区不画分隔线，跟页面连成一片 */
 html[data-skin="qiusuo"] #composer{border-top-color:transparent}
 html[data-skin="qiusuo"] #topbar{border-bottom-color:transparent}
-html[data-skin="qiusuo"] #composer-inner{background:var(--input-bg);border-radius:24px;border-color:var(--line);box-shadow:0 2px 12px var(--shadow)}
+html[data-skin="qiusuo"] #composer-inner{background:var(--input-bg);border-radius:24px;box-shadow:0 2px 12px var(--shadow)}
 html[data-skin="qiusuo"] .msg.user .bubble{border-radius:20px}
 
 /* 思考中：标题用「深潜」蓝，一道光从左往右扫过（DSH TextShimmer 的节奏） */
@@ -1895,7 +1897,7 @@ input[type=checkbox].sw:disabled{opacity:.45;cursor:default}
 .help-body .tbl-wrap th,.help-body .tbl-wrap td{padding:8px 12px;border:0;border-bottom:1px solid var(--line)}
 .help-body .tbl-wrap tr:last-child td{border-bottom:0}
 .help-body .tbl-wrap td:first-child{color:var(--fg);white-space:nowrap}
-.help-body blockquote{background:var(--bg2);border-radius:0 10px 10px 0;padding:8px 12px;padding-inline-start:12px}
+.help-body blockquote{background:var(--bg2);border-radius:0;border-start-end-radius:10px;border-end-end-radius:10px;padding:8px 12px;padding-inline-start:12px}
 .help-up{display:none}
 .hl-ico svg,.hl-inl svg{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 
@@ -2807,7 +2809,7 @@ html[data-skin="zhuyue"][data-theme="light"]{
 /* 顶栏、输入区不画分隔线；输入框整条胶囊，浅色带一层很淡的投影 */
 html[data-skin="zhuyue"] #composer{border-top-color:transparent}
 html[data-skin="zhuyue"] #topbar{border-bottom-color:transparent}
-html[data-skin="zhuyue"] #composer-inner{background:var(--input-bg);border-radius:28px;border-color:var(--line);box-shadow:0 4px 18px var(--shadow)}
+html[data-skin="zhuyue"] #composer-inner{background:var(--input-bg);border-radius:28px;box-shadow:0 4px 18px var(--shadow)}
 html[data-skin="zhuyue"] .msg.user .bubble{border-radius:22px;border-color:transparent}
 /* 浅色：整页铺浅灰，卡片是白的（Kimi 设置页的样子） */
 html[data-skin="zhuyue"][data-theme="light"] #pages{background:var(--bg2)}
@@ -2875,11 +2877,14 @@ html[data-skin="goucheng"] .drawer-panel{border-inline-end:2px solid var(--gc-in
 html[data-skin="goucheng"].dock-l #drawer::before,html[data-skin="goucheng"].dock-l #drawer::after{content:none}
 html[data-skin="goucheng"] :is(input[type=text],input[type=search],input[type=url],input[type=number],textarea,select,.chip){border-radius:0}
 html[data-skin="goucheng"] :is(#pages,#set-ov) select{border-radius:0;border-color:var(--gc-ink)}
+html[data-skin="goucheng"] :is(#pages,#set-ov) select:focus{border-color:var(--gc-red)}
 /* 按钮：实心错位投影，按下往投影方向落 2px（只动 transform） */
 html[data-skin="goucheng"] .side-new{border:2px solid var(--gc-ink);box-shadow:3px 3px 0 var(--gc-hard)}
+html[data-skin="goucheng"] .side-new:hover{border-color:var(--gc-red)}
 html[data-skin="goucheng"] .btn,html[data-skin="goucheng"] :is(#pages,#set-ov) .btn{border-radius:0;border:2px solid var(--gc-ink);box-shadow:3px 3px 0 var(--gc-hard);transition:transform .08s,box-shadow .08s}
 html[data-skin="goucheng"] .btn:active{opacity:1;transform:translate(2px,2px);box-shadow:1px 1px 0 var(--gc-hard)}
 html[data-skin="goucheng"] .btn.ghost:not(.danger),html[data-skin="goucheng"] :is(#pages,#set-ov) .btn.ghost:not(.danger){border-color:var(--gc-ink);color:var(--fg)}
+html[data-skin="goucheng"] .btn.danger:not(.ghost){border-color:var(--err)}
 html[data-skin="goucheng"] .btn.ghost.danger,html[data-skin="goucheng"] :is(#pages,#set-ov) .btn.danger{border-color:var(--err);color:var(--err)}
 html[data-skin="goucheng"] :is(#pages,#set-ov) .btn.sm{border-radius:0}
 /* 分段：墨线槽，选中的一格是斜切红块 */
@@ -2935,14 +2940,21 @@ html[data-skin="shise"] .msg.user .bubble{border:0;border-radius:20px 20px 6px 2
 html[data-skin="shise"][dir="rtl"] .msg.user .bubble{border-radius:20px 20px 20px 6px}
 /* 工具卡、子代理卡：AGY 拾色 tonal 卡片，细腻冷调微边提升层次 */
 html[data-skin="shise"] :is(.tool,.agc){border-color:color-mix(in srgb,var(--ss-ov) 45%,transparent);border-radius:16px}
-html[data-skin="shise"] .bubble :is(pre,blockquote,table){border-radius:12px}
-html[data-skin="shise"][data-theme="dark"] .bubble pre{border:1px solid color-mix(in srgb,var(--ss-ov) 40%,transparent)}
+/* blockquote 无底色、只有单侧竖线，不能加 border-radius，否则单侧边框两端会掰成渐细弯弧 */
+html[data-skin="shise"] .bubble :is(pre,table){border-radius:12px}
+/* 工具卡片内部 pre 是无边框无底色滚动区，不吃上面的 12px 圆角裁切 */
+html[data-skin="shise"] .bubble .tool-body pre{border-radius:0}
+/* 带语言顶栏的代码块：顶栏只圆上角、正文 pre 顶角归零，避免高优先级把拼缝顶出双凹缺口 */
+html[data-skin="shise"] .bubble .code-wrap.has-lang>.code-lang{border-radius:12px 12px 0 0}
+html[data-skin="shise"] .bubble .code-wrap.has-lang>pre{border-top-left-radius:0;border-top-right-radius:0}
+html[data-skin="shise"][data-theme="dark"] .bubble :is(pre,.code-lang){border-color:color-mix(in srgb,var(--ss-ov) 40%,transparent)}
+html[data-skin="shise"][data-theme="dark"] .bubble .code-ln{border-color:color-mix(in srgb,var(--ss-ov) 40%,transparent)}
 html[data-skin="shise"] .bubble code{border-radius:6px}
 html[data-skin="shise"] #composer-inner:focus-within{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--accent) 55%,transparent)}
 /* 弹层与菜单：container 底 + 一档阴影（M3 的 elevation 2），菜单 12px、设置浮层 28px */
 html[data-skin="shise"] .pop-menu{background:var(--bg3);border-color:transparent;border-radius:12px;box-shadow:0 2px 6px 2px rgba(0,0,0,.15),0 1px 2px rgba(0,0,0,.3)}
 html[data-skin="shise"] .pop-menu button{border-radius:8px}
-html[data-skin="shise"] .pop-menu button:hover{background:var(--bg4)}
+html[data-skin="shise"] .pop-menu button:not(.dim):hover{background:var(--bg4)}
 html[data-skin="shise"] .set-sheet{border:0;border-radius:28px}
 html[data-skin="shise"] .sheet-panel{background:var(--bg2);border-top-left-radius:28px;border-top-right-radius:28px}
 /* 整页卡片：container-low 底，无边 */
@@ -2966,8 +2978,9 @@ html[data-skin="shise"] .seg{background:transparent;border:1px solid var(--ss-ou
 html[data-skin="shise"] .seg button{border-radius:0;padding:5px 10px}
 html[data-skin="shise"] .seg button + button{border-inline-start:1px solid var(--ss-outline)}
 html[data-skin="shise"] .seg button.on{background:var(--ss-sc);color:var(--ss-on-sc);box-shadow:none}
-/* 小标签、输入控件：8px 圆角，outline-variant 细边 */
-html[data-skin="shise"] .chip{border-color:var(--ss-ov);border-radius:8px}
+/* 小标签、输入控件：8px 圆角，outline-variant 细边（保留 .chip.hl 的 --sys-line 边框色） */
+html[data-skin="shise"] .chip{border-radius:8px}
+html[data-skin="shise"] .chip:not(.hl){border-color:var(--ss-ov)}
 html[data-skin="shise"] :is(input[type=text],input[type=search],input[type=url],input[type=number],textarea,select){border-radius:12px}
 /* 开关：M3 switch —— 关时空心轨道 + 小圆点，开时主色轨道 + 大圆点 */
 html[data-skin="shise"] input[type=checkbox].sw{width:46px;height:28px;min-height:28px;background:var(--ss-c5);box-shadow:inset 0 0 0 2px var(--ss-outline)}

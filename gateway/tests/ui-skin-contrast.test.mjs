@@ -196,4 +196,34 @@ test("样式覆写守卫：灯箱按钮重置底色、.btn.danger 自带底与�
   const src14 = fs.readFileSync(new URL("../web/app/14-projects-sched.js", import.meta.url), "utf8");
   assert.match(src14, /<div class="seg-scroll">\$\{segOf\("busy",/);
   assert.match(src14, /<div class="seg-scroll">\$\{segOf\("until",/);
+
+  // 10. 拾色皮肤不得给只有单侧竖线的 .bubble blockquote 套 border-radius；带语言顶栏的代码块拼缝处顶栏与 pre 需去对角圆角，深色下仅调 border-color 保留虚线分隔
+  assert.doesNotMatch(css, /html\[data-skin="shise"\] \.bubble :is\([^)]*blockquote[^)]*\)\{[^}]*border-radius/);
+  assert.match(css, /html\[data-skin="shise"\] \.bubble :is\(pre,table\)\{border-radius:12px\}/);
+  assert.match(css, /html\[data-skin="shise"\] \.bubble \.code-wrap\.has-lang>\.code-lang\{border-radius:12px 12px 0 0\}/);
+  assert.match(css, /html\[data-skin="shise"\] \.bubble \.code-wrap\.has-lang>pre\{border-top-left-radius:0;border-top-right-radius:0\}/);
+  assert.match(css, /html\[data-skin="shise"\]\[data-theme="dark"\] \.bubble :is\(pre,\.code-lang\)\{border-color:/);
+  assert.match(css, /\.bubble blockquote > :first-child\{margin-top:0\}/);
+  assert.match(css, /\.bubble blockquote > :last-child\{margin-bottom:0\}/);
+
+  // 11. 跨皮肤高权重覆盖审查回归守卫：
+  //     (a) 拾色 .bubble :is(pre,table) 不裁切无边框工具输出 .tool-body pre；深色行号竖线 .code-ln 对齐淡色边框；禁用菜单项 .dim 悬停不发亮；.chip 不压掉 .chip.hl 边框色
+  assert.match(css, /html\[data-skin="shise"\] \.bubble \.tool-body pre\{border-radius:0\}/);
+  assert.match(css, /html\[data-skin="shise"\]\[data-theme="dark"\] \.bubble \.code-ln\{border-color:/);
+  assert.match(css, /html\[data-skin="shise"\] \.pop-menu button:not\(\.dim\):hover\{background:var\(--bg4\)\}/);
+  assert.doesNotMatch(css, /html\[data-skin="shise"\] \.pop-menu button:hover\{/);
+  assert.match(css, /html\[data-skin="shise"\] \.chip:not\(\.hl\)\{border-color:var\(--ss-ov\)\}/);
+  //     (b) 帮助页引用块使用逻辑圆角，避免 RTL 下单侧竖线撞上圆角掰弯
+  assert.match(css, /\.help-body blockquote\{[^}]*border-start-end-radius:10px;border-end-end-radius:10px/);
+  assert.doesNotMatch(css, /\.help-body blockquote\{[^}]*border-radius:0 10px 10px 0/);
+  //     (c) 求索 / 逐月 #composer-inner 不多余重申 border-color:var(--line)，避免压死 :focus-within 聚焦边框高亮
+  assert.doesNotMatch(css, /html\[data-skin="qiusuo"\] #composer-inner\{[^}]*border-color:var\(--line\)/);
+  assert.doesNotMatch(css, /html\[data-skin="zhuyue"\] #composer-inner\{[^}]*border-color:var\(--line\)/);
+  //     (d) 构成皮肤保留 #pages/#set-ov 外的 .btn.danger 红边（如 #files #fs-del），并恢复 select:focus / .side-new:hover 边框高亮
+  assert.match(css, /html\[data-skin="goucheng"\] \.btn\.danger:not\(\.ghost\)\{border-color:var\(--err\)\}/);
+  assert.match(css, /html\[data-skin="goucheng"\] :is\(#pages,#set-ov\) select:focus\{border-color:var\(--gc-red\)\}/);
+  assert.match(css, /html\[data-skin="goucheng"\] \.side-new:hover\{border-color:var\(--gc-red\)\}/);
+  //     (e) 浅色语法高亮覆盖 .hljs-char.escape_ 与 .hljs-variable.constant_，避免沿用深色浅灰绿导致低对比度
+  assert.match(css, /html\[data-theme="light"\] \.hljs-char\.escape_\{color:#3d7a2a\}/);
+  assert.match(css, /html\[data-theme="light"\] \.hljs-variable\.constant_\{color:#9a6a00\}/);
 });
