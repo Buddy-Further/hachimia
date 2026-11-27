@@ -602,9 +602,9 @@ function loadProviders() {
   return { active, providers };
 }
 
-/** 当前设备是否运行在纯 Antigravity 模式（有 agy、没有旧版 claude 可执行文件） */
+/** 纯 Antigravity CLI 模式（hachimia 已移除旧版 Claude Code CLI 双轨） */
 export function isAgyOnlyMode() {
-  return !!(PATHS.agy && fs.existsSync(PATHS.agy) && !(PATHS.claude && fs.existsSync(PATHS.claude)));
+  return true;
 }
 
 /** Google Cloud ADC 凭据文件（MIG-11）：gcloud 的标准位置。环境变量显式指到哪就只认哪；
@@ -657,12 +657,9 @@ export function hasAcpKeyChannel(p) {
   return false;
 }
 
-/** 该厂商是否走 ACP（与 run.mjs 的 useAcp 同口径，供 models.mjs 的显示侧共用，见 MIG-3）。 */
+/** 该厂商是否走 ACP（纯 agy 模式下所有有效厂商均走 ACP）。 */
 export function usesAcp(p) {
-  if (!p) return false;
-  return !!(isAgyOnlyMode() || p.group === "antigravity" || p.authStyle === "gemini-api-key" || p.protocol === "gemini"
-    || p.authStyle === "adc" || p.authType === "oauth-personal" || p.authType === "oauth-business"
-    || p.authType === "agent-platform" || process.env.CCAPP_PROTOCOL === "acp");
+  return !!p;
 }
 
 /** 该厂商在选单里算不算能用：登录类或已配密钥即可用。 */

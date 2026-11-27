@@ -114,22 +114,20 @@ test("R-08 cc-seal.mjs 终端前缀写 hachimia，不写 cccodroid", () => {
   assert.match(s, /hachimia: \$\{flag\} 在发行版里不能用/);
 });
 
-test("R-08 guard 协议前缀与 run.mjs 同步改成 hachimia-guard", () => {
+test("R-08 guard 协议前缀改成 hachimia-guard", () => {
   assert.match(read("gateway/guard/cc-guard.mjs"), /hachimia-guard\|\$\{r\.cat\}\|\$\{r\.what\}/);
   assert.doesNotMatch(read("gateway/guard/cc-guard.mjs"), /cccodroid-guard/);
   assert.doesNotMatch(read("gateway/guard/cc-guard.mjs"), /cccodroid refuses to write this/);
-  assert.match(read("gateway/gw/run.mjs"), /\^hachimia-guard\\\|/);
   assert.doesNotMatch(read("gateway/gw/run.mjs"), /cccodroid-guard/);
 });
 
-// ── R-09 claude 路径模型侧系统提示 ──
-test("R-09 claude 路径的模型侧提示写 hachimia，自检二进制名 cccodroid-selftest 不动", () => {
+// ── R-09 模型侧系统提示 ──
+test("R-09 模型侧提示写 hachimia，自检二进制名 cccodroid-selftest 不动", () => {
   assert.match(read("gateway/gw/stream.mjs"), /hachimia 不在前台时直接拒绝/);
   assert.match(read("gateway/gw/stream.mjs"), /cccodroid-selftest/);
   assert.match(read("gateway/gw/integrity.mjs"), /changed outside hachimia since your last turn/);
   assert.match(read("gateway/gw/archive.mjs"), /Session archiving \(hachimia\)/);
   assert.match(read("gateway/gw/archive-core.mjs"), /hachimia: the context was just compacted/);
-  assert.match(read("gateway/gw/claude.mjs"), /hachimia: the safety check could not be verified/);
   assert.match(read("gateway/archive/cc-archive.mjs"), /not running inside a hachimia session/);
   assert.match(read("gateway/archive/spec.zh.md"), /你在 hachimia 里工作/);
   assert.match(read("gateway/archive/spec.en.md"), /You are working inside hachimia/);

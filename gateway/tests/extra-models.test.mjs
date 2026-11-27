@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { withConfigured, extraModelsOf, cachedModels, fetchModels } from "../gw/models.mjs";
 import { upsertProvider, providerById } from "../gw/providers.mjs";
-import { claudeEnv } from "../gw/claude.mjs";
+import { currentModelInfo } from "../gw/claude.mjs";
 
 const P = (o) => ({ id: "custom-xm", custom: true, baseUrl: "http://127.0.0.1:1", apiKey: "fixture-only", defaultModel: "m-a", ...o });
 
@@ -42,9 +42,7 @@ test("接口卡保存：存进配置、清单里出现、选它时下发它的�
   const p = providerById(r.id);
   assert.deepEqual((await fetchModels(true, p)).map((m) => m.id), ["m-a", "m-b", "m-c"]);
   assert.deepEqual(cachedModels(p).map((m) => m.id), ["m-a", "m-b", "m-c"]);
-  const env = claudeEnv({ model: "m-b", provider: p });
-  assert.equal(env.ANTHROPIC_MODEL, "m-b");
-  assert.equal(env.CLAUDE_CODE_MAX_CONTEXT_TOKENS, "256000");
+  assert.equal(currentModelInfo("m-b", p).context_window, 256000);
   assert.equal(upsertProvider(r.id, { extraModels: [{ id: "a b" }] }).error, "bad_extra_models");
   assert.equal(upsertProvider(r.id, { extraModels: [{ id: "m-d", contextWindow: 5 }] }).error, "bad_context_window");
   assert.ok(upsertProvider(r.id, { extraModels: [] }).ok);

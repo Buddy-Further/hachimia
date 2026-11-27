@@ -18,7 +18,6 @@ import { COMP_DIR, breathe, compRecord, compRepair, devkitIdentity } from "./com
 import { modInstalled, modRepair, modulesInfo } from "./modules.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
 import { privCall } from "./usage.mjs";
-import { isAgyOnlyMode } from "./providers.mjs";
 import { saveState } from "./statefile.mjs";
 
 const STATE = PREFIX ? path.join(CFG.home, ".cache", "cccodroid", "reconcile.json") : "";
@@ -105,7 +104,7 @@ async function ownedPaths() {
 // 本应用的包名（清单前缀要对得上的那个）：/data/user/0/<包>/files/usr 或 /data/data/<包>/files/usr（工作资料分区是 /data/user_de/N）
 const OWN = PREFIX ? (/\/data\/(?:data|user\/\d+|user_de\/\d+)\/([^/]+)\/files\/usr\/?$/.exec(PREFIX) || [])[1] || "" : "";
 
-const comp = (id) => ({ t: "comp", id }), mod = (id) => ({ t: "mod", id }), DEVKIT = { t: "devkit" }, CLAUDE = { t: "claude" }, AGY = { t: "agy" };
+const comp = (id) => ({ t: "comp", id }), mod = (id) => ({ t: "mod", id }), DEVKIT = { t: "devkit" }, AGY = { t: "agy" };
 
 /** 核一遍，返回 { at, findings:[{key, level:error|warn|info, k, v, fix, samples, act}] }。k/v 是 tz 的原句和变量，出门时再翻 */
 export async function reconcileNow() {
@@ -117,11 +116,9 @@ export async function reconcileNow() {
   if (!dk) add("devkit", "error", tz("找不到工具包的安装标记（.devkit-ok），工具包可能没装完"), null, tz("设置 → 更新：修复工具包"), null, DEVKIT);
   // 用户主动卸载会留 files/.agy-uninstalled（hachimia）或 files/.claude-uninstalled：这是正常状态，别再报红教人重装（W3-F3）
   const agyUninstalled = PREFIX && (exists(path.join(path.dirname(PREFIX), ".agy-uninstalled")) || exists(path.join(path.dirname(PREFIX), ".claude-uninstalled")));
-  // C-06：hachimia 主模式检查 PATHS.agy（此前 !isAgyOnlyMode() 导致纯 agy 设备丢失 agy 二进制时永远报绿）
+  // C-06：纯 agy 模式检查 PATHS.agy
   if (PATHS.agy && !fs.existsSync(PATHS.agy) && !agyUninstalled) {
     add("agy", "error", tz("找不到 Antigravity CLI (agy) 程序"), null, tz("设置 → 更新：重装 Antigravity CLI (agy)"), [PATHS.agy], AGY);
-  } else if (!isAgyOnlyMode() && PATHS.claude && !fs.existsSync(PATHS.claude) && !agyUninstalled) {
-    add("claude", "error", tz("找不到 Antigravity CLI (agy) 程序"), null, tz("设置 → 更新：重装 Antigravity CLI (agy)"), [PATHS.claude], CLAUDE);
   }
 
   // ── 组件 ──
@@ -265,8 +262,7 @@ async function runStep(st) {
     if (err) throw new Error(err);
     return;
   }
-  const item = a.t === "agy" || (a.t === "claude" && (isAgyOnlyMode() || (PATHS.agy && !(PATHS.claude && fs.existsSync(PATHS.claude))))) ? "agy" : "claude";
-  const r = await privCall(a.t === "agy" || a.t === "claude" ? { op: "upd_apply", item } : { op: "upd_repair", full: true });
+  const r = await privCall(a.t === "agy" || a.t === "claude" ? { op: "upd_apply", item: "agy" } : { op: "upd_repair", full: true });
   if (!r || r.ok === false) throw new Error((r && r.message) || "failed");
   st.msg = r.message || "";
   st.state = "handed";

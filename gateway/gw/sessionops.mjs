@@ -1,21 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
-import { spawn } from "node:child_process";
 import crypto from "node:crypto";
 import { Worker } from "node:worker_threads";
 import { zipReadCore } from "./zipcore.mjs";
 import { CFG, LAST_LANG, PATHS, PREFIX, log, tr, tz } from "./config.mjs";
 import { NAMES, PEEK_CACHE, PINS, findSessionFile, peekSession, saveNames, savePins } from "./sessions.mjs";
 import { agentsDir } from "./agents.mjs";
-import { claudeBlocked, claudeCmd, claudeEnv, isAgyOnlyCli, killTree } from "./claude.mjs";
-import { sealed } from "./edition.mjs";
-import { sessionRetention } from "./retention.mjs";
 import { LAST_SESSION, TRASH_HOOKS, forgetSession, runOfSession } from "./runs.mjs";
 import { forgetChild, recordPrimary } from "./lineage-store.mjs";
 import { lineageForget } from "./lineage.mjs";
 import { checkSession, forgetSeal, neutralizeMarkers, resealAfterEdit, sealSession, isInjected } from "./integrity.mjs";
-import { ucPending } from "./userconf.mjs";
 import { forEachLine, lineWriter, writeAll, zipEntries, zipExtract, zipToFile } from "./bigfile.mjs";
 import { archiveDb, archiveForget, archiveImport, saveArchive } from "./archive-store.mjs";
 import { isObj, loadState, saveState, stateUnread } from "./statefile.mjs";
@@ -303,68 +298,9 @@ export function undoDelete(id, backup) {
   return { ok: true };
 }
 
-/** 把 Claude 改过的文件退回到某条用户消息之前（claude 的文件检查点，只覆盖 Edit / Write / NotebookEdit，命令改的不算）。
- *  每轮一个进程也没关系：检查点记在会话记录里，--resume 起来就能用（2026-10-19 实测）。dryRun 只算会动哪些文件。 */
-export async function rewindFiles(sid, userUuid, dryRun) {
-  if (isAgyOnlyCli()) {
-    return { ok: false, error: tz("当前引擎 (Antigravity CLI) 暂不支持文件检查点回退") };
-  }
-  // 这里也 --resume 起了 claude：它要是往记录里写了什么，是我们起的，不算外部改动（见 integrity.mjs）
-  const sf = findSessionFile(sid)?.file, dirty = checkSession(sid, sf);
-  // 起 claude 就会加载用户级钩子：有没确认的改动先别起（见 userconf.mjs），发一条消息在卡片里处理
-  if (!sealed() && ucPending()) return { ok: false, error: tz("Claude Code 的用户级配置有改动还没确认。先发一条消息，在弹出的卡片里确认后再试。") };
-  const blocked = await claudeBlocked();
-  if (blocked) return { ok: false, error: blocked };
-  // --resume 只在会话原本所在的项目目录里找得到（同 run.mjs）：不能写死 CFG.workspace，否则项目会话回退必败
-  const sessCwd = sf ? peekSession(sf)?.cwd : "";
-  const cwd = sessCwd && fs.existsSync(sessCwd) ? sessCwd : (fs.existsSync(CFG.workspace) ? CFG.workspace : CFG.home);
-  return new Promise((resolve) => {
-    // 试算也会 --resume，和普通对话一样不能让默认或项目保留期清扫会话。
-    const [cmd0, args0] = claudeCmd(["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--resume", sid,
-      "--settings", JSON.stringify({ cleanupPeriodDays: sessionRetention().days })]);
-    const child = spawn(cmd0, args0, { cwd, env: claudeEnv(), stdio: ["pipe", "pipe", "pipe"], detached: true });
-    let buf = "", done = false, err = "", exited = false, pendingRes = null, killTimer = null;
-    const settle = (r) => {
-      if (done) return;
-      done = true;
-      clearTimeout(t);
-      if (killTimer) clearTimeout(killTimer);
-      resolve(r);
-    };
-    // 收到 control_response 后先结束 stdin 等进程退出并 resealAfterEdit 再返回，避免紧随其后的续聊撞上旧封条；
-    // 最多等 3 秒强杀，防止子进程挂死拖住请求
-    const finish = (r) => {
-      if (done || pendingRes) return;
-      pendingRes = r;
-      clearTimeout(t);
-      try { child.stdin.end(); } catch {}
-      if (exited) { if (sf) resealAfterEdit(sid, sf, dirty); settle(r); return; }
-      killTimer = setTimeout(() => { if (!exited) killTree(child); }, 3000);
-    };
-    const t = setTimeout(() => finish({ ok: false, error: tz("回退超时") }), 60000);
-    child.stdout.setEncoding("utf8"); child.stderr.setEncoding("utf8");   // 按流解码：多字节字符跨块不会被拆坏
-    child.stdout.on("data", (d) => {
-      buf += d; let i;
-      while ((i = buf.indexOf("\n")) >= 0) {
-        const l = buf.slice(0, i); buf = buf.slice(i + 1);
-        let ev; try { ev = JSON.parse(l); } catch { continue; }
-        if (ev.type !== "control_response") continue;
-        const r = ev.response || {};
-        if (r.subtype === "error") finish({ ok: false, error: String(r.error || "rewind failed") });
-        else finish({ ok: true, ...(r.response || {}) });
-      }
-    });
-    child.stderr.on("data", (d) => { err += d; });
-    // spawn 失败（loader 缺失/EACCES/ENOMEM）只发 error：不接就是未捕获异常，整个网关退出
-    child.on("error", (e) => { exited = true; settle({ ok: false, error: e.code || e.message }); });
-    child.stdin.on("error", () => {});
-    child.on("close", () => {
-      exited = true;
-      if (sf) resealAfterEdit(sid, sf, dirty);
-      settle(pendingRes || { ok: false, error: err.trim().slice(-300) || "claude exited" });
-    });
-    child.stdin.write(JSON.stringify({ type: "control_request", request_id: "rw-" + Date.now(), request: { subtype: "rewind_files", user_message_id: userUuid, dry_run: !!dryRun } }) + "\n");
-  });
+/** 文件检查点回退：纯 Antigravity CLI 模式下暂不支持 */
+export async function rewindFiles() {
+  return { ok: false, error: tz("当前引擎 (Antigravity CLI) 暂不支持文件检查点回退") };
 }
 
 /** claude 自己的回退跨文件系统时会悄悄失败：备份在应用私有目录，工作区在 /sdcard（FUSE），

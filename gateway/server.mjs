@@ -45,14 +45,13 @@ import { SETTINGS, routeSettings, saveSettings } from "./gw/settings.mjs";
 import { API_KEY, PROVIDER, routeProviders } from "./gw/providers.mjs";
 import { fetchModels, normEffort, routeModels } from "./gw/models.mjs";
 import { listSessions, routeSessions } from "./gw/sessions.mjs";
-import { bridgeProc, killTree, reapOrphans, routeClaude } from "./gw/claude.mjs";
+import { killTree, reapOrphans, routeClaude } from "./gw/claude.mjs";
 import { expireTrash, recoverTrash } from "./gw/sessionops.mjs";
 import { routeCaps, builtinCommands } from "./gw/caps.mjs";
 import { NEXT, sendJson, serveStatic } from "./gw/http.mjs";
 import { UPLOAD_DIR, routeFiles } from "./gw/files.mjs";
 import { warmManagedBridge } from "./gw/managed-bridge.mjs";
 import { routePreview } from "./gw/preview.mjs";
-import { startStreamFix } from "./gw/streamfix.mjs";
 import { TERMS, routeTerminal } from "./gw/terminal.mjs";
 import { routeGit } from "./gw/git.mjs";
 import { compRecover, routeComponents } from "./gw/components.mjs";
@@ -163,7 +162,6 @@ try { fs.mkdirSync(CFG.workspace, { recursive: true }); } catch {}
 syncGitSafe(PROJECTS.map((p) => p.path));
 try { fs.mkdirSync(CFG.home, { recursive: true }); } catch {}
 try { fs.mkdirSync(UPLOAD_DIR, { recursive: true }); } catch {}
-startStreamFix();
 
 // 界面专用地址：同一个处理函数再听一份。听不上（被别的应用抢先占了）App 核身份时会发现不是真网关、不交凭据；
 // 这里每 2 秒再试，对方一放手就接回来（核身份绑了监听地址，对方转发到 127.0.0.1 也过不了，见 access.mjs 的 proof）
@@ -211,7 +209,7 @@ server.listen(CFG.port, "127.0.0.1", () => {
   log(`  前端   ${PATHS.web}  存在=${fs.existsSync(PATHS.web)}`);
   log(`  凭据   ${API_KEY ? "已配置 API Key" : (PROVIDER.login ? "Google OAuth 登录态" : "缺失")}`);
   log(`  模型   ${SETTINGS.model}   权限 ${SETTINGS.permissionMode}`);
-  if (!fs.existsSync(PATHS.agy) && !fs.existsSync(PATHS.claude)) log(`  ⚠️ 未找到 agy: ${PATHS.agy}`);
+  if (!fs.existsSync(PATHS.agy)) log(`  ⚠️ 未找到 agy: ${PATHS.agy}`);
   if (!fs.existsSync(PATHS.loader)) log(`  ⚠️ 未找到 glibc loader: ${PATHS.loader}`);
   if (process.env.CCAPP_EXEC === "loader") {
     // 经加载器（targetSdk 36）：APK 里的 ld.so 必须和工具包里的 libc 同版本，不同就是 APK 先升了、工具包还没跟上
@@ -281,7 +279,6 @@ setTimeout(async () => {
 const shutdown = (sig) => {
   for (const r of RUNS.values()) if (r.child && !r.ended) { try { killTree(r.child); } catch {} }
   if (sig === "SIGTERM") for (const t of TERMS.values()) if (t.alive) { try { killTree(t.child); } catch {} }
-  try { bridgeProc?.kill(); } catch {}
   runShutdown();
   try { stopWorkIslandSync(); } catch {}
   process.exit(0);

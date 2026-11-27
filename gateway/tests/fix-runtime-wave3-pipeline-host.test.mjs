@@ -122,10 +122,9 @@ test("C-01.3: deviceMcpAcpServer 在 loader 模式下使用 /system/bin/linker64
   }
 });
 
-test("C-01.4: run.mjs useAcp 接线核验（neutralizeMarkers、SPOOF_NOTE、autoTitle、refNote、CCAPP_PRIV_SESS、privWitness）", () => {
+test("C-01.4: run.mjs ACP 主流程接线核验（neutralizeMarkers、SPOOF_NOTE、autoTitle、refNote、CCAPP_PRIV_SESS、privWitness）", () => {
   const src = fs.readFileSync(path.join(REPO, "gateway/gw/run.mjs"), "utf8");
-  const idx = src.indexOf("if (useAcp)");
-  const seg = src.slice(idx, src.indexOf("const argv = [", idx));
+  const seg = src.slice(src.indexOf("export async function startRun"));
   assert.match(seg, /isSessionRewinding/);
   assert.match(seg, /checkAppFiles\(\)/);
   assert.match(seg, /gwRuntimeBlocked\(\)/);
@@ -470,7 +469,7 @@ test("C-06.5 + W3-F3: reconcileNow 在 PATHS.agy 缺失时报 agy error；有 .a
     const r = await reconcileNow();
     const hit = r.findings.find((f) => f.key === "agy" && f.level === "error");
     assert.ok(hit, `应检出缺失 agy: ${JSON.stringify(r.findings)}`);
-    assert.deepEqual(hit.act, { t: "claude" });
+    assert.deepEqual(hit.act, { t: "agy" });
 
     if (flagFile) {
       fs.writeFileSync(flagFile, "1\n");

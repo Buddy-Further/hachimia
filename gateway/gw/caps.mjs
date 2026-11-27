@@ -4,7 +4,7 @@ import { execFile } from "node:child_process";
 import { CFG, PATHS, PREFIX } from "./config.mjs";
 import { SETTINGS } from "./settings-store.mjs";
 import { API_KEY, PROVIDER, providerBrief } from "./providers.mjs";
-import { agyEnv, bridgeAlive, runClaude, safeMode } from "./claude.mjs";
+import { agyEnv, runClaude, safeMode } from "./claude.mjs";
 import { AUTH_CACHE } from "./login.mjs";
 import { LAST_SESSION, RUNS } from "./runs.mjs";
 import { NEXT, sendJson, uiTag } from "./http.mjs";
@@ -208,7 +208,7 @@ export async function routeCaps(req, res, u, p) {
       nativeModels: !!PROVIDER.nativeModels,
       workspace: CFG.workspace,
       runtime: CFG.runtime,
-      bridge: await bridgeAlive(),
+      bridge: true,
       uptimeMs: Math.round(process.uptime() * 1000),
       version: "3.0.0",
       appVersion: process.env.CCAPP_APP_VERSION || "",

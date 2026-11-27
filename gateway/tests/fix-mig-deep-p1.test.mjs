@@ -186,13 +186,20 @@ test("MIG-9：hasAcpKeyChannel 只认 agy 真正有的通道", () => {
   assert.equal(hasAcpKeyChannel({ id: "anthropic-key", group: "claude", authStyle: "x-api-key", apiKey: "<redacted>" }), false, "Claude API Key 在 agy 下无通道");
 });
 
-test("MIG-9：providerBrief 给无通道厂商打 noAcpKeyChannel 标记；前端选单据此标注", () => {
-  const brief = providerBrief();
-  const ds = brief.find((p) => p.id === "deepseek");
-  assert.ok(ds, "选单应仍列出 DeepSeek");
-  assert.equal(ds.noAcpKeyChannel, true, "DeepSeek 应标无通道");
-  const ag = brief.find((p) => p.id === "antigravity");
-  assert.equal(ag.noAcpKeyChannel, false);
+test("MIG-9：providerBrief 给无通道厂商打 noAcpKeyChannel 标记；前端选单据此标注", async () => {
+  const { PROVIDERS_CFG } = await import("../gw/providers.mjs");
+  const prevKey = PROVIDERS_CFG.providers.deepseek.apiKey;
+  PROVIDERS_CFG.providers.deepseek.apiKey = "sk-fixture-mig9";
+  try {
+    const brief = providerBrief();
+    const ds = brief.find((p) => p.id === "deepseek");
+    assert.ok(ds, "配置了 Key 的选单应仍列出 DeepSeek");
+    assert.equal(ds.noAcpKeyChannel, true, "DeepSeek 应标无通道");
+    const ag = brief.find((p) => p.id === "antigravity");
+    assert.equal(ag.noAcpKeyChannel, false);
+  } finally {
+    PROVIDERS_CFG.providers.deepseek.apiKey = prevKey;
+  }
   const fe = fs.readFileSync(path.join(ROOT, "gateway", "web", "app", "12-model-caps.js"), "utf8");
   assert.match(fe, /noAcpKeyChannel/, "前端选单应读 noAcpKeyChannel 标注");
   assert.match(fe, /在 Antigravity 下暂不支持/);

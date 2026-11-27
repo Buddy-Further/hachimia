@@ -9,7 +9,7 @@ const G = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const rd = (p) => fs.readFileSync(path.join(G, p), "utf8");
 
 test("200-6-05：SESSIONS 超 5000 删最旧的", () => {
-  assert.match(rd("gw/run.mjs"), /SESSIONS\.set\(init\.session_id[^\n]*\n[^\n]*\n\s*if \(SESSIONS\.size > 5000\) SESSIONS\.delete\(SESSIONS\.keys\(\)\.next\(\)\.value\);/);
+  assert.match(rd("gw/run.mjs"), /SESSIONS\.set\(sessionId,[^\n]*\n\s*if \(SESSIONS\.size > 5000\) SESSIONS\.delete\(SESSIONS\.keys\(\)\.next\(\)\.value\);/);
 });
 
 test("建项目克隆：不许 ext:: 传输、不跑 fsmonitor，地址前有 --", () => {

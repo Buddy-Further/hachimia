@@ -33,10 +33,11 @@ fs.writeFileSync(cli, `#!${sh}\necho called > ${JSON.stringify(cliMarker)}\nexit
 const endpoint = "http://127.0.0.1:34592";
 // 只使用自身临时配置；KEY 检查需要非空假值，不导入活 App 的 providers。
 fs.writeFileSync(providerFile, JSON.stringify({ active: "custom-managed-test", providers: {
-  "custom-managed-test": { label: "Fake bridge", baseUrl: endpoint, apiKey: "fixture-only", authStyle: "bearer", defaultModel: "fixture-model", fallbackModels: [{ id: "fixture-model" }] },
-  "custom-managed-other": { label: "Other fixture provider", baseUrl: "https://other-fixture.example.invalid", apiKey: "fixture-other-only", authStyle: "bearer", defaultModel: "fixture-model", fallbackModels: [{ id: "fixture-model" }] },
+  "custom-managed-test": { label: "Fake bridge", baseUrl: endpoint, apiKey: "fixture-only", authStyle: "bearer", protocol: "gemini", defaultModel: "fixture-model", fallbackModels: [{ id: "fixture-model" }] },
+  "custom-managed-other": { label: "Other fixture provider", baseUrl: "https://other-fixture.example.invalid", apiKey: "fixture-other-only", authStyle: "bearer", protocol: "gemini", defaultModel: "fixture-model", fallbackModels: [{ id: "fixture-model" }] },
 } }));
-const previousPaths = { claude: PATHS.claude, loader: PATHS.loader, claudeLoader: PATHS.claudeLoader };
+const previousPaths = { agy: PATHS.agy, claude: PATHS.claude, loader: PATHS.loader, claudeLoader: PATHS.claudeLoader };
+PATHS.agy = cli;
 PATHS.claude = process.execPath;
 PATHS.loader = PATHS.claudeLoader = cli;
 const { startRun } = await import("../gw/run.mjs");

@@ -87,3 +87,21 @@ test("Stage 2 死脚本清理：install-claude.mjs、bin/claude 与旧版 claude
   const vc = fs.readFileSync(path.join(ROOT, "scripts/verify-claude.mjs"), "utf8");
   assert.doesNotMatch(vc, /install-claude\.mjs|downloads\.claude\.ai/);
 });
+
+test("Stage 3 纯 ACP 瘦身：streamfix.mjs 已删、run.mjs 无旧版 stream-json 分支、toolEnv 与纯 agy 模式生效", async () => {
+  assert.equal(fs.existsSync(path.join(ROOT, "gateway/gw/streamfix.mjs")), false, "streamfix.mjs 应已移除");
+  const claudeMod = await import("../gw/claude.mjs");
+  const provMod = await import("../gw/providers.mjs");
+  assert.equal(typeof claudeMod.toolEnv, "function");
+  assert.equal(claudeMod.claudeEnv, undefined, "旧 claudeEnv 应已移除");
+  assert.equal(claudeMod.settingsArgs, undefined, "旧 settingsArgs 应已移除");
+  assert.equal(claudeMod.guardHooks, undefined, "旧 guardHooks 应已移除");
+  assert.equal(provMod.isAgyOnlyMode(), true);
+  assert.equal(provMod.usesAcp({ id: "antigravity" }), true);
+  assert.equal(provMod.usesAcp(null), false);
+  const env = claudeMod.toolEnv();
+  assert.equal(env.AGY_CLI_DISABLE_AUTO_UPDATE, "true");
+  assert.equal(env.CCAPP_TOKEN_FILE, undefined);
+  const runSrc = fs.readFileSync(path.join(ROOT, "gateway/gw/run.mjs"), "utf8");
+  assert.doesNotMatch(runSrc, /--output-format.*stream-json|streamfix\.mjs|bridgeSwitching/);
+});

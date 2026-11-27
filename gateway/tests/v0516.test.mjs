@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { componentEnv } from "../gw/component-env.mjs";
 import { withConfigured, compactLineOf, cachedModels } from "../gw/models.mjs";
-import { claudeEnv, currentModelInfo } from "../gw/claude.mjs";
+import { currentModelInfo } from "../gw/claude.mjs";
 
 test("组件环境：留下加载器要的变量，别的不带（#66 第 3 项）", () => {
   const src = {
@@ -28,9 +28,8 @@ const P = (o) => ({ id: "custom-v0516", custom: true, baseUrl: "http://127.0.0.1
 test("清单为空：列出配置的默认/快速模型，可选（#66 第 5 项）", () => {
   assert.deepEqual(withConfigured([], P()).map((m) => [m.id, m.context_window, m.configured]), [["m-big", 0, true]]);
   assert.deepEqual(withConfigured([], P({ fastModel: "m-fast" })).map((m) => m.id), ["m-big", "m-fast"]);
-  // 原生/登录/端侧/预置不动
+  // 原生/登录/预置不动
   assert.deepEqual(withConfigured([], P({ custom: false })), []);
-  assert.deepEqual(withConfigured([], P({ local: true })), []);
 });
 
 test("声明的窗口：只补默认/快速模型、不覆盖上游报的（#67）", () => {
@@ -41,13 +40,12 @@ test("声明的窗口：只补默认/快速模型、不覆盖上游报的（#67�
   assert.equal(withConfigured([{ id: "m-big", context_window: 128000 }], p)[0].context_window, 128000);
 });
 
-test("桥那种接口：声明了窗口就下发 MAX_CONTEXT_TOKENS（#67）", () => {
+test("桥那种接口：声明了窗口就进缓存与 currentModelInfo（#67）", () => {
   const p = P({ id: "custom-v0516b", contextWindow: 1048576 });
   assert.equal(cachedModels(p).length, 1);
   assert.equal(currentModelInfo("m-big", p).context_window, 1048576);
-  assert.equal(claudeEnv({ model: "m-big", provider: p }).CLAUDE_CODE_MAX_CONTEXT_TOKENS, "1048576");
   const q = P({ id: "custom-v0516c" });
-  assert.equal(claudeEnv({ model: "m-big", provider: q }).CLAUDE_CODE_MAX_CONTEXT_TOKENS, undefined);
+  assert.equal(currentModelInfo("m-big", q).context_window, 0);
 });
 
 test("压缩线 = min(设置, 窗口)；第三方不知道窗口按 200k（#67）", () => {

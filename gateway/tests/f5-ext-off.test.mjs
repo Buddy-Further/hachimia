@@ -13,8 +13,8 @@ const cli = path.join(root, "fake-cli.sh"), argLog = path.join(root, "argv.log")
 const sh = fs.existsSync("/system/bin/sh") ? "/system/bin/sh" : "/bin/sh";
 let exitCode = 0;
 const writeCli = () => fs.writeFileSync(cli, `#!${sh}\nfor a in "$@"; do printf '%s\\n' "$a"; done > '${argLog}'\nprintf '\\n' >> '${argLog}'\nexit ${exitCode}\n`, { mode: 0o700 });
-const prev = { claude: PATHS.claude, loader: PATHS.loader, claudeLoader: PATHS.claudeLoader };
-PATHS.claude = process.execPath; PATHS.loader = PATHS.claudeLoader = cli;
+const prev = { agy: PATHS.agy, claude: PATHS.claude, loader: PATHS.loader, claudeLoader: PATHS.claudeLoader };
+PATHS.agy = cli; PATHS.claude = process.execPath; PATHS.loader = PATHS.claudeLoader = cli;
 const { _extForTest, SKILLS_DIR } = await import("../gw/extensions.mjs");
 const { sealPrepare, sealCleanup } = await import("../gw/seal.mjs");
 const { extOff, EXT_OFF_FILE } = await import("../gw/extoff.mjs");
@@ -58,22 +58,20 @@ test("发行版：只认开 / 关；关掉的技能不打进 user 插件", async
   await X.setSkillMode("f5a", "on");
 });
 
-test("MCP 停用：定义先进名单（0600）再 mcp remove -s user；启用用 add-json 加回、出名单；remove 失败名单退回", async () => {
+test("MCP 停用：定义先进名单（0600）再 agy mcp remove；启用用 agy mcp add 加回、出名单；remove 失败名单退回", async () => {
   _setSealed(false);
   const def = { command: "node", args: ["srv.mjs"], env: { K: "v" } };
   put(H(".claude.json"), JSON.stringify({ mcpServers: { f5m: def } }));
   exitCode = 0; writeCli();
   assert.equal((await X.disableMcp("f5m")).ok, true);
-  assert.deepEqual(lastArgv(), ["mcp", "remove", "-s", "user", "f5m"]);
+  assert.deepEqual(lastArgv(), ["mcp", "remove", "f5m"]);
   assert.deepEqual(extOff().mcp.f5m, def);
   assert.equal(fs.statSync(EXT_OFF_FILE).mode & 0o777, 0o600);
   // 名单里的条目在列表里出现成「已停用」（假 CLI 的 mcp list 什么也不输出）
   const li = (await X.listMcp()).find((m) => m.name === "f5m");
   assert.equal(li.disabled, true); assert.equal(li.target, "node srv.mjs [env: K]", "环境变量只亮名字，不亮值");
   assert.equal((await X.enableMcp("f5m")).ok, true);
-  const a = lastArgv();
-  assert.deepEqual(a.slice(0, 5), ["mcp", "add-json", "-s", "user", "f5m"]);
-  assert.deepEqual(JSON.parse(a[5]), def);
+  assert.deepEqual(lastArgv(), ["mcp", "add", "--type", "stdio", "-e", "K=v", "f5m", "--", "node", "srv.mjs"]);
   assert.equal(extOff().mcp.f5m, undefined);
   // remove 失败：名单退回，不留「停了却没停」的条目
   exitCode = 1; writeCli();

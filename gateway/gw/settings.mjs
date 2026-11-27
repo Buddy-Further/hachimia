@@ -2,7 +2,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { CFG, PATHS, PERM_MODES, log, tz } from "./config.mjs";
 import { API_KEY, BUILTIN_PROVIDER, PROVIDER, PROVIDERS_CFG, applyProvider, isAgyOnlyMode } from "./providers.mjs";
-import { beginBridgeSwitch, bridgeSwitching, setBridgeUpstream } from "./claude.mjs";
 import { MAX_PARALLEL_CAP, RUNS, maxParallel } from "./runs.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
 import { customRefresh } from "./custom.mjs";
@@ -78,7 +77,7 @@ export async function routeSettings(req, res, u, p) {
             message: tz("纯 Antigravity 模式不支持 Claude 预设（{id}），请改用 Google 登录或 Gemini 接口。", { id: want }),
           });
         }
-        if (want !== PROVIDER.id && (RUNS.size || bridgeSwitching())) {
+        if (want !== PROVIDER.id && RUNS.size) {
           return sendJson(res, 409, {
             error: "busy",
             message: tz("这一轮还在生成中，等它跑完再切厂商（切换会换掉正在用的密钥与模型）。"),
@@ -162,23 +161,18 @@ export async function routeSettings(req, res, u, p) {
         const want = b.provider ? String(b.provider) : null;
         // 未知厂商与「忙时不许切」在开头预校验过了，这里只剩真正要切的
         if (want !== PROVIDER.id) {
-          const switched = beginBridgeSwitch();
-          try {
-            SETTINGS.provider = want;
-            SETTINGS.model = null;          // 别把上一家的模型名带过去
-            // 自动起名的型号同理：界面上还补进新清单显示选中，autotitle 却因为型号不在这一家的清单里静默不用
-            // （0.6.9 审计 195-E.6）。清掉后回落到本轮模型，用户要就重新选
-            SETTINGS.titleModel = null;
-            // 思考强度同理：上一家支持的档位（比如 high）新厂商可能没有，留着会在设置页
-            // 显示成“默认”却仍按旧档位存着（D-10）。清掉后回落到新厂商自己的默认档位
-            SETTINGS.effort = null;
-            // 跟着全局接口走的项目、定时任务也一样（195-E.1：以前它们留着旧厂商的型号，在新接口上回落或 400）
-            const np = clearFollowingModels(), nt = clearFollowingTaskModels();
-            if (np || nt) log(`换接口：清掉 ${np} 个项目、${nt} 个定时任务里旧接口的模型名`);
-            applyProvider();
-            // 上游热切 —— 不重启桥，也就没有断流窗口
-            await setBridgeUpstream(CFG.upstream);
-          } finally { switched(); }
+          SETTINGS.provider = want;
+          SETTINGS.model = null;          // 别把上一家的模型名带过去
+          // 自动起名的型号同理：界面上还补进新清单显示选中，autotitle 却因为型号不在这一家的清单里静默不用
+          // （0.6.9 审计 195-E.6）。清掉后回落到本轮模型，用户要就重新选
+          SETTINGS.titleModel = null;
+          // 思考强度同理：上一家支持的档位（比如 high）新厂商可能没有，留着会在设置页
+          // 显示成“默认”却仍按旧档位存着（D-10）。清掉后回落到新厂商自己的默认档位
+          SETTINGS.effort = null;
+          // 跟着全局接口走的项目、定时任务也一样（195-E.1：以前它们留着旧厂商的型号，在新接口上回落或 400）
+          const np = clearFollowingModels(), nt = clearFollowingTaskModels();
+          if (np || nt) log(`换接口：清掉 ${np} 个项目、${nt} 个定时任务里旧接口的模型名`);
+          applyProvider();
           log(`已切换厂商 → ${PROVIDER.id}  上游 ${CFG.upstream}  ` +
               `${API_KEY ? "有密钥" : (PROVIDER.login ? "走登录态" : "无密钥")}`);
         }

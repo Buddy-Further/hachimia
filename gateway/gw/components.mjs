@@ -4,7 +4,7 @@ import path from "node:path";
 import { spawn, execFile } from "node:child_process";
 import crypto from "node:crypto";
 import { CFG, LIVE, LAST_LANG, PREFIX, log, tr, tz } from "./config.mjs";
-import { claudeEnv, killTree } from "./claude.mjs";
+import { killTree, toolEnv } from "./claude.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
 import { termEnv } from "./terminal.mjs";
 import { SKILLS_DIR, addMcp, removeMcp, skillMeta } from "./extensions.mjs";
@@ -133,7 +133,7 @@ function compFetch(src, quick) {
   const t = quick ? ["--connect-timeout", "8", "--max-time", "20", "--retry", "1"] : ["--max-time", "30", "--retry", "2"];
   return new Promise((resolve, reject) => {
     execFile(path.join(PREFIX, "bin", "curl"), ["-fsSL", ...t, src],
-      { env: claudeEnv(), maxBuffer: 4 << 20, encoding: "buffer" },
+      { env: toolEnv(), maxBuffer: 4 << 20, encoding: "buffer" },
       (e, so, se) => (e ? reject(new Error(String(se || e.message).trim().slice(0, 200))) : resolve(so)));
   });
 }

@@ -22,13 +22,11 @@ test("FIND-046：斜杠命令只记命令名，不带参数", () => {
   assert.equal(promptLogLine("/rename 我的秘密标题", true), "命令 /rename");
 });
 
-test("FIND-046：起一轮、插话的日志都改走 promptLogLine", () => {
+test("FIND-046：起一轮的日志改走 promptLogLine，不写提问正文", () => {
   const src = fs.readFileSync(path.join(ROOT, "gateway", "gw", "run.mjs"), "utf8");
   assert.equal(/message\.trim\(\)\.slice\(0, 60\)/.test(src), false, "提问日志还在写正文");
   assert.equal(/item\.message\.trim\(\)\.slice\(0, (40|60)\)/.test(src), false, "插话日志还在写正文");
-  assert.match(src, /promptLogLine\(message, isCmd\)/);
-  assert.match(src, /promptLogLine\(item\.message, true\)/);
-  assert.match(src, /promptLogLine\(item\.message, false\)/);
+  assert.match(src, /promptLogLine\(displayMsg, isSlashCmd\)/);
 });
 
 // ── FIND-047：日志要带日期，错误行要能定位到轮次/会话 ──
@@ -49,9 +47,9 @@ test("FIND-047：轮次/会话标记", () => {
 
 test("FIND-047：错误与收尾日志带轮次/会话标记", () => {
   const run = fs.readFileSync(path.join(ROOT, "gateway", "gw", "run.mjs"), "utf8");
-  assert.match(run, /runTag\(run\)\} ✖ \$\{hint\}/);
-  assert.match(run, /runTag\(run\)\} spawn 出错/);
-  assert.match(run, /runTag\(run\)\} ⚠️ 收尾出错/);
+  assert.match(run, /runTag\(run\)\} ⛔/);
+  assert.match(run, /runTag\(run\)\} ⏱/);
+  assert.match(run, /runTag\(run\)\} \[封签\]/);
   const q = fs.readFileSync(path.join(ROOT, "gateway", "gw", "queue.mjs"), "utf8");
   assert.match(q, /runTag\(run\)\} ⏹ 停止 5 秒后还没收尾/);
 });

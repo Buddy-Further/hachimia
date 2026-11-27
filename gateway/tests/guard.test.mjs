@@ -3,8 +3,6 @@ import "../gw/config.mjs";   // 放最前：没走 scripts/test.mjs（没有临�
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { judge } from "../guard/cc-guard.mjs";
-import { guardHooks } from "../gw/claude.mjs";
-import { SETTINGS } from "../gw/settings-store.mjs";
 
 test("密钥、凭据、设备敏感工具：要问", () => {
   const hit = [
@@ -89,16 +87,6 @@ test("改提示词、钩子、会话记录：写要问，读不问；CLAUDE.md �
     ["Write", { file_path: "/data/user/0/ha.chi.mia/files/home/workspace/gw/main.go" }],
     ["Bash", { command: "ls /data/user/0/ha.chi.mia/files/gwx" }],
   ]) assert.equal(judge(tool, inp), null, `${tool} ${JSON.stringify(inp)}`);
-});
-
-test("guard 没有全局关闭开关：设置里存 false 也照挂", () => {
-  const old = SETTINGS.guard;
-  try {
-    SETTINGS.guard = false;
-    const hooks = guardHooks();
-    assert.ok(Array.isArray(hooks), "guardHooks 被 SETTINGS.guard 关掉了");
-    assert.match(hooks[0].hooks[0].command, /cc-guard\.mjs/);
-  } finally { SETTINGS.guard = old; }
 });
 
 test("钩子自己出错（看不懂输入）回 ask，不静默放行；正常的普通操作照旧不输出", async () => {

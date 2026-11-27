@@ -173,14 +173,6 @@ test("F-G4-3：agy-only 下钉在 Claude 预置的会话被迁回 antigravity，
   assert.deepEqual(migrateHiddenSessionPins(), [], "第二次迁移应无事可做");
 });
 
-test("F-G4-3：非 agy-only 设备上 Claude 预置仍可用，钉选不得迁移", () => {
-  notAgyOnly();
-  setSessModel("sess-g4-keep", { provider: "anthropic", model: "claude-opus-5-5" });
-  assert.deepEqual(migrateHiddenSessionPins(), [], "非 agy-only 时不得迁移");
-  assert.equal(sessModel("sess-g4-keep").provider, "anthropic", "钉选应原样保留");
-  assert.equal(sessModel("sess-g4-keep").model, "claude-opus-5-5");
-});
-
 test("F-G4-3 症状：钉在 anthropic 的会话迁移后能看到 Gemini 4", async () => {
   agyOnly();
   dropModelCache();

@@ -105,11 +105,9 @@ test("rem/copy 5 条新文案键已追加进 lang-en.js（C-01 重排后为 3122
   assert.match(s, /"Antigravity CLI 杂物": "Antigravity CLI housekeeping files"/);
 });
 
-// ── 路径绑定的 3 处：有意未改（需真实路径迁移，见 rem-copy.md），如实断言现状 ──
-test("rem/copy 路径绑定 3 处未改：仍指真实磁盘路径，需路径迁移时再动", () => {
-  const ext = read("gateway/web/app/08-extensions.js");
+// ── 路径绑定的 2 处：有意未改（需真实路径迁移，见 rem-copy.md），如实断言现状 ──
+test("rem/copy 路径绑定 2 处未改：仍指真实磁盘路径，需路径迁移时再动", () => {
   const st = read("gateway/web/app/10b-storage.js");
-  assert.match(ext, /(?:模型放在|存放在) \/sdcard\/cccodroid\/models/);
   assert.match(st, /组件的运行数据（~\/\.cccodroid）/);
   assert.match(st, /共享目录 \/sdcard\/cccodroid/);
 });

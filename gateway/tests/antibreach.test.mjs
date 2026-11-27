@@ -9,39 +9,13 @@ import path from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { CFG } from "../gw/config.mjs";
-import { guardHooks, safeModePerm, settingsArgs } from "../gw/claude.mjs";
-import { SETTINGS } from "../gw/settings-store.mjs";
+import { safeModePerm } from "../gw/claude.mjs";
 import { listHooks, saveHooks } from "../gw/extensions.mjs";
 import { tamperAck, tamperNote, tamperPending, tamperRecord } from "../gw/tamper.mjs";
 import { claudeSeal } from "../gw/claudeseal.mjs";
 
 // CI 的 Linux 没有 /system/bin/sh（#113 同款）：测试本身也要能在非安卓环境跑
 const SH = fs.existsSync("/system/bin/sh") ? "/system/bin/sh" : "/bin/sh";
-const runHook = (cmd, tool, input) => execFileSync(SH, ["-c", cmd], { input: JSON.stringify({ tool_name: tool, tool_input: input }) }).toString();
-
-test("guard 钩子内联：不读盘上的文件也能跑，判断和 cc-guard.mjs 一致", () => {
-  const old = SETTINGS.guard;
-  try {
-    SETTINGS.guard = false;                     // 旧设置里的关闭不再认
-    const h = guardHooks();
-    assert.ok(Array.isArray(h));
-    const cmd = h[0].hooks[0].command;
-    assert.match(cmd, / --input-type=module -e '/);
-    assert.doesNotMatch(cmd, /cc-guard\.mjs'?\s*$/, "不是去执行盘上那个文件");
-    assert.match(runHook(cmd, "Bash", { command: "cat ~/.cache/ccapp-key" }), /"permissionDecision":"ask"/);
-    assert.equal(runHook(cmd, "Bash", { command: "ls -la" }), "");
-    assert.match(runHook(cmd, "Bash", { command: "claude --bare -p hi" }), /without this check/);
-  } finally { SETTINGS.guard = old; }
-});
-
-test("--settings 里显式 disableAllHooks:false，压过用户级 / 项目级的关闭", () => {
-  const a = settingsArgs();
-  const i = a.indexOf("--settings");
-  assert.ok(i >= 0);
-  const st = JSON.parse(a[i + 1]);
-  assert.equal(st.disableAllHooks, false);
-  assert.ok(st.hooks.PreToolUse);
-});
 
 test("guard 新规则：安全模式开关、甩掉这一层再起 claude 要问；平常用 claude 不问", async () => {
   const { judge } = await import("../guard/cc-guard.mjs");

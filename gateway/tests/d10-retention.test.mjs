@@ -1,21 +1,14 @@
-// D10 第 1 步（11-09）：会话保留期。claude 缺省 30 天就删会话（连同附属数据，不进回收站），项目设置写个小数字还会压过用户级的。
-// 网关启动时给用户级设置补上永久保留（写过的不动、写坏的文件不碰、不弹配置改动卡片）；每轮 --settings 带上核过的值；
-// 发行版回填不再照搬用户写的原值；终端包装脚本同口径
+// D10 第 1 步（11-09）：会话保留期。
+// 网关启动时给用户级设置补上永久保留（写过的不动、写坏的文件不碰、不弹配置改动卡片）；
+// 发行版回填不再照搬用户写的原值
 import { CFG } from "../gw/config.mjs";
 import "./fixtures/uc-baseline.mjs";
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import childProcess, { spawnSync } from "node:child_process";
-import { EventEmitter } from "node:events";
-import { syncBuiltinESMExports } from "node:module";
-import { PassThrough, Writable } from "node:stream";
-import { fileURLToPath } from "node:url";
-import { _setSealed, sealed } from "../gw/edition.mjs";
+import { _setSealed } from "../gw/edition.mjs";
 import { RETENTION_DAYS, sessionRetention } from "../gw/retention.mjs";
-import { settingsArgs } from "../gw/claude.mjs";
-import { rewindFiles } from "../gw/sessionops.mjs";
 import { ensureSessionRetention } from "../gw/extensions.mjs";
 import { sealPrepare, sealCleanup } from "../gw/seal.mjs";
 import { ucKeep, ucPending } from "../gw/userconf.mjs";
@@ -24,7 +17,6 @@ const F = path.join(CFG.home, ".claude", "settings.json");
 const had = fs.existsSync(F) ? fs.readFileSync(F) : null;
 const put = (s) => { fs.mkdirSync(path.dirname(F), { recursive: true }); fs.writeFileSync(F, s); };
 const read = () => JSON.parse(fs.readFileSync(F, "utf8"));
-const flagSettings = () => { const a = settingsArgs(); return JSON.parse(a[a.indexOf("--settings") + 1]); };
 const pendingSettings = () => (ucPending()?.rels || []).includes(".claude/settings.json");
 after(() => {
   _setSealed(true);
@@ -74,54 +66,7 @@ test("启动补写：没有文件就新建；有别的键照留并留 .bak；用
   assert.equal(fs.readFileSync(F, "utf8"), "{oops");
 });
 
-test("每轮 --settings 带核过的保留期（项目设置压不过它）", () => {
-  fs.rmSync(F, { force: true });
-  assert.equal(flagSettings().cleanupPeriodDays, RETENTION_DAYS);
-  put('{"cleanupPeriodDays":120}');
-  assert.equal(flagSettings().cleanupPeriodDays, 120);
-  put('{"cleanupPeriodDays":0}');
-  assert.equal(flagSettings().cleanupPeriodDays, RETENTION_DAYS, "写坏的值不往下传");
-});
-
-test("回退试算和执行都只把核过的保留期传给 CLI", async (t) => {
-  const before = sealed(), calls = [];
-  const spawn = t.mock.method(childProcess, "spawn", (_cmd, argv) => {
-    const child = new EventEmitter();
-    child.stdout = new PassThrough(); child.stderr = new PassThrough();
-    child.stdin = new Writable({ write(chunk, _encoding, done) {
-      calls.push({ argv, request: JSON.parse(chunk).request });
-      child.stdout.write(JSON.stringify({ type: "control_response", response: { subtype: "success", response: { canRewind: true, filesChanged: [] } } }) + "\n");
-      done();
-      queueMicrotask(() => child.emit("close", 0));
-    } });
-    return child;
-  });
-  syncBuiltinESMExports();
-  try {
-    for (const [isSealed, userDays, days] of [[true, undefined, RETENTION_DAYS], [false, 120, 120], [false, "30", RETENTION_DAYS]]) {
-      _setSealed(isSealed);
-      if (userDays === undefined) fs.rmSync(F, { force: true }); else put(JSON.stringify({ cleanupPeriodDays: userDays }));
-      // 前面的测试也改过临时用户配置。先按正常确认流程认下当前版本，不绕过回退检查。
-      const pending = !isSealed && ucPending();
-      if (pending) assert.deepEqual(ucKeep(pending.rels, pending.ticket), []);
-      const sid = "retention-rewind-fixture", uuid = "retention-rewind-turn";
-      for (const dry of [true, false]) {
-        assert.deepEqual(await rewindFiles(sid, uuid, dry), { ok: true, canRewind: true, filesChanged: [] });
-        const { argv, request } = calls.at(-1);
-        assert.deepEqual(request, { subtype: "rewind_files", user_message_id: uuid, dry_run: dry });
-        assert.equal(argv[argv.indexOf("--resume") + 1], sid);
-        assert.equal(argv.includes("--setting-sources"), isSealed);
-        assert.equal(argv.filter((x) => x === "--settings").length, 1);
-        assert.deepEqual(JSON.parse(argv[argv.indexOf("--settings") + 1]), { cleanupPeriodDays: days });
-      }
-    }
-  } finally {
-    _setSealed(before);
-    spawn.mock.restore(); syncBuiltinESMExports();
-  }
-});
-
-test("发行版回填不再照搬用户写的 cleanupPeriodDays（由 settingsArgs 统一给）", () => {
+test("发行版回填不再照搬用户写的 cleanupPeriodDays", () => {
   put('{"cleanupPeriodDays":0,"includeCoAuthoredBy":false}');
   _setSealed(true);
   fs.mkdirSync(path.join(CFG.home, "sealproj-d10"), { recursive: true });
@@ -130,29 +75,4 @@ test("发行版回填不再照搬用户写的 cleanupPeriodDays（由 settingsAr
   assert.equal(p.settings.cleanupPeriodDays, undefined);
   assert.equal(p.settings.includeCoAuthoredBy, false, "别的照搬键不受影响");
   sealCleanup(1010);
-});
-
-test("终端包装脚本：照用户级的合法值带上，没写或不合法就按 36500", () => {
-  const src = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "android", "assets", "bin", "claude");
-  const dir = fs.mkdtempSync(path.join(process.env.CCAPP_TMP || CFG.home, "d10w-"));
-  fs.mkdirSync(path.join(dir, "bin"));
-  const w = path.join(dir, "bin", "claude"), fake = path.join(dir, "ld.sh");
-  fs.writeFileSync(w, fs.readFileSync(src, "utf8").replace(/^SEALED=1$/m, "SEALED=0"), { mode: 0o700 });
-  const sh = fs.existsSync("/system/bin/sh") ? "/system/bin/sh" : "/bin/sh";
-  fs.writeFileSync(fake, `#!${sh}\nfor a in "$@"; do printf '%s\\n' "$a"; done\n`, { mode: 0o700 });
-  const days = () => {
-    const r = spawnSync(sh, [w, "-p", "hi"], { encoding: "utf8", env: { ...process.env, CCAPP_LD: fake, CCAPP_KEY_FILE: "", HOME: CFG.home } });
-    const a = r.stdout.split("\n");
-    return JSON.parse(a[a.indexOf("--settings") + 1]).cleanupPeriodDays;
-  };
-  try {
-    fs.rmSync(F, { force: true });
-    assert.equal(days(), RETENTION_DAYS);
-    put(JSON.stringify({ model: "x", cleanupPeriodDays: 45 }, null, 2));
-    assert.equal(days(), 45);
-    put('{"cleanupPeriodDays": 0}');
-    assert.equal(days(), RETENTION_DAYS);
-    put('{"cleanupPeriodDays":"7"}');
-    assert.equal(days(), RETENTION_DAYS);
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

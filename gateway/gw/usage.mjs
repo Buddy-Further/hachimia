@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFile, spawn } from "node:child_process";
 import { CFG, LIVE, HERE, PATHS, PREFIX, log, tz } from "./config.mjs";
-import { claudeEnv, killTree, readLedger } from "./claude.mjs";
+import { killTree, readLedger, toolEnv } from "./claude.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
 import { devPrivStatus } from "./devside.mjs";
 import { isInjected } from "./integrity.mjs";
@@ -518,7 +518,7 @@ function energySystem() {
     // priv 用随包那份的绝对路径：PATH 里排在前面的目录（~/bin 之类）可能被放了同名程序（复核 11-03，L-9 余项）
     const priv = [path.join(HERE, "bin", "priv")].find((f) => fs.existsSync(f)) || "priv";
     const child = spawn("sh", ["-c", (priv.startsWith("/") ? "sh " : "") + "\"$0\" \"dumpsys batterystats --checkin\" 2>&1 </dev/null", priv], {
-      env: { ...process.env, PATH: claudeEnv().PATH }, stdio: ["ignore", "pipe", "pipe"], detached: true,
+      env: { ...process.env, PATH: toolEnv().PATH }, stdio: ["ignore", "pipe", "pipe"], detached: true,
     });
     const MAX = 32 << 20;
     const outChunks = [];
@@ -570,7 +570,7 @@ function energySystem() {
 export function ccMem(args, timeoutMs = 90000) {
   const bin = [path.join(HERE, "bin", "cc-mem.mjs"), path.join(CFG.home, "..", "opt", "ccmem", "cc-mem.mjs")].find((f) => fs.existsSync(f));
   if (!bin) return Promise.resolve({ ok: false, message: tz("找不到 cc-mem") });
-  const env = claudeEnv();
+  const env = toolEnv();
   for (const k of Object.keys(env)) if (/^(ANTHROPIC|CLAUDE)_/.test(k)) delete env[k];
   env.CCAPP_HOME = CFG.home;
   return new Promise((resolve) => {

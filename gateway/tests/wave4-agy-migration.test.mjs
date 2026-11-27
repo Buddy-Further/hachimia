@@ -24,7 +24,7 @@ const WORK = fs.mkdtempSync(path.join(process.env.CCAPP_TMP || CFG.workspace, "w
 const prevPaths = { agy: PATHS.agy, claude: PATHS.claude, loader: PATHS.loader, claudeLoader: PATHS.claudeLoader };
 const prevShared = process.env.CCAPP_SHARED;
 
-const { agyCmd, claudeBlocked, isAgyOnlyCli, runClaude, stripAgyGlog } = await import("../gw/claude.mjs");
+const { agyCmd, claudeBlocked, runClaude, stripAgyGlog } = await import("../gw/claude.mjs");
 const { ask } = await import("../gw/backfill.mjs");
 const { rewindFiles } = await import("../gw/sessionops.mjs");
 const { addMcp, _extForTest, routeExtensions, SKILLS_DIR } = await import("../gw/extensions.mjs");
@@ -78,7 +78,6 @@ process.stdout.write("ERROR: logging before google.Init: I1128 01:47:21.019277  
 process.stdout.write("agy-ok-output\\n");
 `);
   await withAgyOnly(mockAgy, async () => {
-    assert.equal(isAgyOnlyCli(), true);
     assert.deepEqual(agyCmd(["--version"]), [mockAgy, ["--version"]]);
     assert.equal(stripAgyGlog("ERROR: logging before google.Init: x\nhello"), "hello");
     const r = await runClaude(["mcp", "list"]);

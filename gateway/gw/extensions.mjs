@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { CFG, PREFIX, log, tz } from "./config.mjs";
-import { agyCmd, agyEnv, claudeBlocked, claudeCmd, claudeEnv, ensureShell, isAgyOnlyCli, killTree, stripAgyGlog } from "./claude.mjs";
+import { agyCmd, agyEnv, claudeBlocked, ensureShell, killTree, stripAgyGlog } from "./claude.mjs";
 import { SID_RE, skillDirOk, zipReadAsync } from "./sessionops.mjs";
 import { NEXT, readBody, readBodyBuf, sendJson } from "./http.mjs";
 import { termEnv } from "./terminal.mjs";
@@ -98,24 +98,20 @@ function agyExtCmd(args) {
   return { args };
 }
 function extExecRaw(args, timeoutMs = 180000) {
-  const agyOnly = isAgyOnlyCli();
-  const mapped = agyOnly ? agyExtCmd(args) : { args };
+  const mapped = agyExtCmd(args);
   if (mapped.error) return Promise.resolve({ code: -1, out: "", err: mapped.error });
   const writes = ["plugin", "mcp"].includes(args[0]) && !args.includes("list") && !args.includes("get");
   const appWrote = (ucb) => {
     if (!writes) return;
-    if (agyOnly) {
-      ucAppWrote([".gemini/antigravity-cli/settings.json", ".claude.json", ".claude/settings.json", ".claude/plugins/"], ucb,
-        { ".claude/settings.json": ["enabledPlugins", "extraKnownMarketplaces"] });
-    } else if (args[0] === "mcp") ucAppWrote([".claude.json"], ucb);
-    else ucAppWrote([".claude/settings.json", ".claude/plugins/"], ucb, { ".claude/settings.json": ["enabledPlugins", "extraKnownMarketplaces"] });
+    ucAppWrote([".gemini/antigravity-cli/settings.json", ".gemini/antigravity-cli/plugins/", ".claude.json", ".claude/settings.json", ".claude/plugins/"], ucb,
+      { ".claude/settings.json": ["enabledPlugins", "extraKnownMarketplaces"] });
   };
   return Promise.resolve().then(() => claudeBlocked()).then((blocked) => blocked ? { code: -1, out: "", err: blocked } : new Promise((resolve) => {
-    const [cmd0, args0] = agyOnly ? agyCmd(mapped.args) : claudeCmd(mapped.args);
+    const [cmd0, args0] = agyCmd(mapped.args);
     const ucb = writes ? ucAppBegin() : null;
     const child = spawn(cmd0, args0, {
       cwd: fs.existsSync(CFG.workspace) ? CFG.workspace : CFG.home,
-      env: agyOnly ? agyEnv() : claudeEnv(), stdio: ["ignore", "pipe", "pipe"], detached: true,
+      env: agyEnv(), stdio: ["ignore", "pipe", "pipe"], detached: true,
     });
     let out = "", err = "";
     child.stdout.setEncoding("utf8"); child.stderr.setEncoding("utf8");   // 按流解码：多字节字符跨块不会被拆坏
@@ -124,11 +120,11 @@ function extExecRaw(args, timeoutMs = 180000) {
     child.on("close", (code) => {
       clearTimeout(t);
       appWrote(code === 0 ? ucb : null);
-      resolve({ code, out: agyOnly ? stripAgyGlog(out) : out, err: agyOnly ? stripAgyGlog(err) : err });
+      resolve({ code, out: stripAgyGlog(out), err: stripAgyGlog(err) });
     });
     child.on("error", (e) => {
       clearTimeout(t);
-      resolve({ code: -1, out: agyOnly ? stripAgyGlog(out) : out, err: (agyOnly ? stripAgyGlog(err) : err) + e.message });
+      resolve({ code: -1, out: stripAgyGlog(out), err: stripAgyGlog(err) + e.message });
     });
   }));
 }
@@ -149,13 +145,11 @@ let PLUGIN_STATE_FLIGHT = null;
 async function pluginState(withAvailable) {
   if (PLUGIN_STATE_FLIGHT && (!withAvailable || PLUGIN_STATE_FLIGHT.withAvailable)) return PLUGIN_STATE_FLIGHT.p;
   const p = withExtLock(async () => {
-    const agyOnly = isAgyOnlyCli();
-    const fresh = PLUGIN_CATALOG && Date.now() - PLUGIN_CATALOG.at < 600000;
-    const r = await extExecRaw(["plugin", "list", "--json", ...(withAvailable && !fresh && !agyOnly ? ["--available"] : [])], 120000);
+    const r = await extExecRaw(["plugin", "list", "--json"], 120000);
     const j = lastJson(r.out);
     if (!j) {
-      if (agyOnly && r.code === 0) return [];
-      throw new Error(cliMsg(r) || (agyOnly ? "agy plugin list 没有输出" : "claude plugin list 没有输出"));
+      if (r.code === 0) return [];
+      throw new Error(cliMsg(r) || "agy plugin list 没有输出");
     }
     const installed = Array.isArray(j) ? j : j.installed || j.plugins || [];
     if (!Array.isArray(j) && j.available) PLUGIN_CATALOG = { at: Date.now(), list: j.available };
@@ -214,18 +208,11 @@ async function pluginOp(op, id) {
 }
 
 async function listMarketplaces() {
-  if (isAgyOnlyCli()) return [];
-  const r = await extRun(["plugin", "marketplace", "list", "--json"], 60000);
-  const j = lastJson(r.out);
-  return Array.isArray(j) ? j.map((m) => ({ name: m.name, source: m.source?.repo || m.source?.url || m.source?.path || m.url || "" })) : [];
+  return [];
 }
 
-async function marketplaceOp(op, arg) {
-  if (isAgyOnlyCli()) return { ok: false, message: tz("当前引擎 (Antigravity CLI) 暂不支持插件市场管理") };
-  if (badArg(String(arg ?? ""))) return { ok: false, message: tz("名字格式不对") };
-  const r = await extRun(["plugin", "marketplace", op, arg], 300000);
-  if (r.code === 0) PLUGIN_CATALOG = null;
-  return r.code === 0 ? { ok: true } : { ok: false, message: cliMsg(r) };
+async function marketplaceOp() {
+  return { ok: false, message: tz("当前引擎 (Antigravity CLI) 暂不支持插件市场管理") };
 }
 
 /** claude mcp list 只有给人看的文本：「名字: 目标 - ✔ Connected」。顺带做了连通检查，所以慢几秒 */
@@ -827,7 +814,7 @@ async function installCatalogSkill(dir) {
 
 // MCP 注册表：任何人都能发布，没人审 —— 界面写明，装 npm 包前把命令亮给人看。
 // 本机能直接用的两种：远程（streamable-http / sse）和 npm 包（npx 起 stdio）。pypi / docker 的标成装不了
-const onPath = (bin) => String((isAgyOnlyCli() ? agyEnv() : claudeEnv()).PATH || "").split(":").some((d) => d && fs.existsSync(path.join(d, bin)));
+const onPath = (bin) => String(agyEnv({ sync: false }).PATH || "").split(":").some((d) => d && fs.existsSync(path.join(d, bin)));
 async function listMcpCatalog(q, cursor) {
   const u = new URL("https://registry.modelcontextprotocol.io/v0/servers");
   u.searchParams.set("version", "latest"); u.searchParams.set("limit", "30");

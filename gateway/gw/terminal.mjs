@@ -5,7 +5,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
 import { CFG, HERE, PATHS, PREFIX, log, tz } from "./config.mjs";
-import { claudeEnv, ensureShell, killTree, syncAgySettings, termKeyFile } from "./claude.mjs";
+import { ensureShell, killTree, syncAgySettings, termKeyFile, toolEnv } from "./claude.mjs";
 import { PROVIDER, keyOf } from "./providers.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
 
@@ -90,9 +90,9 @@ export function syncTermAgySettings(p = PROVIDER, key = keyOf(p)) {
 
 // ── 应用内终端：新开 / 读写 / 关闭 ──────────────────────────────────
 export function termEnv() {
-  const env = claudeEnv();
-  delete env.CCAPP_NODUMP;     // 终端里的东西是机主自己的，不设不可转储（见 claude.mjs claudeEnv）
-  for (const k of ["CI", "NO_COLOR", "CLAUDE_CODE_SHELL", "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CCAPP_RUN"]) delete env[k];   // 终端里用户自己起的东西不算 claude 运行，网关重启时别当孤儿清
+  const env = toolEnv();
+  delete env.CCAPP_NODUMP;
+  for (const k of ["CI", "NO_COLOR", "CLAUDE_CODE_SHELL", "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CCAPP_RUN"]) delete env[k];   // 终端里用户自己起的东西不算运行任务，网关重启时别当孤儿清
   env.TERM = "xterm-256color";
   env.COLORTERM = "truecolor";
   // C.UTF-8 是 glibc 内建的（开发端的 bash 是 glibc 版，没带 locale 数据）；不设的话 readline 把中文显示成 \344\270…

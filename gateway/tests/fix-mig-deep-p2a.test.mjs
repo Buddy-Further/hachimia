@@ -133,28 +133,14 @@ test("MIG-7：内联 set_mode 被拒时发 error 事件并把 init 宣称的模�
   }
 });
 
-// ── MIG-8：/autocompact 立即触发补 protocol:"gemini" ────────────────────
-test("MIG-8：protocol:gemini 的自定义厂商也适用 /autocompact 立即触发", async () => {
-  const prevAgy = PATHS.agy, prevClaude = PATHS.claude;
-  const agyFile = path.join(tmpRoot, "agy"), claudeFile = path.join(tmpRoot, "claude");
-  fs.writeFileSync(agyFile, "#!/bin/sh\n", { mode: 0o755 });
-  fs.writeFileSync(claudeFile, "#!/bin/sh\n", { mode: 0o755 });
-  try {
-    // 开发端：agy 与 claude 都在，第三个兜底条件为假，只剩协议本身说了算
-    PATHS.agy = agyFile; PATHS.claude = claudeFile;
-    const { autocompactImmediateApplies } = await import("../gw/run.mjs");
-    assert.equal(autocompactImmediateApplies({ group: "custom", authStyle: "bearer", protocol: "gemini" }), true,
-      "protocol:gemini 的自定义厂商应立即触发");
-    assert.equal(autocompactImmediateApplies({ group: "custom", authStyle: "bearer" }), false,
-      "无 protocol 声明的 bearer 自定义厂商在开发端不应立即触发");
-    assert.equal(autocompactImmediateApplies({ group: "antigravity" }), true);
-    assert.equal(autocompactImmediateApplies({ authStyle: "gemini-api-key" }), true);
-    // agy-only 设备：第三个条件兜底，bearer 自定义厂商也立即触发（旧行为不变）
-    PATHS.claude = path.join(tmpRoot, "no-such-claude");
-    assert.equal(autocompactImmediateApplies({ group: "custom", authStyle: "bearer" }), true);
-  } finally {
-    PATHS.agy = prevAgy; PATHS.claude = prevClaude;
-  }
+// ── MIG-8：/autocompact 立即触发（纯 agy 模式下所有有效厂商均适用） ───────
+test("MIG-8：protocol:gemini 与纯 agy 下厂商均适用 /autocompact 立即触发", async () => {
+  const { autocompactImmediateApplies } = await import("../gw/run.mjs");
+  assert.equal(autocompactImmediateApplies({ group: "custom", authStyle: "bearer", protocol: "gemini" }), true);
+  assert.equal(autocompactImmediateApplies({ group: "custom", authStyle: "bearer" }), true);
+  assert.equal(autocompactImmediateApplies({ group: "antigravity" }), true);
+  assert.equal(autocompactImmediateApplies({ authStyle: "gemini-api-key" }), true);
+  assert.equal(autocompactImmediateApplies(null), false);
 });
 
 // ── MIG-11：ADC 凭据前置检查 ────────────────────────────────────────────

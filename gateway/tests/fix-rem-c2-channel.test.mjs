@@ -106,10 +106,12 @@ test("C2-rem：acpAuthType 对 protocol:'gemini' 的自定义厂商返回 gemini
   assert.equal(acpAuthType(providerById("gemini-key")), "gemini-api-key", "真 Gemini 厂商不变");
 });
 
-// ── ACP 路由：run.mjs 的 useAcp 须认 protocol:"gemini"（混合设备上也走 ACP，而不是走不存在的 Claude 路径）──
-test("C2-rem：run.mjs 的 ACP 路由认 protocol:'gemini'", () => {
-  const runSrc = fs.readFileSync(new URL("../gw/run.mjs", import.meta.url), "utf8");
-  assert.ok(runSrc.includes('P.protocol === "gemini"'), "run.mjs 的 useAcp 条件应包含 protocol:'gemini'");
+// ── ACP 路由：纯 agy 下所有有效厂商均走 ACP，且 protocol:"gemini" 具备有效通道 ──
+test("C2-rem：protocol:'gemini' 走 ACP 且具备有效通道", async () => {
+  const { usesAcp, hasAcpKeyChannel } = await import("../gw/providers.mjs");
+  assert.equal(usesAcp(geminiProxy), true);
+  assert.equal(hasAcpKeyChannel(geminiProxy), true);
+  assert.equal(hasAcpKeyChannel(bearerNoProtocol), false);
 });
 
 // ── 持久化：upsertProvider 须接受并存下 protocol:"gemini"，非 gemini 值不存 ──

@@ -13,7 +13,7 @@ import { PROVIDER, PROVIDERS_CFG, upsertProvider } from "../gw/providers.mjs";
 import { SETTINGS } from "../gw/settings-store.mjs";
 import { RUNS } from "../gw/runs.mjs";
 import { cachedModels, fetchModels, routeModels } from "../gw/models.mjs";
-import { claudeEnv } from "../gw/claude.mjs";
+import { currentModelInfo } from "../gw/claude.mjs";
 
 const home = process.env.CCAPP_HOME, prefix = process.env.CCAPP_PREFIX;
 const root = fs.mkdtempSync(path.join(process.env.CCAPP_WORKSPACE, "bridge-config-"));
@@ -600,7 +600,7 @@ test("同一桥保存多个模型，窗口逐模型持久化，冷缓存/会话�
   for (const list of [cachedModels(provider), await fetchModels(true, provider)])
     assert.deepEqual(list.map((m) => [m.id, m.context_window]), expected.map((m) => [m.id, m.contextWindow]));
   for (const m of expected) {
-    assert.equal(claudeEnv({ model: m.id, provider }).CLAUDE_CODE_MAX_CONTEXT_TOKENS, String(m.contextWindow));
+    assert.equal(currentModelInfo(m.id, provider).context_window, m.contextWindow);
     const url = new URL("http://127.0.0.1/api/models?provider=" + id + "&model=" + m.id);
     let body;
     await routeModels({ method: "GET" }, { writeHead() {}, end(text) { body = JSON.parse(text); } }, url, url.pathname);

@@ -11,9 +11,8 @@ import { CFG, LAST_LANG, log, tz } from "./config.mjs";
 import { ucPending } from "./userconf.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
 import { publish } from "./bus.mjs";
-import { agyCmd, agyEnv, claudeBlocked, claudeCmd, claudeEnv, currentModelInfo, ensureBridge, isAgyOnlyCli, killTree, settingsArgs, stripAgyGlog } from "./claude.mjs";
+import { agyCmd, agyEnv, claudeBlocked, currentModelInfo, killTree, stripAgyGlog } from "./claude.mjs";
 import { sealed } from "./edition.mjs";
-import { isLoginMode } from "./models.mjs";
 import { SETTINGS } from "./settings-store.mjs";
 import { PROVIDER } from "./providers.mjs";
 import { lineageCached, lineageGraph } from "./lineage.mjs";
@@ -38,14 +37,14 @@ export function trimUtf8Bytes(s, maxBytes) {
   return buf.subarray(0, end).toString("utf8");
 }
 
-export function planBackfillBatches(sessTitle, items, { agyOnly = isAgyOnlyCli() } = {}) {
-  const sysBytes = agyOnly ? Buffer.byteLength(`-p=${systemPrompt()}\n\n`, "utf8") : 0;
+export function planBackfillBatches(sessTitle, items) {
+  const sysBytes = Buffer.byteLength(`-p=${systemPrompt()}\n\n`, "utf8");
   const maxPromptBytes = Math.max(8192, AGY_BATCH_BYTES - sysBytes);
   const batches = [];
   let cur = [], chars = 0;
   for (const it of items) {
     const overCount = cur.length >= BATCH_N || chars + it.src.length > BATCH_CHARS;
-    const overBytes = agyOnly && cur.length > 0
+    const overBytes = cur.length > 0
       && Buffer.byteLength(userPrompt(sessTitle, [...cur, it]), "utf8") > maxPromptBytes;
     if (cur.length && (overCount || overBytes)) { batches.push(cur); cur = []; chars = 0; }
     cur.push(it); chars += it.src.length;
@@ -202,19 +201,13 @@ export async function ask(prompt, o = {}) {
   return new Promise((resolve) => {
     fs.mkdirSync(WORK, { recursive: true });
     const P = o.provider || PROVIDER, own = !o.provider;
-    const agyOnly = isAgyOnlyCli();
-    const rawAgyPrompt = agyOnly ? `${systemPrompt()}\n\n${prompt}` : "";
-    const agyPrompt = agyOnly && Buffer.byteLength(`-p=${rawAgyPrompt}`, "utf8") > AGY_ARG_HARD_CAP
+    const rawAgyPrompt = `${systemPrompt()}\n\n${prompt}`;
+    const agyPrompt = Buffer.byteLength(`-p=${rawAgyPrompt}`, "utf8") > AGY_ARG_HARD_CAP
       ? trimUtf8Bytes(rawAgyPrompt, AGY_ARG_HARD_CAP - 3)
       : rawAgyPrompt;
-    const [cmd, args] = agyOnly
-      ? agyCmd(["--output-format", "json", "--disable-slash-commands", ...(o.model ? ["--model", o.model] : []), `-p=${agyPrompt}`])
-      : claudeCmd([...settingsArgs(P), "-p", "--no-session-persistence", "--tools", "", "--strict-mcp-config",
-          "--system-prompt", systemPrompt(), "--output-format", "json", ...(o.model ? ["--model", o.model] : [])]);
-    const env = agyOnly
-      ? (own ? agyEnv() : agyEnv({ model: o.model || "", provider: P }))
-      : (own ? claudeEnv() : claudeEnv({ model: o.model || "", provider: P }));
-    const child = spawn(cmd, args, { cwd: WORK, env, stdio: [agyOnly ? "ignore" : "pipe", "pipe", "pipe"], detached: true });
+    const [cmd, args] = agyCmd(["--output-format", "json", "--disable-slash-commands", ...(o.model ? ["--model", o.model] : []), `-p=${agyPrompt}`]);
+    const env = own ? agyEnv() : agyEnv({ model: o.model || "", provider: P });
+    const child = spawn(cmd, args, { cwd: WORK, env, stdio: ["ignore", "pipe", "pipe"], detached: true });
     if (own) JOB.child = child;
     let out = "", err = "", done = false;
     const fin = (r) => { if (done) return; done = true; clearTimeout(timer); if (own) JOB.child = null; resolve(r); };
@@ -223,43 +216,33 @@ export async function ask(prompt, o = {}) {
     child.stdout.on("data", (d) => { out += d; });
     child.stderr.on("data", (d) => { err += d; });
     child.on("error", (e) => fin({ error: e.message }));
-    // claude 刚起就退出时，写提示可能撞上 EPIPE：没人接的 error 会被 crashguard 当成「上游管道断了」让整个网关退出（0.6.9 审计 P1-5，v4pro 复核）
-    if (child.stdin) child.stdin.on("error", () => {});
     child.on("close", (code) => {
-      if (agyOnly) {
-        const cleanOut = stripAgyGlog(out), cleanErr = stripAgyGlog(err);
-        let j = null;
-        try { j = JSON.parse(cleanOut); } catch {}
-        if (!j) {
-          for (const l of cleanOut.split("\n").reverse()) {
-            if (!l.trim()) continue;
-            try { j = JSON.parse(l); break; } catch {}
-          }
+      const cleanOut = stripAgyGlog(out), cleanErr = stripAgyGlog(err);
+      let j = null;
+      try { j = JSON.parse(cleanOut); } catch {}
+      if (!j) {
+        for (const l of cleanOut.split("\n").reverse()) {
+          if (!l.trim()) continue;
+          try { j = JSON.parse(l); break; } catch {}
         }
-        const has = (k) => Object.prototype.hasOwnProperty.call(j, k);
-        if (j && typeof j === "object" && !Array.isArray(j) && (j.is_error || j.error || j.status === "ERROR" || has("result") || has("response") || has("text") || has("content"))) {
-          if (j.is_error || j.error || j.status === "ERROR") {
-            return fin({ error: String(j.result || j.error?.message || j.error || j.subtype || "error").slice(0, 300) });
-          }
-          const txt = typeof j.result === "string" ? j.result
-            : (typeof j.response === "string" ? j.response : (typeof j.text === "string" ? j.text : (typeof j.content === "string" ? j.content : "")));
-          const u = j.usage || j.stats || {};
-          return fin({
-            text: txt,
-            tin: (u.input_tokens || u.inputTokens || 0) + (u.cache_read_tokens || u.cache_read_input_tokens || u.cachedContentTokenCount || 0) + (u.cache_creation_input_tokens || 0),
-            tout: u.output_tokens || u.outputTokens || 0,
-          });
-        }
-        if (code === 0 && cleanOut) return fin({ text: cleanOut, tin: 0, tout: 0 });
-        return fin({ error: (cleanErr || cleanOut).trim().slice(-300) || "no output" });
       }
-      let j = null; try { j = JSON.parse(out.trim().split("\n").pop()); } catch {}
-      if (!j) return fin({ error: (err || out).trim().slice(-300) || "no output" });
-      if (j.is_error) return fin({ error: String(j.result || j.subtype || "error").slice(0, 300) });
-      const u = j.usage || {};
-      fin({ text: j.result || "", tin: (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0), tout: u.output_tokens || 0 });
+      const has = (k) => Object.prototype.hasOwnProperty.call(j, k);
+      if (j && typeof j === "object" && !Array.isArray(j) && (j.is_error || j.error || j.status === "ERROR" || has("result") || has("response") || has("text") || has("content"))) {
+        if (j.is_error || j.error || j.status === "ERROR") {
+          return fin({ error: String(j.result || j.error?.message || j.error || j.subtype || "error").slice(0, 300) });
+        }
+        const txt = typeof j.result === "string" ? j.result
+          : (typeof j.response === "string" ? j.response : (typeof j.text === "string" ? j.text : (typeof j.content === "string" ? j.content : "")));
+        const u = j.usage || j.stats || {};
+        return fin({
+          text: txt,
+          tin: (u.input_tokens || u.inputTokens || 0) + (u.cache_read_tokens || u.cache_read_input_tokens || u.cachedContentTokenCount || 0) + (u.cache_creation_input_tokens || 0),
+          tout: u.output_tokens || u.outputTokens || 0,
+        });
+      }
+      if (code === 0 && cleanOut) return fin({ text: cleanOut, tin: 0, tout: 0 });
+      return fin({ error: (cleanErr || cleanOut).trim().slice(-300) || "no output" });
     });
-    if (child.stdin) child.stdin.end(prompt);
   });
 }
 
@@ -323,8 +306,6 @@ async function start(only) {
   let targets = await backfillTargets();
   if (only) targets = targets.filter((t) => t.id === only);
   if (!targets.length) return { ok: false, message: "nothing" };
-  // 和正式运行一样：全局那家（非官方登录）经本地 DNS 桥，先把桥拉起来
-  if (!isLoginMode() && !(await ensureBridge())) return { ok: false, message: "bridge" };
   Object.assign(JOB, { running: true, stop: false, sessions: targets.length, total: targets.reduce((n, t) => n + t.chapters.length, 0), done: 0, ok: 0, skipped: 0, failed: 0, tin: 0, tout: 0, error: "", startedAt: Date.now(), endedAt: 0 });
   log(`补档开始：${JOB.sessions} 个会话、${JOB.total} 章（模型 ${SETTINGS.model || "默认"}）`);
   tick();

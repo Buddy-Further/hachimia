@@ -18,7 +18,7 @@ import { fileURLToPath } from "node:url";
 import { CFG } from "../gw/config.mjs";
 import { run7z } from "../gw/archiver.mjs";
 import { claudeSeal } from "../gw/claudeseal.mjs";
-import { claudeEnv } from "../gw/claude.mjs";
+import { agyEnv, toolEnv } from "../gw/claude.mjs";
 import { createAcpClient } from "../gw/acp.mjs";
 import { tamperAck, tamperNote } from "../gw/tamper.mjs";
 import { i18nFnProblem } from "../../i18n/fnsafe.mjs";
@@ -171,11 +171,12 @@ test("1.2: install-agy.mjs --recheck 拒绝执行或洗白篡改二进制；全�
   assert.equal(fs.existsSync(path.join(dest, "9.9.9")), false, "绝不能新建 9.9.9 目录");
   assert.equal(fs.readlinkSync(path.join(dest, "current")), "1.5.14", "不得改写 current 软链");
 
-  // 校准：claudeEnv 与 createAcpClient 强制锁定 AGY_CLI_DISABLE_AUTO_UPDATE="true"
+  // 校准：toolEnv、agyEnv 与 createAcpClient 强制锁定 AGY_CLI_DISABLE_AUTO_UPDATE="true"
   const prevAuto = process.env.AGY_CLI_DISABLE_AUTO_UPDATE;
   process.env.AGY_CLI_DISABLE_AUTO_UPDATE = "1";
   try {
-    assert.equal(claudeEnv().AGY_CLI_DISABLE_AUTO_UPDATE, "true");
+    assert.equal(toolEnv().AGY_CLI_DISABLE_AUTO_UPDATE, "true");
+    assert.equal(agyEnv({ sync: false }).AGY_CLI_DISABLE_AUTO_UPDATE, "true");
     const spy = path.join(WORK, "spy-acp-env");
     const outFile = path.join(WORK, "spy-acp-env.out");
     fs.writeFileSync(spy, `#!${SH_BIN}\nprintf '%s' "$AGY_CLI_DISABLE_AUTO_UPDATE" > ${JSON.stringify(outFile)}\nexit 0\n`, { mode: 0o755 });

@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { agyEnv, claudeEnv, ensureLoaderBin } from "../gw/claude.mjs";
+import { agyEnv, toolEnv, ensureLoaderBin } from "../gw/claude.mjs";
 import { loginBrowserEnv } from "../gw/login.mjs";
 import { termEnv } from "../gw/terminal.mjs";
 
@@ -72,8 +72,8 @@ test("agyEnv 与 loginBrowserEnv：loader 模式下把 loader-bin 挂在 PATH �
     assert.equal(env.CCAPP_SHELL, "/fake/usr/bin/bash");
     assert.equal(env.PATH.split(":")[0], loaderBin);
 
-    const cenv = claudeEnv();
-    assert.equal(cenv.PATH.split(":")[0], loaderBin, "claudeEnv 在 loader 模式下也须把 loader-bin 置于 PATH 首位");
+    const cenv = toolEnv();
+    assert.equal(cenv.PATH.split(":")[0], loaderBin, "toolEnv 在 loader 模式下也须把 loader-bin 置于 PATH 首位");
     assert.equal(cenv.SHELL, path.join(loaderBin, "bash"));
     const tenv = termEnv();
     assert.equal(tenv.PATH.split(":")[0], loaderBin, "内置终端 termEnv 在 loader 模式下也须具备 loader-bin 跳板");

@@ -11,7 +11,8 @@ const root = fs.mkdtempSync(path.join(process.env.CCAPP_WORKSPACE, "a0610-bf-"))
 const cli = path.join(root, "fake-cli.sh");
 const sh = fs.existsSync("/system/bin/sh") ? "/system/bin/sh" : "/bin/sh";
 fs.writeFileSync(cli, `#!${sh}\nexec 0<&-\nexit 1\n`, { mode: 0o700 });
-const prev = { claude: PATHS.claude, loader: PATHS.loader, claudeLoader: PATHS.claudeLoader };
+const prev = { agy: PATHS.agy, claude: PATHS.claude, loader: PATHS.loader, claudeLoader: PATHS.claudeLoader };
+PATHS.agy = cli;
 PATHS.claude = process.execPath;
 PATHS.loader = PATHS.claudeLoader = cli;
 const { SETTINGS } = await import("../gw/settings-store.mjs");

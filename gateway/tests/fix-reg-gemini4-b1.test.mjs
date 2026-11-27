@@ -117,16 +117,6 @@ test("B1 懒迁移：import 完成时落盘文件仍是旧钉选", () => {
   assert.equal(schedDisk().tasks.find((t) => t.id === "task-g4-old").provider, "anthropic", "import 完成时任务钉选不得已跑（懒迁移）");
 });
 
-test("B1 非 agy-only 设备上 Claude 预置仍可用，项目与任务钉选不得迁移", () => {
-  PATHS.agy = NO_AGY; PATHS.claude = NO_CLAUDE;
-  try {
-    assert.deepEqual(migrateHiddenProjectPins(), [], "非 agy-only 时项目不得迁移");
-    assert.deepEqual(migrateHiddenTaskPins(), [], "非 agy-only 时任务不得迁移");
-    assert.equal(projDisk().find((p) => p.id === "proj-g4-old").provider, "anthropic", "钉选应原样保留");
-    assert.equal(schedDisk().tasks.find((t) => t.id === "task-g4-old").provider, "anthropic");
-  } finally { PATHS.agy = fakeAgy; PATHS.claude = NO_CLAUDE; }
-});
-
 test("B1 项目默认钉选迁移：首次读 projectDefaults 时迁回 antigravity，模型置空、落盘、幂等", () => {
   // 触发点是 projectDefaults（effectiveModel / pickProvider / startRun 都经它）：
   // 调用之前磁盘仍是旧值，调用之后即迁移——不用直接调迁移函数。
