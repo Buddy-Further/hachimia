@@ -92,6 +92,8 @@ public class GatewayService extends Service {
     private long startSeq;
     /** 最近一次 onStartCommand 的 startId：停机收尾改用 stopSelfResult，避免杀掉刚到来的新启动请求 */
     private int lastStartId;
+    /** 当前是否处于前台通知状态（由 life 锁保护：stopForeground 与 onStartCommand 补挂 startForeground 同锁互斥） */
+    private boolean foreground;
     /** 自己拉起的网关刚起来时的宽限：这几秒还答不了身份证明（同 alive()） */
     static final long PROOF_GRACE_MS = 20000;
     /** 过了宽限还连续这么久证明不了自己：结束重起（BUG-A01） */
@@ -133,9 +135,7 @@ public class GatewayService extends Service {
         ch.setDescription(Tr.t("保持网关与正在进行的任务在后台运行"));
         ch.setShowBadge(false);
         nm.createNotificationChannel(ch);
-        // 34 起要带类型（与清单的 specialUse 对应）；早的系统用两参数版
-        if (Build.VERSION.SDK_INT >= 34) startForeground(1, note(Tr.t("正在启动…")), 0x40000000 /* FOREGROUND_SERVICE_TYPE_SPECIAL_USE */);
-        else startForeground(1, note(Tr.t("正在启动…")));
+        synchronized (life) { startFg(Tr.t("正在启动…")); }
 
         PowerManager pm = getSystemService(PowerManager.class);
         wake = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "hachimia:gateway");
@@ -239,6 +239,10 @@ public class GatewayService extends Service {
                 stopping = false;
                 lifeGen++;
             }
+            if (needsForegroundOnStart(false, foreground)) {
+                startFg(Tr.t("正在启动…"));
+                last = null;
+            }
             if (freezeWatcher == null || !freezeWatcher.isAlive()) watchFreeze();
             if (supervisor == null || !supervisor.isAlive()) {
                 supervisor = new Thread(this::supervise, "gateway-supervisor");
@@ -294,18 +298,21 @@ public class GatewayService extends Service {
             stopping = true;
         }
         killGatewayAsync(() -> {
+            boolean stopped;
             synchronized (life) {
                 if (!shouldFinishStop(stopping, mySeq, startSeq)) return;
+                foreground = false;
+                stopForeground(true);
+                if (myStartId > 0) stopped = stopSelfResult(myStartId);
+                else { stopSelf(); stopped = true; }
             }
-            ShizukuSetup.get(this).onExit();
-            stopForeground(true);
-            if (myStartId > 0) stopSelfResult(myStartId);
-            else stopSelf();
+            if (stopped) ShizukuSetup.get(this).onExit();
         });
     }
 
     /** 停机；给了 seenSeq（划掉后的空闲查询）就先在锁里复核用户没回来、服务没被重新拉起，不能停就返回 false。
-     *  代次和 stopping 在锁里定，退出锁才去杀进程 / 停前台：别让等这把锁的主线程跟着等网关收尾的 5 秒 */
+     *  代次和 stopping 在锁里定，退出锁才去杀进程：别让等这把锁的主线程跟着等网关收尾的 5 秒；
+     *  复核通过后的 stopForeground / stopSelfResult 回到 life 锁内原子执行，避免与新来的 onStartCommand 交错。 */
     private boolean shutdownIfIdle(Long seenSeq) {
         final long mySeq;
         final int myStartId;
@@ -318,19 +325,22 @@ public class GatewayService extends Service {
         }
         killGateway();
         // killGateway 最多等 5 秒：期间如果用户重开界面或闹钟再次调起 onStartCommand，服务已复活，不能继续停掉它
+        boolean stopped;
         synchronized (life) {
             if (!shouldFinishStop(stopping, mySeq, startSeq)) return false;
+            foreground = false;
+            stopForeground(true);
+            if (myStartId > 0) stopped = stopSelfResult(myStartId);
+            else { stopSelf(); stopped = true; }
         }
-        ShizukuSetup.get(this).onExit();
-        stopForeground(true);
-        if (myStartId > 0) stopSelfResult(myStartId);
-        else stopSelf();
-        return true;
+        if (stopped) ShizukuSetup.get(this).onExit();
+        return stopped;
     }
 
     @Override public void onDestroy() {
         if (self == this) self = null;
-        synchronized (life) { lifeGen++; stopping = true; }
+        gwBlocked = null;
+        synchronized (life) { lifeGen++; stopping = true; foreground = false; }
         Updater.get(this).stopLoop();
         Notify.get(this).stop();
         killGatewayAsync();
@@ -363,8 +373,9 @@ public class GatewayService extends Service {
                     if (!env.devkitReady()) { update(Tr.t("工具链未安装")); sleep(3000); continue; }
                     // 走到这里的是接手的网关（不是本服务拉起的，拉起的在下面 waitFor 里，一退出就作废核身份缓存）：
                     // 2 秒看一次，缩短它挂掉到发现端口换了人之间的空档（审查 10-30 第九份 中5）
-                    if (alive()) { update(Tr.t("运行中 · 127.0.0.1:") + Env.PORT); sleep(2000); continue; }
+                    if (alive()) { gwBlocked = null; update(Tr.t("运行中 · 127.0.0.1:") + Env.PORT); sleep(2000); continue; }
                     int sq = squatted();
+                    if (shouldClearBlockedOnAdopt(sq)) gwBlocked = null;
                     if (sq == SQUAT_ADOPTED || sq == SQUAT_WAIT) { sleep(500); continue; }   // 真网关起来了 / 残留网关在安装：回循环顶部让 alive() 再判断，别抢端口、别杀它
                     if (sq == SQUAT_HIJACKED) {
                         update(Tr.f("端口 {0} 被别的应用占着，网关起不来。重启手机，或卸载最近装的可疑应用", Env.PORT));
@@ -595,6 +606,23 @@ public class GatewayService extends Service {
         return stoppingNow && seqAtStart == seqNow;
     }
 
+    /** 非停机启动请求到达时，若前台状态已因停机收尾而撤销，必须重挂 startForeground（防复用实例抛 ForegroundServiceDidNotStartInTimeException） */
+    static boolean needsForegroundOnStart(boolean stopAction, boolean isForeground) {
+        return !stopAction && !isForeground;
+    }
+
+    /** squatted() 采纳了健康网关时清除残留 gwBlocked 拦截原因 */
+    static boolean shouldClearBlockedOnAdopt(int sq) {
+        return sq == SQUAT_ADOPTED;
+    }
+
+    private void startFg(String text) {
+        Notification n = note(text);
+        if (Build.VERSION.SDK_INT >= 34) startForeground(1, n, 0x40000000 /* FOREGROUND_SERVICE_TYPE_SPECIAL_USE */);
+        else startForeground(1, n);
+        foreground = true;
+    }
+
     /** 自己拉起的网关还活着、却一直证明不了自己：过了启动宽限，又连续失联这么久，就该结束重起（BUG-A01） */
     static boolean unprovenTooLong(long now, long spawnedAt, long unprovenSince) {
         return unprovenSince > 0 && now - spawnedAt >= PROOF_GRACE_MS && now - unprovenSince >= UNPROVEN_KILL_MS;
@@ -748,7 +776,7 @@ public class GatewayService extends Service {
         if (p != null && p.isAlive()) {
             // 自己拉起的进程还活着：也要有证明。刚起的几秒网关还没监听好，给一段宽限；
             // 过了宽限还证明不了自己（卡死、端口被别人接了）就结束它重起 —— 以前根本不看证明结果（0.6.9 审计 13-02）
-            if (Env.proveGateway()) { aliveUnprovenSince = 0; return true; }
+            if (Env.proveGateway()) { aliveUnprovenSince = 0; gwBlocked = null; return true; }
             if (installingGrace()) { aliveUnprovenSince = 0; return true; }   // 组件安装合法占着事件循环：探活失败不算数
             long now = System.currentTimeMillis();
             // 一次探活失败不算数：组件安装等重活会把事件循环占住一会儿，探活 1.5 秒超时很正常。
@@ -766,7 +794,8 @@ public class GatewayService extends Service {
         // 正在安装的残留网关（服务重建、proc==null、端口还被它占着）先别判死；自己拉起的进程死了
         // （proc 非 null 但 isAlive 为假）绝不宽限——心跳文件可能还是新的，但网关已经不在了（复核 R2-P1-3）
         if (proc == null && Env.portBusy() && installingGrace()) return true;
-        return Env.proveGateway();
+        if (Env.proveGateway()) { gwBlocked = null; return true; }
+        return false;
     }
 
     /** /proc/<pid>/cmdline（\0 分隔）是不是本应用的网关：现在经引导起（node --input-type=module -e <boot.mjs> <files/app> <端口>），

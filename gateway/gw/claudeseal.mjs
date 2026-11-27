@@ -57,7 +57,7 @@ async function sha256Async(f) {
 
 const SEAL_INFLIGHT = new Map();
 /**
- * 返回 { ok: true }（校验通过）/ { ok: false, why }（检测到篡改或不符）/ { ok: null, why }（开发模式或无清单，放行）。
+ * 返回 { ok: true }（校验通过）/ { ok: false, why }（检测到篡改、清单缺失/损坏或不符）/ { ok: null, why }（开发模式或二进制不存在，放行）。
  */
 export async function claudeSeal(bin0 = PATHS.agy || PATHS.claude, { force = false, home = CFG.home } = {}) {
   if (!DEPLOYED && !force) return { ok: null, why: "dev" };
@@ -76,18 +76,18 @@ export async function claudeSeal(bin0 = PATHS.agy || PATHS.claude, { force = fal
     if (fs.existsSync(path.join(dir, ".mismatch"))) {
       res = { ok: false, why: "recheck found agy binary does not match manifest" };
     } else if (!fs.existsSync(mf)) {
-      res = { ok: null, why: "no local manifest" };
+      res = { ok: false, why: "no local manifest" };
     } else {
       let j;
       try {
         j = JSON.parse(await fs.promises.readFile(mf, "utf8"));
       } catch (e) {
-        res = { ok: null, why: "manifest read error: " + e.message };
+        res = { ok: false, why: "manifest read error: " + e.message };
       }
       if (!res) {
         const want = j && typeof j.sha256 === "string" ? j.sha256 : "";
         if (!/^[a-f0-9]{64}$/.test(want)) {
-          res = { ok: null, why: "manifest has no sha256" };
+          res = { ok: false, why: "manifest has no sha256" };
         } else {
           try {
             const got = await sha256Async(bin);

@@ -292,6 +292,7 @@ export function claudeEnv(o = {}) {
     // 别家（会话钉的不是全局那家）也直连：桥只有一个上游，跟着全局走；claude（Bun）自己解析 DNS，用不着桥
     ANTHROPIC_BASE_URL: NO_BRIDGE || other ? (p.baseUrl || "") : `http://127.0.0.1:${CFG.bridgePort}`,
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
+    AGY_CLI_DISABLE_AUTO_UPDATE: "true",
     // 自带的 ripgrep 按 /proc/self/exe 找，经加载器起的 claude 那是加载器本身：Grep / Glob 不报错、一律「没找到」（2.1.311 实测）。
     // 改用 PATH 里的 rg：工具包装了「命令行增强」用它的，没装落到 app/bin/rg（经加载器以 argv0=rg 调 claude 自带的那份）
     USE_BUILTIN_RIPGREP: "0",

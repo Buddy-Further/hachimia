@@ -164,10 +164,20 @@ public class Stab2LHostTest {
         eq("APK 全为空返回 null",
             Apk.pickSigner(false, null, null, null) == null, true);
 
-        // ── GatewayService：killGateway 期间若收到新启动请求则放弃停机 ──
+        // ── GatewayService：killGateway 期间若收到新启动请求则放弃停机；前台撤销后复用重拉必须重挂 startForeground ──
         eq("STOP 仍停机且启动代次未变：继续 stopSelf", GatewayService.shouldFinishStop(true, 5, 5), true);
         eq("STOP 期间 onStartCommand 把 stopping 复位：放弃停机", GatewayService.shouldFinishStop(false, 5, 6), false);
         eq("STOP 期间启动代次递增：放弃停机", GatewayService.shouldFinishStop(true, 5, 6), false);
+        eq("Wave1 5.2 非停机启动且前台已撤销：必须重挂 startForeground",
+            GatewayService.needsForegroundOnStart(false, false), true);
+        eq("Wave1 5.2 非停机启动且已在前台：不重复闪通知",
+            GatewayService.needsForegroundOnStart(false, true), false);
+        eq("Wave1 5.2 停机意图不重挂前台",
+            GatewayService.needsForegroundOnStart(true, false), false);
+        eq("Wave1 Bug5 SQUAT_ADOPTED 清除 gwBlocked",
+            GatewayService.shouldClearBlockedOnAdopt(GatewayService.SQUAT_ADOPTED), true);
+        eq("Wave1 Bug5 SQUAT_HIJACKED 不清除 gwBlocked",
+            GatewayService.shouldClearBlockedOnAdopt(GatewayService.SQUAT_HIJACKED), false);
 
         // ── Env.probeLoopback：后台探测 127.0.0.2（不走主线程、显式 NO_PROXY）──
         try {

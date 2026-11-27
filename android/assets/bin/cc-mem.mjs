@@ -77,7 +77,7 @@ const CLASS_NAME = { pers: "常驻", sys: "系统", fg: "前台", vis: "可见",
 // 动了会出事的系统组件（多数本来就在常驻档，这里兜底）
 const CORE = [/^android$/, /^android\./, /^com\.android\.(systemui|phone|providers\..*|networkstack.*|bluetooth|nfc|se|shell|server\..*|inputdevices|location\.fused|externalstorage|mtp|settings|permissioncontroller|packageinstaller|vending)$/,
   /^com\.google\.android\.(permissioncontroller|packageinstaller)$/,      // 权限弹窗、安装确认被停掉会打断用户（审查 10-29 第六份 低1）
-  /^com\.google\.android\.(gms|gsf|ext\.services)$/, /^moe\.shizuku\.privileged\.api$/, /^cc\.codroid$/, /^li\.dsh\./,
+  /^com\.google\.android\.(gms|gsf|ext\.services)$/, /^moe\.shizuku\.privileged\.api$/, /^ha\.chi\.mia$/, /^cc\.codroid$/, /^li\.dsh\./,
   /shizuku|rikka/i];   // 包名带这两个词的（Shizuku 的周边应用）：停它们的 am 命令会被 cccodroid 当成动到 Shizuku，在后台直接拒掉（审查 0601d）
 
 /** 进程分档（lru）+ 每个进程加载了哪些包（processes）。

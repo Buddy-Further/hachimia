@@ -119,7 +119,7 @@ async function devUpdInstall(version) {
     const out = await new Promise((resolve, reject) => {
       execFile(process.execPath, [INSTALL_AGY_SCRIPT, want], {
         timeout: 10 * 60_000, maxBuffer: 4 << 20,
-        env: { ...process.env, HOME: CFG.home, TMPDIR: process.env.TMPDIR || path.join(CFG.home, ".cache") },
+        env: { ...process.env, HOME: CFG.home, TMPDIR: process.env.TMPDIR || path.join(CFG.home, ".cache"), AGY_CLI_DISABLE_AUTO_UPDATE: "true" },
       }, (e, stdout, stderr) => {
         const tail = String((stdout || "") + "\n" + (stderr || "")).trim().split("\n").slice(-5).join("；");
         if (e) reject(new Error(tail || e.message));

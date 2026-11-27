@@ -49,7 +49,7 @@ const lexists = (x) => { try { fs.lstatSync(x); return true; } catch { return fa
 
 // ── 跑 7-Zip ─────────────────────────────────────────────────────────
 /** 起 7zz。password 有就写进标准输入（7-Zip 要口令时从这里读），没有就关掉标准输入（要口令时它报 Break signaled 退出） */
-function run7z(args, { cwd, password, stdin, onStdout, signal, timeoutMs = 0, maxOut = RUN7Z_OUT_MAX } = {}) {
+export function run7z(args, { cwd, password, stdin, onStdout, signal, timeoutMs = 0, maxOut = RUN7Z_OUT_MAX } = {}) {
   const bin = sevenZ();
   if (!bin) return Promise.reject(Object.assign(new Error("7-Zip not available"), { code: "NO7Z" }));
   if (signal?.aborted) return Promise.reject(Object.assign(new Error("aborted"), { code: "ABORT_ERR" }));
@@ -82,7 +82,7 @@ function run7z(args, { cwd, password, stdin, onStdout, signal, timeoutMs = 0, ma
       outLen += d.length;
     });
     c.stderr.on("data", (d) => { if (err.length < 65536) err += d; });
-    if (stdin) stdin.pipe(c.stdin);
+    if (stdin) { c.stdin.on("error", () => {}); stdin.pipe(c.stdin); }
     else if (password != null) { c.stdin.on("error", () => {}); c.stdin.end(password + "\n"); }
     c.on("error", (e) => {
       cleanup();

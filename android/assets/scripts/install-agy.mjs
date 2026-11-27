@@ -14,9 +14,6 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
 
-const INSTALL_URL = process.env.HACHIMIA_AGY_INSTALL_URL || "https://antigravity.google/cli/install.sh";
-// 官方 install.sh 从这份 manifest 取版本号与下载地址（install.sh 本身不含版本变量，--check 直接问这里）
-const MANIFEST_BASE = process.env.HACHIMIA_AGY_MANIFEST_BASE || "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests";
 const PREFIX = process.env.PREFIX || "";
 const CURL = PREFIX ? path.join(PREFIX, "bin", "curl") : "curl";
 const SH = fs.existsSync(path.join(PREFIX, "bin", "bash"))
@@ -25,9 +22,41 @@ const SH = fs.existsSync(path.join(PREFIX, "bin", "bash"))
 const HOME = process.env.HOME || process.env.CCAPP_HOME || "";
 const DEST = path.join(HOME, ".local", "share", "hachimia", "agy");
 const ARG = process.argv[2] || "stable";
+const IS_TEST = process.env.CCAPP_TEST === "1";
 
 const say = (s) => console.log(s);
 const die = (s) => { console.error("✗ " + s); process.exit(1); };
+
+const DEFAULT_INSTALL_URL = "https://antigravity.google/cli/install.sh";
+const DEFAULT_MANIFEST_BASE = "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests";
+
+function resolveTrustedUrl(raw, defaultUrl, allowedOrigins, label) {
+  if (!raw) return defaultUrl;
+  let u;
+  try { u = new URL(raw); } catch { die(`无效的 ${label} URL：${raw}`); }
+  if (IS_TEST) {
+    if (u.protocol === "https:" || u.protocol === "http:") return raw;
+    die(`无效的 ${label} 协议：${u.protocol}`);
+  }
+  if (u.protocol !== "https:" || u.username || u.password || !allowedOrigins.includes(u.origin)) {
+    die(`拒绝不受信任的 ${label}：${raw}`);
+  }
+  return raw;
+}
+
+const INSTALL_URL = resolveTrustedUrl(
+  process.env.HACHIMIA_AGY_INSTALL_URL,
+  DEFAULT_INSTALL_URL,
+  ["https://antigravity.google"],
+  "HACHIMIA_AGY_INSTALL_URL",
+);
+// 官方 install.sh 从这份 manifest 取版本号与下载地址（install.sh 本身不含版本变量，--check 直接问这里）
+const MANIFEST_BASE = resolveTrustedUrl(
+  process.env.HACHIMIA_AGY_MANIFEST_BASE,
+  DEFAULT_MANIFEST_BASE,
+  ["https://antigravity.google", "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app"],
+  "HACHIMIA_AGY_MANIFEST_BASE",
+);
 
 const sha256 = (f) => {
   const h = crypto.createHash("sha256");
@@ -46,15 +75,6 @@ function parseVersion(text) {
   const m = String(text || "").match(/\b(\d+\.\d+\.\d+(?:-[0-9A-Za-z.+-]+)?)\b/);
   return m ? m[1] : "";
 }
-
-const cmpVer = (a, b) => {
-  const [ab, ...ap] = String(a).split("-"), [bb, ...bp] = String(b).split("-");
-  const x = ab.split(".").map(Number), y = bb.split(".").map(Number);
-  for (let i = 0; i < Math.max(x.length, y.length); i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d < 0 ? -1 : 1; }
-  const pa = ap.join("-"), pb = bp.join("-");
-  if (!pa || !pb) return pa ? -1 : pb ? 1 : 0;
-  return pa < pb ? -1 : pa > pb ? 1 : 0;
-};
 
 function probeBinVersion(bin, timeoutMs = 10000) {
   const env = {
@@ -97,8 +117,17 @@ function installedVersion() {
 }
 
 function curlSmall(url, timeoutSec = 20) {
+  let proto = "=https";
+  if (IS_TEST) {
+    try {
+      const u = new URL(url);
+      if (u.protocol === "http:" && (u.hostname === "127.0.0.1" || u.hostname === "localhost" || u.hostname === "::1")) {
+        proto = "=http,https";
+      }
+    } catch {}
+  }
   const r = spawnSync(CURL, [
-    "-fsSL", "--proto", "=https", "--proto-redir", "=https",
+    "-fsSL", "--proto", proto, "--proto-redir", proto,
     "--connect-timeout", "10", "--max-time", String(timeoutSec), url,
   ], { maxBuffer: 16 << 20 });
   if (r.status === 0) return { ok: true, data: r.stdout };
@@ -135,8 +164,6 @@ if (ARG === "--check") {
 // ── --recheck：校验已装二进制与本地清单 sha256 ──
 if (ARG === "--recheck") {
   let bad = 0;
-  let curDir = "";
-  try { curDir = fs.realpathSync(path.join(DEST, "current")); } catch {}
   for (const d of (() => { try { return fs.readdirSync(DEST); } catch { return []; } })()) {
     const dir = path.join(DEST, d);
     const bin = path.join(dir, "agy");
@@ -157,49 +184,14 @@ if (ARG === "--recheck") {
         fs.rmSync(path.join(dir, ".mismatch"), { force: true });
         say(`✓ ${d}：sha256 一致`);
       } else {
-        // 检查是否为历史版本里 agy 内置自更新原地覆写（例如 1.5.14/agy 被自更新成 1.5.15）：
-        // 若二进制本身可正常报出更高版本号 actualVer，则归位到 actualVer 目录（或清理已被新目录取代的漂移旧目录），避免误报篡改与版本选单假条目。
-        const actualVer = probeBinVersion(bin, 10000);
-        if (isVer(actualVer) && actualVer !== d && cmpVer(actualVer, d) > 0) {
-          const targetDir = path.join(DEST, actualVer);
-          const targetBin = path.join(targetDir, "agy");
-          const targetMf = path.join(targetDir, "manifest.json");
-          let targetReady = false;
-          if (fs.existsSync(targetBin) && fs.existsSync(targetMf)) {
-            try {
-              const tm = JSON.parse(fs.readFileSync(targetMf, "utf8"));
-              targetReady = Boolean(tm.sha256 && sha256(targetBin) === tm.sha256);
-            } catch {}
-          }
-          if (!targetReady) {
-            fs.mkdirSync(targetDir, { recursive: true });
-            fs.copyFileSync(bin, targetBin);
-            fs.chmodSync(targetBin, 0o755);
-            fs.writeFileSync(targetMf, JSON.stringify({
-              name: "agy",
-              version: actualVer,
-              sha256: got,
-              source: m.source || INSTALL_URL,
-              installedAt: new Date().toISOString(),
-            }, null, 2) + "\n");
-            targetReady = true;
-          }
-          if (targetReady) {
-            if (curDir === dir) {
-              switchCurrentLink(actualVer);
-              curDir = fs.realpathSync(path.join(DEST, "current"));
-            }
-            fs.rmSync(dir, { recursive: true, force: true });
-            say(`✓ ${d}：检测到历史原地自更新（实为 ${actualVer}），已归位并清理漂移目录`);
-            continue;
-          }
-        }
+        // sha256 不符时绝不执行待校验二进制（避免篡改二进制借 --version 自洗白），直接记 .mismatch 报错
         bad++;
         fs.writeFileSync(path.join(dir, ".mismatch"), got + "\n");
         say(`✗ ${d}：sha256 不符（期望 ${String(m.sha256 || "").slice(0, 12)}…，实得 ${got.slice(0, 12)}…）`);
       }
     } catch (e) {
       bad++;
+      try { fs.writeFileSync(path.join(dir, ".mismatch"), "manifest-error\n"); } catch {}
       say(`✗ ${d}：清单读取失败（${e.message}）`);
     }
   }
@@ -297,19 +289,11 @@ try {
   const realFound = fs.realpathSync(found);
   fs.chmodSync(realFound, 0o755);
   // 刚装好的二进制必须自己能跑、且 --version 报得出版本号（A5/E-11）：
-  // 报不出就说明装进来的东西是坏的或输出格式变了，不能把它钉成当前版，更不能回退到 0.0.0-local
-  const probeEnv = {
-    ...process.env,
-    AGY_CLI_DISABLE_AUTO_UPDATE: "true",
-    DBUS_SESSION_BUS_ADDRESS: process.env.DBUS_SESSION_BUS_ADDRESS || "unix:path=/nonexistent",
-  };
-  const vr = spawnSync(realFound, ["--version"], { encoding: "utf8", timeout: 15000, env: probeEnv });
-  if (vr.status !== 0) {
-    throw new Error(`刚装好的 agy 无法运行（--version 退出码 ${vr.status ?? "null"}${vr.signal ? `（信号 ${vr.signal}）` : ""}），未安装`);
-  }
-  const ver = parseVersion(vr.stdout || vr.stderr);
-  if (!ver) {
-    throw new Error(`刚装好的 agy --version 没有报出版本号（输出：${String(vr.stdout || vr.stderr || "").trim().slice(0, 200) || "（空）"}），未安装`);
+  // 报不出就说明装进来的东西是坏的或输出格式变了，不能把它钉成当前版，更不能回退到 0.0.0-local；
+  // 使用 probeBinVersion 兼容 targetSdk 36 的 linker64 加载器回退（Bug 3.2）
+  const ver = probeBinVersion(realFound, 15000);
+  if (!ver || !isVer(ver)) {
+    throw new Error("刚装好的 agy 无法运行或 --version 没有报出有效版本号，未安装");
   }
   if (wantVer && ver !== wantVer) {
     throw new Error(`目标版本 ${wantVer} 与上游安装脚本实际安装的版本 ${ver} 不一致（上游脚本暂不支持指定历史版本），未覆盖当前版本`);
@@ -323,12 +307,12 @@ try {
   fs.chmodSync(finalBin, 0o755);
 
   // 拷贝后的最终文件再校验一次 --version（A5）：截断/损坏的拷贝 sha256 是现算的，能自洽过关，但跑不起来
-  const vr2 = spawnSync(finalBin, ["--version"], { encoding: "utf8", timeout: 15000, env: probeEnv });
-  if (vr2.status !== 0 || parseVersion(vr2.stdout || vr2.stderr) !== ver) {
+  const ver2 = probeBinVersion(finalBin, 15000);
+  if (ver2 !== ver) {
     try { fs.rmSync(finalBin, { force: true }); } catch {}
     try { fs.rmSync(path.join(verDir, "manifest.json"), { force: true }); } catch {}
     if (!verDirExisted) { try { fs.rmSync(verDir, { recursive: true, force: true }); } catch {} }
-    throw new Error(`拷贝后的 agy 无法运行或版本号不对（期望 ${ver}），未安装`);
+    throw new Error(`拷贝后的 agy 无法运行或版本号不对（期望 ${ver}，实得 ${ver2 || "无"}），未安装`);
   }
 
   const sum = sha256(finalBin);

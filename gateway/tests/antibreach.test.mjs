@@ -121,20 +121,22 @@ test("篡改留痕：界面待提示、点过就不提；模型只告诉一次",
   assert.equal(tamperRecord("runtime", []), null, "空的不记");
 });
 
-test("agy 程序核验：没清单放行（不算篡改）、清单没 sha256 也放行；对不上、.mismatch 补核都不起，sha256 对上就起", async () => {
+test("agy 程序核验：没清单或清单无 sha256 一律 fail-closed 拦下、对不上 / .mismatch 都不起，sha256 对上就起", async () => {
   const root = path.join(CFG.home, ".local", "share", "hachimia", "agy");
   const dir = path.join(root, "2.1.999"), bin = path.join(dir, "agy");
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(bin, "ELF fake");
   tamperAck(); tamperNote();
   const p0 = await claudeSeal(bin, { force: true });
-  assert.equal(p0.ok, null); assert.equal(p0.why, "no local manifest");
-  assert.equal(tamperPending().length, 0, "没清单只是还没核，不记成篡改");
-  // 清单里没有合法 sha256：也放行，不记篡改
+  assert.equal(p0.ok, false); assert.equal(p0.why, "no local manifest");
+  assert.ok(tamperPending().some((e) => e.src === "agy"), "缺清单应记为篡改拦截（fail-closed）");
+  tamperAck(); tamperNote();
+  // 清单里没有合法 sha256：fail-closed 拦下并记进 agy 篡改
   fs.writeFileSync(path.join(dir, "manifest.json"), JSON.stringify({ version: "2.1.999" }));
   const r1 = await claudeSeal(bin, { force: true });
-  assert.equal(r1.ok, null); assert.equal(r1.why, "manifest has no sha256");
-  assert.equal(tamperPending().length, 0);
+  assert.equal(r1.ok, false); assert.equal(r1.why, "manifest has no sha256");
+  assert.ok(tamperPending().some((e) => e.src === "agy"), "缺 sha256 应记为篡改拦截（fail-closed）");
+  tamperAck(); tamperNote();
   // 清单 sha256 对不上：不起，记进 agy 篡改
   fs.writeFileSync(path.join(dir, "manifest.json"), JSON.stringify({ version: "2.1.999", sha256: "0".repeat(64) }));
   const r2 = await claudeSeal(bin, { force: true });

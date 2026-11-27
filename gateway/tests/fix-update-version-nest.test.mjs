@@ -183,17 +183,17 @@ test("3. install-agy.mjs 离线切换已校验本地版本，且 --recheck 自�
     assert.equal(sw.status, 0, `本机已有且校验通过的历史版本应直接切换成功: ${sw.stderr}\n${sw.stdout}`);
     assert.equal(fs.readlinkSync(path.join(dest, "current")), "1.5.14");
 
-    // 模拟 1.5.14 目录被旧版后台自更新覆写成 1.5.15（sha256 与 1.5.14/manifest.json 不符，但 --version 报 1.5.15）
+    // 模拟 1.5.14/agy 被替换成吐出更高版本号 1.5.15 的二进制：--recheck 绝不执行它或借此重签洗白，必须按篡改拦截
     const upgradedBody = Buffer.from(`#!${SH_BIN}\nif [ "$1" = "--version" ]; then echo "agy 1.5.15"; exit 0; fi\nexit 0\n`);
     fs.writeFileSync(v14.bin, upgradedBody, { mode: 0o755 });
     const rcHeal = spawnSync(process.execPath, [INSTALL_SCRIPT, "--recheck"], {
       env: { ...process.env, HOME: fakeHome },
       encoding: "utf8",
     });
-    assert.equal(rcHeal.status, 0, `历史原地自更新目录应自动归位而非报篡改: ${rcHeal.stdout}\n${rcHeal.stderr}`);
-    assert.equal(fs.existsSync(path.join(dest, "1.5.14")), false, "漂移的 1.5.14 假目录应已清理");
-    assert.equal(fs.existsSync(path.join(dest, "1.5.15", "agy")), true, "应归位到真实的 1.5.15 目录");
-    assert.equal(fs.readlinkSync(path.join(dest, "current")), "1.5.15", "current 指向漂移目录时应一并切到真实版本目录");
+    assert.equal(rcHeal.status, 3, `sha256 不符即按篡改拦截，禁止自洗白: ${rcHeal.stdout}\n${rcHeal.stderr}`);
+    assert.equal(fs.existsSync(path.join(dest, "1.5.14", ".mismatch")), true, "应写入 .mismatch");
+    assert.equal(fs.existsSync(path.join(dest, "1.5.15")), false, "绝不能在未验签的情况下新建 1.5.15 目录");
+    assert.equal(fs.readlinkSync(path.join(dest, "current")), "1.5.14", "不得替篡改二进制切换 current 软链");
 
     // 对照：同版本号真篡改（1.5.16/agy 内容被改但仍自称 1.5.16）必须返回退出码 3 并写 .mismatch
     fs.writeFileSync(v16.bin, Buffer.from(`#!${SH_BIN}\nif [ "$1" = "--version" ]; then echo "agy 1.5.16"; exit 0; fi\necho tampered\n`), { mode: 0o755 });

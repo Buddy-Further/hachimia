@@ -1164,9 +1164,14 @@ function extractAcpUsage(u, prev = null, { isTurnTotal = false } = {}) {
  * @param {(line: string) => void} [opts.onStderr]
  */
 export function createAcpClient({ bin, args = ["acp"], cwd, env, onNotification, onRequest, onStderr, onClose }) {
+  const childEnv = {
+    ...(env || process.env),
+    AGY_CLI_DISABLE_AUTO_UPDATE: "true",
+    DBUS_SESSION_BUS_ADDRESS: (env || process.env).DBUS_SESSION_BUS_ADDRESS || "unix:path=/nonexistent",
+  };
   const child = spawn(bin, args, {
     cwd,
-    env,
+    env: childEnv,
     stdio: ["pipe", "pipe", "pipe"],
     detached: true,
   });
