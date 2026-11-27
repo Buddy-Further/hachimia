@@ -13,7 +13,7 @@ const runProvider = (sid) => providerById(effectiveModel(sid).provider) || PROVI
 import { isLoginMode } from "./models.mjs";
 import { findSessionFile, sessionPresence } from "./sessions.mjs";
 import { sealSession } from "./integrity.mjs";
-import { killRunProcs, killTree, safeModePerm } from "./claude.mjs";
+import { descendants, killRunProcs, killTree, safeModePerm } from "./claude.mjs";
 import { goalCheck, goalCheckAsync, tasksCheck } from "./goal.mjs";
 import { LAST_SESSION, RUNS, SESSIONS, TRASH_HOOKS, latestRun, maxParallel, runFlag, runList } from "./runs.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
@@ -444,8 +444,13 @@ export function endRun(run, fields = {}) {
 export function forceEnd(run) {
   if (!run || run.ended) return false;
   try { run.cancelPerms?.(); } catch {}
+  try { run.forceKillAcp?.(); } catch {}
   if (typeof run.forceFinish === "function") {
     try { run.forceFinish(); } catch (e) { log(`${runTag(run)} 强制收尾出错: ${e.message}`); }
+  }
+  killRunProcs(run.id, run.childStart);
+  if (run.originRunId && run.originRunId !== run.id) {
+    killRunProcs(run.originRunId, run.turnStartTicks ?? run.childStart);
   }
   if (run.ended) return true;
   try { run.agents?.close(); } catch {}
@@ -475,6 +480,12 @@ export function abortRun(run, { hold = true, userStopped = false } = {}) {
   if (acpStop) {
     log(`${runTag(run)} ⏹ 发送 ACP session/cancel`);
     try { run.cancelAcp(); } catch {}
+    if (run.originRunId && run.originRunId !== run.id) {
+      const cPid = run.child?.pid;
+      const excludePids = cPid ? [cPid, ...descendants(cPid)] : null;
+      const gone = killRunProcs(run.originRunId, run.turnStartTicks ?? run.childStart, { excludePids });
+      if (gone) log(`${runTag(run)} ⏹ 清掉这一轮脱出进程树的进程 ${gone} 个`);
+    }
     setTimeout(() => { if (!run.ended) forceEnd(run); }, 10000).unref();
   }
   if (!acpStop && run.child) {
@@ -482,7 +493,10 @@ export function abortRun(run, { hold = true, userStopped = false } = {}) {
     killTree(c);
     // setsid / nohup 双 fork 出去的已经不在进程树、也不在 claude 的进程组里，killTree 够不着：按这一轮的编号清掉（FIND-044）。
     // 只认在这一轮 claude 之后起来的，编号被别的进程抄去的不算
-    const gone = killRunProcs(run.id, run.childStart);
+    let gone = killRunProcs(run.id, run.childStart);
+    if (run.originRunId && run.originRunId !== run.id) {
+      gone += killRunProcs(run.originRunId, run.turnStartTicks ?? run.childStart);
+    }
     if (gone) log(`${runTag(run)} ⏹ 清掉这一轮脱出进程树的进程 ${gone} 个`);
     // 收尾靠 claude 的输出管道关掉（close 事件）。要是哪个子孙另开了进程组、攥着管道没被杀到，close 就永远不来，
     // 这一轮一直挂在「生成中」：5 秒还没收尾就再杀一遍、把管道关掉，还不行就直接收尾
@@ -490,7 +504,10 @@ export function abortRun(run, { hold = true, userStopped = false } = {}) {
       if (run.ended) return;
       log(`${runTag(run)} ⏹ 停止 5 秒后还没收尾，强制关掉 claude 的输出管道`);
       killTree(c);
-      const again = killRunProcs(run.id, run.childStart);
+      let again = killRunProcs(run.id, run.childStart);
+      if (run.originRunId && run.originRunId !== run.id) {
+        again += killRunProcs(run.originRunId, run.turnStartTicks ?? run.childStart);
+      }
       if (again) log(`${runTag(run)} ⏹ 清掉这一轮脱出进程树的进程 ${again} 个`);
       for (const s of [c.stdin, c.stdout, c.stderr]) try { s?.destroy(); } catch {}
       setTimeout(() => forceEnd(run), 2000).unref();

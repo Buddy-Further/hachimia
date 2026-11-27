@@ -39,6 +39,7 @@ export async function pget({ curl, url, file, total, n = 4, curlArgs = [], onPro
   // 并发下载多个组件时 8–12 路 curl 高速吐块，以前同步 fs.writeSync 会把事件循环堵死 >1.5s，触发宿主 /__proof 超时回 502
   const fh = await fs.promises.open(file, fs.existsSync(file) ? "r+" : "w+");
   let saveChain = Promise.resolve();
+  let tick = null;
   try {
     await fh.truncate(total);
     const doneBytes = () => total - st.segs.reduce((a, [s, e, p]) => a + (e - s + 1 - p), 0);
@@ -48,7 +49,7 @@ export async function pget({ curl, url, file, total, n = 4, curlArgs = [], onPro
       return saveChain;
     };
     const kids = new Set();
-    const tick = setInterval(() => { save(); onProgress(doneBytes()); if (cancelled()) for (const c of kids) c.kill("SIGKILL"); }, 1000);
+    tick = setInterval(() => { save(); onProgress(doneBytes()); if (cancelled()) for (const c of kids) c.kill("SIGKILL"); }, 1000);
     const runSeg = async (seg) => {
       let fatal = false;                                              // curl 根本起不来：重试也没用，直接让下一个来源接手
       for (let attempt = 0; seg[2] < seg[1] - seg[0] + 1; attempt++) {
@@ -107,12 +108,14 @@ export async function pget({ curl, url, file, total, n = 4, curlArgs = [], onPro
       return "";
     };
     const errs = await Promise.all(st.segs.map(runSeg));
-    clearInterval(tick); await save(); onProgress(doneBytes());
+    clearInterval(tick); tick = null;
+    await save(); onProgress(doneBytes());
     const bad = errs.find(Boolean);
     if (bad) return bad;
     fs.rmSync(segFile, { force: true });
     return "";
   } finally {
+    if (tick) { clearInterval(tick); tick = null; }
     await saveChain.catch(() => {});
     await fh.close().catch(() => {});
   }

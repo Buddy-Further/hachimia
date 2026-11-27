@@ -487,7 +487,7 @@ function startTicks(pid, st) {
  *  环境里已经没有 CCAPP_RUN=1 的不碰：去掉它是「这不是 claude 运行，是要常驻的服务」的约定（终端、openai-bridge 的
  *  start-bridge.sh 都这么做，reapOrphans 也按它认）。只认编号的话，用户让 Claude 起的桥 / 服务器一停这一轮就被杀。
  *  只在显式取消这条路上调；网关重启时那一套仍是 reapOrphans（用户还没定，别动）。返回清掉的进程数。 */
-export function killRunProcs(runId, sinceTicks = null) {
+export function killRunProcs(runId, sinceTicks = null, { excludePids = null } = {}) {
   if (runId == null || runId === "") return 0;
   const uid = process.getuid?.();
   if (uid == null) return 0;
@@ -496,6 +496,7 @@ export function killRunProcs(runId, sinceTicks = null) {
   };
   const self = new Set();
   for (let p = process.pid, i = 0; p > 1 && i < 64; i++) { self.add(p); p = ppidOf(p); }
+  if (excludePids) for (const ep of excludePids) if (Number.isInteger(ep) && ep > 0) self.add(ep);
   let names = [];
   try { names = fs.readdirSync("/proc"); } catch { return 0; }
   const victims = [];

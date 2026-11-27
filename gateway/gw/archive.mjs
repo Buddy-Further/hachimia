@@ -11,6 +11,7 @@ import path from "node:path";
 import { HERE, LAST_LANG, log, tz } from "./config.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
 import { RUNS } from "./runs.mjs";
+import { acpSessionByRunId } from "./acp.mjs";
 import { NAMES } from "./sessions.mjs";
 import { publish } from "./bus.mjs";
 import { lineageParent, lineageRecord } from "./lineage.mjs";
@@ -113,7 +114,7 @@ export async function routeArchive(req, res, u, p) {
   let b; try { b = JSON.parse((await readBody(req)) || "{}"); } catch { return sendJson(res, 400, { error: "bad json" }); }
   // AI 交档带的是本轮编号（环境变量 CCAPP_RUN_ID），网关换成会话号；界面上手改直接给会话号
   let sid = b.session ? String(b.session) : "", by = b.session ? "user" : "ai";
-  if (!sid && b.run) sid = RUNS.get(String(b.run))?.sessionId || "";
+  if (!sid && b.run) sid = RUNS.get(String(b.run))?.sessionId || acpSessionByRunId(String(b.run)) || "";
   if (!sid) return sendJson(res, 400, { ok: false, errors: ["cannot tell which session this is (run not found)"] });
   if (!SID.test(sid)) return sendJson(res, 400, { ok: false, errors: ["bad session id"] });
   const r = await fileChapter(sid, { title: b.title, same: !!b.same, status: b.status, chapter: b.chapter, misc: !!b.misc, by });

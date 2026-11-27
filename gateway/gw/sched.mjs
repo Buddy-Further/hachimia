@@ -140,9 +140,9 @@ const byId = (id) => DB.tasks.find((t) => t.id === id) || null;
 // F-7：待执行重试同时落盘到 DB.retries（ccapp-sched.json），网关重启后启动恢复重新排上，
 // 不再只活在内存 RETRY Map 里。
 const RETRY = new Map();
-const persistRetry = (id, at, attempt) => {
+const persistRetry = (id, at, attempt, allowAutoOff = false) => {
   DB.retries = (DB.retries || []).filter((r) => r.taskId !== id);
-  DB.retries.push({ taskId: id, at, attempt });
+  DB.retries.push({ taskId: id, at, attempt, allowAutoOff: !!allowAutoOff });
   save();
 };
 const dropPersistedRetry = (id) => {
@@ -170,7 +170,7 @@ const scheduleRetry = (id, attempt, delayMs, { allowAutoOff = false } = {}) => {
   if (!cur || (!cur.on && !allowAutoOff)) return;
   clearTimeout(RETRY.get(id));
   const at = Date.now() + delayMs;
-  persistRetry(id, at, attempt);
+  persistRetry(id, at, attempt, !!allowAutoOff);
   RETRY.set(id, setTimeout(guarded("sched 重试", () => {
     RETRY.delete(id); dropPersistedRetry(id);
     const t = byId(id);
@@ -764,7 +764,7 @@ function restoreRetries() {
     if (RETRY.has(r.taskId)) continue;
     const t = byId(r.taskId);
     if (!t) continue;
-    scheduleRetry(r.taskId, +r.attempt || 1, Math.max(0, +r.at - Date.now()));
+    scheduleRetry(r.taskId, +r.attempt || 1, Math.max(0, +r.at - Date.now()), { allowAutoOff: !!r.allowAutoOff });
   }
   save();
 }

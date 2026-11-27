@@ -24,6 +24,8 @@ import { publish } from "./bus.mjs";
 import { noteAuthTier } from "./login.mjs";
 import { acpAgentSpawn, acpAgentDone, acpAgentMsg, acpAgentMsgOk } from "./agents.mjs";
 import { parseGoalPrompt, applyGoalCommand } from "./goal.mjs";
+import { nowTicks, procStart } from "./leftover.mjs";
+import { breachWrite, judge } from "../guard/cc-guard.mjs";
 
 export const ACP_PROTOCOL_VERSION = 1;
 const ACP_IDLE_TTL_MS = Number(process.env.CCAPP_ACP_IDLE_MS) > 0 ? Number(process.env.CCAPP_ACP_IDLE_MS) : 30 * 60e3;
@@ -469,6 +471,8 @@ const TOOL_OUT_MAX = 20000;
 
 // 按 sessionId 保活的常驻 ACP 客户端池：同一会话同配置直接复用进程，避免每轮重启 agy
 const ACP_POOL = new Map();
+// 所有未关闭的 ACP 客户端（含尚在首轮握手/执行中的冷启进程），用于 CCAPP_RUN_ID 解耦与 leftover 识别
+const ACP_LIVE_CLIENTS = new Map(); // client -> { client, originRunId, originStart, sessionId }
 
 // 一次性 schedule(DurationSeconds) 的墙钟到期清理定时器（独立存于模块级 Map，避免挂进 bgTasks 引发 JSON 序列化循环引用）
 const BG_EXPIRY_TIMERS = new Map(); // `${scopeKey}\0${taskId}` -> Timeout
@@ -601,6 +605,11 @@ export function killAcpChild(child, graceMs = ACP_KILL_GRACE_MS) {
     try { process.kill(-p, sig); } catch {}
     try { process.kill(p, sig); } catch {}
   };
+  if (graceMs <= 0) {
+    killGroup("SIGKILL");
+    for (const d of descSnap) killPidAndGroup(d.pid, "SIGKILL");
+    return;
+  }
   killGroup("SIGTERM");
   for (const d of descSnap) killPidAndGroup(d.pid, "SIGTERM");
   const t = setTimeout(() => {
@@ -613,16 +622,47 @@ export function killAcpChild(child, graceMs = ACP_KILL_GRACE_MS) {
 }
 
 /** 销毁池中某个会话的常驻 ACP 进程 */
-export function closeAcpSession(sessionId) {
+export function closeAcpSession(sessionId, { immediate = false } = {}) {
   const entry = sessionId && ACP_POOL.get(sessionId);
   if (!entry) return;
   clearAllBgExpiryTimers(`pool:${sessionId}`);
   try { entry.clearBgWatch?.(); } catch {}
   try { entry.flushIdle?.(true); } catch {}
   ACP_POOL.delete(sessionId);
+  ACP_LIVE_CLIENTS.delete(entry.client);
   if (entry.idleTimer) clearTimeout(entry.idleTimer);
   try { entry.client.close(); } catch {}
-  killAcpChild(entry.client.child);
+  killAcpChild(entry.client.child, immediate ? 0 : ACP_KILL_GRACE_MS);
+}
+
+/** 按起跑时继承的 CCAPP_RUN_ID 反查当前存活 ACP 客户端对应的 sessionId（池化进程跨轮次建档用，7.3） */
+export function acpSessionByRunId(runId) {
+  const rid = String(runId || "");
+  if (!rid) return "";
+  for (const entry of ACP_POOL.values()) {
+    if (entry && !entry.client?.closed && entry.originRunId === rid && entry.sessionId) {
+      return entry.sessionId;
+    }
+  }
+  for (const meta of ACP_LIVE_CLIENTS.values()) {
+    if (meta && !meta.client?.closed && meta.originRunId === rid && meta.sessionId) {
+      return meta.sessionId;
+    }
+  }
+  return "";
+}
+
+/** 返回所有未关闭的 ACP 进程起跑编号与启动时刻 [originRunId, originStart]，供 leftoverProcs 豁免（7.3） */
+export function acpActiveOriginRuns() {
+  const out = new Map();
+  const record = (rid, t0, client) => {
+    if (!rid || !client || client.closed) return;
+    if (client.child && (client.child.exitCode !== null || client.child.signalCode !== null)) return;
+    if (!out.has(rid) || (t0 != null && out.get(rid) == null)) out.set(rid, t0 ?? null);
+  };
+  for (const entry of ACP_POOL.values()) record(entry?.originRunId, entry?.originStart, entry?.client);
+  for (const meta of ACP_LIVE_CLIENTS.values()) record(meta?.originRunId, meta?.originStart, meta?.client);
+  return [...out.entries()];
 }
 
 /** 查询常驻 ACP 进程池中正在后台运行的任务列表（供前端顶部后台任务条展示） */
@@ -779,6 +819,11 @@ export function stopAcpBgTask(sessionId, taskId) {
 /** 网关关闭或测试收尾时清理所有常驻 ACP 进程 */
 export function closeAllAcpClients() {
   for (const sid of [...ACP_POOL.keys()]) closeAcpSession(sid);
+  for (const [client] of [...ACP_LIVE_CLIENTS]) {
+    ACP_LIVE_CLIENTS.delete(client);
+    try { client.close(); } catch {}
+    if (client.child) killAcpChild(client.child);
+  }
 }
 
 onShutdown("ACP 会话池", () => closeAllAcpClients());
@@ -1821,7 +1866,7 @@ export function translateAcpUpdate(params, state, emit) {
   // 重放消息的 messageId 也记下来，prompt 发出后迟到的同 id 重放照样丢弃（B3）
   if (state.promptSent === false) {
     state.replaySeenAt = Date.now();
-    if ((kind === "agent_message" || kind === "agent_thought") && upd.messageId) {
+    if ((kind === "agent_message" || kind === "agent_message_chunk" || kind === "agent_thought" || kind === "agent_thought_chunk") && upd.messageId) {
       (state.replayMessageIds ||= new Set()).add(String(upd.messageId));
     }
     if (kind === "tool_call" || kind === "tool_call_update") {
@@ -2436,6 +2481,102 @@ export function isAcpToolAllowed(toolName, toolKind, allowedTools) {
   return false;
 }
 
+const ACP_HUMAN_TOOL_NAMES = new Set(["askuserquestion", "ask_question", "exitplanmode", "exit_plan_mode"]);
+function isAcpHumanTool(...names) {
+  for (const raw of names) {
+    const n = String(raw || "").trim().toLowerCase().replace(/^run\s+/, "").replace(/\(.*\)$/, "").trim();
+    if (ACP_HUMAN_TOOL_NAMES.has(n)) return true;
+  }
+  return false;
+}
+
+/** 将 ACP 工具名与 rawInput 适配为 cc-guard（breachWrite / judge）期望的 Claude 工具形状（2.1） */
+export function acpToGuardInput(toolTitle, tcInput, { toolRaw = "", toolKind = "" } = {}) {
+  const inp = tcInput && typeof tcInput === "object" ? tcInput : {};
+  const rawStr = String(toolRaw || "").trim();
+  const titleStr = String(toolTitle || "").trim();
+  if (/^mcp__device__/.test(rawStr)) return { tool: rawStr, input: inp };
+  if (/^mcp__device__/.test(titleStr)) return { tool: titleStr, input: inp };
+  const norm = (s) => String(s || "").trim().toLowerCase().replace(/^run\s+/, "").replace(/\(.*\)$/, "").trim();
+  const n = norm(titleStr) || norm(rawStr);
+  const k = String(toolKind || "").trim().toLowerCase();
+
+  const filePath = inp.file_path ?? inp.TargetFile ?? inp.Path ?? inp.AbsolutePath ?? inp.path ?? "";
+  const searchPath = inp.SearchPath ?? inp.SearchDirectory ?? inp.DirectoryPath ?? inp.path ?? inp.Path ?? inp.file_path ?? "";
+
+  if (ACP_TOOL_EXEC.has(n) || /^run\s+(?:command|shell)/i.test(n) || k === "execute") {
+    return { tool: "Bash", input: { command: inp.CommandLine ?? inp.command ?? inp.cmd ?? "" } };
+  }
+  if (n === "write_file" || n === "write file" || n === "write" || n === "write_to_file") {
+    return { tool: "Write", input: { file_path: filePath, content: inp.CodeContent ?? inp.Content ?? inp.content ?? "" } };
+  }
+  if (n === "multi_replace_file_content" || n === "multiedit") {
+    const edits = Array.isArray(inp.edits)
+      ? inp.edits
+      : (Array.isArray(inp.ReplacementChunks)
+        ? inp.ReplacementChunks.map((c) => ({
+            old_string: c?.TargetContent ?? c?.Target ?? "",
+            new_string: c?.ReplacementContent ?? c?.Replacement ?? "",
+          }))
+        : []);
+    return { tool: "MultiEdit", input: { file_path: filePath, edits } };
+  }
+  if (n === "edit_file" || n === "replace_file_content" || n === "edit file" || n === "replace file" || n === "edit") {
+    return {
+      tool: "Edit",
+      input: {
+        file_path: filePath,
+        old_string: inp.TargetContent ?? inp.Target ?? inp.old_string ?? "",
+        new_string: inp.ReplacementContent ?? inp.Replacement ?? inp.new_string ?? "",
+      },
+    };
+  }
+  if (n === "notebookedit") {
+    return {
+      tool: "NotebookEdit",
+      input: {
+        notebook_path: inp.notebook_path ?? filePath,
+        new_source: inp.new_source ?? inp.Content ?? inp.content ?? "",
+      },
+    };
+  }
+  if (n === "read_file" || n === "read file" || n === "read" || n === "view_file" || n === "view_file_outline" || n === "view_code_item" || /^read\b/i.test(n)) {
+    return { tool: "Read", input: { file_path: filePath } };
+  }
+  if (n === "grep_search" || n === "grep") {
+    return { tool: "Grep", input: { path: searchPath, pattern: inp.Query ?? inp.query ?? inp.Pattern ?? inp.pattern ?? "" } };
+  }
+  if (n === "find_by_name" || n === "list_dir" || n === "glob") {
+    return { tool: "Glob", input: { path: searchPath, pattern: inp.Pattern ?? inp.pattern ?? "", glob: inp.glob ?? "" } };
+  }
+
+  // 字段兜底：遇到描述性标题（如 "Write ~/.claude/..."）按入参形状与 kind 兜底映射
+  if (typeof inp.CommandLine === "string" || typeof inp.command === "string" || typeof inp.cmd === "string") {
+    return { tool: "Bash", input: { command: inp.CommandLine ?? inp.command ?? inp.cmd ?? "" } };
+  }
+  if (Array.isArray(inp.edits) || Array.isArray(inp.ReplacementChunks)) {
+    const edits = Array.isArray(inp.edits)
+      ? inp.edits
+      : inp.ReplacementChunks.map((c) => ({ old_string: c?.TargetContent ?? c?.Target ?? "", new_string: c?.ReplacementContent ?? c?.Replacement ?? "" }));
+    return { tool: "MultiEdit", input: { file_path: filePath, edits } };
+  }
+  if (inp.ReplacementContent !== undefined || inp.Replacement !== undefined || inp.new_string !== undefined || inp.TargetContent !== undefined || inp.Target !== undefined) {
+    return { tool: "Edit", input: { file_path: filePath, old_string: inp.TargetContent ?? inp.Target ?? inp.old_string ?? "", new_string: inp.ReplacementContent ?? inp.Replacement ?? inp.new_string ?? "" } };
+  }
+  if (inp.CodeContent !== undefined || inp.Content !== undefined || inp.content !== undefined || k === "write" || k === "edit") {
+    return { tool: "Write", input: { file_path: filePath, content: inp.CodeContent ?? inp.Content ?? inp.content ?? "" } };
+  }
+  return {
+    tool: "Read",
+    input: {
+      file_path: filePath,
+      path: searchPath,
+      pattern: inp.Query ?? inp.query ?? inp.Pattern ?? inp.pattern ?? "",
+      glob: inp.glob ?? "",
+    },
+  };
+}
+
 function agyBinFingerprint(bin) {
   if (!bin || typeof bin !== "string" || (!bin.includes("/") && !bin.includes("\\"))) return "";
   try {
@@ -2683,7 +2824,21 @@ export async function runAcpTurn({
             : { outcome: { outcome: "cancelled" } };
         }
 
-        if ((state.permMode === "bypassPermissions" || permMode === "bypassPermissions") && allowOpt) {
+        // 2.1：复用 cc-guard 审查破甲写入（breachWrite 直接拒绝）与敏感操作 / 人工问题（bypassPermissions 下也不得自动放行）
+        const guardPair = acpToGuardInput(toolTitle, tcInput, { toolRaw, toolKind });
+        const breachHit = breachWrite(guardPair.tool, guardPair.input);
+        if (breachHit) {
+          log(`[agy-acp] cc-guard breachWrite 拦截工具: ${toolTitle} (${breachHit.what})`);
+          if (run) (run.denied ||= []).push(toolTitle);
+          emit?.({ type: "note", key: "acp-guard-breach", text: tz("拒绝写入可能影响下一轮安全性的内容：{what}", { what: breachHit.what }) });
+          return rejectOpt
+            ? { outcome: { outcome: "selected", optionId: rejectOpt.optionId } }
+            : { outcome: { outcome: "cancelled" } };
+        }
+        const guardHit = judge(guardPair.tool, guardPair.input);
+        const isHumanTool = isAcpHumanTool(toolTitle, toolRaw, rawTitle);
+
+        if ((state.permMode === "bypassPermissions" || permMode === "bypassPermissions") && !isHumanTool && !guardHit && allowOpt) {
           log(`[agy-acp] 权限自动放行: ${toolTitle} -> ${allowOpt.optionId}`);
           return { outcome: { outcome: "selected", optionId: allowOpt.optionId } };
         }
@@ -2703,6 +2858,7 @@ export async function runAcpTurn({
             input: params.toolCall?.rawInput || params.toolCall?.input || params.toolCall || {},
             options,
             hasAlways: !!allowAlwaysOpt,
+            ...(guardHit ? { guard: guardHit } : {}),
           });
         } finally {
           pendingPermCount = Math.max(0, pendingPermCount - 1);
@@ -2714,6 +2870,13 @@ export async function runAcpTurn({
             : { outcome: { outcome: "cancelled" } };
         }
         if (run && run.unattended) (run.denied ||= []).push(toolTitle);
+        if (decision?.interrupt && run) {
+          const wasAborted = run.aborted;
+          run.aborted = true;
+          if (!wasAborted) {
+            try { run.cancelAcp?.(); } catch {}
+          }
+        }
         return rejectOpt
           ? { outcome: { outcome: "selected", optionId: rejectOpt.optionId } }
           : { outcome: { outcome: "cancelled" } };
@@ -2759,14 +2922,18 @@ export async function runAcpTurn({
 
   let client = reused ? poolEntry.client : null;
   clientRef = client;
+  let originRunId = reused ? String(poolEntry?.originRunId || "") : String(env?.CCAPP_RUN_ID || run?.id || "");
+  let originStart = reused ? (poolEntry?.originStart ?? null) : null;
+  let liveMeta = null;
 
-  const destroyClient = () => {
+  const destroyClient = ({ immediate = false } = {}) => {
     if (!client) return;
+    ACP_LIVE_CLIENTS.delete(client);
     if (activeSessionId && ACP_POOL.get(activeSessionId)?.client === client) {
-      closeAcpSession(activeSessionId);
+      closeAcpSession(activeSessionId, { immediate });
     } else {
       try { client.close(); } catch {}
-      killAcpChild(client.child);
+      killAcpChild(client.child, immediate ? 0 : ACP_KILL_GRACE_MS);
     }
   };
 
@@ -2899,22 +3066,31 @@ export async function runAcpTurn({
   if (run) {
     run.child = client ? client.child : null;
     run.preSpawn = !client;
+    if (reused) {
+      run.originRunId = originRunId;
+      run.childStart = run.turnStartTicks ?? originStart;
+    }
     run.dropAcpBg = dropActiveBg;
     // 停止只停当前 prompt，不销毁保活进程：进程留在池里供下轮复用（B10）。
-    // W3-F2：冷启动握手期间（!state.promptSent && !reused）尚无可用 prompt 可 cancel，立刻 destroyClient 让在途握手 RPC 立即失败收尾。
-    // 若 prompt 已发但 agent 10s 内不响应 session/cancel，queue.forceEnd 会调用 forceFinish 同步落盘并彻底销毁卡死客户端，防双进程脑裂与落盘交错（C-02 + S-3/P2-6）。
+    // W3-F2 + 5.4：未发 prompt 前（冷启握手或复用轮次的 pre-prompt set_config_option/set_mode）尚无可用 prompt 可 cancel，
+    // 立刻 destroyClient 让在途 RPC 立即失败收尾，不再等待 10s。
+    // 若 prompt 已发但 agent 10s 内不响应 session/cancel，queue.forceEnd 会调用 forceFinish 同步落盘并立即 SIGKILL 销毁卡死客户端，防双进程脑裂与落盘交错（C-02 + S-3/P2-6）。
     run.cancelAcp = () => {
-      if (!state.promptSent && !reused) {
+      if (!state.promptSent) {
         canKeep = false;
         destroyClient();
         return;
       }
       if (activeSessionId && client) client.notify("session/cancel", { sessionId: activeSessionId });
     };
+    run.forceKillAcp = () => {
+      canKeep = false;
+      destroyClient({ immediate: true });
+    };
     run.forceFinish = () => {
       try { persistInterruptedTurn("forced stop"); } catch {}
       canKeep = false;
-      destroyClient();
+      destroyClient({ immediate: true });
     };
     // set_mode 被 agent 拒绝时返回 false 并发 error 事件，不再静默返回 true（B11）。
     // 被拒时 applyMode 会把模式纠回被拒前的实际值并再发 perm_mode 事件（MIG-7）。
@@ -2935,8 +3111,9 @@ export async function runAcpTurn({
   // 本轮进来时用户指着的旧会话号；agent 不支持 resume/load 时会被静默换成新会话（B8），要明示
   const requestedSessionId = activeSessionId;
   let sessionSwitched = false;
-  // MIG-6：agent 确认生效的 effort（池里只记这个；不记请求值，否则下轮以为已生效不再重发）
+  // MIG-6 + 7.2：agent 确认生效的 effort / model（池里只记确认生效的；不记未生效的请求值，否则下轮以为已生效不再重发）
   let effortApplied = null;
+  let modelApplied = null;
 
   try {
     if (!reused) {
@@ -2951,9 +3128,16 @@ export async function runAcpTurn({
           ...makeHandlers(),
         });
         clientRef = client;
+        originStart = procStart(client.child?.pid) ?? nowTicks();
+        liveMeta = { client, originRunId, originStart, sessionId: activeSessionId || "" };
+        ACP_LIVE_CLIENTS.set(client, liveMeta);
+        client.child?.once?.("close", () => ACP_LIVE_CLIENTS.delete(client));
+        client.child?.once?.("error", () => ACP_LIVE_CLIENTS.delete(client));
         if (run) {
           run.child = client.child;
           run.preSpawn = false;
+          run.originRunId = originRunId;
+          run.childStart = originStart;
         }
         // 1. initialize
         const initRes = await client.request("initialize", {
@@ -3040,6 +3224,7 @@ export async function runAcpTurn({
           }, 30000);
           if (!sessRes?.sessionId) throw new Error(tz("新建会话失败：Agent 没有返回会话号，请重试"));
           activeSessionId = sessRes.sessionId;
+          if (liveMeta) liveMeta.sessionId = activeSessionId;
         }
         if (requestedSessionId && activeSessionId && activeSessionId !== requestedSessionId) {
           sessionSwitched = true;
@@ -3060,6 +3245,9 @@ export async function runAcpTurn({
 
     state.sessionId = activeSessionId;
     if (run) run.sessionId = activeSessionId;
+    if (liveMeta && activeSessionId) liveMeta.sessionId = activeSessionId;
+    else if (client && activeSessionId && ACP_LIVE_CLIENTS.has(client)) ACP_LIVE_CLIENTS.get(client).sessionId = activeSessionId;
+    if (poolEntry && activeSessionId) poolEntry.sessionId = activeSessionId;
     // C6：agent 明确列出可用模型、所选模型不在其中时，不得静默跳过 set_config_option、
     // 又在下面的 init 里宣称已切到新模型——在 init 发出前就失败，让调用方知道没切过去。
     // agent 没列清单（两处都不是数组）时沿用旧行为：直接发 set_config_option，由 agent 决定。
@@ -3109,12 +3297,20 @@ export async function runAcpTurn({
 
     // 4. 可选：应用模型、思考强度与权限模式（兼容 models.availableModels 与 configOptions）
     //    模型不在清单里时上面已在 init 前抛错，这里只剩“清单没列 / 在清单里”两种情况，直接发。
+    //    7.2：对照 MIG-6，禁止 .catch(()=>{}) 吞掉失败；被拒绝时发 note 并留 modelApplied=null，保留旧 poolEntry.model 以便下轮重试。
     if (modelSwitchNeeded) {
-      await client.request("session/set_config_option", {
-        sessionId: activeSessionId,
-        configId: "model",
-        value: model,
-      }, 10000).catch(() => {});
+      try {
+        await client.request("session/set_config_option", {
+          sessionId: activeSessionId,
+          configId: "model",
+          value: model,
+        }, 10000);
+        modelApplied = model;
+      } catch (e) {
+        emit({ type: "note", key: "acp-model-rejected", text: tz("模型「{model}」设置被 agent 拒绝（{msg}），已按默认跑。", { model, msg: String(e?.message || e) }) });
+      }
+    } else if (model && reused && poolEntry?.model === model) {
+      modelApplied = model;
     }
     // MIG-6：thought_level 不在 agent 的 options 里时不得静默跳过——发 note 明示
     // “该模型不支持此档位，已按默认跑”，不发 set_config_option；被 agent 拒绝时同样发 note，
@@ -3656,16 +3852,22 @@ export async function runAcpTurn({
       run.cancelAcp = null;
       run.dropAcpBg = null;
       run.forceFinish = null;
+      run.forceKillAcp = null;
     }
     if (canKeep) {
-      const entry = poolEntry || { client, sessionId: activeSessionId, key: pKey, knownToolIds: new Set() };
+      const entry = poolEntry || { client, sessionId: activeSessionId, key: pKey, knownToolIds: new Set(), originRunId, originStart };
       const poolScope = `pool:${activeSessionId}`;
       pruneExpiredBgTasks(poolScope, bgTasks);
+      entry.originRunId ||= originRunId;
+      if (entry.originStart == null) entry.originStart = originStart;
+      entry.sessionId = activeSessionId;
       entry.cwd = cwd;
       entry.models = sessModels;
       entry.modes = sessModes;
       entry.configOptions = sessConfig;
-      entry.model = model || sessModels?.currentModelId || entry.model || "antigravity";
+      entry.model = model
+        ? (modelApplied ?? (reused ? entry.model : (sessModels?.currentModelId && sessModels.currentModelId !== model ? sessModels.currentModelId : null)))
+        : (sessModels?.currentModelId || entry.model || "antigravity");
       // MIG-6：池里只记 agent 确认生效的 effort。没要 effort 的轮次不碰旧值；
       // 要了但没生效（不支持/被拒）的记 null，下轮重发而不是永久静默失效。
       entry.effort = effort ? effortApplied : entry.effort;
@@ -4130,10 +4332,18 @@ export async function runAcpTurn({
             const options = Array.isArray(params?.options) ? params.options : [];
             const allowOpt = pickAcpAllowOption(options);
             const rejectOpt = options.find(isAcpRejectOpt);
-            const toolTitle = params?.toolCall?.title || params?.toolCall?.name || params?.toolCall?.kind || "Antigravity Tool";
+            const tcInput = params?.toolCall?.rawInput || params?.toolCall?.input || {};
+            const rawTitle = params?.toolCall?.title || params?.toolCall?.name || params?.toolCall?.kind || "";
+            const toolTitle = rawTitle || Object.keys(tcInput).length ? resolveAcpToolName(params.toolCall, tcInput) : "Antigravity Tool";
             const toolRaw = params?.toolCall?.name || "";
             const toolKind = params?.toolCall?.kind || "";
             if (isAcpToolDisallowed(toolTitle, toolKind, entry.disallowedTools) || (toolRaw && isAcpToolDisallowed(toolRaw, toolKind, entry.disallowedTools))) {
+              return rejectOpt
+                ? { outcome: { outcome: "selected", optionId: rejectOpt.optionId } }
+                : { outcome: { outcome: "cancelled" } };
+            }
+            const gPair = acpToGuardInput(toolTitle, tcInput, { toolRaw, toolKind });
+            if (breachWrite(gPair.tool, gPair.input) || judge(gPair.tool, gPair.input) || isAcpHumanTool(toolTitle, toolRaw, rawTitle)) {
               return rejectOpt
                 ? { outcome: { outcome: "selected", optionId: rejectOpt.optionId } }
                 : { outcome: { outcome: "cancelled" } };

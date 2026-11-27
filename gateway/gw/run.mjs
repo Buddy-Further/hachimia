@@ -6,7 +6,7 @@ import { SETTINGS, capList, settingsDiskCheck } from "./settings-store.mjs";
 import { PERM_MODES, PROVIDER, acpAuthType, billAfterRun, hasAcpKeyChannel, hasAdcCredentials, keyOf, noteTokenDelta, providerById, providersDiskCheck } from "./providers.mjs";
 import { ALIAS_SEEN, defaultAcpCompactLine, effortLevelsOf, fetchModels, isLoginMode, learnWindow, modelsCached, normEffort } from "./models.mjs";
 import { agyEnv, bridgeSwitching, claudeAtLeast, claudeCmd, claudeEnv, currentModelInfo, ensureBridge, safeModePerm, settingsArgs, syncAgySettings } from "./claude.mjs";
-import { abortAcpIdleBurst, acpPoolSessionForPid, isAcpToolAllowed, isAcpToolDisallowed, runAcpTurn, stopAcpBgTask } from "./acp.mjs";
+import { abortAcpIdleBurst, acpActiveOriginRuns, acpPoolSessionForPid, isAcpToolAllowed, isAcpToolDisallowed, runAcpTurn, stopAcpBgTask } from "./acp.mjs";
 import { refreshAgyQuotaSoon } from "./login.mjs";
 import { expandCustomCommand } from "./commands.mjs";
 import { tasksCheck } from "./goal.mjs";
@@ -55,7 +55,7 @@ import { runPromptFile, sealBlockMessage, sealCleanup, sealPrepare, sealRecheck 
 // 敏感操作「这一轮已允许」的范围：读屏、点按、剪贴板这类设备操作一连串连着做，按类别记；
 // 密钥、会自动执行的文件、破甲这些，批准一次只放行同一个工具对同一个目标，不能一把解锁同类所有文件（0.6.9 审计 199 11-07）
 const guardKey = (p) => (/^device:/.test(p.guard.cat) ? p.guard.cat : `${p.tool}\0${p.guard.cat}\0${p.guard.what}`);
-const HUMAN_TOOLS = new Set(["AskUserQuestion", "ExitPlanMode"]);
+const HUMAN_TOOLS = new Set(["AskUserQuestion", "ask_question", "ExitPlanMode"]);
 // ACP 网关级自动压缩防抖记录：sessionId -> { at, post }，避免连续死循环压缩
 const ACP_AUTOCOMPACT = new Map();
 // 空闲中后台任务自己跑完、claude 却一直没起新一轮：这么久没动静才关 stdin 收尾（我们发过 stop_task 的 6 秒）。环境变量只给测试用
@@ -219,6 +219,75 @@ let ucHooked = false;
 
 const askProjectTrust = (run, cwd, proj, emit) => askCard(run, emit, { key: "proj", tool: "ProjectConfig", input: { dir: cwd, risks: proj.risks },
   guard: { cat: "project", what: cwd }, what: `项目配置 ${proj.risks.length} 项`, yes: "✓ 允许", no: "✗ 不加载" });
+
+function activeRunStarts(excludeRunId) {
+  const active = new Map([...RUNS].filter(([k]) => k !== excludeRunId).map(([k, r]) => [String(k), r.childStart ?? null]));
+  for (const [rid, t0] of acpActiveOriginRuns()) {
+    if (!active.has(rid) || (t0 != null && active.get(rid) == null)) active.set(rid, t0);
+  }
+  return active;
+}
+
+async function checkUcAndLeftovers(run, emit) {
+  const ucp = ucPending(sealed() ? UC_SEALED : null);
+  const procs = leftoverProcs(activeRunStarts(run.id));
+  if (!ucp && !procs.length) return null;
+  if (run.unattended || run.auto) {
+    const msg = tz("Antigravity CLI 的用户级配置有改动还没确认，或者之前的对话留下了后台进程，这次没有运行。打开 hachimia 发一条消息，在弹出的卡片里确认后再试。");
+    log(`⏭ 用户级配置 / 留下的进程没确认，${run.auto ? "空闲压缩" : "无人值守的这一轮"}不跑`);
+    if (!run.auto) emit({ type: "error", message: tr(LAST_LANG, msg) });
+    return endRun(run, run.auto ? { durationMs: 0 } : { failed: true, finalText: msg });
+  }
+  const ok = await askCard(run, emit, { key: "uc", tool: "UserConfig", input: { first: !!ucp?.first, changes: ucp?.changes || [], procs },
+    guard: { cat: "userconf", what: "~/.claude" }, what: `用户级配置 ${ucp?.rels.length || 0} 项、留下的进程 ${procs.length} 个`, yes: "✓ 保留", no: "✗ 撤销" });
+  if (ok) {
+    const stale = ucp ? ucKeep(ucp.rels, ucp.ticket) : [];
+    keepProcs(procs);
+    if (stale.length) {
+      emit({ type: "error", message: tr(LAST_LANG, tz("用户级配置在确认之后又被改了，这一轮没有启动：{list}。再发一条消息，在弹出的卡片里确认。", { list: stale.slice(0, 6).join(", ") })) });
+      return endRun(run, { failed: true });
+    }
+  } else if (ok === false) {
+    const r = ucp ? ucRevert(ucp.rels) : { failed: [] };
+    if (procs.length) killProcs(procs);
+    ucSetRevertNote(ucp?.rels, procs.length);
+    if (r.failed.length && !run.aborted) {
+      emit({ type: "error", message: tr(LAST_LANG, tz("有 {n} 项没法还原（确认时没留副本，或者副本也被改了），这一轮没有运行：{list}", { n: r.failed.length, list: r.failed.slice(0, 6).join(", ") })) });
+      return endRun(run, { failed: true });
+    }
+  }
+  if (run.aborted) { log("⏹ 等用户级配置确认时停止"); return endRun(run, { durationMs: 0 }); }
+  return null;
+}
+
+function prepareSealAndUc(run, cwd, P, emit) {
+  if (!ucHooked) { ucHooked = true; END_HOOKS.push((r) => ucAfterRun(r)); END_HOOKS.push((r) => sealCleanup(r.id)); }
+  let prep = null;
+  if (sealed() && !P.local) {
+    try { prep = sealPrepare({ cwd, runId: run.id, outputStyle: SETTINGS.outputStyle || "" }); }
+    catch (e) { log(`[封口] 准备回填失败：${e.message}`); prep = { block: { found: [{ name: "(hachimia)", hits: [{ line: 0, excerpt: e.message }] }] } }; }
+    if (prep.block) {
+      log(`${runTag(run)} ⛔ [封口] 命中破甲特征，不跑：${prep.block.found.slice(0, 4).map((f) => f.name).join(", ")}`);
+      const msg = tr(LAST_LANG, sealBlockMessage(prep.block));
+      emit({ type: "error", message: msg });
+      return { blocked: endRun(run, { failed: true, finalText: msg }), prep: null };
+    }
+    for (const n of prep.notes || []) log(`[封口] ${n}`);
+  }
+  const drift = ucBeforeRun(run, sealed() ? UC_SEALED : null);
+  if (drift.length) {
+    emit({ type: "error", message: tr(LAST_LANG, tz("用户级配置在确认之后又被改了，这一轮没有启动：{list}。再发一条消息，在弹出的卡片里确认。", { list: drift.slice(0, 6).join(", ") })) });
+    return { blocked: endRun(run, { failed: true }), prep };
+  }
+  const late = prep ? sealRecheck(prep) : null;
+  if (late) {
+    log(`${runTag(run)} ⛔ [封口] 起进程前记忆被改、命中破甲特征：${late.found.slice(0, 4).map((f) => f.name).join(", ")}`);
+    const msg = tr(LAST_LANG, sealBlockMessage(late));
+    emit({ type: "error", message: msg });
+    return { blocked: endRun(run, { failed: true, finalText: msg }), prep };
+  }
+  return { blocked: null, prep };
+}
 
 /** 日志里怎么称呼一条用户消息：诊断包承诺不含消息内容，提问只记字数，斜杠命令只记命令名（FIND-046）。
  *  以前记前 60 字，原生打包虽然会抹掉整行，但日志文件本身已经把正文写进去了。 */
@@ -536,6 +605,8 @@ export async function startRun(item) {
       }
       if (run.aborted) { log("⏹ 核验 Antigravity CLI 时停止"); return endRun(run, { durationMs: 0 }); }
     }
+    const ucStopped = await checkUcAndLeftovers(run, emit);
+    if (ucStopped) return ucStopped;
     const proj = sealed() || P.local ? null : projectRisks(cwd);
     if (proj && !projectTrusted(cwd, proj.fp)) {
       const ok = run.unattended || run.auto ? false : await askProjectTrust(run, cwd, proj, emit);
@@ -566,8 +637,17 @@ export async function startRun(item) {
     if (devMcpEntry && (await privCall({ op: "dev_status" }, 3000)).on) acpMcpServers.push(devMcpEntry);
     if (run.aborted) { log("⏹ 查设备工具时停止"); return endRun(run, { durationMs: 0 }); }
 
+    const sealGate = prepareSealAndUc(run, cwd, P, emit);
+    if (sealGate.blocked) return sealGate.blocked;
+    if (!integ) { integ = await checkSessionAsync(run.sessionId, sfile()); if (integ) integNote = isCmd || P.local ? "" : integrityNote(integ); }
+    run.sealBase = run.sessionId ? { sid: run.sessionId, ...(await sessionAnchorAsync(sfile())) } : null;
+    if (run.sealBase) saveRunMark();
+    if (run.aborted || run.ended) { log("⏹ 起进程前已停止"); return endRun(run, { durationMs: 0 }); }
+
     const tBoot = Date.now();
     run.tBoot = tBoot;
+    run.turnStartTicks = nowTicks();
+    run.paths = pathWatch();
     run.bgList = [];
     run.bgTasks = 0;
     run.stopTask = (taskId) => {
@@ -592,6 +672,7 @@ export async function startRun(item) {
     let displayMsg = message;
     let acpPrompt = message;
     let isSlashCmd = isCmd;
+    let pathNote = "";
     if (!run.auto) {
       const cleanMsg = neutralizeMarkers(message);
       let isSpoofed = cleanMsg !== message;
@@ -612,9 +693,10 @@ export async function startRun(item) {
         acpPrompt = cmdExp.text;
       }
       if (!isSlashCmd && !P.local) {
+        pathNote = takePathNote(run.sessionId);
         const arch = await archiveHint(run.sessionId).catch(() => null);
         const refN = await refNote(cleanMsg, run.sessionId).catch((e) => { log("档号引用失败: " + e.message); return ""; });
-        const notes = [isSpoofed ? SPOOF_NOTE : "", integNote, arch?.note, refN].filter(Boolean);
+        const notes = [isSpoofed ? SPOOF_NOTE : "", integNote, arch?.note, pathNote, refN].filter(Boolean);
         if (notes.length) acpPrompt = `${acpPrompt}\n\n<system-reminder>\n${notes.join("\n\n")}\n</system-reminder>`;
       }
     }
@@ -634,6 +716,11 @@ export async function startRun(item) {
     const hadAcpSid = !!run.sessionId;
     const acpEmit = (ev) => {
       if (ev?.type === "init" && ev.sessionId) noteAcpInit(run, ev.sessionId, item);
+      if (ev?.type === "tool_use" || (ev?.type === "tool_update" && ev.input && Object.keys(ev.input).length)) {
+        run.paths?.feed({ type: "assistant", message: { content: [{ type: "tool_use", name: ev.name, input: ev.input }] } });
+      } else if (ev?.type === "text_delta" && ev.text) {
+        run.paths?.feed({ type: "assistant", message: { content: [{ type: "text", text: ev.text }] } });
+      }
       emit(ev);
     };
     const acpLogDesc = isSlashCmd
@@ -688,20 +775,27 @@ export async function startRun(item) {
         }
       },
       timeoutMs: item.timeoutMs || 0,
-      askPermission: async ({ tool, rawName, kind, toolCallId, input, hasAlways }) => {
+      askPermission: async ({ tool, rawName, kind, toolCallId, input, hasAlways, guard }) => {
         if (isAcpToolDisallowed(tool, kind, disallowed) || (rawName && isAcpToolDisallowed(rawName, kind, disallowed))) {
           (run.denied ||= []).push(tool);
           return { behavior: "deny" };
         }
+        const isHuman = HUMAN_TOOLS.has(tool);
         if (run.unattended || run.auto) {
-          if (run.auto === "bg" && permMode === "bypassPermissions") return { behavior: "allow" };
-          if (run.auto === "bg" && run.permMode === "bypassPermissions") return { behavior: "allow" };
-          if (run.unattended && allowed.length && (isAcpToolAllowed(tool, kind, allowed) || (rawName && isAcpToolAllowed(rawName, kind, allowed)))) {
-            return { behavior: "allow" };
+          if (!guard && !isHuman) {
+            if (run.auto === "bg" && permMode === "bypassPermissions") return { behavior: "allow" };
+            if (run.auto === "bg" && run.permMode === "bypassPermissions") return { behavior: "allow" };
+            if (run.unattended && allowed.length && (isAcpToolAllowed(tool, kind, allowed) || (rawName && isAcpToolAllowed(rawName, kind, allowed)))) {
+              return { behavior: "allow" };
+            }
           }
+          if (run.unattended) (run.denied ||= []).push(tool);
           return { behavior: "deny" };
         }
-        // 标准工具权限确认卡片（不挂 guard，免得误判成「碰到了密钥或登录凭据」）
+        if (guard && run.guardOk?.has(guardKey({ tool, guard }))) {
+          log(`✓ 敏感操作本轮已允许过，放行 ACP ${tool} ${guard.cat || ""}`);
+          return { behavior: "allow" };
+        }
         return new Promise((resolve) => {
           const id = "acp-perm-" + crypto.randomBytes(6).toString("hex");
           const suggestions = hasAlways ? [{ type: "addRules", rules: [{ toolName: tool }] }] : [];
@@ -710,6 +804,7 @@ export async function startRun(item) {
             tool,
             toolUseId: toolCallId || undefined,
             input: input || {},
+            ...(guard ? { guard } : {}),
             suggestions,
             at: Date.now(),
             runId: run.id,
@@ -751,11 +846,13 @@ export async function startRun(item) {
             log(`${allow ? "✓ 允许" : "✗ 拒绝"} ACP 工具 ${tool}${a.always ? "（始终）" : ""}${a.interrupt ? "（并停止）" : ""}`);
             run._acpPermCancelers?.delete(cancelPerm);
             emit({ type: "perm_resolved", id, behavior: allow ? "allow" : "deny", always: !!a.always, interrupt: !!a.interrupt });
+            if (allow && p.guard) (run.guardOk ||= new Set()).add(guardKey(p));
             if (a.interrupt) { holdLane(run); run.aborted = true; }
             const act = permModeAction(allow ? "allow" : "deny", a.mode, run.permMode);
             if (act === "global") setPermMode(a.mode);
             else if (act === "run") run.setMode?.(a.mode);
             done({ behavior: allow ? "allow" : "deny", always: !!a.always, interrupt: !!a.interrupt, answers: a.answers });
+            if (a.interrupt) { try { run.cancelAcp?.(); } catch {} }
             return true;
           };
           log(`⏸ 等确认 ACP 工具 ${tool}`);
@@ -771,6 +868,10 @@ export async function startRun(item) {
         run.fileSeen = true;
         emit({ type: "session_created", sessionId: run.sessionId, runId: run.id, cwd: run.cwd });
       }
+    }
+    if (!isCmd && !P.local) {
+      if (acpRes.ok && !run.aborted) settlePathNote(run.sessionId, run.paths);
+      else if (pathNote && !acpRes.ok && !acpRes.toolCount && !acpRes.resultText) putPathNote(run.sessionId, pathNote);
     }
     if (run.sessionId) {
       try {
@@ -933,36 +1034,8 @@ export async function startRun(item) {
   if (run.aborted) { log("⏹ 起进程前已停止"); return endRun(run, { durationMs: 0 }); }
   // 用户级配置（~/.claude）有没确认的改动、之前的对话留下了后台进程（见 userconf.mjs / leftover.mjs）：先问。
   // 没人看着的（定时任务、空闲压缩）不跑：定时任务按失败记、照任务设置通知。发行版只问回填进来的 MCP 与权限（UC_SEALED）
-  const ucp = ucPending(sealed() ? UC_SEALED : null), procs = leftoverProcs(new Map([...RUNS].filter(([k]) => k !== run.id).map(([k, r]) => [String(k), r.childStart ?? null])));
-  if (ucp || procs.length) {
-    if (run.unattended || run.auto) {
-      const msg = tz("Antigravity CLI 的用户级配置有改动还没确认，或者之前的对话留下了后台进程，这次没有运行。打开 hachimia 发一条消息，在弹出的卡片里确认后再试。");
-      log(`⏭ 用户级配置 / 留下的进程没确认，${run.auto ? "空闲压缩" : "无人值守的这一轮"}不跑`);
-      if (!run.auto) emit({ type: "error", message: tr(LAST_LANG, msg) });
-      return endRun(run, run.auto ? { durationMs: 0 } : { failed: true, finalText: msg });
-    }
-    const ok = await askCard(run, emit, { key: "uc", tool: "UserConfig", input: { first: !!ucp?.first, changes: ucp?.changes || [], procs },
-      guard: { cat: "userconf", what: "~/.claude" }, what: `用户级配置 ${ucp?.rels.length || 0} 项、留下的进程 ${procs.length} 个`, yes: "✓ 保留", no: "✗ 撤销" });
-    if (ok) {
-      // 只认卡片上那一版（GHSA-q9wp）：等用户点的时候又被改了，这一轮不起，下一条消息再出卡片给用户看新的
-      const stale = ucp ? ucKeep(ucp.rels, ucp.ticket) : [];
-      keepProcs(procs);
-      if (stale.length) {
-        emit({ type: "error", message: tr(LAST_LANG, tz("用户级配置在确认之后又被改了，这一轮没有启动：{list}。再发一条消息，在弹出的卡片里确认。", { list: stale.slice(0, 6).join(", ") })) });
-        return endRun(run, { failed: true });
-      }
-    }
-    else if (ok === false) {
-      const r = ucp ? ucRevert(ucp.rels) : { failed: [] };
-      if (procs.length) killProcs(procs);
-      ucSetRevertNote(ucp?.rels, procs.length);
-      if (r.failed.length && !run.aborted) {
-        emit({ type: "error", message: tr(LAST_LANG, tz("有 {n} 项没法还原（确认时没留副本，或者副本也被改了），这一轮没有运行：{list}", { n: r.failed.length, list: r.failed.slice(0, 6).join(", ") })) });
-        return endRun(run, { failed: true });
-      }
-    }
-    if (run.aborted) { log("⏹ 等用户级配置确认时停止"); return endRun(run, { durationMs: 0 }); }
-  }
+  const ucStopped = await checkUcAndLeftovers(run, emit);
+  if (ucStopped) return ucStopped;
   // 项目自带会自动运行的配置（钩子、.mcp.json…，见 projtrust.mjs）、又没被认过：先问；不同意就不加载项目级配置，这一轮照常
   // 发行版：项目级配置一概不读（edition.mjs），不用问
   const proj = sealed() || P.local ? null : projectRisks(cwd);
@@ -995,34 +1068,12 @@ export async function startRun(item) {
   }
   // 用户级配置起进程紧前再核一次：点完卡片之后（等项目配置确认、核验程序都要时间）又被改了、或者看见过改了又改回，就不起。
   // 同时开始记这一轮运行期间的改动（结束时 ucAfterRun 比对）
-  if (!ucHooked) { ucHooked = true; END_HOOKS.push((r) => ucAfterRun(r)); END_HOOKS.push((r) => sealCleanup(r.id)); }
-  // 发行版白名单回填（seal.mjs）：说明文件、skill、插件、MCP、记忆检查过才交给 claude；命中破甲特征整轮不跑。端侧小模型走 --bare，不回填
-  let prep = null;
-  if (sealed() && !P.local) {
-    try { prep = sealPrepare({ cwd, runId: run.id, outputStyle: SETTINGS.outputStyle || "" }); }
-    catch (e) { log(`[封口] 准备回填失败：${e.message}`); prep = { block: { found: [{ name: "(hachimia)", hits: [{ line: 0, excerpt: e.message }] }] } }; }
-    if (prep.block) {
-      log(`${runTag(run)} ⛔ [封口] 命中破甲特征，不跑：${prep.block.found.slice(0, 4).map((f) => f.name).join(", ")}`);
-      const msg = tr(LAST_LANG, sealBlockMessage(prep.block));
-      emit({ type: "error", message: msg });
-      return endRun(run, { failed: true, finalText: msg });
-    }
-    for (const n of prep.notes || []) log(`[封口] ${n}`);
+  const sealGate = prepareSealAndUc(run, cwd, P, emit);
+  if (sealGate.blocked) return sealGate.blocked;
+  const prep = sealGate.prep;
+  if (prep) {
     argv.push(...prep.args);
     if (prep.settings && Object.keys(prep.settings).length) argv.push("--settings", JSON.stringify(prep.settings));
-  }
-  const drift = ucBeforeRun(run, sealed() ? UC_SEALED : null);
-  if (drift.length) {
-    emit({ type: "error", message: tr(LAST_LANG, tz("用户级配置在确认之后又被改了，这一轮没有启动：{list}。再发一条消息，在弹出的卡片里确认。", { list: drift.slice(0, 6).join(", ") })) });
-    return endRun(run, { failed: true });
-  }
-  // 记忆目录 claude 自己读、没法拷副本：起进程紧前再比一次，准备之后被改了就重查（见 seal.mjs）
-  const late = prep ? sealRecheck(prep) : null;
-  if (late) {
-    log(`${runTag(run)} ⛔ [封口] 起进程前记忆被改、命中破甲特征：${late.found.slice(0, 4).map((f) => f.name).join(", ")}`);
-    const msg = tr(LAST_LANG, sealBlockMessage(late));
-    emit({ type: "error", message: msg });
-    return endRun(run, { failed: true, finalText: msg });
   }
   // 会话封签起进程紧前再核一次：上面等卡片、核程序可能等很久，这期间记录被改了，这一轮就该带提醒（199-S-04）。
   // 同时拍底，收尾时核这一轮只是往后追加
@@ -1209,8 +1260,8 @@ export async function startRun(item) {
     if (!p || run.ended || run.aborted) return false;
     let resp;
     if (a.behavior === "allow") {
-      // 参数一律用 claude 发来的原样，前端改不了命令；AskUserQuestion 只往里加 answers
-      const input = p.tool === "AskUserQuestion" && a.answers && typeof a.answers === "object"
+      // 参数一律用 claude 发来的原样，前端改不了命令；AskUserQuestion / ask_question 只往里加 answers
+      const input = HUMAN_TOOLS.has(p.tool) && p.tool !== "ExitPlanMode" && a.answers && typeof a.answers === "object"
         ? { ...p.input, answers: Object.fromEntries(Object.entries(a.answers).map(([k, v]) => [String(k), String(v)])) }
         : p.input;
       resp = { behavior: "allow", updatedInput: input };
