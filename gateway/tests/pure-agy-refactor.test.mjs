@@ -74,3 +74,16 @@ test("Stage 1 迁出保活：toFront 由 devside.mjs 导出，POST /api/freeze �
   assert.equal(fs.existsSync(path.join(ROOT, "gateway/gw/local.mjs")), false);
   assert.equal(fs.existsSync(path.join(ROOT, "gateway/web/skills/local-model-mode/SKILL.md")), false);
 });
+
+test("Stage 2 死脚本清理：install-claude.mjs、bin/claude 与旧版 claude-code-versions 文档已移除", () => {
+  for (const rel of [
+    "android/assets/scripts/install-claude.mjs",
+    "android/assets/bin/claude",
+    "docs/claude-code-versions.md",
+    "docs/claude-code-versions.zh-CN.md",
+  ]) {
+    assert.equal(fs.existsSync(path.join(ROOT, rel)), false, `${rel} 应已移除`);
+  }
+  const vc = fs.readFileSync(path.join(ROOT, "scripts/verify-claude.mjs"), "utf8");
+  assert.doesNotMatch(vc, /install-claude\.mjs|downloads\.claude\.ai/);
+});

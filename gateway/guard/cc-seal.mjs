@@ -23,26 +23,14 @@ const ours = argv.slice(i1 + 1, i2), user = argv.slice(i2 + 1);
 // 开发版：原样交回
 if (!sealed()) { process.stdout.write([...ours, ...user].map(q).join(" ") + "\n"); process.exit(0); }
 
-// agy / claude 程序本身：和网关起的一样（gw/claudeseal.mjs），没有本地清单或和清单对不上就不起；管理子命令也一样，跑的是同一个程序。
+// agy 程序本身：和网关起的一样（gw/claudeseal.mjs），没有本地清单或和清单对不上就不起；管理子命令也一样，跑的是同一个程序。
 {
   const { claudeSeal } = await import("../gw/claudeseal.mjs");
   const { PATHS } = await import("../gw/config.mjs");
-  // 和 bin/agy / bin/claude 最后 exec 的是同一条路径：优先按 $HOME 算（CCAPP_HOME 终端里能随便改，不能让核的和跑的是两份）
-  // bin/claude 传入 CCAPP_SEAL_TARGET=claude 时必须核验 claude 二进制本身，不能因本机装有 agy 或注入 CCAPP_AGY 而跳过 claude 核验
+  // 和 bin/agy 最后 exec 的是同一条路径：固定优先核验 $HOME 下官方安装路径（终端里 CCAPP_HOME / CCAPP_AGY 能随便改，不能借此绕过核验）
   const home = process.env.HOME || "/nonexistent";
   const agyDef = path.join(home, ".local", "share", "hachimia", "agy", "current", "agy");
-  const claudeDef = path.join(home, ".local", "share", "cccodroid", "claude", "current", "claude");
-  const target = process.env.CCAPP_SEAL_TARGET || "";
-  const agyBin = process.env.CCAPP_AGY || agyDef;
-  const claudeBin = process.env.CCAPP_CLAUDE || claudeDef;
-  const BIN = target === "claude"
-    ? claudeDef
-    : (target === "agy"
-      ? agyDef
-      : (fs.existsSync(agyBin) ? agyBin
-        : (fs.existsSync(claudeBin) ? claudeBin
-          : (PATHS.agy && fs.existsSync(PATHS.agy) ? PATHS.agy
-            : (PATHS.claude && fs.existsSync(PATHS.claude) ? PATHS.claude : agyBin)))));
+  const BIN = fs.existsSync(agyDef) ? agyDef : (PATHS.agy && fs.existsSync(PATHS.agy) ? PATHS.agy : agyDef);
   const check = () => claudeSeal(BIN, { home }).catch((e) => ({ ok: false, why: e.message }));
   const cs = await check();
   // 核验未过时直接 fail-closed 拒停（不再联网补核或执行外部脚本，0.6.9 审计 195-M.4 / Wave 4）

@@ -23,7 +23,7 @@ function mkRoot(name, files) {
   return root;
 }
 const FILES = {
-  "TOOLS.md": "# tools\n", "archive/spec.zh.md": "规范\n", "bin/claude": "#!/bin/sh\nexec real \"$@\"\n",
+  "TOOLS.md": "# tools\n", "archive/spec.zh.md": "规范\n", "bin/agy": "#!/bin/sh\nexec real \"$@\"\n",
   "pre/pkg": "#!/bin/sh\n", "web/index.html": "<html></html>\n", "web/app/01-a.js": "let a=1;\n", "gw/x.mjs": "export {};\n",
 };
 
@@ -40,16 +40,16 @@ test("小目录被改：check 写回原样，多出来的删掉，可执行位�
   assert.deepEqual(g.check(), []);
   fs.appendFileSync(path.join(root, "TOOLS.md"), "执行核 · 常驻层\n");
   fs.appendFileSync(path.join(root, "archive/spec.zh.md"), "执行核\n");
-  fs.rmSync(path.join(root, "bin/claude"));
-  fs.symlinkSync(SH, path.join(root, "bin/claude"));
+  fs.rmSync(path.join(root, "bin/agy"));
+  fs.symlinkSync(SH, path.join(root, "bin/agy"));
   fs.writeFileSync(path.join(root, "pre/git"), "#!/bin/sh\n");
   assert.equal(g.text("TOOLS.md"), "# tools\n", "系统提示用内存里的那份");
   const fixed = g.check();
-  assert.ok(fixed.includes("TOOLS.md") && fixed.includes("archive/spec.zh.md") && fixed.includes("bin/claude"), fixed.join());
+  assert.ok(fixed.includes("TOOLS.md") && fixed.includes("archive/spec.zh.md") && fixed.includes("bin/agy"), fixed.join());
   assert.ok(fixed.some((f) => f.startsWith("pre/git")));
   assert.equal(fs.readFileSync(path.join(root, "TOOLS.md"), "utf8"), "# tools\n");
   assert.equal(fs.readFileSync(path.join(root, "archive/spec.zh.md"), "utf8"), "规范\n");
-  const st = fs.lstatSync(path.join(root, "bin/claude"));
+  const st = fs.lstatSync(path.join(root, "bin/agy"));
   assert.ok(st.isFile() && (st.mode & 0o100), "写回成普通文件且可执行");
   assert.ok(!fs.existsSync(path.join(root, "pre/git")));
   // 同样大小、内容不同、mtime 也改回去（touch -r）也认得出来：ctime 改不回去

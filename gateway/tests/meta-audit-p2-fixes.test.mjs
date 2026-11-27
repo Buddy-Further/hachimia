@@ -40,7 +40,7 @@ function mockReq(method, bodyObj) {
   });
 }
 
-test("P2 #11：cc-guard 覆盖 agy 全部凭据路径；cc-seal CCAPP_SEAL_TARGET=claude 时只验 claude 不被 agy 顶替", () => {
+test("P2 #11：cc-guard 覆盖 agy 全部凭据路径；cc-seal 固定验 $HOME 下的 agy，不被注入 CCAPP_AGY 绕过", () => {
   for (const p of [
     "/data/user/0/ha.chi.mia/files/home/.gemini/antigravity-cli/session.json",
     "/data/user/0/ha.chi.mia/files/home/.gemini/antigravity-cli/accounts/user1.json",
@@ -50,30 +50,28 @@ test("P2 #11：cc-guard 覆盖 agy 全部凭据路径；cc-seal CCAPP_SEAL_TARGE
     assert.match(judge("Read", { file_path: p })?.cat || "", /^secret:/, `应拦截凭据读取: ${p}`);
   }
 
-  // 构造部署态临时 home：放一个验签通过的 agy 和一个被篡改的 claude
+  // 构造部署态临时 home：官方目录放篡改的 agy，另放一个校验通过的诱饵 agy 经 CCAPP_AGY 注入试图绕过
   const tmpHome = fs.mkdtempSync(path.join(CFG.workspace, "p2-seal-"));
   const tmpApp = fs.mkdtempSync(path.join(CFG.workspace, "p2-app-"));
   try {
-    // 部署态识别依赖 HERE/FILES 存在，这里复制最小 gateway 目录并在同级放 FILES 与 sealed 标志
     const agyDir = path.join(tmpHome, ".local/share/hachimia/agy/1.0.0");
-    const claudeDir = path.join(tmpHome, ".local/share/cccodroid/claude/2.0.0");
+    const decoyDir = path.join(tmpHome, "decoy-agy");
     fs.mkdirSync(agyDir, { recursive: true });
-    fs.mkdirSync(claudeDir, { recursive: true });
+    fs.mkdirSync(decoyDir, { recursive: true });
     const agyBin = path.join(agyDir, "agy");
-    const claudeBin = path.join(claudeDir, "claude");
-    fs.writeFileSync(agyBin, "VALID-AGY-ELF");
+    const decoyBin = path.join(decoyDir, "agy");
+    fs.writeFileSync(agyBin, "TAMPERED-AGY-ELF");
     fs.writeFileSync(path.join(agyDir, "manifest.json"), JSON.stringify({
       version: "1.0.0",
-      sha256: crypto.createHash("sha256").update("VALID-AGY-ELF").digest("hex"),
+      sha256: "0".repeat(64),
     }));
     fs.symlinkSync(agyDir, path.join(tmpHome, ".local/share/hachimia/agy/current"));
 
-    fs.writeFileSync(claudeBin, "TAMPERED-CLAUDE-ELF");
-    fs.writeFileSync(path.join(claudeDir, "manifest.json"), JSON.stringify({
-      version: "2.0.0",
-      sha256: "0".repeat(64),
+    fs.writeFileSync(decoyBin, "VALID-DECOY-ELF");
+    fs.writeFileSync(path.join(decoyDir, "manifest.json"), JSON.stringify({
+      version: "1.0.0",
+      sha256: crypto.createHash("sha256").update("VALID-DECOY-ELF").digest("hex"),
     }));
-    fs.symlinkSync(claudeDir, path.join(tmpHome, ".local/share/cccodroid/claude/current"));
 
     // 复制 gateway 最小子树并打上 FILES + edition sealed
     fs.cpSync(path.join(ROOT, "gateway/gw"), path.join(tmpApp, "gw"), { recursive: true });
@@ -89,11 +87,10 @@ test("P2 #11：cc-guard 覆盖 agy 全部凭据路径；cc-seal CCAPP_SEAL_TARGE
         ...process.env,
         HOME: tmpHome,
         CCAPP_HOME: tmpHome,
-        CCAPP_AGY: agyBin,
-        CCAPP_SEAL_TARGET: "claude",
+        CCAPP_AGY: decoyBin,
       },
     });
-    assert.equal(r.status, 4, `即使本机存在合法 agy 且注入 CCAPP_AGY，验 claude 失败仍应 exit 4，实际 ${r.status}: ${r.stderr}`);
+    assert.equal(r.status, 4, `即使注入 CCAPP_AGY 诱饵，官方目录 agy 篡改仍应 exit 4，实际 ${r.status}: ${r.stderr}`);
   } finally {
     fs.rmSync(tmpHome, { recursive: true, force: true });
     fs.rmSync(tmpApp, { recursive: true, force: true });

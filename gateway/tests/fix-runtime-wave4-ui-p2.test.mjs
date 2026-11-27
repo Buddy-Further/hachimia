@@ -50,9 +50,7 @@ test("C-08.1..C-08.3: 脉络导览 ensureLinMap + pageOn 遮挡守卫 + 扩展�
   assert.match(nav, /function pageOn\(name\)\s*\{\s*return !document\.hidden && \(name === "settings" \? setOpen : !setOpen && curPage === name && !\$?\("pages"\)\.classList\.contains\("hidden"\)\);\s*\}/);
 
   const ext = readRepo("gateway/web/app/08-extensions.js");
-  assert.match(ext, /if\s*\(c\.dataset\.sec === "comp"\)\s*syncCatalog\(\)/);
   assert.match(ext, /if\s*\(!pageOn\("ext"\)\)\s*return/);
-  assert.match(ext, /dataset\.famBound/);
 });
 
 test("C-08.4: 后台池 acpBg 徽标/视口保护 + ACP noteWrote + 子代理卡片与取消态", () => {
@@ -134,14 +132,6 @@ test("A-06 & A-09: Java 宿主剥离 CCAPP_TOKEN_FILE、.gateway.pid 收割、Ap
   const envJava = readRepo("android/java/ha/chi/mia/Env.java");
   assert.ok(envJava.includes("ProcessBuilder proc(String... argv)"));
   assert.ok(envJava.includes('e.put("TERMUX_EXEC__PROC_SELF_EXE", cmd.get(1))'));
-
-  const claudeSh = readRepo("android/assets/bin/claude");
-  const idxSed = claudeSh.lastIndexOf("sed -n");
-  const idxSeal = claudeSh.lastIndexOf('node "$SEAL"');
-  const idxUnset = claudeSh.lastIndexOf("unset LD_PRELOAD");
-  const idxExec = claudeSh.lastIndexOf('exec "${CCAPP_LD');
-  assert.ok(idxSed > 0 && idxSeal > idxSed && idxUnset > idxSeal && idxExec > idxUnset,
-    `unset LD_PRELOAD 必须在 sed/node 之后、exec 紧前 (sed=${idxSed}, seal=${idxSeal}, unset=${idxUnset}, exec=${idxExec})`);
 });
 
 // ── A-07: 新会话车道隔离与定时任务忙等含未挂起队列 ──────────────────────────

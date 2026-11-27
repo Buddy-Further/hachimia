@@ -58,10 +58,8 @@ mkdir -p "$A/assets/app/gw"; cp "$SRC/gw/"*.mjs "$A/assets/app/gw/"     # 网关
 mkdir -p "$A/assets/app/archive"; cp "$SRC/archive/"* "$A/assets/app/archive/"   # 建档规范与交档命令（脉络，见 gw/archive.mjs）
 mkdir -p "$A/assets/app/guard"; cp "$SRC/guard/"* "$A/assets/app/guard/"       # 敏感操作再确认的钩子（见 gw/claude.mjs guardHooks）
 for f in "$SRC/web/"*; do case "$f" in *.bak*) ;; *) cp -R "$f" "$A/assets/app/web/";; esac; done
-# 死脚本不进包（E-10）：install-claude.* 是 Claude Code 时代的安装脚本，零调用者（Claude Code 安装已由 install-agy.* 接替），
-# 随包白白占 20 KB；同理 bin/claude 是旧的 Claude Code 启动器，没人执行它（claudeCmd 用的是装好的 agy 二进制）
-for f in "$A/assets/scripts/"*; do case "$(basename "$f")" in install-claude.mjs) ;; *) cp "$f" "$A/assets/app/scripts/";; esac; done
-for f in "$A/assets/bin/"*; do case "$(basename "$f")" in claude) ;; *) cp "$f" "$A/assets/app/bin/";; esac; done
+cp "$A/assets/scripts/"* "$A/assets/app/scripts/"
+cp "$A/assets/bin/"* "$A/assets/app/bin/"
 cp "$ROOT/devkit/pgp.mjs" "$A/assets/app/bin/"     # OpenPGP 验签：pkg.mjs 与 devkit 构建共用这一份
 mkdir -p "$A/assets/app/pre"; cp "$A/assets/pre/"* "$A/assets/app/pre/"     # pkg / apt：PATH 最前，压过工具包里的旧替身
 cp "$A/assets/TOOLS.md" "$A/assets/app/"     # 给 claude 的工具说明（网关读进系统提示）
