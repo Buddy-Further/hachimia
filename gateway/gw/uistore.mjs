@@ -2,11 +2,11 @@
 // 用户自己摆的界面选择（顶栏按钮、侧栏常驻项……）放网关这边：换 WebView、清缓存都不丢。
 // 前端本地留一份镜像（localStorage cc.ui）好让启动时直接摆好不闪，启动后再和这里对一次，以这里为准。
 // 只收白名单里的键，值整个替换（不做深合并）；null 表示删掉这一项、回到默认。
-import fs from "node:fs";
 import path from "node:path";
 import { CFG, log } from "./config.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
 import { readSmallFile } from "./saferead.mjs";
+import { writeAtomic } from "./statefile.mjs";
 
 const FILE = path.join(CFG.home, "ccapp-ui.json");
 export const UI_KEYS = ["topbar", "navPins", "accent", "msgActs", "extImg", "gcPaper"];
@@ -24,7 +24,7 @@ export function patchUi(patch) {
   }
   const s = JSON.stringify(cur);
   if (s.length > MAX) throw new Error("too large");
-  fs.writeFileSync(FILE + ".tmp", s); fs.renameSync(FILE + ".tmp", FILE);
+  if (!writeAtomic(FILE, s)) throw new Error("write failed");
   return cur;
 }
 

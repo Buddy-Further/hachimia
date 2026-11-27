@@ -2812,7 +2812,7 @@ window.I18N_DICT["ko"] = {
   "个文件": "파일",
   "上次安装的备份还没恢复，请重试；不行就先卸载再重装": "지난 설치의 백업이 아직 복구되지 않았습니다. 다시 시도하거나 제거 후 다시 설치하세요.",
   "[cc] 外壳注入的脚本出错（细节被 WebView 隐去）": "[cc] Error in a script injected by the shell (details hidden by WebView)",
-  "\\[附件：(\\/[^\\n]+?) · [^\\n·，\\]]+，文件较大没有直接读入，需要时按路径读取\\]": "\\\\[Attachment: (\\\\/[^\\\n]+?) · [^\\\n·,\\\\]]+, file is large and was not read directly, read by path when needed\\\\]",
+  "\\[附件：(\\/[^\\n]+?) · [^\\n·，\\]]+，文件较大没有直接读入，需要时按路径读取\\]": "\\[Attachment: (\\/[^\\n]+?) · [^\\n·,\\]]+, file is large and was not read directly, read by path when needed\\]",
   "Antigravity 工具请求授权：{w}": "Antigravity is requesting tool authorization: {w}",
   "Antigravity 想问你": "Antigravity wants to ask you",
   "说说要怎么改（会发回给 Antigravity）": "Say how it should change (sent back to Antigravity)",

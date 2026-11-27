@@ -116,11 +116,18 @@
   }
 
   // ── 端侧小模型卡：llama.cpp 装没装、有没有 GPU、模型目录里有哪些、聊天 / 自定义模式、服务状态 ──
+  let localCardSeq = 0;
   async function renderLocalCard(box, p) {
+    const seq = ++localCardSeq;
     box.innerHTML = `<div class="sub">${esc(pLabel(p))}</div><div class="tiny">${t("读取中…")}</div>`;
     let j;
-    try { j = await api("/api/local"); } catch (e) { box.innerHTML += `<div class="prov-state err">${esc(e.message)}</div>`; return; }
-    if (state.provView !== p.id) return;
+    try { j = await api("/api/local"); }
+    catch (e) {
+      if (state.provView !== p.id || seq !== localCardSeq) return;
+      box.innerHTML += `<div class="prov-state err">${esc(e.message)}</div>`;
+      return;
+    }
+    if (state.provView !== p.id || seq !== localCardSeq) return;
     const gb = (n) => (n / 1073741824).toFixed(1) + " GB";
     const ok = (b) => b ? "✓" : "✗";
     const sv = j.server || {}, cu = j.custom || {};
@@ -238,7 +245,12 @@
       const act = e.target.dataset && e.target.dataset.act;
       if (act === "login") startLogin(p, "personal");
       else if (act === "login-console") startLogin(p, "enterprise");
-      else if (act === "cancel") post("/api/login/cancel").then(() => renderProvCard());
+      else if (act === "cancel") {
+        const mine = $("login-state");
+        post("/api/login/cancel")
+          .then(() => { if (state.provView === p.id && (!mine || mine === $("login-state"))) renderProvCard(); })
+          .catch((err) => { if (state.provView === p.id && (!mine || mine === $("login-state"))) toast((err && err.message) || "?", true); });
+      }
       else if (act === "logout") logout(p);
       else if (act === "use") useProvider(p);
     };
@@ -536,13 +548,19 @@
     return { text: t("今日 {n} tokens", { n: compact(td) }), lvl: 0 };
   }
   // 设置里的密钥卡底部只留一行摘要，明细在用量页（「额度与消费」）
+  let billSeq = 0;
   async function loadBill(p, force) {
     const el = $("pc-bill"); if (!el) return;
+    const seq = ++billSeq;
     if (!el.innerHTML) el.innerHTML = `<div class="tiny">${t("查询余额…")}</div>`;
     let b;
     try { b = await api(`/api/billing?id=${encodeURIComponent(p.id)}${force ? "&refresh=1" : ""}`); }
-    catch (e) { el.innerHTML = `<div class="tiny">${esc(t("查询失败：{msg}", { msg: e.message }))}</div>`; return; }
-    if (state.provView !== p.id || !$("pc-bill")) return;
+    catch (e) {
+      if (state.provView !== p.id || seq !== billSeq || !$("pc-bill") || $("pc-bill") !== el) return;
+      el.innerHTML = `<div class="tiny">${esc(t("查询失败：{msg}", { msg: e.message }))}</div>`;
+      return;
+    }
+    if (state.provView !== p.id || seq !== billSeq || !$("pc-bill") || $("pc-bill") !== el) return;
     const br = billBrief(b);
     el.innerHTML = `<div class="bill-head"><span class="sub">${t("余额与消费")}</span>
       <button class="btn sm ghost" data-gopage="usage">${t("在用量页查看")}</button></div>

@@ -34,15 +34,18 @@
 
   // 目录超过 1000 项时网关只回前 1000 项并带 truncated；搜索改成让网关先过滤再截断，
   // 不然只能搜到前 1000 项里的（195-C.5、196 输入域第 9 条）
-  let fsQSeq = 0, fsQTimer = 0, fsPickSeq = 0;
+  let fsQSeq = 0, fsQTimer = 0, fsPickSeq = 0, fsTypedSeq = 0;
   // 文件/压缩包面板当前这一层的归属。A → B → A 也不是原来的那一层。
-  let fsHere = () => false;
+  let fsHere = () => false, fsPending = () => false;
   function fsListRequest() {
     clearTimeout(fsQTimer); fsQSeq++;
     const ok = latest("fs");
-    return () => ok() && !filesEl.classList.contains("hidden");
+    const here = () => ok() && !filesEl.classList.contains("hidden");
+    fsPending = here;
+    return here;
   }
   async function fsLoad(p, { keepSel = false, keepQ = false, keepMulti = false } = {}) {
+    const typedAtStart = fsTypedSeq;
     const ok = fsListRequest();  // 先点的目录响应慢、后到：别把人带回旧目录（审查 C-004 / #49 P3-1）
     try {
       const r = await api(`/api/files?path=${encodeURIComponent(p)}` +
@@ -50,6 +53,7 @@
       if (!ok()) return;
       // 读不了（没权限、不存在）网关回 200 带 error：不能当成空目录（审查 C-003）
       if (r.error) throw new Error(r.error);
+      fsPending = () => false;
       Object.assign(state.fs, {
         path: r.path, parent: r.parent, entries: r.entries || [], roots: r.roots || [],
         truncated: !!r.truncated, qRemote: false,
@@ -58,13 +62,15 @@
       state.fs.arc = null;
       if (!keepSel) state.fs.sel = null;
       if (!keepMulti) state.fs.multi?.clear();
-      // 刷新时保留搜索词：关闭查看器、重命名之后的自动刷新不该把过滤清掉（196 查看器域第 4 条）
-      if (!keepQ) { $("fs-search").value = state.fs.q = ""; }
+      // 刷新时保留搜索词：关闭查看器、重命名之后的自动刷新不该把过滤清掉（196 查看器域第 4 条）；
+      // 加载期间用户新输入的搜索词也不得被异步完成强行清回 ""
+      if (!keepQ && fsTypedSeq === typedAtStart) { $("fs-search").value = state.fs.q = ""; }
       renderFs();
+      clearTimeout(fsQTimer);
       if (state.fs.q && state.fs.truncated) fsSearchNow(state.fs.q);
       return ok;
     } catch (e) {
-      if (ok()) { fsHere = ok; toast(t("打开目录失败：{msg}", { msg: e.message }), true); }
+      if (ok()) { fsPending = () => false; fsHere = ok; toast(t("打开目录失败：{msg}", { msg: e.message }), true); }
     }
   }
 
@@ -85,7 +91,8 @@
   }
   function fsSearchTyped(v) {
     clearTimeout(fsQTimer);
-    if (!fsHere()) { $("fs-search").value = state.fs.q; return; }
+    if (!fsHere() && !fsPending()) { $("fs-search").value = state.fs.q; return; }
+    fsTypedSeq++;
     state.fs.q = v;
     if (!v) {
       if (state.fs.qRemote) return fsLoad(state.fs.path, { keepSel: true, keepQ: true });
@@ -467,6 +474,7 @@
   async function arcLoad(dir, { keepSel = false, keepQ = false, keepMulti = false, stamp } = {}) {
     const arc = state.fs.arc;
     if (!arc) return;
+    const typedAtStart = fsTypedSeq;
     const ok = fsListRequest();
     let r;
     try {
@@ -475,6 +483,7 @@
       r = await arcPost("list", { path: arc.path, dir, enc: arc.enc, password: arc.password || undefined });
     } catch (e) {
       if (!ok()) return;
+      fsPending = () => false;
       fsHere = ok;
       if (!arc.info) { state.fs.arc = null; renderFs(); }
       return toast(e.status === 501 ? t("这个版本没带 7-Zip，打不开这种压缩包") : t("打不开压缩包：{msg}", { msg: e.message }), true);
@@ -483,17 +492,18 @@
     if (r.needPassword) {
       const pw = await arcAskPassword(arc.name, r.wrongPassword && arc.password);
       if (!ok()) return;
-      if (pw == null) { fsHere = ok; if (!arc.info) { state.fs.arc = null; renderFs(); } return; }
+      if (pw == null) { fsPending = () => false; fsHere = ok; if (!arc.info) { state.fs.arc = null; renderFs(); } return; }
       arc.password = pw;
       return arcLoad(dir, { keepSel, keepQ, keepMulti, stamp });
     }
+    fsPending = () => false;
     fsHere = ok;
     if (stamp) arc.stamp = stamp;
     Object.assign(arc, { dir: r.dir, info: r, truncated: r.truncated });
     state.fs.entries = r.entries;
     if (!keepSel) state.fs.sel = null;
     if (!keepMulti) state.fs.multi?.clear();
-    if (!keepQ) $("fs-search").value = state.fs.q = "";
+    if (!keepQ && fsTypedSeq === typedAtStart) $("fs-search").value = state.fs.q = "";
     renderFs();
   }
   function arcUp() {

@@ -10,6 +10,14 @@ import android.content.Intent;
  *   BOOT_COMPLETED       开机 → 仅当用户开着"开机自动激活 Shizuku"且配对过，才启动服务去重新激活
  */
 public class SysEvents extends BroadcastReceiver {
+    static final long REOPEN_BUDGET_MS = 7500L;
+
+    static long boundedWaitMs(long deadline, long now, long stepMs) {
+        long rem = deadline - now;
+        if (rem <= 0) return 0L;
+        return Math.min(stepMs, rem);
+    }
+
     /**
      * 更新前界面开着（Updater 记的 reopenAt，10 分钟内有效）就把界面拉回来。
      * 广播里直接 startActivity 在安卓 10+ 多半被「后台启动界面」限制拦掉，所以先试一下，再等 Shizuku 的 binder
@@ -25,17 +33,38 @@ public class SysEvents extends BroadcastReceiver {
         Intent ui = new Intent(c, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         try { c.startActivity(ui); } catch (Throwable ignored) {}
         PendingResult pr = goAsync();
-        Priv.start(c);
-        new Thread(() -> {
-            try {
-                for (int i = 0; i < 16 && !MainActivity.visible; i++) {
-                    Thread.sleep(500);
-                    if (i >= 2 && Priv.granted()) { Priv.run("am start -n " + c.getPackageName() + "/.MainActivity"); Thread.sleep(1500); break; }
-                }
-                if (!MainActivity.visible) Notify.updatedTapToOpen(c);
-            } catch (Throwable ignored) {
-            } finally { pr.finish(); }
-        }, "reopen-ui").start();
+        try {
+            Priv.start(c);
+            new Thread(() -> {
+                long deadline = android.os.SystemClock.elapsedRealtime() + REOPEN_BUDGET_MS;
+                boolean triedShizuku = false;
+                try {
+                    for (int i = 0; !MainActivity.visible; i++) {
+                        long wait = boundedWaitMs(deadline, android.os.SystemClock.elapsedRealtime(), 500L);
+                        if (wait <= 0) break;
+                        Thread.sleep(wait);
+                        if (MainActivity.visible) break;
+                        long rem = boundedWaitMs(deadline, android.os.SystemClock.elapsedRealtime(), REOPEN_BUDGET_MS);
+                        if (rem <= 0) break;
+                        if (!triedShizuku && i >= 1 && Priv.granted()) {
+                            triedShizuku = true;
+                            Priv.run("am start -n " + c.getPackageName() + "/.MainActivity", Math.min(2500L, rem));
+                            // 给 Activity 启动留短暂窗口，仍受总 deadline 封顶，可见即刻退出
+                            for (int j = 0; j < 5 && !MainActivity.visible; j++) {
+                                long settle = boundedWaitMs(deadline, android.os.SystemClock.elapsedRealtime(), 200L);
+                                if (settle <= 0) break;
+                                Thread.sleep(settle);
+                            }
+                            break;
+                        }
+                    }
+                    if (!MainActivity.visible) Notify.updatedTapToOpen(c);
+                } catch (Throwable ignored) {
+                } finally { pr.finish(); }
+            }, "reopen-ui").start();
+        } catch (Throwable t) {
+            pr.finish();
+        }
     }
 
     @Override public void onReceive(Context c, Intent i) {
@@ -56,7 +85,7 @@ public class SysEvents extends BroadcastReceiver {
             if (s.autostart() && s.prefs().getBoolean("paired", false) && s.hasWss() && new Env(c).devkitReady())
                 // 有的 ROM 开机时不让起前台服务（ForegroundServiceStartNotAllowedException）：别让广播接收器崩掉
                 try { c.startForegroundService(new Intent(c, GatewayService.class).setAction(GatewayService.ACTION_BOOT).putExtra(MainActivity.IK, MainActivity.intentKey(c))); }
-                catch (RuntimeException e) { android.util.Log.w("cccodroid", "开机起网关被拒：" + e); }
+                catch (RuntimeException e) { android.util.Log.w("hachimia", "开机起网关被拒：" + e); }
         } else if (android.app.AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED.equals(a)) {
             // 用户刚授权/撤销「闹钟和提醒」：重新登记，别让已有任务停在旧的精确/非精确状态（审查 11-05）
             SchedAlarm.reschedule(c);

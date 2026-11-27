@@ -232,11 +232,7 @@ function compLoadDiskCache() {
 }
 function compSaveDiskCache() {
   if (!compCacheFile() || !compIndexCache.data) return;
-  try {
-    fs.mkdirSync(COMP_DIR, { recursive: true });
-    fs.writeFileSync(compCacheFile() + ".tmp", JSON.stringify({ at: compIndexCache.at, viaMirror: compIndexViaMirror, sources: compIndexRaw || {} }));
-    fs.renameSync(compCacheFile() + ".tmp", compCacheFile());
-  } catch {}
+  writeAtomic(compCacheFile(), JSON.stringify({ at: compIndexCache.at, viaMirror: compIndexViaMirror, sources: compIndexRaw || {} }));
 }
 
 let compIndexInflight = null;

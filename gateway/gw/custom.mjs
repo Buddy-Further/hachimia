@@ -154,7 +154,7 @@ function treeUsage(dir) {
       const p = path.join(d, e.name);
       if (e.isDirectory()) { stack.push(p); continue; }
       files++;
-      try { const st = fs.lstatSync(p); if (st.isFile()) bytes += (st.blocks || 0) * 512; } catch {}
+      try { const st = fs.lstatSync(p); if (st.isFile()) bytes += Math.max((st.blocks || 0) * 512, st.size || 0); } catch {}
     }
   }
   return { bytes, files };
@@ -162,7 +162,7 @@ function treeUsage(dir) {
 function runCapped(cmd, args, dir, max) {
   return new Promise((resolve) => {
     let f0; try { f0 = fs.statfsSync(dir); } catch {}
-    let over = 0, done = false, killed = "";
+    let over = 0, done = false, killed = "", lastTree = 0;
     const out = [], err = [];
     let outN = 0, errN = 0;
     const ch = spawn(cmd, args, { env: termEnv(), stdio: ["ignore", "pipe", "pipe"], detached: true });
@@ -180,10 +180,30 @@ function runCapped(cmd, args, dir, max) {
     ch.on("error", (e) => finish(e.code || 1, e.message));
     ch.on("close", (code) => finish(killed ? 1 : (code ?? 1), killed));
     const t = setInterval(() => {
-      if (over || !f0) return;
-      let f; try { f = fs.statfsSync(dir); } catch { return; }
-      const used = (f0.bavail - f.bavail) * f.bsize, files = f0.ffree - f.ffree;
-      if (used > max || files > UNPACK_MAX_FILES || f.bavail * f.bsize < UNPACK_RESERVE) { over = Math.max(used, 1); killTree(ch); }
+      if (over || done) return;
+      let used = 0, files = 0, availOk = true;
+      if (f0) {
+        try {
+          const f = fs.statfsSync(dir);
+          used = Math.max(0, (f0.bavail - f.bavail) * f.bsize);
+          files = Math.max(0, f0.ffree - f.ffree);
+          if (f.bavail * f.bsize < UNPACK_RESERVE) availOk = false;
+        } catch {}
+      }
+      const now = Date.now();
+      if (now - lastTree >= 400) {
+        try {
+          const tu = treeUsage(dir);
+          if (tu.bytes > used) used = tu.bytes;
+          if (tu.files > files) files = tu.files;
+        } catch {}
+        const dt = Date.now() - now;
+        lastTree = Date.now() + dt * 2;
+      }
+      if (used > max || files > UNPACK_MAX_FILES || !availOk) {
+        over = Math.max(used, 1);
+        killTree(ch);
+      }
     }, 200);
   });
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// device-mcp.mjs —— cccodroid 的设备工具（MCP，stdio）。网关起 claude 时用 --mcp-config 挂上，名字叫 device。
+// device-mcp.mjs —— hachimia 的设备工具（MCP，stdio）。网关起 claude 时用 --mcp-config 挂上，名字叫 device。
 //
 // 自己不碰安卓：每次调用都经应用进程的套接字（私有目录里的 .priv.sock，只认同一个 uid）转给 DeviceTools.java。
 // 哪些工具出现在 tools/list 里由应用决定 —— 用户在 设置 → 设备工具 里关掉的，模型根本看不到。
@@ -9,15 +9,35 @@ import readline from "node:readline";
 
 // 私有目录里的文件套接字：别的应用抢不走（以前的抽象套接字 \0ha.chi.mia.priv 谁都能先绑 —— 审查 H2）
 const SOCKET = process.env.CCAPP_PRIV_SOCK || "/data/data/ha.chi.mia/files/.priv.sock";
+const MAX_RESP = 16 << 20;
 
 function app(req, timeoutMs = 20000) {
   return new Promise((resolve) => {
     const s = net.connect({ path: SOCKET }, () => s.write(JSON.stringify(req) + "\n"));
-    let buf = "";
-    const t = setTimeout(() => { s.destroy(); resolve({ ok: false, message: "timeout" }); }, timeoutMs);
-    s.on("data", (d) => (buf += d));
-    s.on("end", () => { clearTimeout(t); try { resolve(JSON.parse(buf)); } catch { resolve({ ok: false, message: buf.slice(0, 300) }); } });
-    s.on("error", (e) => { clearTimeout(t); resolve({ ok: false, message: "cccodroid app unreachable: " + e.message }); });
+    s.setEncoding("utf8");
+    let buf = "", bytes = 0, settled = false;
+    const finish = (val) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(t);
+      resolve(val);
+    };
+    const t = setTimeout(() => { s.destroy(); finish({ ok: false, message: "timeout" }); }, timeoutMs);
+    s.on("data", (d) => {
+      bytes += Buffer.byteLength(d);
+      if (bytes > MAX_RESP) {
+        s.destroy();
+        finish({ ok: false, message: "response too large" });
+        return;
+      }
+      buf += d;
+    });
+    s.on("end", () => {
+      if (settled) return;
+      try { finish(JSON.parse(buf)); } catch { finish({ ok: false, message: buf.slice(0, 300) }); }
+    });
+    s.on("error", (e) => finish({ ok: false, message: "hachimia app unreachable: " + e.message }));
+    s.on("close", () => finish({ ok: false, message: "hachimia app connection closed" }));
   });
 }
 
@@ -27,25 +47,25 @@ const read = { type: "boolean", description: "Return the new screen after the ac
 const AFTER = " Waits until the UI settles, then returns the new screen in the same format as screen_read; its numbers replace the old ones.";
 const TOOLS = {
   device_status: {
-    description: "Battery, charging, network (wifi/cellular, VPN, metered), screen on, free storage, device model and Android version, whether cccodroid is in the foreground.",
+    description: "Battery, charging, network (wifi/cellular, VPN, metered), screen on, free storage, device model and Android version, whether hachimia is in the foreground.",
     inputSchema: { type: "object", properties: {} },
     annotations: { readOnlyHint: true },
   },
   notify: {
-    description: "Post a system notification to the user (e.g. when a long task finishes). Tapping it opens cccodroid.",
+    description: "Post a system notification to the user (e.g. when a long task finishes). Tapping it opens hachimia.",
     inputSchema: { type: "object", properties: { title: { type: "string" }, text: { type: "string" } } },
   },
   clipboard_read: {
-    description: "Read the text on the clipboard. The user confirms each read in cccodroid; refused when cccodroid is not in the foreground.",
+    description: "Read the text on the clipboard. The user confirms each read in hachimia; refused when hachimia is not in the foreground.",
     inputSchema: { type: "object", properties: {} },
     annotations: { readOnlyHint: true },
   },
   clipboard_write: {
-    description: "Put text on the clipboard so the user can paste it elsewhere. The user confirms each write in cccodroid; refused when cccodroid is not in the foreground.",
+    description: "Put text on the clipboard so the user can paste it elsewhere. The user confirms each write in hachimia; refused when hachimia is not in the foreground.",
     inputSchema: { type: "object", properties: { text: { type: "string" } }, required: ["text"] },
   },
   open: {
-    description: "Open another app pre-filled for the user to finish: a web page, a map search, the dialer (does not call), an email or SMS draft (does not send), a new calendar event (user taps save), an alarm or timer, the share sheet for text, or launch an installed app by package name (see app_list). If cccodroid is in the background Android blocks this, so a notification is posted for the user to tap instead.",
+    description: "Open another app pre-filled for the user to finish: a web page, a map search, the dialer (does not call), an email or SMS draft (does not send), a new calendar event (user taps save), an alarm or timer, the share sheet for text, or launch an installed app by package name (see app_list). If hachimia is in the background Android blocks this, so a notification is posted for the user to tap instead.",
     inputSchema: {
       type: "object",
       properties: {
@@ -121,7 +141,7 @@ async function listTools() {
 
 async function callTool(name, args) {
   if (!TOOLS[name]) return { isError: true, content: [{ type: "text", text: "unknown tool " + name }] };
-  // 读写剪贴板、打开、每个会话第一次用屏幕工具都要等用户在 cccodroid 里点头（应用那头最多等 60 秒）：
+  // 读写剪贴板、打开、每个会话第一次用屏幕工具都要等用户在 hachimia 里点头（应用那头最多等 60 秒）：
   // 这边先超时报错、那边随后点了允许，就成了「报错了却做了」。屏幕工具以前只给 30 秒，首次原生确认必然丢（#123-4）
   const ask = name === "clipboard_read" || name === "clipboard_write" || name === "open" || name.startsWith("screen") || name === "screenshot";
   const r = await app({ op: "dev", tool: name, args: args || {} }, ask ? 70000 : 20000);
@@ -149,6 +169,7 @@ const rl = readline.createInterface({ input: process.stdin });
 rl.on("line", async (line) => {
   let m;
   try { m = JSON.parse(line); } catch { return; }
+  if (!m || typeof m !== "object" || Array.isArray(m)) return;
   if (m.id === undefined || m.id === null) return;            // 通知（initialized 等）不用回
   try {
     switch (m.method) {
@@ -156,8 +177,8 @@ rl.on("line", async (line) => {
         return send({ id: m.id, result: {
           protocolVersion: m.params?.protocolVersion || "2025-06-18",
           capabilities: { tools: {} },
-          serverInfo: { name: "cccodroid-device", version: "1.0.0" },
-          instructions: "Tools for the Android device cccodroid runs on. Things that open other apps only pre-fill; the user confirms in cccodroid first, then finishes in that app. Screen tools need the accessibility service, which the app switches on when needed.",
+          serverInfo: { name: "hachimia-device", version: "1.0.0" },
+          instructions: "Tools for the Android device hachimia runs on. Things that open other apps only pre-fill; the user confirms in hachimia first, then finishes in that app. Screen tools need the accessibility service, which the app switches on when needed.",
         } });
       case "ping": return send({ id: m.id, result: {} });
       case "tools/list": return send({ id: m.id, result: { tools: await listTools() } });

@@ -265,18 +265,25 @@ test("04-011 首次补算：since 所在小时里 since 之前的消息也补上
   const url = `http://127.0.0.1:${srv.address().port}`;
   const post = async (op, b = {}) => (await fetch(url + "/api/usage/" + op, { method: "POST", body: JSON.stringify(b) })).json();
   const get = async () => (await fetch(url + "/api/usage")).json();
-  await post("clear", { all: true });                 // since = 现在
-  const { since } = await get(), h = Math.floor(since / 3600e3), hourStart = h * 3600e3;
-  if (since - hourStart < 2000) return;              // 正好整点：没有交界可测
-  const sid = crypto.randomUUID(), dir = path.join(PATHS.projects, "-a0520-usage");
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, sid + ".jsonl"), JSON.stringify({ type: "user", sessionId: sid, timestamp: new Date(hourStart + 1000).toISOString(), uuid: crypto.randomUUID(), message: { role: "user", content: "交界小时的提问" } }) + "\n");
-  const r = await post("import");
-  assert.ok(r.prompts >= 1, JSON.stringify(r));
-  assert.equal((await get()).hours[h].m, 1);
-  await post("import");
-  assert.equal((await get()).hours[h].m, 1, "重补不重复加");
-  fs.rmSync(dir, { recursive: true, force: true });
+  const prevProjects = PATHS.projects;
+  const isoProjects = fs.mkdtempSync(path.join(CFG.home, "a0520-proj-"));
+  PATHS.projects = isoProjects;
+  try {
+    await post("clear", { all: true });                 // since = 现在
+    const { since } = await get(), h = Math.floor(since / 3600e3), hourStart = h * 3600e3;
+    if (since - hourStart < 2000) return;              // 正好整点：没有交界可测
+    const sid = crypto.randomUUID(), dir = path.join(PATHS.projects, "-a0520-usage");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, sid + ".jsonl"), JSON.stringify({ type: "user", sessionId: sid, timestamp: new Date(hourStart + 1000).toISOString(), uuid: crypto.randomUUID(), message: { role: "user", content: "交界小时的提问" } }) + "\n");
+    const r = await post("import");
+    assert.ok(r.prompts >= 1, JSON.stringify(r));
+    assert.equal((await get()).hours[h].m, 1);
+    await post("import");
+    assert.equal((await get()).hours[h].m, 1, "重补不重复加");
+  } finally {
+    PATHS.projects = prevProjects;
+    fs.rmSync(isoProjects, { recursive: true, force: true });
+  }
 });
 
 test("04-009 账本换币种：旧消费不贴上新币种（没汇率时旧账本另存，从零记）", async () => {

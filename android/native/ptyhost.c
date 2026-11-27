@@ -31,21 +31,49 @@ static int wr(int fd, const char *p, ssize_t n) {
   return 0;
 }
 
-static void setsize(int fd, int rows, int cols) {
+static pid_t wait_pid(pid_t pid, int *status, int options) {
+  pid_t w;
+  while ((w = waitpid(pid, status, options)) < 0 && errno == EINTR) {}
+  return w;
+}
+
+static unsigned short clamp_dim(long v, unsigned short def) {
+  if (v <= 0) return def;
+  if (v > 65535) return 65535;
+  return (unsigned short)v;
+}
+
+static unsigned short parse_dim(const char *s, unsigned short def) {
+  if (!s || !*s) return def;
+  errno = 0;
+  char *end = NULL;
+  long v = strtol(s, &end, 10);
+  if (end == s) return def;
+  if (errno == ERANGE) return v > 0 ? 65535 : def;
+  return clamp_dim(v, def);
+}
+
+static void setsize(int fd, long rows, long cols) {
   struct winsize ws;
   memset(&ws, 0, sizeof ws);
-  ws.ws_row = rows > 0 ? rows : 24;
-  ws.ws_col = cols > 0 ? cols : 80;
+  ws.ws_row = clamp_dim(rows, 24);
+  ws.ws_col = clamp_dim(cols, 80);
   ioctl(fd, TIOCSWINSZ, &ws);
 }
 
 int main(int argc, char **argv) {
   if (argc < 4) { fprintf(stderr, "usage: ptyhost rows cols prog [args...]\n"); return 2; }
-  int rows = atoi(argv[1]), cols = atoi(argv[2]);
+  long rows = (long)parse_dim(argv[1], 24), cols = (long)parse_dim(argv[2], 80);
 
-  /* 先看 fd 3 在不在：不在的话下面 posix_openpt 会拿到 3，被误当成控制管道 */
+  /* 先检查 stdin 和 fd 3 在不在：避免 0..2 关闭时 posix_openpt 占用 0..2 或被误当成控制管道 */
+  int in_open = fcntl(0, F_GETFD) >= 0;
   int ctl = fcntl(3, F_GETFD) >= 0 ? 3 : -1;
   int m = posix_openpt(O_RDWR | O_NOCTTY);
+  if (m >= 0 && m <= 2) {
+    int m2 = fcntl(m, F_DUPFD_CLOEXEC, 4);
+    close(m);
+    m = m2;
+  }
   if (m < 0 || grantpt(m) < 0 || unlockpt(m) < 0) { perror("ptyhost: openpt"); return 1; }
   char sname[128];
   int pr = ptsname_r(m, sname, sizeof sname);   /* 返回的是错误号，不设 errno：perror 会打出不相干的原因（11-04 报告 二） */
@@ -55,14 +83,14 @@ int main(int argc, char **argv) {
   pid_t pid = fork();
   if (pid < 0) { perror("ptyhost: fork"); return 1; }
   if (pid == 0) {
+    close(m);
+    if (ctl >= 0) close(ctl);
     setsid();
     int s = open(sname, O_RDWR);
     if (s < 0) { perror("ptyhost: open slave"); _exit(127); }
     ioctl(s, TIOCSCTTY, 0);
     dup2(s, 0); dup2(s, 1); dup2(s, 2);
     if (s > 2) close(s);
-    close(m);
-    if (ctl >= 0) close(ctl);
     signal(SIGPIPE, SIG_DFL);
     execvp(argv[3], argv + 3);
     fprintf(stderr, "ptyhost: exec %s: %s\r\n", argv[3], strerror(errno));
@@ -72,7 +100,6 @@ int main(int argc, char **argv) {
   signal(SIGPIPE, SIG_IGN);
   char buf[16384], line[64];
   size_t ll = 0;
-  int in_open = 1;
   for (;;) {
     struct pollfd p[3];
     int n = 0;
@@ -96,9 +123,9 @@ int main(int argc, char **argv) {
         in_open = 0;
         kill(-pid, SIGHUP); kill(pid, SIGHUP);
         close(m);
-        for (int i = 0; i < 10 && waitpid(pid, NULL, WNOHANG) == 0; i++) usleep(100000);
+        for (int i = 0; i < 10 && wait_pid(pid, NULL, WNOHANG) == 0; i++) usleep(100000);
         kill(-pid, SIGKILL); kill(pid, SIGKILL);
-        waitpid(pid, NULL, WNOHANG);
+        wait_pid(pid, NULL, WNOHANG);
         return 129;
       }
     }
@@ -109,8 +136,8 @@ int main(int argc, char **argv) {
       for (ssize_t i = 0; i < r; i++) {
         if (buf[i] == '\n') {
           line[ll] = 0; ll = 0;
-          int a = 0, b = 0;
-          if (sscanf(line, "%d %d", &a, &b) == 2) {
+          long a = 0, b = 0;
+          if (sscanf(line, "%ld %ld", &a, &b) == 2) {
             setsize(m, a, b);
             kill(-pid, SIGWINCH);
           }
@@ -119,12 +146,12 @@ int main(int argc, char **argv) {
     }
   }
   int st = 0;
-  if (waitpid(pid, &st, WNOHANG) == 0) {
+  if (wait_pid(pid, &st, WNOHANG) == 0) {
     /* 和上面网关关终端那条一致：SIGHUP 后最多等 1 秒，不走就整组 SIGKILL，别在阻塞 waitpid 上永远挂着（审查 10-29 第六份 低6） */
     kill(-pid, SIGHUP); kill(pid, SIGHUP);
     pid_t w = 0;
-    for (int i = 0; i < 10 && (w = waitpid(pid, &st, WNOHANG)) == 0; i++) usleep(100000);
-    if (w == 0) { kill(-pid, SIGKILL); kill(pid, SIGKILL); waitpid(pid, &st, 0); }
+    for (int i = 0; i < 10 && (w = wait_pid(pid, &st, WNOHANG)) == 0; i++) usleep(100000);
+    if (w == 0) { kill(-pid, SIGKILL); kill(pid, SIGKILL); wait_pid(pid, &st, 0); }
   }
   if (WIFEXITED(st)) return WEXITSTATUS(st);
   if (WIFSIGNALED(st)) return 128 + WTERMSIG(st);

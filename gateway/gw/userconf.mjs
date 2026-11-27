@@ -16,6 +16,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { CFG, log } from "./config.mjs";
 import { SAFE_KEYS } from "./projtrust.mjs";
+import { saveState, writeAtomic as stateWriteAtomic } from "./statefile.mjs";
 
 // 单个文件；JSON 的几个只看会让东西跑起来的那部分（claude 自己常写的统计、提示次数之类不算）
 const FILES = [".claude/CLAUDE.md", ".claude/settings.json", ".claude/settings.local.json", ".claude.json",
@@ -115,17 +116,13 @@ function loadRec() {
   return REC;
 }
 function saveRec() {
-  try {
-    const tmp = RECORD() + ".tmp-" + process.pid;
-    fs.writeFileSync(tmp, JSON.stringify({ v: 1, at: Date.now(), files: REC.files, modes: REC.modes }), { mode: 0o600 });
-    fs.renameSync(tmp, RECORD());
-  } catch (e) { log(`[用户配置] 记不下确认记录：${e.message}`); }
+  saveState(RECORD(), { v: 1, at: Date.now(), files: REC.files, modes: REC.modes }, { mode: 0o600, pretty: false });
 }
 function putCopy(rel, f) {
   const p = path.join(STORE(), keyName(rel));
   const data = f.bytes || f.text;
   if (f.big || data == null || Buffer.byteLength(data) > COPY_MAX) { try { fs.rmSync(p, { force: true }); } catch {} return; }
-  try { fs.mkdirSync(STORE(), { recursive: true, mode: 0o700 }); fs.writeFileSync(p + ".tmp", data, { mode: 0o600 }); fs.renameSync(p + ".tmp", p); } catch {}
+  try { fs.mkdirSync(STORE(), { recursive: true, mode: 0o700 }); stateWriteAtomic(p, data, { mode: 0o600 }); } catch {}
 }
 function getCopy(rel) {
   try { return fs.readFileSync(path.join(STORE(), keyName(rel)), "utf8"); } catch { return null; }

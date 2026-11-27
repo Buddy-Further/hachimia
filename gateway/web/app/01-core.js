@@ -780,7 +780,7 @@ if (/[?&](t|k)=/.test(location.search) || /[#&]k=/.test(location.hash)) history.
   // $ 的规矩照 pandoc：开头 $ 后面不能是空格；收尾 $ 前面不能是空格、后面不能紧跟数字或字母，
   // 中间不许再有 $。这样 $5 到 $10、$PATH:$HOME、$HOME 这类都不会被当成公式。
   function holdMath(s, keep) {
-    const put = (tex, raw) => "\u0001" + (keep.push(`<span class="math" data-tex="${esc(tex)}">${esc(raw)}</span>`) - 1) + "\u0001";
+    const put = (tex, raw) => "\u0001" + (keep.push({ tex, raw }) - 1) + "\u0001";
     return s.split(/(`[^`\n]+`)/).map((seg, i) => {
       if (i % 2) return seg;
       seg = seg.replace(/\$\$([^$\n]+?)\$\$/g, (raw, tex) => put(tex, raw))
@@ -817,14 +817,18 @@ if (/[?&](t|k)=/.test(location.search) || /[#&]k=/.test(location.hash)) history.
     // 这样 **`代码`** 这种跨着片段的加粗也能配上对，片段里的 * 也不会被当成强调
     const keep = [];
     const hold = (h) => "\u0000" + (keep.push(h) - 1) + "\u0000";
-    return esc(s)
+    // 属性值里绝不展开 <span class="math">（双引号/尖括号会破坏 DOM 属性），仅还原为转义后的源码文本
+    const mathPlain = (x) => String(x).replace(/\u0001(\d+)\u0001/g, (_, n) => esc(maths[n].raw));
+    const mathRaw = (x) => String(x).replace(/\u0001(\d+)\u0001/g, (_, n) => maths[n].raw);
+    const mathSpan = (m) => `<span class="math" data-tex="${esc(m.tex)}">${esc(m.raw)}</span>`;
+    let out = esc(s)
       // 图片：只有调用方给了解析函数（查看器预览按文件所在目录解析相对路径）才渲染；聊天里不认
       .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (all, alt, u) =>
         { if (!mdImg) return all;
-          const r = mdImg(u.replace(/&amp;/g, "&"));
-          if (typeof r === "object") return hold(`<button type="button" class="md-img-ext" data-src="${esc(r.src)}" data-alt="${alt}">${esc(r.label)}</button>`);
+          const r = mdImg(mathRaw(u).replace(/&amp;/g, "&"));
+          if (typeof r === "object") return hold(`<button type="button" class="md-img-ext" data-src="${esc(r.src)}" data-alt="${mathPlain(alt)}">${esc(r.label)}</button>`);
           const src = safeImgSrc(r);
-          return src ? hold(`<img class="md-img" src="${esc(src)}" alt="${alt}" loading="lazy" referrerpolicy="no-referrer">`) : all; })
+          return src ? hold(`<img class="md-img" src="${esc(src)}" alt="${mathPlain(alt)}" loading="lazy" referrerpolicy="no-referrer">`) : all; })
       .replace(/`([^`\n]+)`/g, (_, c) => {
         const m = c.match(/^((?:\/storage|\/sdcard|\/data|\/mnt)(?:\/[^\n]*?))(:\d+(?::\d+)?)?$/);
         const w = !m && wroteOf(c);
@@ -832,21 +836,21 @@ if (/[?&](t|k)=/.test(location.search) || /[#&]k=/.test(location.hash)) history.
       })
       // 链接里的路径按完整括号配平来取（0.6.9 审计 195-C.1），%xx 解码后进 data-path；
       // 带空格/括号的路径用 Markdown 的尖括号写法：[说明](</sdcard/My Files/a.pdf>)
-      .replace(/\[([^\]]+)\]\(&lt;(\/[^\n]*?)&gt;\)/g, (all, l, u) => { const p = fileUrlPath(u); return p ? hold(pathLink(p, "", l)) : all; })
-      .replace(/\[([^\]]+)\]\((\/(?:[^()\s]|\([^()\s]*\))+)\)/g, (all, l, u) => { const p = fileUrlPath(u); return p ? hold(pathLink(p, "", l)) : all; })
-      .replace(/\[([^\]]+)\]\(file:\/\/(\/(?:[^()\s]|\([^()\s]*\))+)\)/g, (all, l, u) => { const p = fileUrlPath(u); return p ? hold(pathLink(p, "", l)) : all; })
-      .replace(/\[([^\]]+)\]\((https?:\/\/(?:[^()\s]|\([^()\s]*\))+)\)/g, (_, l, u) => hold(`<a class="weblink" href="${u}" target="_blank" rel="noopener">${l}</a>`))
+      .replace(/\[([^\]]+)\]\(&lt;(\/[^\n]*?)&gt;\)/g, (all, l, u) => { const p = fileUrlPath(mathPlain(u)); return p ? hold(pathLink(p, "", l)) : all; })
+      .replace(/\[([^\]]+)\]\((\/(?:[^()\s]|\([^()\s]*\))+)\)/g, (all, l, u) => { const p = fileUrlPath(mathPlain(u)); return p ? hold(pathLink(p, "", l)) : all; })
+      .replace(/\[([^\]]+)\]\(file:\/\/(\/(?:[^()\s]|\([^()\s]*\))+)\)/g, (all, l, u) => { const p = fileUrlPath(mathPlain(u)); return p ? hold(pathLink(p, "", l)) : all; })
+      .replace(/\[([^\]]+)\]\((https?:\/\/(?:[^()\s]|\([^()\s]*\))+)\)/g, (_, l, u) => hold(`<a class="weblink" href="${mathPlain(u)}" target="_blank" rel="noopener">${l}</a>`))
       // 裸网址也能点（本机开发服务 http://127.0.0.1:端口 最常见）；句末标点不算
       .replace(/https?:\/\/[^\s<>"'`）)】」，。；、\u0000]+/g, (u) => {
         // 结尾的 * 也不算：**http://…** 这种加粗包着的网址，不然 ** 会进链接、点开 404
         const tail = (u.match(/[.,;:!?*]+$/) || [""])[0];
-        const h = u.slice(0, u.length - tail.length);
+        const h = mathPlain(u.slice(0, u.length - tail.length));
         return hold(`<a class="weblink" href="${h}" target="_blank" rel="noopener">${h}</a>`) + tail;
       })
       // 裸 file:///… 也认；句末标点、加粗的 * 不算（! ? 留着，文件名里可能有）；:行号 照 PATH_RE 显示在链接里
       .replace(/(^|[\s(（:：,，、;'"`“*])file:\/\/(\/[^\s<>"'`）)】」，。；、\u0000]+)/g, (all, pre, u) => {
         const tail = (u.match(/[.,;:*]+$/) || [""])[0], body = u.slice(0, u.length - tail.length);
-        const p = fileUrlPath(body);
+        const p = fileUrlPath(mathPlain(body));
         return p ? pre + hold(pathLink(p, (body.match(/:\d+(?::\d+)?$/) || [""])[0])) + tail : all;
       })
       .replace(PATH_SPACE_RE, (_, pre, p, line) => {
@@ -861,9 +865,11 @@ if (/[?&](t|k)=/.test(location.search) || /[#&]k=/.test(location.hash)) history.
       .replace(/\*\*\*([^*\n]+)\*\*\*/g, "<strong><em>$1</em></strong>")
       .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
       .replace(/(^|[\s(])\*([^*\n]+)\*/g, "$1<em>$2</em>")
-      .replace(/~~([^~\n]+)~~/g, "<del>$1</del>")
-      .replace(/\u0000(\d+)\u0000/g, (_, n) => keep[n])
-      .replace(/\u0001(\d+)\u0001/g, (_, n) => maths[n]);
+      .replace(/~~([^~\n]+)~~/g, "<del>$1</del>");
+    for (let pass = 0; pass < 3 && out.includes("\u0000"); pass++) {
+      out = out.replace(/\u0000(\d+)\u0000/g, (_, n) => keep[n]);
+    }
+    return out.replace(/\u0001(\d+)\u0001/g, (_, n) => mathSpan(maths[n]));
   }
 
   /** 支持标题/列表/表格/代码块/引用/分隔线；img(url) → 图片地址，给了才渲染 ![](…) */

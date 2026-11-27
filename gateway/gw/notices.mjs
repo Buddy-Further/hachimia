@@ -13,6 +13,7 @@ import { CFG, LIVE, PREFIX, log } from "./config.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
 import { privCall } from "./usage.mjs";
 import { SETTINGS } from "./settings-store.mjs";
+import { saveState, writeAtomic } from "./statefile.mjs";
 
 const SOURCES = (process.env.CCAPP_NOTICES_URL ? [process.env.CCAPP_NOTICES_URL] : [])
   .concat(["https://raw.githubusercontent.com/Buddy-Further/hachimia/main/notices/notices.json"]);
@@ -30,9 +31,8 @@ export function loadSigned(file) {
 }
 /** 存正文原样字节（不重新序列化，签名才对得上）和签名；先写 .sig 再换正文，换到一半也只是验不过、当没有 */
 export function saveSigned(file, body, sig) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file + ".sig.tmp", sig); fs.renameSync(file + ".sig.tmp", file + ".sig");
-  fs.writeFileSync(file + ".tmp", body); fs.renameSync(file + ".tmp", file);
+  if (!writeAtomic(file + ".sig", sig)) return false;
+  return writeAtomic(file, body);
 }
 const CACHE = path.join(CFG.home, ".cache", "cccodroid", "notices.json");
 const SEEN = path.join(CFG.home, ".config", "cccodroid", "notices-seen.json");
@@ -129,8 +129,9 @@ export async function routeNotices(req, res, u, p) {
     const seen = readSeen(); seen.add(id);
     // 只留还在发布的那些 id，文件不会越积越大
     const live = new Set((data?.notices || []).map((n) => String(n.id)));
-    fs.mkdirSync(path.dirname(SEEN), { recursive: true });
-    fs.writeFileSync(SEEN, JSON.stringify({ dismissed: [...seen].filter((x) => live.has(x) || x === id) }));
+    if (!saveState(SEEN, { dismissed: [...seen].filter((x) => live.has(x) || x === id) }, { pretty: false })) {
+      return sendJson(res, 500, { ok: false });
+    }
     return sendJson(res, 200, { ok: true });
   }
   return NEXT;

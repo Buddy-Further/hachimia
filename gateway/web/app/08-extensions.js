@@ -819,7 +819,7 @@
   });
 
   // ── Hooks（自动规则）：到某个时刻自动跑一条命令。常用规则点一下就加，也能自己写；每条都能先试运行看效果 ──
-  const HK = { data: null, scope: localStorage.getItem("cc.hookScope") || "user", edit: null, recipe: null };
+  const HK = { data: null, scope: localStorage.getItem("cc.hookScope") || "user", edit: null, recipe: null, saving: false };
   const HK_EV = {
     PreToolUse: [tk("用工具之前"), tk("Claude 每次调用工具（改文件、跑命令、联网……）之前。退出码 2 会拦下这次调用，stderr 里写的原因会转告 Claude。")],
     PostToolUse: [tk("用完工具之后"), tk("工具执行成功之后。适合格式化、记录、检查；动作已经做了，退出码 2 只会把 stderr 反馈给 Claude。")],
@@ -1016,9 +1016,15 @@
 
   async function hkSave(hooks, extra) {
     const sc = hkScopeData();
-    const r = await api("/api/ext/hooks/save", { method: "POST", body: JSON.stringify({ scope: HK.scope, dir: HK.data.dir, hooks, ...extra }) });
-    if (r.ok === false) {
-      toast(r.code === "badjson" ? t("这个配置文件不是合法的 JSON（{msg}），先打开修好，这里才能改。", { msg: r.message }) : t("保存失败：{msg}", { msg: r.message }), true);
+    let r;
+    try {
+      r = await api("/api/ext/hooks/save", { method: "POST", body: JSON.stringify({ scope: HK.scope, dir: HK.data.dir, hooks, ...extra }) });
+    } catch (e) {
+      toast(t("保存失败：{msg}", { msg: e.message }), true);
+      return false;
+    }
+    if (!r || r.ok === false) {
+      toast(r && r.code === "badjson" ? t("这个配置文件不是合法的 JSON（{msg}），先打开修好，这里才能改。", { msg: r.message }) : t("保存失败：{msg}", { msg: (r && r.message) || "?" }), true);
       return false;
     }
     toast(t("已保存，下一条消息生效"));
@@ -1063,7 +1069,7 @@
 
   $("ext-hook-sec").addEventListener("click", async (e) => {
     const chip = e.target.closest("[data-hscope]");
-    if (chip) { HK.scope = chip.dataset.hscope; localStorage.setItem("cc.hookScope", HK.scope); hkCloseForm(); return renderHooks(); }
+    if (chip) { if (HK.saving) return; HK.scope = chip.dataset.hscope; localStorage.setItem("cc.hookScope", HK.scope); hkCloseForm(); return renderHooks(); }
     const mc = e.target.closest("[data-chip]");
     if (mc) {
       const inp = $("hook-form").querySelector('[data-f="matcher"]');
@@ -1095,10 +1101,15 @@
     if (a === "close-file") { $("hk-file-view")?.remove(); return; }
     if (a === "test" && it) return hkRunTest(b.closest(".hk-item").querySelector(".hk-out"), it.ev, it.h.command, it.matcher, it.h.timeout);
     if (a === "del" && it) {
+      if (HK.saving || b.disabled) return;
       if (!confirm(t("删除这条规则？"))) return;
-      const h = hkClone();
-      h[it.ev][it.gi].hooks.splice(it.hi, 1);
-      return hkSave(h);
+      HK.saving = true; b.disabled = true;
+      try {
+        const h = hkClone();
+        if (!h[it.ev]?.[it.gi]?.hooks) return;
+        h[it.ev][it.gi].hooks.splice(it.hi, 1);
+        return await hkSave(h);
+      } finally { HK.saving = false; b.disabled = false; }
     }
     if (a === "edit" && it) {
       HK.edit = { ev: it.ev, gi: it.gi, hi: it.hi, scope: HK.scope, orig: JSON.stringify({ m: it.matcher || "", h: it.h }) };
@@ -1152,12 +1163,21 @@
   });
   $("ext-hook-sec").addEventListener("change", async (e) => {
     if (e.target.dataset.hk !== "pause") return;
-    const on = e.target.checked;
-    // 暂停的是当前这一层（所有项目 / 本项目 / 本项目·只在本机）：以前固定只停用户级，项目里的照跑却显示成停了（#152-2）
-    const r = await api("/api/ext/hooks/save", { method: "POST", body: JSON.stringify({ scope: HK.scope, dir: HK.data.dir, disableAll: on }) });
-    if (r.ok === false) { e.target.checked = !on; return toast(t("保存失败：{msg}", { msg: r.message }), true); }
-    toast(on ? t("这一层的 hooks 已暂停") : t("hooks 已恢复"));
-    loadExtHooks();
+    const cb = e.target, on = cb.checked;
+    if (HK.saving || cb.disabled || !HK.data) { cb.checked = !on; return; }
+    HK.saving = true; cb.disabled = true;
+    try {
+      // 暂停的是当前这一层（所有项目 / 本项目 / 本项目·只在本机）：以前固定只停用户级，项目里的照跑却显示成停了（#152-2）
+      const r = await api("/api/ext/hooks/save", { method: "POST", body: JSON.stringify({ scope: HK.scope, dir: HK.data.dir, disableAll: on }) });
+      if (!r || r.ok === false) { cb.checked = !on; return toast(t("保存失败：{msg}", { msg: (r && r.message) || "?" }), true); }
+      toast(on ? t("这一层的 hooks 已暂停") : t("hooks 已恢复"));
+      await loadExtHooks();
+    } catch (err) {
+      cb.checked = !on;
+      toast(t("保存失败：{msg}", { msg: err.message }), true);
+    } finally {
+      HK.saving = false; cb.disabled = false;
+    }
   });
   /** 放进事件下匹配规则相同的那组（没有就新开一组） */
   function hkPut(h, v, entry) {

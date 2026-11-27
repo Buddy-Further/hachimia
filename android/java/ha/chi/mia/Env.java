@@ -151,12 +151,16 @@ final class Env {
         return proveBoot(force) != null;
     }
 
+    static boolean proofCacheFresh(boolean force, String boot, long provedAt, long now) {
+        return !force && boot != null && !boot.isEmpty() && provedAt > 0 && now >= provedAt && now - provedAt < 3000;
+    }
+
     /** 核身份并返回本次核到的启动号（原子快照，防 resetBoot 与并发写 provedAt/boot 撕裂导致签名带空 boot 吃 403） */
     private static String proveBoot(boolean force) {
         long curEpoch;
         synchronized (BOOT_LOCK) {
             curEpoch = bootEpoch;
-            if (!force && !boot.isEmpty() && System.currentTimeMillis() - provedAt < 3000) return boot;    // 刚核过：别每个请求都多跑一趟
+            if (proofCacheFresh(force, boot, provedAt, android.os.SystemClock.elapsedRealtime())) return boot;    // 刚核过：别每个请求都多跑一趟
         }
         String keySnap = key();
         if (keySnap.isEmpty()) return null;
@@ -228,7 +232,7 @@ final class Env {
                         cookieVal = hmac(t, "cookie:" + boot);
                         bootCookie = cookieVal;
                     }
-                    provedAt = System.currentTimeMillis();
+                    provedAt = android.os.SystemClock.elapsedRealtime();
                 }
                 if (cookieVal != null) invokeOnBoot(onBoot, cookieVal);
                 return p[0];

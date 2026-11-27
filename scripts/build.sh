@@ -115,7 +115,18 @@ cp "$A/native/execpath.cjs" "$A/assets/app/lib/"
 # 7-Zip（压缩包浏览、解压、压缩）：成品存在仓库里，由 scripts/build-7zz.sh 从上游源码编出；核过哈希再进 APK
 ( cd "$A/prebuilt" && [ "$(sha256sum libcc7zz.so | cut -c1-64)" = "$(cat libcc7zz.so.sha256)" ] ) || { echo "✗ android/prebuilt/libcc7zz.so 和记下的哈希对不上：重跑 sh scripts/build-7zz.sh"; exit 1; }
 cp "$A/prebuilt/libcc7zz.so" "$NL/"
-TAG=$(cat "$A/assets/app/server.mjs" "$A/assets/app/boot.mjs" "$A/assets/app/gw/"* "$A/assets/app/archive/"* "$A/assets/app/guard/"* "$A/assets/app/TOOLS.md" $(find "$A/assets/app/web" -type f | sort) "$A/assets/app/scripts/"* "$A/assets/app/bin/"* "$A/assets/app/pre/"* "$A/assets/app/lib/"* "$NL/"libcc*.so | md5sum | cut -c1-12)
+TAG=$( (
+  LC_ALL=C; export LC_ALL
+  {
+    printf '%s\0' \
+      "$A/assets/app/server.mjs" "$A/assets/app/boot.mjs" "$A/assets/app/gw/"* \
+      "$A/assets/app/archive/"* "$A/assets/app/guard/"* "$A/assets/app/TOOLS.md"
+    find "$A/assets/app/web" -type f -print0 | LC_ALL=C sort -z
+    printf '%s\0' \
+      "$A/assets/app/scripts/"* "$A/assets/app/bin/"* "$A/assets/app/pre/"* \
+      "$A/assets/app/lib/"* "$NL/"libcc*.so
+  } | xargs -0 sha256sum | sha256sum | cut -c1-12
+) )
 echo "$TAG" > "$A/assets/app/TAG"
 echo "  tag $TAG"
 # 逐文件清单（sha256 + 相对路径）：启动时应用按它核对 files/app，被改过、多出来的就从安装包还原（防项目钩子 / MCP 之类偷偷改网关）
@@ -187,13 +198,15 @@ if [ "$SIGN" = apksigner ]; then
   rm -f "$OUT/hachimia.apk.idsig"
   echo "  $(du -h "$OUT/hachimia.apk" | cut -f1)"
 else
-node --input-type=module -e "
-import fs from 'node:fs'; import { signApk } from '$ROOT/scripts/apklib.mjs';
-const r = signApk('$A/build/unsigned.apk', '$OUT/hachimia.apk',
-  [{ name: 'classes.dex', data: fs.readFileSync('$A/build/classes.dex'), method: 8 },
-   ...['libldlinux.so', ...fs.readdirSync('$NL').filter((n) => /^libcc.*\.so$/.test(n)).sort()]
-     .map((n) => ({ name: 'lib/arm64-v8a/' + n, data: fs.readFileSync('$A/build/lib/arm64-v8a/' + n), method: 0 }))], '$KEY');
-console.log('  ' + r.entries + ' 个条目 · ' + (r.size / 1048576).toFixed(2) + ' MB');
-"
+node --input-type=module -e '
+import fs from "node:fs"; import { pathToFileURL } from "node:url";
+const [root, a, out, nl, key] = process.argv.slice(1);
+const { signApk } = await import(pathToFileURL(root + "/scripts/apklib.mjs").href);
+const r = signApk(a + "/build/unsigned.apk", out + "/hachimia.apk",
+  [{ name: "classes.dex", data: fs.readFileSync(a + "/build/classes.dex"), method: 8 },
+   ...["libldlinux.so", ...fs.readdirSync(nl).filter((n) => /^libcc.*\.so$/.test(n)).sort()]
+     .map((n) => ({ name: "lib/arm64-v8a/" + n, data: fs.readFileSync(a + "/build/lib/arm64-v8a/" + n), method: 0 }))], key);
+console.log("  " + r.entries + " 个条目 · " + (r.size / 1048576).toFixed(2) + " MB");
+' -- "$ROOT" "$A" "$OUT" "$NL" "$KEY"
 fi
 echo "✓ $OUT/hachimia.apk"

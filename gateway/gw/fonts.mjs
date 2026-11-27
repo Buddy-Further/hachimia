@@ -9,6 +9,7 @@ import zlib from "node:zlib";
 import crypto from "node:crypto";
 import { CFG, log } from "./config.mjs";
 import { NEXT, readBody, readBodyBuf, sendJson } from "./http.mjs";
+import { writeAtomic } from "./statefile.mjs";
 
 const DIR = path.join(CFG.home, "fonts");
 const LIST = path.join(DIR, "fonts.json");
@@ -146,8 +147,7 @@ function load() {
   return [];
 }
 function save(list) {
-  fs.mkdirSync(DIR, { recursive: true });
-  fs.writeFileSync(LIST + ".tmp", JSON.stringify(list, null, 1)); fs.renameSync(LIST + ".tmp", LIST);
+  if (!writeAtomic(LIST, JSON.stringify(list, null, 1))) throw new Error("save fonts failed");
 }
 const fileOf = (f) => path.join(DIR, `${f.id}.${f.fmt}`);
 const pub = (f) => ({ id: f.id, name: f.name, file: f.file, fmt: f.fmt, size: f.size, at: f.at });

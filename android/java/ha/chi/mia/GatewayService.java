@@ -397,7 +397,7 @@ public class GatewayService extends Service {
                         if (cb != null) cb.run();
                         sleep(10000); continue;      // 照旧每 10 秒再看一次，占用的走了就起网关
                     }
-                    long t0 = System.currentTimeMillis();
+                    long t0 = android.os.SystemClock.elapsedRealtime();
                     try {
                         spawnGateway();
                         update(Tr.t("运行中 · 127.0.0.1:") + Env.PORT);
@@ -426,7 +426,7 @@ public class GatewayService extends Service {
                         Log.e(TAG, "网关启动失败", e);
                     }
                     if (stopping) break;
-                    backoff = System.currentTimeMillis() - t0 > 60000 ? 1000 : Math.min(backoff * 2, 60000);
+                    backoff = android.os.SystemClock.elapsedRealtime() - t0 > 60000 ? 1000 : Math.min(backoff * 2, 60000);
                     // 反复退出时用户多半拿不到日志（界面停在「等待网关」页）：把这次退出的原因带进通知，截个图就能定位（11-07 升级后网关起不来）
                     update(why != null ? Tr.f("网关已退出：{0}，{1} 秒后重启", why, backoff / 1000) : Tr.f("网关已退出，{0} 秒后重启", backoff / 1000));
                     why = null;
@@ -553,7 +553,7 @@ public class GatewayService extends Service {
             cancel = spawnCancelled(stopping, paused, myGen, lifeGen);
             if (!cancel) {
                 proc = p;
-                spawnedAt = System.currentTimeMillis();
+                spawnedAt = android.os.SystemClock.elapsedRealtime();
                 aliveUnprovenSince = 0;
                 gwBlocked = null;
             }
@@ -770,7 +770,7 @@ public class GatewayService extends Service {
         while (true) {
             if (p.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)) return p.exitValue();
             if (stopping || paused) { killGateway(); continue; }   // 停止 / 停住：销毁后下一拍就退出了
-            long now = System.currentTimeMillis();
+            long now = android.os.SystemClock.elapsedRealtime();
             if (Env.proveGateway()) { unprovenSince = 0; continue; }
             if (installingGrace()) { unprovenSince = 0; continue; }   // 组件安装合法占着事件循环：探活失败不算数
             int d = aliveDecision(false, now, spawnedAt, unprovenSince);
@@ -791,7 +791,7 @@ public class GatewayService extends Service {
             // 过了宽限还证明不了自己（卡死、端口被别人接了）就结束它重起 —— 以前根本不看证明结果（0.6.9 审计 13-02）
             if (Env.proveGateway()) { aliveUnprovenSince = 0; gwBlocked = null; return true; }
             if (installingGrace()) { aliveUnprovenSince = 0; return true; }   // 组件安装合法占着事件循环：探活失败不算数
-            long now = System.currentTimeMillis();
+            long now = android.os.SystemClock.elapsedRealtime();
             // 一次探活失败不算数：组件安装等重活会把事件循环占住一会儿，探活 1.5 秒超时很正常。
             // 和 waitGatewayExit 一样要求「连续」证明不了自己，别把正在干活的网关杀掉
             int d = aliveDecision(false, now, spawnedAt, aliveUnprovenSince);
@@ -999,8 +999,8 @@ public class GatewayService extends Service {
             // 先礼后兵：SIGTERM 让网关自己收尾（它退出时会连带结束正在跑的 claude 进程树）。
             // 以前直接 SIGKILL：收尾没跑，claude 成了孤儿；而且这里就 return 了，下面的兜底清理也不做（0.6.9 审计 13-02）
             for (int pid : gw) { Log.w(TAG, "端口上是本应用的残留网关 pid=" + pid + "，请它退出"); android.os.Process.sendSignal(pid, 15); }
-            long until = System.currentTimeMillis() + 3000;
-            while (System.currentTimeMillis() < until && anyAlive(gw)) sleep(100);
+            long until = android.os.SystemClock.elapsedRealtime() + 3000;
+            while (android.os.SystemClock.elapsedRealtime() < until && anyAlive(gw)) sleep(100);
             for (int pid : gw) if (alivePid(pid)) { Log.w(TAG, "残留网关没退出，强制结束 pid=" + pid); android.os.Process.sendSignal(pid, 9); }
             killed += gw.size();
             sleep(500);

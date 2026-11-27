@@ -27,15 +27,25 @@ final class Camera {
 
     static File dir(Context c) { return new File(new Env(c).files, "cache/camera"); }
 
+    private static final java.util.concurrent.atomic.AtomicInteger SEQ = new java.util.concurrent.atomic.AtomicInteger();
+
     /** 新建一个空文件给相机写；顺手清掉一天前没用上的 */
     static File newFile(Context c) throws Exception {
-        File d = dir(c);
+        return newFileInDir(dir(c));
+    }
+
+    /** 在指定目录原子创建不重名的拍照临时文件（毫秒 + 递增序号 + createNewFile） */
+    static File newFileInDir(File d) throws Exception {
         d.mkdirs();
         File[] old = d.listFiles();
         if (old != null) for (File f : old) if (System.currentTimeMillis() - f.lastModified() > 86_400_000L) f.delete();
-        File f = new File(d, "IMG_" + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date()) + ".jpg");
-        new FileOutputStream(f).close();
-        return f;
+        String ts = new SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(new Date());
+        for (int tries = 0; tries < 100; tries++) {
+            int seq = SEQ.getAndIncrement() & 0xffff;
+            File f = new File(d, "IMG_" + ts + "_" + seq + ".jpg");
+            if (f.createNewFile()) return f;
+        }
+        throw new java.io.IOException("cannot create unique camera file");
     }
 
     static Intent intent(Context c, File f) throws Exception {

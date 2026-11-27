@@ -13,13 +13,37 @@ const HELP = `用法:
   priv --keepalive on|off 后台保活增强（幽灵进程上限、电池白名单等）
 标准输入会转给命令；退出码与命令一致。`;
 
-function oneShot(req) {
+const MAX_RESP = 4 << 20;
+const DEFAULT_TIMEOUT_MS = Number(process.env.CCAPP_PRIV_TIMEOUT_MS) > 0 ? Number(process.env.CCAPP_PRIV_TIMEOUT_MS) : 20000;
+
+function oneShot(req, timeoutMs = DEFAULT_TIMEOUT_MS) {
   return new Promise((resolve, reject) => {
     const s = net.connect({ path: SOCKET }, () => s.write(JSON.stringify(req) + "\n"));
-    let buf = "";
-    s.on("data", (d) => (buf += d));
-    s.on("end", () => { try { resolve(JSON.parse(buf)); } catch { reject(new Error("回应无法解析：" + buf.slice(0, 200))); } });
-    s.on("error", reject);
+    s.setEncoding("utf8");
+    let buf = "", bytes = 0, settled = false;
+    const finish = (err, val) => {
+      if (settled) return;
+      settled = true;
+      s.setTimeout(0);
+      if (err) reject(err);
+      else resolve(val);
+    };
+    s.setTimeout(timeoutMs, () => { s.destroy(); finish(new Error("超时")); });
+    s.on("data", (d) => {
+      bytes += Buffer.byteLength(d);
+      if (bytes > MAX_RESP) {
+        s.destroy();
+        finish(new Error("回应过大"));
+        return;
+      }
+      buf += d;
+    });
+    s.on("end", () => {
+      if (settled) return;
+      try { finish(null, JSON.parse(buf)); } catch { finish(new Error("回应无法解析：" + buf.slice(0, 200))); }
+    });
+    s.on("error", (e) => finish(e));
+    s.on("close", () => finish(new Error("连接已关闭")));
   });
 }
 
@@ -69,7 +93,7 @@ function exec(argv) {
 if (!args.length || args[0] === "--help" || args[0] === "-h") { console.log(HELP); process.exit(args.length ? 0 : 2); }
 try {
   if (args[0] === "--status") console.log(JSON.stringify(await oneShot({ op: "status" }), null, 2));
-  else if (args[0] === "--request") console.log((await oneShot({ op: "request" })).message);
+  else if (args[0] === "--request") console.log((await oneShot({ op: "request" }, Number(process.env.CCAPP_PRIV_TIMEOUT_MS) > 0 ? Number(process.env.CCAPP_PRIV_TIMEOUT_MS) : 60000)).message);
   else if (args[0] === "--keepalive") console.log(JSON.stringify(await oneShot({ op: "keepalive", enable: args[1] !== "off" }), null, 2));
   else if (args[0] === "--") exec(args.slice(1));
   else exec(["/system/bin/sh", "-c", args.join(" ")]);

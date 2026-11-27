@@ -2812,7 +2812,7 @@ window.I18N_DICT["ru"] = {
   "个文件": "файл.",
   "上次安装的备份还没恢复，请重试；不行就先卸载再重装": "Резервная копия с прошлой установки ещё не восстановлена. Попробуйте ещё раз или удалите и установите заново.",
   "[cc] 外壳注入的脚本出错（细节被 WebView 隐去）": "[cc] Error in a script injected by the shell (details hidden by WebView)",
-  "\\[附件：(\\/[^\\n]+?) · [^\\n·，\\]]+，文件较大没有直接读入，需要时按路径读取\\]": "\\\\[Attachment: (\\\\/[^\\\n]+?) · [^\\\n·,\\\\]]+, file is large and was not read directly, read by path when needed\\\\]",
+  "\\[附件：(\\/[^\\n]+?) · [^\\n·，\\]]+，文件较大没有直接读入，需要时按路径读取\\]": "\\[Attachment: (\\/[^\\n]+?) · [^\\n·,\\]]+, file is large and was not read directly, read by path when needed\\]",
   "Antigravity 工具请求授权：{w}": "Antigravity is requesting tool authorization: {w}",
   "Antigravity 想问你": "Antigravity wants to ask you",
   "说说要怎么改（会发回给 Antigravity）": "Say how it should change (sent back to Antigravity)",

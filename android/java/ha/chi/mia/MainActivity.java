@@ -191,7 +191,26 @@ public class MainActivity extends Activity {
 
     @Override public void onRequestPermissionsResult(int code, String[] p, int[] r) {
         if (code == 1) boot();   // 没给也照样跑：工作区退回私有目录
-        else if (code == 2) askAllFiles();   // 通知权限问完，接着问共享存储（两个系统框别叠在一起）
+        else if (code == 2 && booted) askAllFiles();   // 通知权限问完，接着问共享存储（两个系统框别叠在一起）
+    }
+
+    private boolean askedNotifySession = false;
+
+    static boolean shouldRequestNotifyPerm(int sdkInt, int targetSdk, boolean granted, boolean askedSession, boolean askedPref) {
+        return sdkInt >= 33 && targetSdk >= 33 && !granted && !askedSession && !askedPref;
+    }
+
+    /** 首装下载开始前前置请求通知权限（不阻断首装流程，避免切后台时前台服务和进度通知被吞） */
+    private void preRequestNotifyPerm() {
+        SharedPreferences sp = getSharedPreferences("ui", MODE_PRIVATE);
+        boolean granted = Build.VERSION.SDK_INT < 33
+            || checkSelfPermission("android.permission.POST_NOTIFICATIONS") == PackageManager.PERMISSION_GRANTED;
+        if (shouldRequestNotifyPerm(Build.VERSION.SDK_INT, getApplicationInfo().targetSdkVersion,
+                granted, askedNotifySession, sp.getBoolean("askedNotifyPerm", false))) {
+            askedNotifySession = true;
+            sp.edit().putBoolean("askedNotifyPerm", true).apply();
+            requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 2);
+        }
     }
 
     /**
@@ -213,6 +232,8 @@ public class MainActivity extends Activity {
             ui.post(() -> stuck.setVisibility(View.VISIBLE));
             return;
         }
+        // 首装下载开始前（API 33+ 且未授权、未在本会话/历史请求过）前置请求通知权限，不阻断安装线程
+        if (!env.devkitReady()) preRequestNotifyPerm();
         // 先起前台服务再干活：安装要下载几百 MB，期间用户一切走，
         // 没有前台服务的进程几秒内就会被冻结/回收（实测切一下前台下载就断了）。
         GatewayService.start(this);
@@ -1427,14 +1448,18 @@ public class MainActivity extends Activity {
     private boolean askNotifications() {
         android.app.NotificationManager nm = getSystemService(android.app.NotificationManager.class);
         SharedPreferences sp = getSharedPreferences("ui", MODE_PRIVATE);
+        boolean granted = Build.VERSION.SDK_INT < 33
+            || checkSelfPermission("android.permission.POST_NOTIFICATIONS") == PackageManager.PERMISSION_GRANTED;
         // targetSdk ≥ 33 的包可以直接弹系统的通知权限框（28 的包不行，见上）
-        if (Build.VERSION.SDK_INT >= 33 && getApplicationInfo().targetSdkVersion >= 33
-                && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED
-                && !sp.getBoolean("askedNotifyPerm", false)) {
+        if (shouldRequestNotifyPerm(Build.VERSION.SDK_INT, getApplicationInfo().targetSdkVersion,
+                granted, askedNotifySession, sp.getBoolean("askedNotifyPerm", false))) {
+            askedNotifySession = true;
             sp.edit().putBoolean("askedNotifyPerm", true).apply();
             requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 2);
             return true;
         }
+        // 本会话已经请求过系统通知权限（如首装前置弹窗），不再立刻弹引导框骚扰用户
+        if (askedNotifySession) return false;
         if (nm.areNotificationsEnabled() || sp.getBoolean("askedNotifySettings", false)) return false;
         sp.edit().putBoolean("askedNotifySettings", true).apply();
         new android.app.AlertDialog.Builder(this)
@@ -1503,20 +1528,37 @@ public class MainActivity extends Activity {
         }
         d.setSystemUiVisibility(d.getSystemUiVisibility() | f);
         root.setOnApplyWindowInsetsListener((v, in) -> {
-            insetTop = in.getSystemWindowInsetTop();
-            // LAYOUT_STABLE 下上面那个值在状态栏藏起来后仍报原高度；安卓 11+ 按状态栏当前是否可见取（加上挖孔）
-            if (android.os.Build.VERSION.SDK_INT >= 30)
-                insetTop = in.getInsets(android.view.WindowInsets.Type.statusBars() | android.view.WindowInsets.Type.displayCutout()).top;
-            // 安装页没有网页来避让，顶部、底部都由这里留白；界面起来以后交给 --safe-t / --safe-b
-            int padBot = in.getSystemWindowInsetBottom();
+            int padLeft, padRight, padBot;
             insetBot = 0;
-            if (android.os.Build.VERSION.SDK_INT >= 30 && web != null) {
-                int ime = in.getInsets(android.view.WindowInsets.Type.ime()).bottom;
-                int nav = in.getInsets(android.view.WindowInsets.Type.navigationBars()).bottom;
-                if (ime > 0) padBot = Math.max(ime, nav);
-                else { padBot = 0; insetBot = nav; }
+            if (android.os.Build.VERSION.SDK_INT >= 30) {
+                android.graphics.Insets sys = in.getInsets(
+                    android.view.WindowInsets.Type.systemBars() | android.view.WindowInsets.Type.displayCutout());
+                padLeft = sys.left;
+                insetTop = sys.top;
+                padRight = sys.right;
+                padBot = sys.bottom;
+                if (web != null) {
+                    int ime = in.getInsets(android.view.WindowInsets.Type.ime()).bottom;
+                    if (ime > 0) padBot = Math.max(ime, sys.bottom);
+                    else { padBot = 0; insetBot = sys.bottom; }
+                }
+            } else {
+                padLeft = in.getSystemWindowInsetLeft();
+                insetTop = in.getSystemWindowInsetTop();
+                padRight = in.getSystemWindowInsetRight();
+                padBot = in.getSystemWindowInsetBottom();
+                if (android.os.Build.VERSION.SDK_INT >= 28) {
+                    android.view.DisplayCutout dc = in.getDisplayCutout();
+                    if (dc != null) {
+                        padLeft = Math.max(padLeft, dc.getSafeInsetLeft());
+                        insetTop = Math.max(insetTop, dc.getSafeInsetTop());
+                        padRight = Math.max(padRight, dc.getSafeInsetRight());
+                        padBot = Math.max(padBot, dc.getSafeInsetBottom());
+                    }
+                }
             }
-            v.setPadding(in.getSystemWindowInsetLeft(), web == null ? insetTop : 0, in.getSystemWindowInsetRight(), padBot);
+            // 安装页没有网页来避让，顶部、底部都由这里留白；界面起来以后交给 --safe-t / --safe-b
+            v.setPadding(padLeft, web == null ? insetTop : 0, padRight, padBot);
             pushInsets();
             return in.consumeSystemWindowInsets();
         });
@@ -2683,8 +2725,7 @@ public class MainActivity extends Activity {
     }
     static boolean localHost(String h) {
         if (h == null) return true;          // data: / blob: 之类没有主机，本来就不出网
-        h = h.toLowerCase(java.util.Locale.ROOT);
-        return h.equals("localhost") || h.equals("[::1]") || h.equals("::1") || loopbackV4(h) || isUiHost(h);
+        return isLoopbackHost(h) || loopbackV4(h.toLowerCase(java.util.Locale.ROOT)) || isUiHost(h);
     }
     /** 是不是界面专用地址（Env.HOST：默认 127.0.0.2，个别设备回退 127.0.0.1，见 Env.checkHost）：
      *  各种写法（2130706434、0x7f000002、127.2 …）浏览器都会规范成它，一并认 */
@@ -2750,6 +2791,101 @@ public class MainActivity extends Activity {
         } catch (Exception e) { return false; }
     }
 
+    /** 解析 IPv6 字面量（可带方括号）为 8 组 16-bit 整数，不触发 DNS；非法格式返回 null */
+    static int[] parseIpv6(String host) {
+        if (host == null || host.isEmpty()) return null;
+        String s = host.trim();
+        if (s.startsWith("[") || s.endsWith("]")) {
+            if (!(s.startsWith("[") && s.endsWith("]"))) return null;
+            s = s.substring(1, s.length() - 1);
+        }
+        if (s.isEmpty() || s.indexOf('%') >= 0) return null;
+        int dc = s.indexOf("::");
+        if (dc >= 0 && s.indexOf("::", dc + 2) >= 0) return null;
+        if (dc < 0 && (s.startsWith(":") || s.endsWith(":"))) return null;
+        String leftStr = dc >= 0 ? s.substring(0, dc) : s;
+        String rightStr = dc >= 0 ? s.substring(dc + 2) : "";
+        if ((dc >= 0 && leftStr.startsWith(":")) || (dc >= 0 && rightStr.endsWith(":"))) return null;
+        String[] left = leftStr.isEmpty() ? new String[0] : leftStr.split(":", -1);
+        String[] right = rightStr.isEmpty() ? new String[0] : rightStr.split(":", -1);
+        int[] out = new int[8];
+        int lCount = 0;
+        for (int i = 0; i < left.length; i++) {
+            String seg = left[i];
+            if (seg.indexOf('.') >= 0) {
+                if (dc >= 0 || i != left.length - 1 || lCount + 2 != 8) return null;
+                int[] v4 = parseStrictIpv4(seg);
+                if (v4 == null) return null;
+                out[lCount++] = (v4[0] << 8) | v4[1];
+                out[lCount++] = (v4[2] << 8) | v4[3];
+            } else {
+                int val = parseHex16(seg);
+                if (val < 0 || lCount >= 8) return null;
+                out[lCount++] = val;
+            }
+        }
+        int[] rVals = new int[8];
+        int rCount = 0;
+        for (int i = 0; i < right.length; i++) {
+            String seg = right[i];
+            if (seg.indexOf('.') >= 0) {
+                if (i != right.length - 1 || rCount + 2 > 8) return null;
+                int[] v4 = parseStrictIpv4(seg);
+                if (v4 == null) return null;
+                rVals[rCount++] = (v4[0] << 8) | v4[1];
+                rVals[rCount++] = (v4[2] << 8) | v4[3];
+            } else {
+                int val = parseHex16(seg);
+                if (val < 0 || rCount >= 8) return null;
+                rVals[rCount++] = val;
+            }
+        }
+        if (dc < 0) return lCount == 8 ? out : null;
+        if (lCount + rCount >= 8) return null;
+        for (int i = 0; i < rCount; i++) out[8 - rCount + i] = rVals[i];
+        return out;
+    }
+
+    private static int parseHex16(String seg) {
+        if (seg == null || seg.isEmpty() || seg.length() > 4) return -1;
+        int v = 0;
+        for (int i = 0; i < seg.length(); i++) {
+            int d = Character.digit(seg.charAt(i), 16);
+            if (d < 0) return -1;
+            v = (v << 4) | d;
+        }
+        return v;
+    }
+
+    private static int[] parseStrictIpv4(String s) {
+        String[] p = s.split("\\.", -1);
+        if (p.length != 4) return null;
+        int[] out = new int[4];
+        for (int i = 0; i < 4; i++) {
+            if (p[i].isEmpty() || p[i].length() > 3) return null;
+            for (int j = 0; j < p[i].length(); j++) if (p[i].charAt(j) < '0' || p[i].charAt(j) > '9') return null;
+            int v = Integer.parseInt(p[i]);
+            if (v < 0 || v > 255) return null;
+            out[i] = v;
+        }
+        return out;
+    }
+
+    /** 纯 Java 回环主机判断（不触发 DNS）：支持 127.0.0.1、localhost/localhost.（忽略大小写）、全写/缩写 ::1、::ffff:127.0.0.1 */
+    static boolean isLoopbackHost(String host) {
+        if (host == null) return false;
+        String h = host.trim().toLowerCase(java.util.Locale.ROOT);
+        if (h.isEmpty()) return false;
+        if ("localhost".equals(h) || "localhost.".equals(h) || "127.0.0.1".equals(h)) return true;
+        int[] v6 = parseIpv6(h);
+        if (v6 == null) return false;
+        if (v6[0] == 0 && v6[1] == 0 && v6[2] == 0 && v6[3] == 0 && v6[4] == 0 && v6[5] == 0 && v6[6] == 0 && v6[7] == 1) {
+            return true;
+        }
+        return v6[0] == 0 && v6[1] == 0 && v6[2] == 0 && v6[3] == 0 && v6[4] == 0 && v6[5] == 0xffff
+            && v6[6] == 0x7f00 && v6[7] == 0x0001;
+    }
+
     static boolean isGatewayUrl(String url) {
         if (url == null || url.isEmpty()) return false;
         try {
@@ -2757,8 +2893,13 @@ public class MainActivity extends Activity {
             String h = u.getHost();
             if (h == null) return false;
             h = h.toLowerCase(java.util.Locale.ROOT);
-            boolean local = h.equals("localhost") || h.endsWith(".localhost") || h.equals("[::1]") || h.equals("::1")
-                || h.equals("[::]") || h.equals("::") || h.startsWith("[::ffff:") || loopbackV4(h);
+            String hNoDot = h.endsWith(".") ? h.substring(0, h.length() - 1) : h;
+            int[] v6 = parseIpv6(h);
+            boolean v6Local = v6 != null && (
+                (v6[0] == 0 && v6[1] == 0 && v6[2] == 0 && v6[3] == 0 && v6[4] == 0 && v6[5] == 0 && v6[6] == 0 && (v6[7] == 0 || v6[7] == 1))
+                || (v6[0] == 0 && v6[1] == 0 && v6[2] == 0 && v6[3] == 0 && v6[4] == 0 && v6[5] == 0xffff && ((v6[6] >>> 8) == 127 || (v6[6] == 0 && v6[7] == 0)))
+            );
+            boolean local = isLoopbackHost(h) || hNoDot.endsWith(".localhost") || v6Local || loopbackV4(h);
             return local && u.getPort() == Env.PORT;
         } catch (Exception e) { return true; }
     }

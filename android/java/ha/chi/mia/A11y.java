@@ -90,16 +90,40 @@ public class A11y extends AccessibilityService {
         return "back".equals(key) || "home".equals(key) || "recents".equals(key);
     }
 
-    private static void safeRecycle(AccessibilityNodeInfo n) {
-        if (n != null && android.os.Build.VERSION.SDK_INT < 33) {
+    static boolean shouldRecycleOnSdk(int sdkInt) {
+        return sdkInt < 33;
+    }
+
+    static void safeRecycle(AccessibilityNodeInfo n) {
+        if (n != null && shouldRecycleOnSdk(android.os.Build.VERSION.SDK_INT)) {
             try { n.recycle(); } catch (Throwable ignored) {}
         }
     }
 
-    private static void safeRecycle(AccessibilityWindowInfo w) {
-        if (w != null && android.os.Build.VERSION.SDK_INT < 33) {
+    static void safeRecycle(AccessibilityWindowInfo w) {
+        if (w != null && shouldRecycleOnSdk(android.os.Build.VERSION.SDK_INT)) {
             try { w.recycle(); } catch (Throwable ignored) {}
         }
+    }
+
+    private static void recycleListExcept(List<AccessibilityNodeInfo> list, AccessibilityNodeInfo keep) {
+        for (int i = 0; i < list.size(); i++) {
+            AccessibilityNodeInfo item = list.get(i);
+            if (item != keep) safeRecycle(item);
+        }
+    }
+
+    private static boolean containsRef(List<AccessibilityNodeInfo> list, AccessibilityNodeInfo target) {
+        for (int i = 0; i < list.size(); i++) {
+            if (list.get(i) == target) return true;
+        }
+        return false;
+    }
+
+    private static void clearNodesLocked() {
+        recycleListExcept(nodes, null);
+        nodes.clear();
+        sigs.clear();
     }
 
     private static List<String> visiblePackages(A11y s) {
@@ -163,7 +187,7 @@ public class A11y extends AccessibilityService {
 
     @Override public boolean onUnbind(android.content.Intent i) {
         self = null;
-        synchronized (LOCK) { nodes.clear(); sigs.clear(); }
+        synchronized (LOCK) { clearNodesLocked(); }
         Log.i(TAG, "无障碍服务已断开");
         return super.onUnbind(i);
     }
@@ -239,44 +263,67 @@ public class A11y extends AccessibilityService {
         touch();
         String prot = protectedVisiblePackage(s);
         if (prot != null) {
-            synchronized (LOCK) { nodes.clear(); sigs.clear(); }
+            synchronized (LOCK) { clearNodesLocked(); }
             return fail(Tr.t("当前界面属于支付、网银、动态口令、密码管理或系统授权受保护应用，已拒绝读取：") + prot);
         }
         AccessibilityNodeInfo root = s.getRootInActiveWindow();
         JSONObject r = new JSONObject().put("ok", true);
         if (root == null) return r.put("ok", false).put("message", Tr.t("拿不到当前界面（锁屏、或者是不让读的安全界面）"));
-        String pkg = String.valueOf(root.getPackageName());
-        if (isProtectedPackage(pkg)) {
-            synchronized (LOCK) { nodes.clear(); sigs.clear(); }
-            return fail(Tr.t("当前界面属于支付、网银、动态口令、密码管理或系统授权受保护应用，已拒绝读取：") + pkg);
-        }
-        r.put("package", pkg);
-        for (AccessibilityWindowInfo w : s.getWindows())
-            if (w.isActive() && w.getTitle() != null) { r.put("window", w.getTitle().toString()); break; }
-        StringBuilder out = new StringBuilder();
         List<AccessibilityNodeInfo> localNodes = new ArrayList<>();
         List<String> localSigs = new ArrayList<>();
-        walk(root, 0, all, out, localNodes, localSigs);
-        // 网页（WebView / 浏览器）在无障碍刚打开时还没生成内容树，只露出一个空壳：等一下再读一次
-        if (localNodes.size() <= 2 && out.indexOf("WebView") >= 0) {
-            Thread.sleep(800);
-            root.refresh();
-            out.setLength(0);
-            localNodes.clear(); localSigs.clear();
+        boolean transferred = false;
+        try {
+            String pkg = String.valueOf(root.getPackageName());
+            if (isProtectedPackage(pkg)) {
+                synchronized (LOCK) { clearNodesLocked(); }
+                return fail(Tr.t("当前界面属于支付、网银、动态口令、密码管理或系统授权受保护应用，已拒绝读取：") + pkg);
+            }
+            r.put("package", pkg);
+            try {
+                List<AccessibilityWindowInfo> wins = s.getWindows();
+                if (wins != null) {
+                    for (AccessibilityWindowInfo w : wins) {
+                        if (w == null) continue;
+                        try {
+                            if (!r.has("window") && w.isActive()) {
+                                CharSequence title = w.getTitle();
+                                if (title != null) r.put("window", title.toString());
+                            }
+                        } finally {
+                            safeRecycle(w);
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {}
+            StringBuilder out = new StringBuilder();
             walk(root, 0, all, out, localNodes, localSigs);
+            // 网页（WebView / 浏览器）在无障碍刚打开时还没生成内容树，只露出一个空壳：等一下再读一次
+            if (localNodes.size() <= 2 && out.indexOf("WebView") >= 0) {
+                Thread.sleep(800);
+                root.refresh();
+                out.setLength(0);
+                recycleListExcept(localNodes, root);
+                localNodes.clear(); localSigs.clear();
+                walk(root, 0, all, out, localNodes, localSigs);
+            }
+            int count;
+            synchronized (LOCK) {
+                clearNodesLocked();
+                nodes.addAll(localNodes);
+                sigs.addAll(localSigs);
+                transferred = true;
+                count = nodes.size();
+            }
+            Rect sc = new Rect(); root.getBoundsInScreen(sc);
+            r.put("screen", sc.width() + "x" + sc.height());
+            r.put("count", count);
+            String txt = out.toString();
+            if (txt.length() > 60000) txt = txt.substring(0, 60000) + "\n…(" + Tr.t("太长，截断了") + ")";
+            return r.put("tree", txt);
+        } finally {
+            if (!transferred) recycleListExcept(localNodes, root);
+            if (!transferred || !containsRef(localNodes, root)) safeRecycle(root);
         }
-        int count;
-        synchronized (LOCK) {
-            nodes.clear(); nodes.addAll(localNodes);
-            sigs.clear(); sigs.addAll(localSigs);
-            count = nodes.size();
-        }
-        Rect sc = new Rect(); root.getBoundsInScreen(sc);
-        r.put("screen", sc.width() + "x" + sc.height());
-        r.put("count", count);
-        String txt = out.toString();
-        if (txt.length() > 60000) txt = txt.substring(0, 60000) + "\n…(" + Tr.t("太长，截断了") + ")";
-        return r.put("tree", txt);
     }
 
     private static void walk(AccessibilityNodeInfo n, int depth, boolean all, StringBuilder out,
@@ -317,7 +364,18 @@ public class A11y extends AccessibilityService {
             out.append('\n');
             nextDepth = depth + 1;
         }
-        for (int i = 0; i < n.getChildCount(); i++) walk(n.getChild(i), nextDepth, all, out, localNodes, localSigs);
+        for (int i = 0; i < n.getChildCount(); i++) {
+            AccessibilityNodeInfo child = n.getChild(i);
+            if (child == null) continue;
+            int beforeCount = localNodes.size();
+            try {
+                walk(child, nextDepth, all, out, localNodes, localSigs);
+            } finally {
+                if (localNodes.size() == beforeCount || localNodes.get(beforeCount) != child) {
+                    safeRecycle(child);
+                }
+            }
+        }
     }
 
     /** 编号的指纹：模型从屏幕树里认这个元素靠的那几样。输入框的文字会随输入变，不算；密码框的内容本来就不读 */
@@ -343,7 +401,22 @@ public class A11y extends AccessibilityService {
                 if (missOut != null && missOut.length > 0) missOut[0] = Tr.t("这个编号上的元素已经换了内容（列表滚动或刷新过），没有动手：按新屏幕重新选");
                 return null;
             }
-            return n;
+            return android.os.Build.VERSION.SDK_INT < 33 ? AccessibilityNodeInfo.obtain(n) : n;
+        }
+    }
+
+    private static boolean performWithParents(AccessibilityNodeInfo n, java.util.function.Predicate<AccessibilityNodeInfo> fn) {
+        AccessibilityNodeInfo p = n;
+        try {
+            while (p != null) {
+                if (fn.test(p)) return true;
+                AccessibilityNodeInfo next = p.getParent();
+                if (p != n) safeRecycle(p);
+                p = next;
+            }
+            return false;
+        } finally {
+            if (p != null && p != n) safeRecycle(p);
         }
     }
 
@@ -405,11 +478,11 @@ public class A11y extends AccessibilityService {
         List<String> pkgs = visiblePackages(s);
         String prot = firstProtectedPackage(pkgs);
         if (prot != null) {
-            synchronized (LOCK) { nodes.clear(); sigs.clear(); }
+            synchronized (LOCK) { clearNodesLocked(); }
             return fail(protMsg + prot);
         }
         if (!hasAnyPackage(pkgs)) {
-            synchronized (LOCK) { nodes.clear(); sigs.clear(); }
+            synchronized (LOCK) { clearNodesLocked(); }
             return fail(Tr.t("拿不到当前界面（锁屏、或者是不让读的安全界面）"));
         }
         return null;
@@ -424,12 +497,15 @@ public class A11y extends AccessibilityService {
             String[] miss = new String[1];
             AccessibilityNodeInfo n = node(a.getInt("node"), miss);
             if (n == null) return fail(miss[0]);
-            int act = lng ? AccessibilityNodeInfo.ACTION_LONG_CLICK : AccessibilityNodeInfo.ACTION_CLICK;
-            // 文字本身不可点时，往上找第一个可点的父节点（列表项常见）
-            for (AccessibilityNodeInfo p = n; p != null; p = p.getParent())
-                if ((lng ? p.isLongClickable() : p.isClickable()) && p.performAction(act)) return ok("action");
-            Rect b = new Rect(); n.getBoundsInScreen(b);
-            return gesture(b.centerX(), b.centerY(), b.centerX(), b.centerY(), lng ? 700 : 60) ? ok("gesture") : fail(Tr.t("点不动"));
+            try {
+                int act = lng ? AccessibilityNodeInfo.ACTION_LONG_CLICK : AccessibilityNodeInfo.ACTION_CLICK;
+                // 文字本身不可点时，往上找第一个可点的父节点（列表项常见）
+                if (performWithParents(n, p -> (lng ? p.isLongClickable() : p.isClickable()) && p.performAction(act))) return ok("action");
+                Rect b = new Rect(); n.getBoundsInScreen(b);
+                return gesture(b.centerX(), b.centerY(), b.centerX(), b.centerY(), lng ? 700 : 60) ? ok("gesture") : fail(Tr.t("点不动"));
+            } finally {
+                safeRecycle(n);
+            }
         }
         if (!a.has("x") || !a.has("y")) return fail(Tr.t("要给 node（screen_read 里的编号），或者 x、y 坐标"));
         int x = a.getInt("x"), y = a.getInt("y");
@@ -444,11 +520,14 @@ public class A11y extends AccessibilityService {
             String[] miss = new String[1];
             AccessibilityNodeInfo n = node(a.getInt("node"), miss);
             if (n == null) return fail(miss[0]);
-            boolean back = "backward".equals(a.optString("direction", "forward"));
-            int act = back ? AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD : AccessibilityNodeInfo.ACTION_SCROLL_FORWARD;
-            for (AccessibilityNodeInfo p = n; p != null; p = p.getParent())
-                if (p.isScrollable() && p.performAction(act)) return ok("scroll");
-            return fail(Tr.t("这个元素和它的上层都不能滚动"));
+            try {
+                boolean back = "backward".equals(a.optString("direction", "forward"));
+                int act = back ? AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD : AccessibilityNodeInfo.ACTION_SCROLL_FORWARD;
+                if (performWithParents(n, p -> p.isScrollable() && p.performAction(act))) return ok("scroll");
+                return fail(Tr.t("这个元素和它的上层都不能滚动"));
+            } finally {
+                safeRecycle(n);
+            }
         }
         int dur = Math.max(50, Math.min(a.optInt("duration_ms", 300), 5000));
         return gesture(a.getInt("x1"), a.getInt("y1"), a.getInt("x2"), a.getInt("y2"), dur) ? ok("gesture") : fail(Tr.t("手势被系统取消了"));
@@ -459,24 +538,29 @@ public class A11y extends AccessibilityService {
         A11y s = self;
         JSONObject blocked = guardActionScreen(s, Tr.t("当前界面属于支付、网银、动态口令、密码管理或系统授权受保护应用，已拒绝操作："));
         if (blocked != null) return blocked;
-        AccessibilityNodeInfo n = null;
-        if (a.has("node")) { String[] miss = new String[1]; n = node(a.getInt("node"), miss); if (n == null) return fail(miss[0]); }
-        else {
-            AccessibilityNodeInfo root = s.getRootInActiveWindow();
-            if (root != null) n = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+        AccessibilityNodeInfo n = null, root = null;
+        try {
+            if (a.has("node")) { String[] miss = new String[1]; n = node(a.getInt("node"), miss); if (n == null) return fail(miss[0]); }
+            else {
+                root = s.getRootInActiveWindow();
+                if (root != null) n = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+            }
+            if (n == null || !n.isEditable()) return fail(Tr.t("没找到输入框：给 node（screen_read 里带 edit 的编号），或先点一下输入框"));
+            String text = a.optString("text", "");
+            if (a.optBoolean("append", false) && n.isPassword()) return fail(Tr.t("密码框不读原有内容，不能追加：请给出完整内容，不带 append"));
+            if (a.optBoolean("append", false) && n.getText() != null) text = n.getText() + text;
+            Bundle b = new Bundle();
+            b.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text);
+            if (!n.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, b)) return fail(Tr.t("这个输入框不接受直接填字"));
+            if (a.optBoolean("submit", false)) {
+                // 回车 / 搜索：安卓 11+ 有 IME 动作
+                if (android.os.Build.VERSION.SDK_INT >= 30) n.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.getId());
+            }
+            return ok("set_text");
+        } finally {
+            if (n != root) safeRecycle(n);
+            safeRecycle(root);
         }
-        if (n == null || !n.isEditable()) return fail(Tr.t("没找到输入框：给 node（screen_read 里带 edit 的编号），或先点一下输入框"));
-        String text = a.optString("text", "");
-        if (a.optBoolean("append", false) && n.isPassword()) return fail(Tr.t("密码框不读原有内容，不能追加：请给出完整内容，不带 append"));
-        if (a.optBoolean("append", false) && n.getText() != null) text = n.getText() + text;
-        Bundle b = new Bundle();
-        b.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text);
-        if (!n.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, b)) return fail(Tr.t("这个输入框不接受直接填字"));
-        if (a.optBoolean("submit", false)) {
-            // 回车 / 搜索：安卓 11+ 有 IME 动作
-            if (android.os.Build.VERSION.SDK_INT >= 30) n.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.getId());
-        }
-        return ok("set_text");
     }
 
     static JSONObject key(JSONObject a) throws Exception {

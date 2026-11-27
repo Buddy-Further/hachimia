@@ -11,7 +11,7 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8");
 // ── D-04：java-en.json ──
 test("D-04 java-en.json 更新通知与相关文案不写 cccodroid / Claude Code", () => {
   const d = JSON.parse(read("android/assets/i18n/java-en.json"));
-  assert.equal(Object.keys(d).length, 573); // 568 基线 + A11y 隐私拦截 3 键 + 恢复初始设置简明化同步净增 2 键 = 573
+  assert.equal(Object.keys(d).length, 550); // 573 - 23 条已无调用的废键（保留动态 Tr.t(it.name) 的「开发工具包」） = 550
   for (const [k, v] of Object.entries(d)) {
     assert.doesNotMatch(String(k), /cccodroid/, `键仍含 cccodroid: ${JSON.stringify(k)}`);
     assert.doesNotMatch(String(k), /Claude Code/, `键仍含 Claude Code: ${JSON.stringify(k)}`);

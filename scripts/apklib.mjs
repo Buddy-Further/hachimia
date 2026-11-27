@@ -148,9 +148,16 @@ export function contentDigest(segments) {
 
 const certDer = (cert) => Buffer.from(forge.asn1.toDer(forge.pki.certificateToAsn1(cert)).getBytes(), "binary");
 /** 从证书里取 SubjectPublicKeyInfo（保证与证书公钥一致） */
-function spkiFromCert(cert) {
+export function spkiFromCert(cert) {
+  if (cert?.publicKey) {
+    return Buffer.from(forge.asn1.toDer(forge.pki.publicKeyToAsn1(cert.publicKey)).getBytes(), "binary");
+  }
   const asn1 = forge.asn1.fromDer(certDer(cert).toString("binary"));
-  return Buffer.from(forge.asn1.toDer(asn1.value[0].value[6]).getBytes(), "binary");
+  const tbs = asn1?.value?.[0]?.value || [];
+  const hasVer = tbs[0]?.tagClass === forge.asn1.Class.CONTEXT_SPECIFIC && tbs[0]?.type === 0;
+  const spki = tbs[hasVer ? 6 : 5];
+  if (!spki) throw new Error("证书缺少 SubjectPublicKeyInfo");
+  return Buffer.from(forge.asn1.toDer(spki).getBytes(), "binary");
 }
 
 function buildV2Value(digest, cert, pem) {
@@ -246,5 +253,6 @@ export function signApk(inApk, outApk, extraEntries = [], keyPath, opts = {}) {
   if (wantV1) schemes.push("v1");
 
   fs.writeFileSync(outApk, outBuf);
-  return { size: outBuf.length, entries: aligned.length, signer: cert.subject.getField("CN").value, schemes };
+  const signer = cert.subject?.getField("CN")?.value || cert.subject?.attributes?.find((a) => a?.value)?.value || "";
+  return { size: outBuf.length, entries: aligned.length, signer, schemes };
 }

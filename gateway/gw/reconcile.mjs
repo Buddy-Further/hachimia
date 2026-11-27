@@ -19,6 +19,7 @@ import { modInstalled, modRepair, modulesInfo } from "./modules.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
 import { privCall } from "./usage.mjs";
 import { isAgyOnlyMode } from "./providers.mjs";
+import { saveState } from "./statefile.mjs";
 
 const STATE = PREFIX ? path.join(CFG.home, ".cache", "cccodroid", "reconcile.json") : "";
 const CUSTOM_DIR = PREFIX ? path.join(CFG.home, ".cccodroid", "custom") : "";
@@ -216,7 +217,7 @@ export async function reconcileRun() {
       else if (prev && keysOf(prev)) ledger("verify", true, "状态对账：记录和磁盘重新对上了");
     }
     last = r;
-    try { fs.mkdirSync(path.dirname(STATE), { recursive: true }); fs.writeFileSync(STATE, JSON.stringify(r)); } catch {}
+    if (STATE) saveState(STATE, r, { pretty: false });
     log(`[reconcile] ${r.ms} ms：${bad.length ? bad.map((f) => f.key).join(" ") : "无问题"}${r.findings.length > bad.length ? `（另有 ${r.findings.length - bad.length} 条提示）` : ""}`);
     return r;
   } catch (e) { log("[reconcile] 失败：" + (e && e.message)); return last; }

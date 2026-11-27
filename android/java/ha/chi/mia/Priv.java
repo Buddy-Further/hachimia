@@ -47,7 +47,7 @@ final class Priv {
     /** 译文要拼进 sh -c '…' 的双引号里：单双引号换成全角，免得断开命令 */
     static String shq(String s) { return s.replace("'", "’").replace("\"", "”").replace("$", "＄").replace("`", "’"); }
 
-    static final String TAG = "cccodroid-priv";
+    static final String TAG = "hachimia-priv";
     static final String MANAGER = "moe.shizuku.privileged.api";
     static final int REQ = 7331;
 
@@ -330,13 +330,15 @@ final class Priv {
     static boolean amStarted(String[] r) { return PrivRules.amStarted("-".equals(r[0]) ? -1 : Integer.parseInt(r[0]), r[1]); }
 
     /** 跑一条命令拿全部输出（内部用：保活设置） */
-    static String run(String cmd) {
-        String[] r = runRc(cmd);
+    static String run(String cmd) { return run(cmd, 15_000); }
+    static String run(String cmd, long timeoutMs) {
+        String[] r = runRc(cmd, timeoutMs);
         return r[0].equals("0") ? r[1] : r[0].equals("-") ? Tr.t("[失败] ") + r[1] : "[rc=" + r[0] + "] " + r[1];
     }
     /** 同上，退出码单独给：{退出码（起不来或超时是 "-"）, 输出} */
-    static String[] runRc(String cmd) {
-        return runProcessWithTimeout(new String[]{"/system/bin/sh", "-c", cmd + " 2>&1"}, 15_000);
+    static String[] runRc(String cmd) { return runRc(cmd, 15_000); }
+    static String[] runRc(String cmd, long timeoutMs) {
+        return runProcessWithTimeout(new String[]{"/system/bin/sh", "-c", cmd + " 2>&1"}, timeoutMs);
     }
 
     static final String STAGE_LOG = "/data/local/tmp/cccodroid-update.log";

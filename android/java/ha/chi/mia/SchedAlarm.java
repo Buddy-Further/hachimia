@@ -20,7 +20,7 @@ import java.nio.file.Files;
  * 所以第一次碰上就发一条通知，点了去系统设置里给（11-04 报告 A8）。
  */
 public class SchedAlarm extends BroadcastReceiver {
-    static final String TAG = "cccodroid";
+    static final String TAG = "hachimia";
     static final String ACTION = "ha.chi.mia.SCHED_ALARM";
     /** 这次闹钟按哪个计划时刻设的：响的时候交给网关，Doze 推迟几分钟也按「到点」执行（0.6.9 审计 13-04） */
     static final String EXTRA_AT = "at";

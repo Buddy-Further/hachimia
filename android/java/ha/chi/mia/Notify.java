@@ -30,7 +30,7 @@ import org.json.JSONObject;
  * 跑在 GatewayService 里：界面被关了、只剩前台服务时也能发。
  */
 final class Notify {
-    static final String TAG = "cccodroid";
+    static final String TAG = "hachimia";
     static final String CH_DONE = "done", CH_ASK = "ask";
     static final String ACTION_DENY = "ha.chi.mia.PERM_DENY";
     static final String ACTION_OPEN = "ha.chi.mia.OPEN_SESSION";

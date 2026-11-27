@@ -99,9 +99,22 @@ const sha256 = (b) => crypto.createHash("sha256").update(b).digest("hex");
 const mb = (n) => (n / 1048576).toFixed(n < 10485760 ? 1 : 0) + " MB";
 const readJson = (f, d) => { try { return JSON.parse(fs.readFileSync(f, "utf8")); } catch { return d; } };
 function writeJson(f, v) {
-  fs.mkdirSync(path.dirname(f), { recursive: true });
-  fs.writeFileSync(f + ".tmp", JSON.stringify(v, null, 1));
-  fs.renameSync(f + ".tmp", f);
+  const dir = path.dirname(f);
+  fs.mkdirSync(dir, { recursive: true });
+  const tmp = path.join(dir, `.${path.basename(f)}.tmp-${process.pid}-${crypto.randomBytes(6).toString("hex")}`);
+  let fd = null;
+  try {
+    fd = fs.openSync(tmp, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_NOFOLLOW, 0o644);
+    fs.writeFileSync(fd, JSON.stringify(v, null, 1));
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);
+    fd = null;
+    fs.renameSync(tmp, f);
+  } catch (e) {
+    if (fd != null) { try { fs.closeSync(fd); } catch {} }
+    try { fs.rmSync(tmp, { force: true }); } catch {}
+    throw e;
+  }
 }
 const die = (msg, code = 1) => { console.error("pkg：" + msg); process.exit(code); };
 function hashFile(f) {

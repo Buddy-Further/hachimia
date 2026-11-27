@@ -135,7 +135,7 @@ final class Updater {
             long size = st.optLong("size");
             int vc = latest.isEmpty() || app.current.isEmpty() ? -1 : cmpVer(latest, app.current);
             boolean swap = vc == 0 && !st.optString("flavor", "").equals(flavor());
-            if (f.isFile() && f.length() == size && !url.isEmpty() && isSha(st.optString("sha256", "")) && st.optString("flavor", "").equals(wantFlavor()) && (vc > 0 || swap)) {
+            if (f.isFile() && size > 0 && f.length() == size && hasZipHeader(f) && !url.isEmpty() && isSha(st.optString("sha256", "")) && st.optString("flavor", "").equals(wantFlavor()) && (vc > 0 || swap)) {
                 app.file = f; app.size = size; app.url = url; app.sha = st.optString("sha256", "");
                 app.latest = latest;
                 app.set("ready", "");
@@ -717,13 +717,38 @@ final class Updater {
                 if (!isSha(app.sha)) { app.sha = null; app.set("error", Tr.f("v{0} 的 {1} 没有 sha256 校验值，不下载", app.latest, name)); return; }
                 app.file = new File(env.files, "updates/hachimia-" + app.latest + "-" + want + ".apk");
                 String note = swap ? Tr.f("换成 targetSdk {0} 的安装包", want) : r.optBoolean("prerelease") ? Tr.t("预览版") : "";
-                app.set(app.file.isFile() && app.file.length() == app.size ? "ready" : "available", note);
+                app.set(isReadyApk(app.file, app.size, app.sha) ? "ready" : "available", note);
                 return;
             }
             app.set("error", Tr.f("v{0} 里没有 {1}", app.latest, name));
             return;
         }
         app.set("uptodate", "");
+    }
+
+    static boolean hasZipHeader(File f) {
+        if (f == null || !f.isFile() || f.length() < 4) return false;
+        try (java.io.InputStream in = new java.io.FileInputStream(f)) {
+            byte[] h = new byte[4];
+            int n = 0;
+            while (n < 4) {
+                int r = in.read(h, n, 4 - n);
+                if (r <= 0) return false;
+                n += r;
+            }
+            return h[0] == 0x50 && h[1] == 0x4b && h[2] == 0x03 && h[3] == 0x04;
+        } catch (Exception e) { return false; }
+    }
+
+    /** 后台线程检查 updates/*.apk 是否确实完整可用：非空匹配长度、ZIP 头 PK\x03\x04，若提供期望 sha256 则同步核对 */
+    static boolean isReadyApk(File f, long expectedSize, String expectedSha) {
+        if (f == null || !f.isFile() || expectedSize <= 0 || f.length() != expectedSize) return false;
+        if (!hasZipHeader(f)) return false;
+        if (isSha(expectedSha)) {
+            try { return expectedSha.equals(Installer.sha256(f)); }
+            catch (Exception e) { return false; }
+        }
+        return true;
     }
 
     private void checkDevkit(JSONArray rels) throws Exception {

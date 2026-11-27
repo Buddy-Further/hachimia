@@ -56,6 +56,8 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <linux/audit.h>
+#include <linux/ptrace.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -234,8 +236,25 @@ static int wants_ptrace(pid_t pid) {
     return 0;
 }
 
+#ifndef PSR_MODE32_BIT
+#define PSR_MODE32_BIT 0x00000010UL
+#endif
+
+static pid_t wait_eintr(pid_t who, int *status, int options) {
+    pid_t p;
+    while ((p = waitpid(who, status, options)) < 0 && errno == EINTR) {}
+    return p;
+}
+
 /* 把 x0 写成 -ENOSYS。成功返回 0。 */
 static int set_return_enosys(pid_t pid) {
+#ifdef PTRACE_GET_SYSCALL_INFO
+    struct ptrace_syscall_info sci;
+    memset(&sci, 0, sizeof sci);
+    if (ptrace(PTRACE_GET_SYSCALL_INFO, pid, (void *)(long)sizeof sci, &sci) > 0) {
+        if (sci.arch != AUDIT_ARCH_AARCH64) return -1;
+    }
+#endif
     struct arm64_regs regs;
     struct iovec iov;
     memset(&regs, 0, sizeof regs);
@@ -243,6 +262,9 @@ static int set_return_enosys(pid_t pid) {
     iov.iov_len = sizeof regs;
 
     if (ptrace(PTRACE_GETREGSET, pid, (void *)(long)NT_PRSTATUS, &iov) != 0) {
+        return -1;
+    }
+    if (iov.iov_len != sizeof regs || (regs.pstate & PSR_MODE32_BIT) != 0) {
         return -1;
     }
     regs.regs[0] = (unsigned long)-ENOSYS_;
@@ -259,7 +281,7 @@ static int supervise(pid_t leader) {
     pid_t pid;
     int exit_code = 127;
 
-    while ((pid = waitpid(-1, &status, __WALL)) > 0) {
+    while ((pid = wait_eintr(-1, &status, __WALL)) > 0) {
         if (WIFEXITED(status)) {
             if (pid == leader) exit_code = WEXITSTATUS(status);
             del_known(pid);
@@ -278,10 +300,11 @@ static int supervise(pid_t leader) {
         int deliver = sig;
 
         if (!is_known(pid)) {
-            /* 新线程第一次报到：就是那次初始 SIGSTOP，放行不投递 */
+            /* 新线程第一次报到：若是初始 SIGSTOP 则放行不投递；若先到的是其它信号，记录后按原信号继续处理/转发 */
             add_known(pid);
             if (sig == SIGSTOP) deliver = 0;
-        } else if (sig == SIGTRAP && (status >> 16) != 0) {
+        }
+        if (deliver != 0 && sig == SIGTRAP && (status >> 16) != 0) {
             /* ptrace 事件停（clone / fork / vfork / exec）：不是信号，别投进目标程序。
                开了 TRACEEXEC 之后 exec 也走这里，所以剩下的裸 SIGTRAP 就是真信号，照常投递 */
             deliver = 0;
@@ -291,7 +314,7 @@ static int supervise(pid_t leader) {
                 ptrace(PTRACE_DETACH, pid, 0, 0);
                 continue;
             }
-        } else if (sig == SIGSYS) {
+        } else if (deliver != 0 && sig == SIGSYS) {
             siginfo_t si;
             memset(&si, 0, sizeof si);
             /* 只改安卓自己那层：它的过滤器是不带数据的 SECCOMP_RET_TRAP（si_errno = RET_DATA = 0）。
@@ -299,14 +322,21 @@ static int supervise(pid_t leader) {
                （审查 10-29 第六份 中2）。自带沙箱又用零数据的程序，把名字写进 ENOSYS_RUN_DETACH，exec 时整个放手 */
             if (ptrace(PTRACE_GETSIGINFO, pid, 0, &si) == 0 &&
                 si.si_code == SYS_SECCOMP_CODE && si.si_errno == 0) {
-                if (verbose) {
-                    fprintf(stderr, "[enosys] pid %d: 拦下 syscall %ld → ENOSYS\n",
-                            (int)pid, get_syscall_nr(pid, &si));
+#ifdef si_arch
+                if (si.si_arch != AUDIT_ARCH_AARCH64) {
+                    /* 非 AArch64 架构（如 32 位兼容进程）不改寄存器，原样投递 */
+                } else
+#endif
+                {
+                    if (verbose) {
+                        fprintf(stderr, "[enosys] pid %d: 拦下 syscall %ld → ENOSYS\n",
+                                (int)pid, get_syscall_nr(pid, &si));
+                    }
+                    if (set_return_enosys(pid) == 0) {
+                        deliver = 0;        /* 已经"返回"了 ENOSYS，别再投信号 */
+                    }
+                    /* 设置寄存器失败就按原样投递：退化成不介入，比吞掉信号安全 */
                 }
-                if (set_return_enosys(pid) == 0) {
-                    deliver = 0;        /* 已经"返回"了 ENOSYS，别再投信号 */
-                }
-                /* 设置寄存器失败就按原样投递：退化成不介入，比吞掉信号安全 */
             }
         }
 
@@ -390,14 +420,14 @@ int main(int argc, char **argv) {
 
     /* 父进程：先等 exec 后的初始 SIGTRAP，再设选项 */
     int status;
-    if (waitpid(pid, &status, 0) < 0) {
+    if (wait_eintr(pid, &status, 0) < 0) {
         perror("waitpid");
         return 127;
     }
     /* exec 之前到的信号也会先停一次：不是 exec 的 SIGTRAP 就原样投回去、接着等，别吞掉（11-04 报告 二） */
     for (int i = 0; i < 64 && WIFSTOPPED(status) && WSTOPSIG(status) != SIGTRAP; i++) {
         if (ptrace(PTRACE_CONT, pid, 0, (void *)(long)WSTOPSIG(status)) != 0) break;
-        while (waitpid(pid, &status, 0) < 0) if (errno != EINTR) { perror("waitpid"); return 127; }
+        if (wait_eintr(pid, &status, 0) < 0) { perror("waitpid"); return 127; }
     }
     if (!WIFSTOPPED(status)) {
         /* 还没进跟踪就结束了（比如 exec 失败） */
@@ -409,7 +439,7 @@ int main(int argc, char **argv) {
     if (follow && wants_ptrace(pid)) {
         if (verbose) fprintf(stderr, "[enosys] pid %d 自己要用 ptrace，放手\n", (int)pid);
         ptrace(PTRACE_DETACH, pid, 0, 0);
-        while (waitpid(pid, &status, 0) < 0) if (errno != EINTR) { perror("waitpid"); return 127; }
+        if (wait_eintr(pid, &status, 0) < 0) { perror("waitpid"); return 127; }
         return WIFEXITED(status) ? WEXITSTATUS(status) : WIFSIGNALED(status) ? 128 + WTERMSIG(status) : 127;
     }
 

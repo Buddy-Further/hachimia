@@ -23,7 +23,14 @@ for (const line of fs.readFileSync(src, "utf8").split("\n")) {
 const miss = [];
 for (let i = 1; i <= keys.length; i++) if (!vals.has(i)) miss.push(i);
 if (miss.length) { console.error(`缺 ${miss.length} 条：${miss.slice(0, 30).join(",")}${miss.length > 30 ? " …" : ""}`); process.exit(1); }
-const esc = (s) => s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\\\\n/g, "\\n");
+const esc = (s) => s.replace(/\\\\|\\n|\\|"|\r|\n/g, (m) => (
+  m === "\\\\" ? "\\\\"
+    : m === "\\n" ? "\\n"
+    : m === '"' ? '\\"'
+    : m === "\r" ? "\\r"
+    : m === "\n" ? "\\n"
+    : "\\\\"
+));
 const lines = keys.map((k, n) => {
   const v = vals.get(n + 1);
   // 行首 @@ 表示译文本身就以 @ 开头（转义）

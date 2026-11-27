@@ -48,7 +48,7 @@ import rikka.shizuku.Shizuku;
  * 于是 2–4 步全自动重来（需要连着 Wi‑Fi —— 无线调试只在 Wi‑Fi 下工作）。
  */
 final class ShizukuSetup {
-    static final String TAG = "cccodroid-shz";
+    static final String TAG = "hachimia-shz";
     /** Shizuku 官方发布包的签名证书（CN=Rikka）sha256：GitHub 资产没有摘要，靠钉证书防掉包 */
     static final String PIN = "268b5590e868fb08bae7e0ac413564cd1ff88f5ccff74af9dbd0dc918e30db30";
     static final String CH = "shizuku";
@@ -836,6 +836,12 @@ final class ShizukuSetup {
         catch (Exception e) { Log.w(TAG, "打不开设置页", e); }
     }
 
+    volatile boolean fullScreenDenied;
+
+    static boolean canUseFullScreen(int sdkInt, boolean nmAllowed) {
+        return sdkInt < 34 || nmAllowed;
+    }
+
     // ── 通知 ───────────────────────────────────────────────────────────
     private void pairNote(String text, boolean withInput) {
         Notification.Builder b = new Notification.Builder(ctx, CH)
@@ -851,18 +857,29 @@ final class ShizukuSetup {
             .setOngoing(withInput)
             .setTimeoutAfter(withInput ? 600_000 : 90_000);
         if (!withInput) { Bundle x = new Bundle(); x.putBoolean(EXTRA_PROGRESS, true); b.addExtras(x); }
+        NotificationManager nm = ctx.getSystemService(NotificationManager.class);
         if (withInput) {
             RemoteInput ri = new RemoteInput.Builder(Events.KEY_CODE).setLabel(Tr.t("6 位配对码 空格 端口")).build();
             int fl = PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 31 ? PendingIntent.FLAG_MUTABLE : 0);
             PendingIntent pi = PendingIntent.getBroadcast(ctx, NOTE, new Intent(ctx, Events.class).setAction(Events.ACTION_PAIR), fl);
             b.addAction(new Notification.Action.Builder(null, Tr.t("填配对码"), pi).addRemoteInput(ri).build());
-            // 设置页会隐藏其他应用的悬浮窗（安卓 12 起防点击劫持，实测无线调试页也藏），所以输入只能放在通知里；
-            // 带 fullScreenIntent 的通知在亮屏使用中会一直悬在顶部、不自动收起 —— 配对码对话框和输入框同时在屏幕上
-            b.setFullScreenIntent(PendingIntent.getActivity(ctx, NOTE + 2,
-                MainActivity.internal(ctx, MainActivity.ACTION_SHIZUKU_NOOP).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT), true);
+            b.setContentIntent(PendingIntent.getActivity(ctx, NOTE + 1,
+                MainActivity.internal(ctx, MainActivity.ACTION_SHIZUKU).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
+            boolean fsiOk = canUseFullScreen(Build.VERSION.SDK_INT, Build.VERSION.SDK_INT < 34 || nm.canUseFullScreenIntent());
+            if (fsiOk) {
+                fullScreenDenied = false;
+                // 设置页会隐藏其他应用的悬浮窗（安卓 12 起防点击劫持，实测无线调试页也藏），所以输入只能放在通知里；
+                // 带 fullScreenIntent 的通知在亮屏使用中会一直悬在顶部、不自动收起 —— 配对码对话框和输入框同时在屏幕上
+                b.setFullScreenIntent(PendingIntent.getActivity(ctx, NOTE + 2,
+                    MainActivity.internal(ctx, MainActivity.ACTION_SHIZUKU_NOOP).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT), true);
+            } else {
+                fullScreenDenied = true;
+                Log.w(TAG, "USE_FULL_SCREEN_INTENT 未授予，降级为高优先级普通配对通知");
+            }
         }
-        ctx.getSystemService(NotificationManager.class).notify(NOTE, b.build());
+        nm.notify(NOTE, b.build());
     }
 
     private void failNote(String text) {

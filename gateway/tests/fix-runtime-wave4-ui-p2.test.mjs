@@ -25,7 +25,7 @@ test("W3-F1..W3-F4: acp restrictMode/coldInit 取消 + reconcile .agy-uninstalle
   assert.match(acpSrc, /applyMode\(serverModeOf\(mode\)\)/);
   assert.match(acpSrc, /entry\.disallowedTools\s*=/);
   assert.match(acpSrc, /isAcpToolDisallowed\([^)]*entry\.disallowedTools/);
-  assert.match(acpSrc, /if\s*\(!state\.promptSent\s*&&\s*!reused\)\s*\{\s*canKeep\s*=\s*false;\s*destroyClient\(\);\s*return;\s*\}/);
+  assert.match(acpSrc, /if\s*\(!state\.promptSent\)\s*\{\s*canKeep\s*=\s*false;\s*destroyClient\(\);\s*return;\s*\}/);
   assert.match(acpSrc, /if\s*\(run\?\.aborted\)\s*throw new Error\("aborted"\)/);
 
   const recSrc = readRepo("gateway/gw/reconcile.mjs");
