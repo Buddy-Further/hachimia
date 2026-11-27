@@ -146,15 +146,7 @@ test("R-10 agyEnv 的 PATH 含 ~/.cccodroid/bin（方案 a，最小改动）", a
   assert.ok(parts.includes(path.join(CFG.home, ".hachimia", "bin")), "agyEnv PATH 仍应含 ~/.hachimia/bin");
 });
 
-// ── R-11/R-12/R-13 ──
-test("R-11 端侧小模型技能描述写 hachimia，cccodroid:managed 标记与真实路径不动", () => {
-  const s = read("gateway/web/skills/local-model-mode/SKILL.md");
-  assert.match(s, /帮用户给 hachimia 的「端侧小模型」/);
-  assert.match(s, /hachimia 用 llama\.cpp 在手机上跑 GGUF 小模型/);
-  assert.match(s, /cccodroid:managed/);
-  assert.match(s, /~\/.cccodroid\/local-mode\.json/);
-});
-
+// ── R-12/R-13 ──
 test("R-12 Issue 模板问 hachimia 版本", () => {
   assert.match(read(".github/ISSUE_TEMPLATE/device.yml"), /告诉我们 hachimia 在你的机型上用得怎么样/);
   assert.match(read(".github/ISSUE_TEMPLATE/device.yml"), /label: hachimia 版本 \/ Version/);
@@ -223,7 +215,7 @@ test("C-02 应用名注释写 hachimia", () => {
     ["gateway/gw/config.mjs", /hachimia：给 claude 预加载的小库/],
     ["gateway/gw/edition.mjs", /开发版（hachimia-dev）/],
     ["gateway/gw/gitsafe.mjs", /只管 hachimia 自己的 HOME/],
-    ["gateway/gw/local.mjs", /hachimia 由 App 进程做/],
+    ["gateway/gw/devside.mjs", /hachimia 由 App 进程做/],
     ["gateway/gw/runs.mjs", /hachimia 的冻结检测/],
     ["gateway/gw/leftover.mjs", /只在 hachimia 里认/],
     ["gateway/gw/leftover.mjs", /hachimia 里只有一个网关/],

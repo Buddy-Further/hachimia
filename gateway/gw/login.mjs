@@ -9,7 +9,7 @@ import { agyEnv, claudeBlocked, killTree } from "./claude.mjs";
 import { RUNS } from "./runs.mjs";
 import { PROVIDER, keyOf, providerById } from "./providers.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
-import { toFront } from "./local.mjs";
+import { toFront } from "./devside.mjs";
 import { RATE_LIMITS, clearRateLimits } from "./stream.mjs";
 import { publish } from "./bus.mjs";
 

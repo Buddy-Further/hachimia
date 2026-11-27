@@ -28,8 +28,16 @@ export function patchUi(patch) {
   return cur;
 }
 
-// ── 路由：GET /api/ui 整份；POST /api/ui 改其中几项 ──
+// ── 路由：GET/POST /api/ui 界面定制；POST /api/freeze 滚动冻结脱困日志 ──
 export async function routeUi(req, res, u, p) {
+  if (req.method === "POST" && p === "/api/freeze") {
+    let j = {};
+    try { j = JSON.parse(await readBody(req)); } catch {}
+    // 去掉换行：不能借它在日志里伪造一行（v0514 审查低-8）
+    const touch = Array.isArray(j.touch) ? j.touch.slice(-40).map((x) => String(x).replace(/[\x00-\x1f\x7f]/g, " ").slice(0, 80)).join(" | ") : "";
+    log(`滚动冻结脱困（${j.why === "auto" ? "自动" : "手动"}）${touch ? "，触摸：" + touch : ""}`);
+    return sendJson(res, 200, { ok: true });
+  }
   if (p !== "/api/ui") return NEXT;
   if (req.method === "GET") return sendJson(res, 200, readUi());
   if (req.method === "POST") {

@@ -311,7 +311,7 @@ export function claudeEnv(o = {}) {
   // 以前只垫自定义接口，预置的 DeepSeek / GLM… 断流照样整段重来（0.6.9 审计 195-U.6）。官方（nativeModels）、登录态、端侧不垫。
   // 用户给 claude 配了代理就不垫：本地转发是 node 发的请求，不走那个代理
   const viaProxy = ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"].some((k) => env[k]);
-  if ((p.custom || p.group === "third") && !p.nativeModels && !p.login && !p.local && !viaProxy && env.ANTHROPIC_BASE_URL) env.ANTHROPIC_BASE_URL = fixedBaseUrl(env.ANTHROPIC_BASE_URL);
+  if ((p.custom || p.group === "third") && !p.nativeModels && !p.login && !viaProxy && env.ANTHROPIC_BASE_URL) env.ANTHROPIC_BASE_URL = fixedBaseUrl(env.ANTHROPIC_BASE_URL);
 
   // 认证：按厂商声明的风格选变量，别把 key 塞进对方不认的 header。
   //   bearer    → ANTHROPIC_AUTH_TOKEN（Authorization: Bearer …）
@@ -373,7 +373,7 @@ export function claudeEnv(o = {}) {
   if (!p.nativeModels) {
     // 模型名不是 Claude 型号时，claude 默认不给清单工具（TaskCreate/TaskUpdate 一个都不挂），得显式打开；
     // 光打开还不够，第三方模型不会主动用 —— 配合 TASKS_HINT 提醒一句才用（DeepSeek 实测）
-    if (!p.local) env.CLAUDE_CODE_ENABLE_TODO_TOOLS = "1";
+    env.CLAUDE_CODE_ENABLE_TODO_TOOLS = "1";
     const ctx = Number(info && info.context_window) || 0;
     if (ctx > 0) env.CLAUDE_CODE_MAX_CONTEXT_TOKENS = String(ctx);
   }
@@ -381,15 +381,14 @@ export function claudeEnv(o = {}) {
   // 不是上下文，claude 自己有合理默认，硬塞只会带来副作用。
 
   // 自动压缩窗口：用户设了才插，没设就让 Antigravity 自己按窗口比例决定
-  // 端侧小模型不传：窗口只有几万 token 时，claude 同时看到窗口和压缩线，每次发请求前都判定「已超线」先去压缩（实测）
-  if (SETTINGS.autoCompactWindow && !p.local) {
+  if (SETTINGS.autoCompactWindow) {
     env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = String(SETTINGS.autoCompactWindow);
   } else {
     // 没设：第三方型号窗口已知就给默认线，否则 claude 不按阈值压（见 defaultCompactLine）。
     // 继承来的值先擦掉：网关自己可能是从一个带着这个变量的 claude 会话里起的
     delete env.CLAUDE_CODE_AUTO_COMPACT_WINDOW;
     // 用户在 ~/.claude/settings.json 里自己写了 autoCompactWindow（effectiveAutoCompact 认得）就不盖它：环境变量优先级更高
-    const d = !p.local && !effectiveAutoCompact() && defaultCompactLine(Number(info && info.context_window) || 0, p);
+    const d = !effectiveAutoCompact() && defaultCompactLine(Number(info && info.context_window) || 0, p);
     if (d) env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = String(d);
   }
   // 厂商文档要求的额外变量（如 GLM 的 API_TIMEOUT_MS）。只收字符串，且不许借道改密钥/端点，
@@ -635,13 +634,11 @@ export function settingsArgs(p = PROVIDER) {
   const safe = safeMode();
   // 只认列得出来的（内置 + 用户目录）：旧设置里存着工作区那份的名字，这里不再传（输出风格目录的安全报告）
   if (SETTINGS.outputStyle && !safe && outputStyles().some((o) => o.id === SETTINGS.outputStyle)) st.outputStyle = SETTINGS.outputStyle;
-  if (!p.local) {
-    st.hooks = archiveHooks();   // 压缩后提醒建档（只陈述事实，规则在系统提示里，见 archive.mjs）
-    const g = guardHooks();
-    // 用户级、项目级设置里的 disableAllHooks:true 会连这里挂的钩子一起关掉；这里显式写 false 压过它们（2.1.311 实测）。
-    // 代价是用户在设置里关掉的钩子也会跑 —— 扩展页的「关闭全部钩子」因此改成把钩子挪进暂存键（见 extensions.mjs）
-    if (g) { st.hooks.PreToolUse = g; st.disableAllHooks = false; }
-  }
+  st.hooks = archiveHooks();   // 压缩后提醒建档（只陈述事实，规则在系统提示里，见 archive.mjs）
+  const g = guardHooks();
+  // 用户级、项目级设置里的 disableAllHooks:true 会连这里挂的钩子一起关掉；这里显式写 false 压过它们（2.1.311 实测）。
+  // 代价是用户在设置里关掉的钩子也会跑 —— 扩展页的「关闭全部钩子」因此改成把钩子挪进暂存键（见 extensions.mjs）
+  if (g) { st.hooks.PreToolUse = g; st.disableAllHooks = false; }
   // 会话保留期：项目目录的 settings.json 写个小数字会压过用户级的，--settings 压得住它（D10，见 retention.mjs）
   st.cleanupPeriodDays = sessionRetention().days;
   const key = keyOf(p);

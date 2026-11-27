@@ -482,28 +482,6 @@ const PRESETS = {
     ],
   },
 };
-// 端侧小模型（cccodroid）：llama.cpp 的 llama-server 自带 Anthropic Messages 端点（/v1/messages），claude 直连本机。
-// 模型清单就是模型目录里的 .gguf，服务由网关按需拉起，见「端侧小模型」一节
-export const LLAMA_PORT = Number(process.env.CCAPP_LLAMA_PORT) || 8811;
-// 端侧服务要密钥（审查 中9）：127.0.0.1 的端口全机共享，不设的话同机别的应用能白用算力、把 KV 缓存占满。
-// llama-server 用 --api-key-file 读它（Bearer、X-Api-Key 两种头都认）。存在 home/.cache 里（0600），
-// 跨网关重启不变 —— 还活着的 llama-server 和新起的网关对得上
-export const LLAMA_KEY_FILE = path.join(CFG.home, ".cache", "llama-api-key");
-export const LLAMA_KEY = !PREFIX ? "local" : (() => {
-  try { const k = fs.readFileSync(LLAMA_KEY_FILE, "utf8").trim(); if (/^[0-9a-f]{48}$/.test(k)) return k; } catch {}
-  const k = crypto.randomBytes(24).toString("hex");
-  try { fs.mkdirSync(path.dirname(LLAMA_KEY_FILE), { recursive: true }); fs.writeFileSync(LLAMA_KEY_FILE, k + "\n", { mode: 0o600 }); } catch {}
-  return k;
-})();
-if (PREFIX) PRESETS.local = {
-  label: "端侧小模型（本机）", labelEn: "On-device model", group: "local", local: true,
-  baseUrl: `http://127.0.0.1:${LLAMA_PORT}`, authStyle: "x-api-key", apiKey: LLAMA_KEY, defaultModel: null,
-  // 手机上读一万多 token 的提示要几分钟：别让 claude 等两分钟就当超时。
-  // 重试只给两次：本机服务挂了就是挂了，默认十次退避要白等三分钟
-  extraEnv: { API_TIMEOUT_MS: "3000000", CLAUDE_CODE_MAX_RETRIES: "2" },
-  hint: "用本机的 llama.cpp 跑小模型聊天，不联网、不花钱。手机算力有限，干活请用云端模型。",
-  hintEn: "Chat with a small model running on this device via llama.cpp — offline and free. Phone hardware is limited; use a cloud model for real work.",
-};
 // 预置条目只从配置文件里取这些"属于用户"的字段；其余（名字、线路表、端点）以目录为准，
 // 这样旧配置里抄死的 label/baseUrl 不会把目录更新挡住。自定义条目则整条都是用户的。
 const USER_FIELDS = ["apiKey", "apiKeyEnv", "endpoint", "defaultModel", "fastModel", "extraEnv", "inlineImages"];
@@ -542,7 +520,6 @@ function composeProvider(id, raw) {
   if (pre) {
     v = { ...pre };
     for (const k of USER_FIELDS) if (raw && raw[k] != null && raw[k] !== "") v[k] = raw[k];
-    if (pre.local) v.apiKey = LLAMA_KEY;    // 旧配置里存的占位 "local" 不算数
     // 旧配置里自己攒的模型清单（带真实窗口）比目录里的全，留着
     if (raw && Array.isArray(raw.fallbackModels) && raw.fallbackModels.length) v.fallbackModels = cleanModels(raw.fallbackModels);
   } else {
@@ -607,6 +584,13 @@ function loadProviders() {
     if (!PRESETS[id] && raw && raw.baseUrl) providers[id] = composeProvider(id, raw);
   }
   let active = providers[PROVIDERS_RAW.active] ? PROVIDERS_RAW.active : (PREFIX || isAgyOnlyMode() ? "antigravity" : "deepseek");
+  // 已下线的端侧小模型：旧配置若仍把 active 指在 "local"，平滑迁回默认并清理占位条目
+  if (PROVIDERS_RAW.active === "local" && !providers.local) {
+    PROVIDER_MIGRATED_FROM = "local";
+    PROVIDERS_RAW.active = active;
+    if (PROVIDERS_RAW.providers.local && !PROVIDERS_RAW.providers.local.baseUrl) delete PROVIDERS_RAW.providers.local;
+    log(`[厂商] 端侧小模型已下线，旧配置 active="local" 已自动切回 ${active}`);
+  }
   // MIG-10：agy-only 下 Claude 系预置不可用。旧配置的 active 仍指着它时迁回 antigravity，
   // 这里只改内存并记 flag，落盘由模块加载后统一做（见 PROVIDERS_CFG 赋值后的那段）。
   if (isAgyOnlyMode() && active && providers[active] && providers[active].group === "claude") {
@@ -655,7 +639,6 @@ export function hasAdcCredentials() { return adcCredentialsPath() !== ""; }
 export function acpAuthType(p) {
   if (!p) return null;
   if (p.authType) return p.authType;
-  if (p.local) return null;
   if (p.login) return "oauth-personal";
   if (p.protocol === "gemini") return "gemini-api-key";
   return `${p.id}-api-key`;
@@ -664,10 +647,9 @@ export function acpAuthType(p) {
 /** 该厂商走 ACP 时 agy 有没有交 key 的通道（MIG-9，rem-C2 方案 b 的判定口径）：
  *  登录类走 OAuth/ADC、Gemini 协议走 GEMINI_API_KEY + settings.json，都有通道；
  *  不声明 protocol 的第三方 bearer（自己的 `<id>-api-key`）在 agy 下没有任何通道，
- *  authenticate 会被豁免跳过、模型调用时才报 agy 原文错。端侧小模型不走 ACP，算有通道（不拦截）。 */
+ *  authenticate 会被豁免跳过、模型调用时才报 agy 原文错。 */
 export function hasAcpKeyChannel(p) {
   if (!p) return false;
-  if (p.local) return true;
   if (p.login) return true;
   if (p.authType === "gemini-api-key" || p.authStyle === "gemini-api-key" || p.protocol === "gemini") return true;
   if (p.authType === "agent-platform" || p.authStyle === "adc") return true;
@@ -677,19 +659,15 @@ export function hasAcpKeyChannel(p) {
 
 /** 该厂商是否走 ACP（与 run.mjs 的 useAcp 同口径，供 models.mjs 的显示侧共用，见 MIG-3）。 */
 export function usesAcp(p) {
-  if (!p || p.local) return false;
+  if (!p) return false;
   return !!(isAgyOnlyMode() || p.group === "antigravity" || p.authStyle === "gemini-api-key" || p.protocol === "gemini"
     || p.authStyle === "adc" || p.authType === "oauth-personal" || p.authType === "oauth-business"
     || p.authType === "agent-platform" || process.env.CCAPP_PROTOCOL === "acp");
 }
 
-/** 该厂商在选单里算不算能用（MIG-34）：端侧小模型在 agy-only 设备上是死路——
- *  端侧链走 Claude argv，而全新安装的设备上没有 runtime/claude（bin/claude 不进包），
- *  所以 agy-only 下标不可用；有旧版残留 runtime/claude 的设备上 isAgyOnlyMode() 为 false，仍可用。
- *  端侧链本身保留不动（见 run.mjs 的 ensureLlama 分支）。 */
+/** 该厂商在选单里算不算能用：登录类或已配密钥即可用。 */
 export function isProviderUsable(p) {
   if (!p) return false;
-  if (p.local) return !isAgyOnlyMode();
   return !!(p.login || keyOf(p));
 }
 
@@ -701,7 +679,7 @@ export function isProviderVisible(id, v) {
   if (isAgyOnlyMode() && v.group === "claude") return false;
   if (!isAgyOnlyMode()) return true;
   if (id === PROVIDER.id) return true;
-  if (v.group === "antigravity" || v.group === "local" || v.custom) return true;
+  if (v.group === "antigravity" || v.custom) return true;
   if (String(v.apiKey || "").trim()) return true;
   return false;
 }
@@ -744,7 +722,7 @@ function providerView(id, v) {
   const key = String(v.apiKey || "").trim();
   return {
     id, label: v.label || id, labelEn: v.labelEn || "", group: v.group || "custom", custom: !!v.custom,
-    login: !!v.login, nativeModels: !!v.nativeModels, local: !!v.local,
+    login: !!v.login, nativeModels: !!v.nativeModels,
     baseUrl: v.baseUrl || "", modelsUrl: v.modelsUrl || "", authStyle: v.authStyle || "bearer",
     protocol: v.protocol === "gemini" ? "gemini" : "",   // 端点协议声明（rem-C2）："gemini" = 讲 Gemini 协议，走 agy Gemini 通道；"" = 未声明
     endpoints: (v.endpoints || []).map((e) => ({ id: e.id, label: e.label, labelEn: e.labelEn || "" })), endpoint: v.endpoint || null,
@@ -1328,7 +1306,7 @@ export function providerById(id) {
   if (PROVIDERS_CFG && PROVIDERS_CFG.providers[id]) return pickProvider(id);
   return id === BUILTIN_PROVIDER.id ? BUILTIN_PROVIDER : null;
 }
-/** 各家能不能用（有钥匙 / 走登录 / 本机），给输入栏的模型面板按接口分组用。钥匙本身不出网关 */
+/** 各家能不能用（有钥匙 / 走登录），给输入栏的模型面板按接口分组用。钥匙本身不出网关 */
 export function providerBrief() {
   const ids = PROVIDERS_CFG
     ? Object.entries(PROVIDERS_CFG.providers).filter(([id, v]) => isProviderVisible(id, v)).map(([id]) => id)
@@ -1337,7 +1315,7 @@ export function providerBrief() {
   if (!ids.includes(PROVIDER.id) && isProviderVisible(PROVIDER.id, PROVIDER)) ids.unshift(PROVIDER.id);
   return ids.map((id) => {
     const p = providerById(id);
-    return p && { id, label: p.label || id, labelEn: p.labelEn || "", login: !!p.login, local: !!p.local,
+    return p && { id, label: p.label || id, labelEn: p.labelEn || "", login: !!p.login,
       nativeModels: !!p.nativeModels, usable: isProviderUsable(p), noAcpKeyChannel: !hasAcpKeyChannel(p), active: id === PROVIDER.id,
       keyMode: keyOf(p) ? "key" : p.login ? "login" : "none", defaultModel: p.defaultModel || null };
   }).filter(Boolean);
@@ -1352,6 +1330,14 @@ export function keyOf(p) {
  *  模型清单缓存无需在此清除 —— 缓存按接口配置指纹存取（models.mjs 的 sigOf），
  *  换厂商自然对不上。 */
 export function applyProvider() {
+  // 已下线的端侧小模型：老设置若仍选中 provider="local"，清空 provider 与旧 .gguf 模型名，平滑切回默认厂商
+  if (SETTINGS.provider === "local" && !PROVIDERS_CFG.providers.local) {
+    PROVIDER_MIGRATED_FROM = "local";
+    log("[厂商] 端侧小模型已下线，旧设置 provider=\"local\" 已自动切回默认接口");
+    SETTINGS.provider = null;
+    SETTINGS.model = null;
+    try { saveSettings(); } catch (e) { log(`[厂商] 清掉旧 local 设置失败：${e.message}`); }
+  }
   // MIG-10：设置里的 provider 仍指着 Claude 预置时（旧配置/分享导入），同样迁回 antigravity 并落盘
   if (isAgyOnlyMode() && SETTINGS.provider) {
     const want = PROVIDERS_CFG.providers[SETTINGS.provider];

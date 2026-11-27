@@ -218,6 +218,5 @@ test("C9：defaultAcpCompactLine 对原生厂商也给默认线（200k→160k，
   assert.equal(defaultAcpCompactLine(128000, native), 88000);
   assert.equal(defaultAcpCompactLine(1048576, native), 838000);
   assert.equal(defaultAcpCompactLine(0, native), null, "窗口未知不瞎编");
-  assert.equal(defaultAcpCompactLine(200000, { local: true }), null, "端侧小模型不给");
   assert.equal(defaultAcpCompactLine(50000, native), null, "扣掉 40k 总结余量后不够就不给");
 });

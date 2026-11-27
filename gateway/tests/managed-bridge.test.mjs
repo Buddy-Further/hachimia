@@ -158,12 +158,12 @@ for (const [name, change] of [
   assert.equal(f.calls().length, 1);
 });
 
-test("远端、其他回环、错误边界、登录及端侧均不启动", async () => {
+test("远端、其他回环、错误边界、登录及非自定义接口均不启动", async () => {
   const f = fixture();
   for (const baseUrl of ["https://other.example.invalid", "http://127.0.0.1:34592", f.r.endpoint + ".invalid", f.r.endpoint + "/v1", f.r.endpoint + "?token=fake", "http://fixture@127.0.0.1:34591", "http://127.1:34591"]) {
     assert.equal(await ensureManagedBridge({ custom: true, baseUrl }), false);
   }
-  for (const flags of [{ login: true }, { local: true }, { custom: false }]) assert.equal(await ensureManagedBridge({ ...f.p, ...flags }), false);
+  for (const flags of [{ login: true }, { custom: false }]) assert.equal(await ensureManagedBridge({ ...f.p, ...flags }), false);
   assert.equal(f.calls().length, 0);
 });
 

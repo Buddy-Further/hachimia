@@ -18,7 +18,7 @@ test("认消息里的 @图片路径：去重、只要存在的、标点收尾也
   assert.deepEqual(imageRefs(`@${dir}/没有.png @${dir}/x.txt`), []);
 });
 
-test("按文件头认格式；没勾、端侧模型不带", async () => {
+test("按文件头认格式；没勾不带", async () => {
   const { inlineImagesSync, inlineImages } = await import("../gw/inlineimg.mjs");
   const real = put("photo.png", JPG);                 // 扩展名写 png，实际是 jpeg
   const fake = put("fake.jpg", Buffer.from("不是图片，只是名字像".repeat(4)));
@@ -29,7 +29,6 @@ test("按文件头认格式；没勾、端侧模型不带", async () => {
   assert.equal(bl[0].source.media_type, "image/jpeg");
   assert.equal(Buffer.from(bl[0].source.data, "base64").length, JPG.length);
   assert.deepEqual(inlineImagesSync(msg, { id: "custom-1" }), []);
-  assert.deepEqual(inlineImagesSync(msg, { ...ON, local: true }), []);
   assert.equal((await inlineImages(msg, ON)).length, 1);
 });
 

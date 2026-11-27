@@ -17,7 +17,6 @@ import { NEXT, readBody, sendJson } from "./http.mjs";
 import { clearIncomplete, markIncomplete } from "./incomplete.mjs";
 import { END_HOOKS, INTERRUPTED, QUEUE, RUN_LANE, RUN_SESSIONS, abortRun, clearInterrupted, endRun, enqueue, holdLane, idleArm, idleDisarm, laneOfItem, permView, publishState, runEmit, runTag, saveRunMark, setInterrupted, setPermMode, sidForItem } from "./queue.mjs";
 import { LOCAL_CMD_RE, handleLocalCommand } from "./modelcmd.mjs";
-import { ensureLlama, localCustomActive, localRunAttach } from "./local.mjs";
 import { deviceMcpAcpServer, deviceMcpConfig, privCall, usageAdd, usageIsPrompt, usageMeter } from "./usage.mjs";
 import { TASKS_HINT, contextWindowOf, effectiveAutoCompact, toolsHint, translate } from "./stream.mjs";
 import { latestContextTokens } from "./transcript.mjs";
@@ -115,7 +114,7 @@ export function collectAddDirs(cwd, item, P) {
   const addOk = (d) => { try { const r = fs.realpathSync(d); return !pathBlocked(r) && !holdsPrivate(r, { workspace: false }); } catch { return false; } };
   for (const d of SETTINGS.addDirs || []) if (addOk(d)) dirs.add(d); else if (d) log(`附加目录 ${d} 不存在或在应用私有目录里，没加`);
   for (const d of item?.addDirs || []) if (typeof d === "string" && addOk(d)) dirs.add(d);
-  if (!P?.local && onShared(cwd)) { const b = privateAgentsBase(cwd); try { fs.mkdirSync(b, { recursive: true }); dirs.add(b); } catch {} }
+  if (onShared(cwd)) { const b = privateAgentsBase(cwd); try { fs.mkdirSync(b, { recursive: true }); dirs.add(b); } catch {} }
   const out = [];
   let dirLen = 0;
   for (const d of dirs) {
@@ -161,7 +160,7 @@ export function execIntent(item, ctx) {
   if (P.nativeModels && model && !/^(gemini-|claude-|gpt-|opus|sonnet|haiku|fable|auto|default|best)/i.test(model)) model = "";
   model = model.replace(/[\x00-\x1f\x7f]/g, "").slice(0, 200);
   if (!["low", "medium", "high", "xhigh", "max"].includes(effort)) effort = "";
-  if (effort && !P.local) {
+  if (effort) {
     const mi = currentModelInfo(model, P);
     if (!effortLevelsOf(mi, P).includes(effort)) effort = normEffort(mi, effort, P) || "";
   }
@@ -262,7 +261,7 @@ async function checkUcAndLeftovers(run, emit) {
 function prepareSealAndUc(run, cwd, P, emit) {
   if (!ucHooked) { ucHooked = true; END_HOOKS.push((r) => ucAfterRun(r)); END_HOOKS.push((r) => sealCleanup(r.id)); }
   let prep = null;
-  if (sealed() && !P.local) {
+  if (sealed()) {
     try { prep = sealPrepare({ cwd, runId: run.id, outputStyle: SETTINGS.outputStyle || "" }); }
     catch (e) { log(`[封口] 准备回填失败：${e.message}`); prep = { block: { found: [{ name: "(hachimia)", hits: [{ line: 0, excerpt: e.message }] }] } }; }
     if (prep.block) {
@@ -484,7 +483,7 @@ export async function startRun(item) {
     return endRun(run, { failed: true });
   }
   const agyOnly = !!(PATHS.agy && fs.existsSync(PATHS.agy) && !(PATHS.claude && fs.existsSync(PATHS.claude)));
-  const useAcp = !P.local && (agyOnly || P.group === "antigravity" || P.authStyle === "gemini-api-key" || P.protocol === "gemini" || P.authStyle === "adc" || P.authType === "oauth-personal" || P.authType === "oauth-business" || P.authType === "agent-platform" || process.env.CCAPP_PROTOCOL === "acp");
+  const useAcp = agyOnly || P.group === "antigravity" || P.authStyle === "gemini-api-key" || P.protocol === "gemini" || P.authStyle === "adc" || P.authType === "oauth-personal" || P.authType === "oauth-business" || P.authType === "agent-platform" || process.env.CCAPP_PROTOCOL === "acp";
   // MIG-9（rem-C2 方案 b）：无 key 通道的第三方厂商在发消息前就拦截，别等模型调用才报 agy 原文错。
   // 只有 ACP 路径 + 有 key 时才拦：Claude 路径（开发端走 claude 的第三方厂商）本来就有通道，不拦；
   // 没 key 的由上面“未配置 API 密钥”那条先拦。
@@ -494,13 +493,9 @@ export async function startRun(item) {
   }
   const cliBin = useAcp ? (PATHS.agy || PATHS.claude) : PATHS.claude;
   if (!fs.existsSync(cliBin)) {
-    // MIG-34：端侧小模型在 agy-only 设备上是死路——报错说实话，别指去装一个装不上的 Claude Code。
-    // 端侧链本身保留：有旧版残留 runtime/claude 的设备上 cliBin 存在，不会走到这里。
     emit({ type: "error", message: tr(LAST_LANG, useAcp
       ? tz("Antigravity CLI (agy) 未安装。到 设置 → 更新 里点「安装」即可。")
-      : P.local && agyOnly
-        ? tz("端侧小模型需要 Claude Code，当前设备只有 Antigravity CLI，暂不可用。")
-        : tz("Claude Code 未安装。到 设置 → 更新 里点「安装…」选一个版本装上。")) });
+      : tz("Claude Code 未安装。到 设置 → 更新 里点「安装…」选一个版本装上。")) });
     return endRun(run, { failed: true });
   }
   if (run.aborted) return endRun(run, {});
@@ -536,8 +531,8 @@ export async function startRun(item) {
   let { model, effort } = execIntent(item, { sid0, pdef0: pdef, P });
   // 别家的清单拉一次（10 分钟缓存）：窗口、档位映射要用。思考强度是跟着全局 / 项目来的、这家模型不支持时，换成它支持的
   // 全局那家也一样：没打开过设置 / 型号清单时冷缓存里没有窗口，claude 只能按 200k 跑（#57）。拉过的就后台刷新，不让这一轮干等
-  if (!P.local) {
-    // 已经知道这个型号的窗口（拉过清单、或配置里的内嵌清单 / fallbackModels 写了）就不等：离线时首轮别干等 15 秒（v0514 复核）
+  // 已经知道这个型号的窗口（拉过清单、或配置里的内嵌清单 / fallbackModels 写了）就不等：离线时首轮别干等 15 秒（v0514 复核）
+  {
     const known = modelsCached(P) || Number(currentModelInfo(model, P).context_window) > 0;
     if (P.id !== PROVIDER.id || !known) await fetchModels(false, P).catch(() => {});
     else fetchModels(false, P).catch(() => {});
@@ -554,19 +549,6 @@ export async function startRun(item) {
   // 安全模式下钩子全不跑（敏感操作再确认也没了），不问人的几档退回 default
   if (safeModePerm(permMode) !== permMode) { log(`安全模式：权限模式 ${permMode} → default`); permMode = safeModePerm(permMode); }
   run.permMode = permMode;
-
-  // 端侧小模型：先确保 llama-server 跑着、载的是这个模型（第一次要加载十几秒）
-  if (P.local) {
-    try {
-      const m = await ensureLlama(model, (key, text) => emit({ type: "note", key, text }), run);
-      model = m.id;
-      localRunAttach(run);
-    } catch (e) {
-      emit({ type: "error", message: e.message });
-      return endRun(run, { failed: true });
-    }
-    if (run.aborted) return endRun(run, { failed: true });
-  }
 
   // ── hachimia: Antigravity CLI (`agy acp`) JSON-RPC 2.0 通道 ──
   if (useAcp) {
@@ -587,7 +569,7 @@ export async function startRun(item) {
     for (const [f, chk] of [["ccapp-settings.json", settingsDiskCheck], ["ccapp-providers.json", providersDiskCheck]]) {
       if (chk()) tamperRecord("runtime", [f]);
     }
-    if (!P.local) {
+    {
       const gwBad = gwRuntimeBlocked();
       if (gwBad) {
         const msg = tr(LAST_LANG, gwBad);
@@ -606,7 +588,7 @@ export async function startRun(item) {
     }
     const ucStopped = await checkUcAndLeftovers(run, emit);
     if (ucStopped) return ucStopped;
-    const proj = sealed() || P.local ? null : projectRisks(cwd);
+    const proj = sealed() ? null : projectRisks(cwd);
     if (proj && !projectTrusted(cwd, proj.fp)) {
       const ok = run.unattended || run.auto ? false : await askProjectTrust(run, cwd, proj, emit);
       if (run.aborted) { log("⏹ 等项目配置确认时停止"); return endRun(run, { durationMs: 0 }); }
@@ -621,7 +603,7 @@ export async function startRun(item) {
     }
     const sfile = () => run.sessionId ? findSessionFile(String(run.sessionId), run.cwd)?.file : null;
     let integ = await checkSessionAsync(run.sessionId, sfile());
-    let integNote = isCmd || P.local ? "" : integrityNote(integ);
+    let integNote = isCmd ? "" : integrityNote(integ);
     run.sealBase = run.sessionId ? { sid: run.sessionId, ...(await sessionAnchorAsync(sfile())) } : null;
     if (run.sealBase) saveRunMark();
     if (run.aborted) { log("⏹ 起进程前已停止"); return endRun(run, { durationMs: 0 }); }
@@ -632,13 +614,13 @@ export async function startRun(item) {
 
     // C-01：内置设备工具接入 ACP mcpServers（targetSdk 36 下经 linker64 + gwNode 拉起）
     const acpMcpServers = [];
-    const devMcpEntry = !P.local ? deviceMcpAcpServer(process.env) : null;
+    const devMcpEntry = deviceMcpAcpServer(process.env);
     if (devMcpEntry && (await privCall({ op: "dev_status" }, 3000)).on) acpMcpServers.push(devMcpEntry);
     if (run.aborted) { log("⏹ 查设备工具时停止"); return endRun(run, { durationMs: 0 }); }
 
     const sealGate = prepareSealAndUc(run, cwd, P, emit);
     if (sealGate.blocked) return sealGate.blocked;
-    if (!integ) { integ = await checkSessionAsync(run.sessionId, sfile()); if (integ) integNote = isCmd || P.local ? "" : integrityNote(integ); }
+    if (!integ) { integ = await checkSessionAsync(run.sessionId, sfile()); if (integ) integNote = isCmd ? "" : integrityNote(integ); }
     run.sealBase = run.sessionId ? { sid: run.sessionId, ...(await sessionAnchorAsync(sfile())) } : null;
     if (run.sealBase) saveRunMark();
     if (run.aborted || run.ended) { log("⏹ 起进程前已停止"); return endRun(run, { durationMs: 0 }); }
@@ -688,7 +670,7 @@ export async function startRun(item) {
       if (cmdExp.expanded) {
         log(`⌘ 展开常用指令 /${cmdExp.name}`);
         isSlashCmd = false;
-        integNote = P.local ? "" : integrityNote(integ);
+        integNote = integrityNote(integ);
         if (!cmdExp.builtin) {
           const safeExp = neutralizeMarkers(cmdExp.text);
           if (safeExp !== cmdExp.text) isSpoofed = true;
@@ -699,7 +681,7 @@ export async function startRun(item) {
       } else {
         acpPrompt = cmdExp.text;
       }
-      if (!isSlashCmd && !P.local) {
+      if (!isSlashCmd) {
         back.path = takePathNote(run.sessionId);
         const tamperN = run.unattended ? "" : tamperNote(back.tamper);
         const ucN = back.uc = run.unattended ? "" : ucTakeNote();
@@ -727,7 +709,7 @@ export async function startRun(item) {
       log(`权限模式在起进程前改了：${permMode} → ${run.permMode}`);
       permMode = run.permMode;
     }
-    if (!P.local && !sealStillValid(cliBin)) {
+    if (!sealStillValid(cliBin)) {
       run.giveNotesBack?.();
       log(`${runTag(run)} ⚠️ [Antigravity CLI 核验] 核过之后程序文件又变了，停掉这一轮`);
       tamperRecord("agy", ["agy: changed right after it was verified"]);
@@ -903,7 +885,7 @@ export async function startRun(item) {
     } else {
       run.giveNotesBack = null;
     }
-    if (!isCmd && !P.local && acpRes.ok && !run.aborted) {
+    if (!isCmd && acpRes.ok && !run.aborted) {
       settlePathNote(run.sessionId, run.paths);
     }
     if (run.sessionId) {
@@ -944,7 +926,7 @@ export async function startRun(item) {
       else billAfterRun(P.id);
     }
     // C-01 + W3-F4：首轮正常答完后在后台自动起标题（含展开后的自定义常用指令）
-    if (!isSlashCmd && !run.auto && !run.sched && !P.local && acpRes.ok && !run.aborted && run.sessionId) {
+    if (!isSlashCmd && !run.auto && !run.sched && acpRes.ok && !run.aborted && run.sessionId) {
       autoTitle(run.sessionId, P, model);
     }
     const endRes = endRun(run, {
@@ -1015,22 +997,15 @@ export async function startRun(item) {
   // 设备工具（通知、剪贴板、打开应用、读屏点按…）：只有 cccodroid 有 Java 那一层。开关在应用里，
   // 这里只看总开关决定挂不挂；具体哪些工具出现由 device-mcp.mjs 现问应用。端侧小模型不挂（读不起）
   const devMcp = deviceMcpConfig();
-  if (devMcp && !P.local && (await privCall({ op: "dev_status" }, 3000)).on) argv.push("--mcp-config", devMcp);
+  if (devMcp && (await privCall({ op: "dev_status" }, 3000)).on) argv.push("--mcp-config", devMcp);
 
   // 告诉 claude 这台设备上有什么现成工具 —— 不说它就不会去用。
   // 和用户自己的追加提示合成一条：重复给同一个单值参数，解析器一般只留一个，合成一条最稳
-  // 端侧：--bare 换成很短的系统提示和精简工具（见「端侧小模型」一节）；本机工具清单太长，小模型读不起，不附
-  // 内置只有聊天（不给工具）；自定义模式的工具清单和提示由用户的配置文件给（见 localCustom）
-  const lcust = P.local ? localCustomActive() : null;
-  if (P.local) argv.push("--bare", "--tools", lcust ? lcust.tools : "");
-  // 端侧只补一句身份（--bare 的提示自称 Claude，小模型会照着说），几十 token，不拖慢首字
-  const localHint = !P.local ? "" : lcust && lcust.systemPrompt ? lcust.systemPrompt
-    : `You are ${model}, a small open model running locally on the user's Android device through llama.cpp (not Claude). Reply in the user's language; keep answers short.`;
   // 建档（脉络）：常驻规则 + 这一轮该不该先建档（见 archive.mjs）
-  const arch = P.local ? null : await archiveHint(run.sessionId).catch(() => null);
-  const appendPrompt = [P.local ? localHint : toolsHint(), !P.nativeModels && !P.local ? TASKS_HINT : "", P.local ? "" : previewHint(cwd), P.local ? "" : integrityHint(), arch?.rule].filter(Boolean).join("\n\n");
+  const arch = await archiveHint(run.sessionId).catch(() => null);
+  const appendPrompt = [toolsHint(), !P.nativeModels ? TASKS_HINT : "", previewHint(cwd), integrityHint(), arch?.rule].filter(Boolean).join("\n\n");
   // 子代理（连孙代理）统一的联络规矩：用 agentId 发消息、summary 写事由、长内容落文件只发路径（见 agents.mjs）
-  const subPrompt = !P.local && !message.trim().startsWith("/") ? SUBAGENT_HINT + "\n\n" + integrityHint() : "";
+  const subPrompt = !message.trim().startsWith("/") ? SUBAGENT_HINT + "\n\n" + integrityHint() : "";
   // 这两段在起进程紧前写成文件再交（见 promptFiles）
   // claude 没有 --output-style 参数（传了直接 unknown option，整条消息失败）；它是 settings 里的 outputStyle。
   // 密钥读取器也在这里（见 settingsArgs）
@@ -1060,9 +1035,9 @@ export async function startRun(item) {
     return endRun(run, { failed: true, finalText: msg });
   }
   let integ = await checkSessionAsync(run.sessionId, sfile());
-  let integNote = isCmd || P.local ? "" : integrityNote(integ);
+  let integNote = isCmd ? "" : integrityNote(integ);
   // 消息里提到档号（0ab2·61）：附上那一章的压缩摘要（见 merge.mjs refNote）。读不出来就算了，不挡这一轮
-  const refN = isCmd || P.local ? "" : await refNote(message, run.sessionId).catch((e) => { log("档号引用失败: " + e.message); return ""; });
+  const refN = isCmd ? "" : await refNote(message, run.sessionId).catch((e) => { log("档号引用失败: " + e.message); return ""; });
   // 上面拉模型清单、问设备工具、读建档提示都要等：这期间点了停止（还没有进程可杀）就别再起了（安全通告 GHSA-g35m）
   if (run.aborted) { log("⏹ 起进程前已停止"); return endRun(run, { durationMs: 0 }); }
   // 用户级配置（~/.claude）有没确认的改动、之前的对话留下了后台进程（见 userconf.mjs / leftover.mjs）：先问。
@@ -1071,7 +1046,7 @@ export async function startRun(item) {
   if (ucStopped) return ucStopped;
   // 项目自带会自动运行的配置（钩子、.mcp.json…，见 projtrust.mjs）、又没被认过：先问；不同意就不加载项目级配置，这一轮照常
   // 发行版：项目级配置一概不读（edition.mjs），不用问
-  const proj = sealed() || P.local ? null : projectRisks(cwd);
+  const proj = sealed() ? null : projectRisks(cwd);
   if (proj && !projectTrusted(cwd, proj.fp)) {
     const ok = run.unattended || run.auto ? false : await askProjectTrust(run, cwd, proj, emit);
     if (run.aborted) { log("⏹ 等项目配置确认时停止"); return endRun(run, { durationMs: 0 }); }
@@ -1089,7 +1064,7 @@ export async function startRun(item) {
   // 设置、厂商配置网关跑着时只有网关自己写：被别人改了按内存写回，留痕（换了接口地址就能把密钥送出去）
   for (const [f, chk] of [["ccapp-settings.json", settingsDiskCheck], ["ccapp-providers.json", providersDiskCheck]]) if (chk()) tamperRecord("runtime", [f]);
   // claude 程序本身：和版本目录里存的 Anthropic 签名清单对不上就不起（被改过字符串的二进制，见 claudeseal.mjs）
-  if (!P.local) {
+  {
     const gwBad = gwRuntimeBlocked();
     if (gwBad) { emit({ type: "error", message: tr(LAST_LANG, gwBad) }); return endRun(run, { failed: true }); }
     const seal = await claudeSeal();
@@ -1110,7 +1085,7 @@ export async function startRun(item) {
   }
   // 会话封签起进程紧前再核一次：上面等卡片、核程序可能等很久，这期间记录被改了，这一轮就该带提醒（199-S-04）。
   // 同时拍底，收尾时核这一轮只是往后追加
-  if (!integ) { integ = await checkSessionAsync(run.sessionId, sfile()); if (integ) integNote = isCmd || P.local ? "" : integrityNote(integ); }
+  if (!integ) { integ = await checkSessionAsync(run.sessionId, sfile()); if (integ) integNote = isCmd ? "" : integrityNote(integ); }
   run.sealBase = run.sessionId ? { sid: run.sessionId, ...(await sessionAnchorAsync(sfile())) } : null;
   if (run.sealBase) saveRunMark();     // 底要进运行标记：这一轮被系统结束时，下次启动凭它重新封签（195-A.8）
   if (run.aborted || run.ended) { log("⏹ 起进程前已停止"); return endRun(run, { durationMs: 0 }); }
@@ -1139,7 +1114,7 @@ export async function startRun(item) {
   // 留下的进程冒充这一轮时比启动先后（见 leftover.mjs）。claude 不可转储时 /proc 里看不见它：拿一个刚起的进程的启动时刻代替（不会更晚于 claude）
   run.childStart = procStart(child.pid) ?? nowTicks();
   // 核过之后、真正执行之前程序被换掉了（来回替换卡时间窗）：这一轮停掉（DeepSeek 复核建议 2）
-  if (!P.local && !sealStillValid()) {
+  if (!sealStillValid()) {
     log(`${runTag(run)} ⚠️ [Claude Code 核验] 核过之后程序文件又变了，停掉这一轮`);
     tamperRecord("claude", ["claude: changed right after it was verified"]);
     emit({ type: "error", message: tr(LAST_LANG, "Antigravity CLI 程序和官方签名清单对不上，可能被改过，这一轮没有启动。到 设置 → 更新 里重新安装后再试。") });
@@ -1164,18 +1139,18 @@ export async function startRun(item) {
   };
   const withNotes = (msg0, extra, imgs = []) => {
     const msg = neutralizeMarkers(msg0);
-    if (P.local || msg.trim().startsWith("/")) return msg;
+    if (msg.trim().startsWith("/")) return msg;
     const an = takeAgentNote(run.cwd, run.sessionId);
     if (an) back.agent.push(an);
     const notes = [msg !== msg0 ? SPOOF_NOTE : "", extra, an].filter(Boolean);
     return notes.length || imgs.length ? [{ type: "text", text: msg }, ...imgs, ...notes.map((n) => ({ type: "text", text: `<system-reminder>\n${n}\n</system-reminder>` }))] : msg;
   };
   // 上一轮只写了文件名没写全路径：这一轮的消息带上提醒（见 pathnote.mjs）。命令那轮不带（带了也包不进去，提醒会白白丢掉）
-  const pathNote = back.path = isCmd || P.local ? "" : takePathNote(run.sessionId);
+  const pathNote = back.path = isCmd ? "" : takePathNote(run.sessionId);
   // 应用文件被改过、已还原（tamper.mjs）：告诉模型一次，别再去改回来
   // 这两条不分会话：没人看着的（定时任务）不取，留给用户下一次自己发的那轮
-  const tamperN = isCmd || P.local || run.unattended ? "" : tamperNote(back.tamper);
-  const ucN = back.uc = isCmd || P.local || run.unattended ? "" : ucTakeNote();
+  const tamperN = isCmd || run.unattended ? "" : tamperNote(back.tamper);
+  const ucN = back.uc = isCmd || run.unattended ? "" : ucTakeNote();
   const textOf = (c) => (typeof c === "string" ? c : Array.isArray(c) ? c.filter((x) => x && x.type === "text").map((x) => x.text).join("\n") : "").trim();
   const initContent = withNotes(message, [tamperN, ucN, integNote, arch?.note, pathNote, refN].filter(Boolean).join("\n\n"), imgs0);
   const initText = textOf(initContent);
@@ -1235,7 +1210,7 @@ export async function startRun(item) {
     }
     // 插话里的档号也附上那一章的摘要（同步版：只查已有索引，等不起整理）
     let refI = "";
-    if (!P.local) try { refI = refNoteSync(item.message, run.sessionId); } catch (e) { log("插话档号引用失败: " + e.message); }
+    try { refI = refNoteSync(item.message, run.sessionId); } catch (e) { log("插话档号引用失败: " + e.message); }
     const content = withNotes(item.message, refI || null, inlineImagesSync(item.message, P));
     try { writeUser(content); } catch { return false; }
     WROTE.set(item, textOf(content));
@@ -1749,9 +1724,9 @@ export async function startRun(item) {
           `$${Number(lastResult.total_cost_usd || 0).toFixed(5)}${localCmd ? "  [" + localCmd + "]" : ""}`);
       billAfterRun(run.provider);
       if (!isCmd && !lastResult.is_error && run.sessionId) idleArm(run.sessionId, flags);
-      if (!isCmd && !P.local && !lastResult.is_error) settlePathNote(run.sessionId, run.paths);
+      if (!isCmd && !lastResult.is_error) settlePathNote(run.sessionId, run.paths);
       // 新会话第一轮答完就在后台起个标题，不等第二条消息（#60，见 autotitle.mjs）；定时任务的会话不起
-      if (!isCmd && !P.local && !run.sched && !lastResult.is_error) autoTitle(run.sessionId, P, model);
+      if (!isCmd && !run.sched && !lastResult.is_error) autoTitle(run.sessionId, P, model);
       return endRun(run, {
         durationMs: ms,
         // claude 按内置的 Anthropic 价目表算账；第三方厂商的价格差得远，报出来能高一二十倍，干脆不报

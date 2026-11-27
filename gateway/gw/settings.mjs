@@ -19,7 +19,7 @@ import { ghProxyEnabled } from "./pget.mjs";
 // 以前直接展开 SETTINGS，GET 和保存回执会把它们原样送回界面（FIND-052）。
 const VIEW_KEYS = ["model", "permissionMode", "guard", "addDirs", "outputStyle", "effort", "allowedTools", "disallowedTools",
   "autoCompactWindow", "provider", "memGuard", "autoClean", "maxParallel", "staticCompat", "idleCompaction", "workIsland",
-  "localMode", "titleModel", "hiddenProviders", "remoteNotices", "ghProxy", "permNotice", "permMigrated"];
+  "titleModel", "hiddenProviders", "remoteNotices", "ghProxy", "permNotice", "permMigrated"];
 const settingsView = () => ({ ...Object.fromEntries(VIEW_KEYS.filter((k) => k in SETTINGS).map((k) => [k, SETTINGS[k]])), ghProxy: ghProxyEnabled() });
 
 // ── 路由：/api/settings ──

@@ -27,7 +27,7 @@
   $("tab-ext").addEventListener("click", (e) => {
     // 只排除行「里面」的按钮、链接、折叠块：整个分区本身就是 <details>，以前一律被它挡掉，组件和模块的说明永远点不开（审查 F-001）
     const r = e.target.closest(".xrow, .ccard"); if (!r || !r.querySelector(".it-more")) return;
-    const i = e.target.closest("button, a, input, select, textarea, label, summary, details, .gh-auth, .llm-dl");
+    const i = e.target.closest("button, a, input, select, textarea, label, summary, details, .gh-auth");
     if (i && r.contains(i)) return;
     r.classList.toggle("open");
   });
@@ -191,7 +191,6 @@
   $("tab-ext").addEventListener("click", (e) => {
     const c = e.target.closest(".idx-chip"); if (!c) return;
     extPick[c.dataset.sec] = c.dataset.idx; renderIdx(c.dataset.sec);
-    if (c.dataset.sec === "comp") syncCatalog();
   });
   // 节头照设计稿：图标块 + 标题，下面一句说明（原来是节里第一行小字，挪进标题里）；节不再折叠，靠顶上的分区导航跳
   for (const d of document.querySelectorAll("#tab-ext details.ext-sec")) {
@@ -239,7 +238,6 @@
   function pauseExtReads() {
     clearTimeout(compTimer); clearTimeout(modTimer); clearTimeout(ghAuth.timer);
     compLoad++; modLoad++; ghAuth.seq = (ghAuth.seq || 0) + 1;
-    pauseCatalog();
   }
   async function loadComponents(refresh) {
     if (!pageOn("ext")) return "stale";
@@ -259,7 +257,7 @@
     if (request !== compLoad || !pageOn("ext")) return "stale";
     const outcome = { err: r.indexError || "" };
     $("comp-field").classList.toggle("hidden", !r.supported);
-    if (!r.supported) { compHasItems = false; syncCatalog(); return loadGhField(); }
+    if (!r.supported) { compHasItems = false; return loadGhField(); }
     if ((r.items || []).length) compHasItems = true;
     else if (!r.indexError) compHasItems = false;
     const box = $("comp-list");
@@ -313,7 +311,6 @@
       if (webUrl(c.homepage) && c.state !== "ok") desc += '<div class="tiny"><a class="weblink" href="' + esc(c.homepage) + '">' + esc(c.homepage) + "</a></div>";
       if (c.state === "ok" && c.bin.length) desc += '<div class="tiny">' + t("命令：") + " " + c.bin.map((b) => "<code>" + esc(b) + "</code>").join(" ") + "</div>";
       if (c.id === "gh" && c.state === "ok") desc += '<div class="gh-auth" id="gh-auth">' + ghAuth.html + "</div>";
-      if (c.id === "llama-cpp" && c.state === "ok") desc += '<details class="llm-dl" id="llm-dl"' + (llmDl.open ? " open" : "") + "><summary>" + t("下载模型") + '</summary><div id="llm-dl-body">' + llmDl.html + "</div></details>";
       const used = (c.usedBy || []).map((d) => esc(pickLang(d.name) || d.id));
       const cat = c.category && CAT()[c.category] ? c.category : "other";
       const tags = ["cat:" + cat];
@@ -342,7 +339,7 @@
         // 索引里没有对应构建时没有安装按钮，至少给个重新拉清单的入口（0.6.10 审计 195-I.7）
         if (c.state === "outdated" && !c.available) cbtn += btn("reindex", c.id, t("检查更新")).replace("<button ", '<button class="btn sm ghost" ');
       }
-      const live = (c.id === "gh" && c.state === "ok") || (c.id === "llama-cpp" && c.state === "ok") ? desc.slice(desc.indexOf(c.id === "gh" ? '<div class="gh-auth"' : '<details class="llm-dl"')) : "";
+      const live = c.id === "gh" && c.state === "ok" ? desc.slice(desc.indexOf('<div class="gh-auth"')) : "";
       const more = (live ? desc.slice(0, desc.length - live.length) : desc) + '<div class="it-meta">' + meta + "</div>";
       const warn = (c.error ? '<div class="tiny err">' + esc(c.error) + "</div>" : "") + (miss.length && c.state !== "ok" ? '<div class="tiny warn">' + t("要先装：{names}", { names: listOf(miss) }) + "</div>" : "");
       return (`<div class="item ccard${c.unsupported && !["ok", "removing", "configuring", "fetching-models"].includes(c.state) ? " dim" : ""}" data-comp="${esc(c.id)}" data-tags="${esc(tags.join(" "))}">
@@ -359,17 +356,14 @@
     const changed = box._html !== next;
     if (changed) {
       const opened = new Set([...box.querySelectorAll(".ccard.open")].map((c) => c.dataset.comp));
-      // live 区（GitHub 登录状态、模型下载面板）是缓存外原地更新的：整块重画会把它们打回初始值，
-      // 记下来写回，别让用户在 #llm-url 里的输入和展开态被一秒一次的轮询吞掉
-      const gh = $("gh-auth"), dl = $("llm-dl"), url = $("llm-url");
-      const ghHtml = gh ? gh.innerHTML : null, dlHtml = dl ? dl.innerHTML : null, dlOpen = dl ? dl.open : false, urlVal = url ? url.value : null;
+      // live 区（GitHub 登录状态）是缓存外原地更新的：整块重画会把它打回初始值，记下来写回
+      const gh = $("gh-auth");
+      const ghHtml = gh ? gh.innerHTML : null;
       const active = document.activeElement, activeId = active && active.id && box.contains(active) ? active.id : null;
       box.innerHTML = next; box._html = next;
       // 进度更新可以换卡片，用户刚展开的说明不能每秒被收回去。
       for (const c of box.querySelectorAll(".ccard")) if (opened.has(c.dataset.comp)) c.classList.add("open");
       if (ghHtml != null && $("gh-auth")) $("gh-auth").innerHTML = ghHtml;
-      if (dlHtml != null && $("llm-dl")) { $("llm-dl").innerHTML = dlHtml; $("llm-dl").open = dlOpen; }
-      if (urlVal != null && $("llm-url")) $("llm-url").value = urlVal;
       if (activeId && box.querySelector("#" + activeId)) box.querySelector("#" + activeId).focus();
     }
     $("comp-count").textContent = (r.items || []).length || "";
@@ -377,7 +371,6 @@
     ext.compBytes = (r.items || []).filter((c) => c.installedVersion || c.state === "ok").reduce((s, c) => s + (c.installed || 0), 0); paintStorage();
     renderIdx("comp", [["inst", t("已装")], ["upd", t("要更新")], ...Object.entries(CAT()).map(([k, v]) => ["cat:" + k, v])]);
     if ($("gh-auth")) loadGhAuth(refresh === true);
-    syncCatalog();
     // 有在跑的就一秒刷一次；抽屉关了 / 换了页签就停
     compMoving = !!(compRemoving.size || (r.items || []).some((c) => c.progress || ["removing", "configuring", "fetching-models"].includes(c.state)));
     if (compMoving && pageOn("ext"))
@@ -526,127 +519,6 @@
       out.classList.toggle("err", !x.ok);
       b.disabled = false;
     }
-  });
-
-  // ── llama-cpp 组件下的「下载模型」子卡：内置目录按家族折叠（网关里固定 sha256），一键下载 / 取消 / 删除；也能贴 .gguf 直链 ──
-  const llmDl = { visible: false, visit: 0, html: "", timer: 0, fam: new Set(), items: new Map(), big: 6, url: "" };
-  function catalogOpen() {
-    const dl = $("llm-dl");
-    return !!dl?.open && pageOn("ext") && !$("comp-field").classList.contains("hidden") && !dl.closest(".ccard")?.classList.contains("hidden");
-  }
-  function pauseCatalog() {
-    clearTimeout(llmDl.timer);
-    llmDl.visible = false;
-    llmDl.visit++;
-  }
-  function syncCatalog() {
-    if (!catalogOpen()) { if (llmDl.visible) pauseCatalog(); return; }
-    if (!llmDl.visible) { llmDl.visible = true; loadLlmDl(); }
-  }
-  // toggle 不冒泡；用捕获监听真实详情节点，组件父卡更新不再触发目录读取。
-  $("tab-ext").addEventListener("toggle", (e) => { if (e.target.id === "llm-dl" && e.target === $("llm-dl")) syncCatalog(); }, true);
-  function loadLlmDl(changed = false) {
-    if (changed) llmDl.visit++;
-    const visit = llmDl.visit, live = () => catalogOpen() && visit === llmDl.visit;
-    return viewRead("llm-catalog", visit, live, async () => {
-      clearTimeout(llmDl.timer);
-      let netErr = null;
-      const r = await api("/api/local/catalog").catch((e) => { netErr = e; return { items: [], err: e.message }; });
-      if (!live()) return;
-      if (netErr && llmDl.items && llmDl.items.size > 0) {
-        if (llmDl.wasBusy) llmDl.timer = setTimeout(() => { if (live()) loadLlmDl(); }, 1500);
-        return;
-      }
-      paintCatalog(r, live);
-    });
-  }
-  function paintCatalog(r, live) {
-    const GB = (n) => (n / 1073741824).toFixed(1) + " GB";
-    const TAG = { think: t("会先思考"), code: t("偏写代码") };
-    llmDl.big = r.big || 6;
-    llmDl.items = new Map((r.items || []).map((m) => [m.id, m]));
-    const row = (m) => {
-      const j = m.job;
-      let st = "", act = "";
-      if (j && (j.phase === "downloading" || j.phase === "verifying")) {
-        const pct = j.total ? Math.min(100, (j.done / j.total) * 100).toFixed(1) : 0;
-        st = (j.total ? '<div class="comp-bar"><i style="width:' + pct + '%"></i></div>' : "") +
-          '<div class="tiny">' + (j.phase === "verifying" ? t("校验中") : t("下载中")) + " " + GB(j.done) + (j.total ? " / " + GB(j.total) : "") + "</div>";
-        act = '<button class="btn sm ghost" data-lm="cancel" data-id="' + esc(m.id) + '">' + t("取消") + "</button>";
-      } else if (m.have) {
-        st = '<span class="tiny">' + t("已下载") + (m.inUse ? " · " + t("正在使用") : "") + "</span>";
-        act = '<button class="btn sm ghost" data-lm="remove" data-id="' + esc(m.id) + '">' + t("删除") + "</button>";
-      } else {
-        if (j && j.phase === "error") st = '<div class="tiny err">' + t("下载失败：{msg}", { msg: esc(j.err) }) + "</div>";
-        act = '<button class="btn sm' + (m.params > llmDl.big ? " ghost" : "") + '" data-lm="download" data-id="' + esc(m.id) + '">' + (j ? t("重试") : t("下载")) + "</button>" +
-          (m.custom ? '<button class="btn sm ghost" data-lm="cancel" data-id="' + esc(m.id) + '">' + t("移除") + "</button>" : "");
-      }
-      const info = m.custom ? '<span class="tiny dim">' + esc(m.repo) + "</span>"
-        : '<span class="tiny">' + m.params + "B · " + GB(m.bytes) + "</span>" + (m.tag ? ' <span class="tiny dim">' + TAG[m.tag] + "</span>" : "") +
-          (m.params > llmDl.big ? ' <span class="tiny warn">' + t("偏大") + "</span>" : "");
-      return '<div class="llm-item"><div class="llm-row"><code>' + esc(m.id) + "</code> " + info + '<span class="llm-act">' + act + "</span></div>" + st + "</div>";
-    };
-    const fams = [];
-    for (const m of r.items || []) if (!m.custom && !fams.includes(m.fam)) fams.push(m.fam);
-    const custom = (r.items || []).filter((m) => m.custom);
-    llmDl.html = '<div class="tiny dim">' + t("存放在 /sdcard/cccodroid/models（Q4_K_M 量化），下载后在「设置 → 模型服务」启用。本机内存 {ram} GB，建议选 1–4B。", { ram: r.ram || "?" }) + "</div>" +
-      (r.err ? '<div class="tiny err">' + esc(r.err) + "</div>" : "") +
-      fams.map((f) => {
-        const list = r.items.filter((m) => !m.custom && m.fam === f);
-        const n = list.filter((m) => m.have).length, busy = list.some((m) => m.job && m.job.phase !== "error");
-        return '<details class="llm-fam" data-fam="' + esc(f) + '"' + (llmDl.fam.has(f) || busy ? " open" : "") + "><summary>" + esc(f) +
-          ' <span class="tiny dim">' + list.length + (n ? " · " + t("已下载 {n}", { n }) : "") + "</span></summary>" + list.map(row).join("") + "</details>";
-      }).join("") +
-      custom.map(row).join("") +
-      '<div class="llm-url"><div class="tiny dim">' + t("目录里没有的：贴一个 .gguf 文件的下载链接（HuggingFace / 魔搭等）。不校验哈希，只核对文件头。") + "</div>" +
-      '<div class="llm-url-row"><input type="url" id="llm-url" placeholder="https://huggingface.co/…/resolve/main/xxx.gguf" value="' + esc(llmDl.url) + '">' +
-      '<button class="btn sm" data-lm="url">' + t("下载") + "</button></div></div>";
-    // 输入框里正打着字就别整块重绘（会丢光标）：只更新上面的列表
-    const body = $("llm-dl-body");
-    if (body) {
-      const typing = document.activeElement && document.activeElement.id === "llm-url";
-      // 正打字的输入框原地不动，只换它前面的节点：把聚焦的元素挪到新位置，多数 WebView 上会丢焦点、收输入法（审查 F9）
-      if (typing) {
-        const box = document.createElement("div"); box.innerHTML = llmDl.html; box.querySelector(".llm-url").remove();
-        const keep = body.querySelector(".llm-url");
-        for (const x of [...body.childNodes]) if (x !== keep) x.remove();
-        keep.before(...box.childNodes);
-      }
-      else body.innerHTML = llmDl.html;
-      if (!body.dataset.famBound) {
-        body.dataset.famBound = "1";
-        body.addEventListener("toggle", (e) => {
-          const d = e.target;
-          if (d && d.classList && d.classList.contains("llm-fam") && d.dataset.fam) {
-            if (d.open) llmDl.fam.add(d.dataset.fam);
-            else llmDl.fam.delete(d.dataset.fam);
-          }
-        }, true);
-      }
-      // 正打字的输入框是原地保留的：每次轮询都 addEventListener 会越积越多（195-6.04）
-      const inp = $("llm-url"); if (inp) inp.oninput = () => { llmDl.url = inp.value; };
-    }
-    const busy = (r.items || []).some((m) => m.job && m.job.phase !== "error");
-    llmDl.wasBusy = busy;
-    if (busy) llmDl.timer = setTimeout(() => { if (live()) loadLlmDl(); }, 1000);
-  }
-  $("tab-ext").addEventListener("click", async (e) => {
-    const b = e.target.closest("button[data-lm]");
-    if (!b || b.disabled) return;
-    const op = b.dataset.lm, id = b.dataset.id, m = llmDl.items.get(id);
-    if (op === "remove" && !confirm(t("删除模型 {name}？", { name: id }))) return;
-    if (op === "download" && m && m.params > llmDl.big && !confirm(t("{name} 约 {p}B 参数、{size}。手机上会很慢，内存也可能不够。仍然下载？", { name: id, p: m.params, size: (m.bytes / 1073741824).toFixed(1) + " GB" }))) return;
-    const body = { op, id };
-    if (op === "url") {
-      body.url = ($("llm-url") && $("llm-url").value.trim()) || "";
-      if (!body.url) return toast(t("先贴链接"), true);
-    }
-    b.disabled = true;
-    const r = await post("/api/local/model", body).catch((er) => ({ ok: false, message: er.message }));
-    if (!r.ok) toast(t("失败：{msg}", { msg: r.message || "" }), true);
-    else if (op === "url") llmDl.url = "";
-    if (op === "url" && $("llm-url")) $("llm-url").blur();
-    loadLlmDl();
   });
 
   // ── gh 登录卡：设备码流程。令牌只在 gh 自己那儿，网关只回账号名与状态 ──

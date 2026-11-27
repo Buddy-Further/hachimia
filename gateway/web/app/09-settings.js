@@ -10,8 +10,8 @@
   // 状态里的当前接口名：同上规则（旧网关没有 providerLabelEn 就用中文名）
   const provName = (s) => (s && ((provEn() && s.providerLabelEn) || s.providerLabel || s.provider)) || "";
   const pHint = (x) => (provEn() && x.hintEn) || x.hint || "";
-  const GROUP_NAME = provEn() ? { antigravity: "Google Antigravity / Gemini", claude: "Claude (legacy)", third: "Third-party", local: "On-device", custom: "Custom endpoints" }
-    : { antigravity: t("Google Antigravity / Gemini"), claude: t("Claude（兼容）"), third: t("第三方接口"), local: t("端侧（本机运行）"), custom: t("自定义接口") };
+  const GROUP_NAME = provEn() ? { antigravity: "Google Antigravity / Gemini", claude: "Claude (legacy)", third: "Third-party", custom: "Custom endpoints" }
+    : { antigravity: t("Google Antigravity / Gemini"), claude: t("Claude（兼容）"), third: t("第三方接口"), custom: t("自定义接口") };
   const post = (p, body) => api(p, {
     method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body || {}),
   });
@@ -39,7 +39,7 @@
         const st = p.login ? "" : (p.hasKey ? "" : (provEn() ? " · no key yet" : t(" · 未配 Key")));
         return `<option value="${esc(p.id)}">${tag}${esc(pLabel(p))}${st}</option>`;
       };
-      sel.innerHTML = ["antigravity", "claude", "third", "local", "custom"]
+      sel.innerHTML = ["antigravity", "claude", "third", "custom"]
         .filter((g) => g === "custom" || (groups[g] && groups[g].length))
         .map((g) =>
           `<optgroup label="${GROUP_NAME[g]}">` + (groups[g] || []).map(opt).join("") +
@@ -61,7 +61,7 @@
   let provOpen = null;
   function foldProvCard() {
     const id = state.provView, p = (state.providers || []).find((x) => x.id === id);
-    const auto = !(p && p.active && (p.login || p.local || p.hasKey));
+    const auto = !(p && p.active && (p.login || p.hasKey));
     const open = provOpen == null ? auto : provOpen;
     $("prov-card").classList.toggle("hidden", !open);
     $("prov-more").textContent = open ? t("收起") : t("详情");
@@ -96,7 +96,6 @@
     const p = (state.providers || []).find((x) => x.id === id);
     if (!p) { box.innerHTML = ""; return; }
     if (p.login) return renderLoginCard(box, p);
-    if (p.local) return renderLocalCard(box, p);
     if (p.custom) return renderCustomCard(box, p);
     return renderKeyCard(box, p);
   }
@@ -113,89 +112,6 @@
     await refreshStatus();
     refreshSessModel();       // 跟随默认的会话：标签、模型面板跟着换到新接口（审查 D-02）
     toast(t("已切到 {name}（下一条消息生效）", { name: p.label }));
-  }
-
-  // ── 端侧小模型卡：llama.cpp 装没装、有没有 GPU、模型目录里有哪些、聊天 / 自定义模式、服务状态 ──
-  let localCardSeq = 0;
-  async function renderLocalCard(box, p) {
-    if (state.provView !== p.id) return;
-    const seq = ++localCardSeq;
-    box.innerHTML = `<div class="sub">${esc(pLabel(p))}</div><div class="tiny">${t("读取中…")}</div>`;
-    let j;
-    try { j = await api("/api/local"); }
-    catch (e) {
-      if (state.provView !== p.id || seq !== localCardSeq) return;
-      box.innerHTML += `<div class="prov-state err">${esc(e.message)}</div>`;
-      return;
-    }
-    if (state.provView !== p.id || seq !== localCardSeq) return;
-    const gb = (n) => (n / 1073741824).toFixed(1) + " GB";
-    const ok = (b) => b ? "✓" : "✗";
-    const sv = j.server || {}, cu = j.custom || {};
-    const cmdText = t("请阅读 {skill}，帮我给端侧小模型配置一个自定义模式。", { skill: (cu.skill || "~/.claude/skills/local-model-mode/SKILL.md") });
-    const svText = sv.state === "ready" ? t("已加载 {name}（{min} 分钟不用自动卸载）", { name: sv.model, min: Math.round(sv.idleMs / 60000) })
-      : sv.state === "loading" ? t("正在加载 {name}…", { name: sv.model })
-      : sv.state === "error" ? t("上次没起来：{msg}", { msg: sv.err || "?" })
-      : t("未运行（发消息时自动加载）");
-    box.innerHTML = `<div class="sub">${esc(pLabel(p))}</div>
-      <div class="tiny">${esc(pHint(p))}</div>
-      <div class="local-facts tiny">
-        <div>${ok(j.bin)} ${j.bin ? t("llama.cpp 已装") : t("没装 llama.cpp：到「扩展」页装 llama-cpp 组件")}</div>
-        <div>${j.gpu ? "✓ " + t("GPU 推理（Vulkan）") : "· " + t("只有 CPU 推理（装 GPU 驱动组件可以快几倍）")}</div>
-        <div>· ${t("内存 {total}，可用 {avail}；上下文 {ctx} token，{n} 线程", { total: gb(j.memTotal), avail: gb(j.memAvail), ctx: (Number(j.ctx) || 0).toLocaleString(), n: Number(j.threads) || 0 })}</div>
-      </div>
-      <div class="tiny" style="margin:8px 0 4px">${t("模型（{dir}）", { dir: esc(j.dirs[0] || "") })}</div>
-      ${j.models.length ? `<div class="local-models">${j.models.map((m) => `<div class="tiny">· <code>${esc(m.id)}</code> ${gb(m.size)} <button class="btn sm ghost lm-del" data-del="${esc(m.id)}">${t("删除")}</button></div>`).join("")}</div>`
-        : `<div class="tiny dim">${t("还没有模型。到「扩展」页 llama-cpp 组件下的「下载模型」一键下载，或把 .gguf 文件放进上面的目录。")}</div>`}
-      <div class="tiny" style="margin:10px 0 4px">${t("模式")}</div>
-      <div class="local-mode">
-        <label><input type="radio" name="lm" value="chat" ${j.mode !== "custom" ? "checked" : ""}> ${t("聊天")}<span class="tiny dim"> — ${t("不给工具，提示最短、回得最快")}</span></label>
-        <label><input type="radio" name="lm" value="custom" ${j.mode === "custom" ? "checked" : ""} ${cu.ok ? "" : "disabled"}> ${cu.ok ? esc(cu.label) : t("自定义")}<span class="tiny dim"> — ${
-          cu.ok ? (cu.tools ? t("工具：{tools}", { tools: esc(cu.tools) }) : t("不给工具")) : cu.have ? "" : t("还没配置")}</span></label>
-        ${cu.have && !cu.ok ? `<div class="tiny err">${t("配置文件有误，已按聊天模式跑：{msg}", { msg: esc(cu.err) })}</div>` : ""}
-      </div>
-      <div class="local-custom tiny dim">
-        ${t("端侧默认仅开启纯聊天。如需自定义工具与参数，可编辑 {file}，或切到云端模型发送以下指令自动生成：", { file: "<code>" + esc(cu.path || "~/.cccodroid/local-mode.json") + "</code>" })}
-        <div class="local-copy"><code>${esc(cmdText)}</code><button class="btn sm ghost" data-act="copy">${t("复制")}</button></div>
-      </div>
-      <div class="prov-state">${esc(svText)}${sv.loadMs ? ` · ${t("加载用了 {s} 秒", { s: (sv.loadMs / 1000).toFixed(1) })}` : ""}</div>
-      <div class="row-actions">
-        ${sv.state === "ready" || sv.state === "loading" ? `<button class="btn sm ghost" data-act="stop">${t("卸载模型")}</button>` : ""}
-        <button class="btn sm ghost" data-act="refresh">${t("刷新")}</button>
-        ${j.bin && j.models.length ? useBtn(p) : ""}
-      </div>`;
-    box.onclick = async (e) => {
-      // 手动放进目录 / 直链下好的模型也要能在应用里删（0.6.9 审计 195-F.4）
-      const del = e.target.closest ? e.target.closest("[data-del]") : null;
-      if (del) {
-        const id = del.dataset.del;
-        if (!confirm(t("删掉模型「{id}」？文件会从模型目录里删除。", { id }))) return;
-        const j = await post("/api/local/model", { op: "remove", id }).catch((e2) => ({ ok: false, message: e2.message }));
-        if (j && j.ok === false) return toast(t("删除失败：{msg}", { msg: j.message || "?" }), true);
-        toast(t("已删除模型「{id}」", { id }));
-        if (state.provView !== p.id || seq !== localCardSeq) return;
-        return renderLocalCard(box, p);
-      }
-      const act = e.target.dataset && e.target.dataset.act;
-      if (act === "use") return useProvider(p);
-      if (act === "refresh") return renderLocalCard(box, p);
-      if (act === "stop") {
-        await post("/api/local", { stop: true }).catch((e2) => toast(e2.message, true));
-        if (state.provView !== p.id || seq !== localCardSeq) return;
-        return renderLocalCard(box, p);
-      }
-      if (act === "copy") { copyText(cmdText); return toast(t("已复制")); }
-    };
-    box.querySelectorAll('input[name="lm"]').forEach((r) => r.addEventListener("change", async () => {
-      // 失败只报错，单选按网关的真实状态重画；不能接着说「已切换」（#177-8）
-      const j = await post("/api/local", { mode: r.value }).catch((e2) => ({ ok: false, message: e2.message }));
-      if (j && j.ok === false) {
-        toast(j.message || t("保存失败"), true);
-        if (state.provView === p.id && seq === localCardSeq) renderLocalCard(box, p);
-        return;
-      }
-      toast(t("已切换（下一条消息生效）"));
-    }));
   }
 
   // ── 账户登录卡（Google 个人 / 企业 OAuth / Google Cloud ADC）──
@@ -773,7 +689,7 @@
     const lst = list.some((p) => p.login && p.id !== (cur ? cur.id : state.serverStatus?.provider)) ? await api("/api/login/status").catch(() => null) : null;
     if (curPage !== "usage") return;
     // 「其他」= 主卡那家以外的：主卡按会话那家算（可能不是全局），这里也按它排，别把会话那家列两遍、全局那家漏掉（#144-1）
-    const others = list.filter((p) => p.id !== (cur ? cur.id : state.serverStatus?.provider) && !p.local && (p.login ? !!(lst && lst.loggedIn) : p.hasKey));
+    const others = list.filter((p) => p.id !== (cur ? cur.id : state.serverStatus?.provider) && (p.login ? !!(lst && lst.loggedIn) : p.hasKey));
     const box = $("us-acct-others");
     const keep = new Set([...box.querySelectorAll("details[open]")].map((d) => d.dataset.id));
     box.innerHTML = others.length ? `<div class="sub">${t("其他接口")}</div>` + others.map((p) =>

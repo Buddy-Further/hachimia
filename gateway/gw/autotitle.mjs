@@ -72,7 +72,7 @@ async function firstReply(file) {
 
 /** 一轮正常答完时调（run.mjs）。P / model：这一轮用的那家和型号。不等结果 */
 export function autoTitle(sid, P, model) {
-  if (!sid || !P || P.local || TRIED.has(sid) || SETTINGS.titleModel === "off" || titled(sid) || archiveDb().sessions[sid]?.misc) return;
+  if (!sid || !P || TRIED.has(sid) || SETTINGS.titleModel === "off" || titled(sid) || archiveDb().sessions[sid]?.misc) return;
   TRIED.add(sid);
   if (TRIED.size > 5000) TRIED.delete(TRIED.values().next().value);   // 只增不减；丢最早试过的，重启后还会再判一次（200-6-05）
   run(sid, P, model).catch((e) => log("自动起名出错：" + e.message));

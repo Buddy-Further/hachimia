@@ -156,7 +156,7 @@ export function effectiveModel(sid, projectId, over) {
     : (pp.id === (pdef.provider || PROVIDER.id) ? pdef.model : "") || (pp.id === PROVIDER.id ? SETTINGS.model || "" : "");
   const effort = (r && r.effort != null ? r.effort : pdef.effort || SETTINGS.effort) || "";
   let effortRun = effort;
-  if (effort && !pp.local) {
+  if (effort) {
     // 只认同名（和 /api/models、currentModelInfo 一致，#82）：清单里没有这个型号就不拿第一项的档位表去校验
     const want = model || pp.defaultModel, list = cachedModels(pp), mi = (want ? list.find((m) => m.id === want) : list[0]) || {};
     if (!effortLevelsOf(mi, pp).includes(effort)) effortRun = normEffort(mi, effort, pp) || "";

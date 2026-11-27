@@ -549,7 +549,7 @@ export function idleArm(sid, flags) {
   idleDisarm(sid);
   const ctx = flags.mainCtx || 0;
   const P = runProvider(sid);            // 按这个会话用的那家（缓存计时只对原生家有意义）
-  if (SETTINGS.idleCompaction === false || !P.nativeModels || P.local) return;
+  if (SETTINGS.idleCompaction === false || !P.nativeModels) return;
   if (!flags.cache1h || flags.cache5m || ctx < IDLE_MIN_TOKENS || autoCompactOff()) return;
   let size = -1; try { size = fs.statSync(findSessionFile(sid).file).size; } catch { return; }
   const timer = setTimeout(() => idleFire(sid), IDLE_MS);

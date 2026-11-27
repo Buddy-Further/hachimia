@@ -21,7 +21,6 @@ test("默认线：窗口八成、给总结留 40k、夹在 claude 认的 100k–
   assert.equal(defaultCompactLine(2000000, P()), 1000000);      // 大了 claude 按 1M 算
   assert.equal(defaultCompactLine(0, P()), null);               // 不知道窗口：不瞎编
   assert.equal(defaultCompactLine(1048576, { nativeModels: true }), null);   // claude 认得的型号自己会算
-  assert.equal(defaultCompactLine(1048576, P({ local: true })), null);       // 端侧小模型不传（见 claudeEnv）
 });
 
 test("claudeEnv：没设就下发默认线；设了用设的；继承来的值不漏过去", () => {

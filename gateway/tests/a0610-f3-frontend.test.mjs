@@ -72,11 +72,6 @@ test("A7 195-G.4：登录 pending 继续轮询，晚到的授权地址补开，�
   assert.ok(src09.includes("paintLoginFlow(\"\", method)"), "失败分支也有流程块（终端登录入口）");
 });
 
-test("A9 195-F.4：手动放入 / 直链下好的模型能在应用里删除", () => {
-  assert.ok(src09.includes("post(\"/api/local/model\", { op: \"remove\", id })"), "调用网关的 remove");
-  assert.ok(src09.includes("删掉模型「{id}」？文件会从模型目录里删除。"), "删除前确认");
-});
-
 test("A11 196-会话.6：导入中途失败也列出已导入的数量", () => {
   assert.ok(src07.includes("err.body && Array.isArray(err.body.imported)"), "读错误回执里的 imported");
   assert.ok(src07.includes("已导入 {n} 个，后面的失败：{msg}"), "已导入的如实说出来");

@@ -228,7 +228,7 @@ function installedBinding(stored) {
 
 function providerEndpoint(p) {
   // 在 streamfix 包装之前只认显式注册的本机端点；其他接口和登录令牌不碰。
-  return PREFIX && p?.custom && !p.login && !p.local ? endpointOf(p.baseUrl) : "";
+  return PREFIX && p?.custom && !p.login ? endpointOf(p.baseUrl) : "";
 }
 
 function binding(endpoint) {

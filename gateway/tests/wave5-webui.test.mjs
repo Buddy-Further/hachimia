@@ -260,13 +260,13 @@ test("Bug 5.9 (08-extensions.js): Hooks 删除加 HK.saving 锁、捕获异常�
 
 // ── Bug 5.9 (2): 09-settings.js 切卡竞态与 /api/login/cancel 异常防护 ────────
 
-test("Bug 5.9 (09-settings.js): renderLocalCard 与 loadBill 切卡后 catch 不污染新卡，/api/login/cancel 捕获异常且校验视图", async () => {
+test("Bug 5.9 (09-settings.js): loadBill 切卡后 catch 不污染新卡，/api/login/cancel 捕获异常且校验视图", async () => {
   await trackUnhandled(async () => {
     const src = readWeb("app/09-settings.js");
     const { $ } = makeDomEnv();
     const toasts = [];
     const apiHandlers = new Map();
-    const state = { provView: "local", providers: [{ id: "local", label: "端侧", local: true }], settings: {} };
+    const state = { provView: "deepseek", providers: [{ id: "deepseek", label: "DeepSeek" }], settings: {} };
 
     const box = {
       window: { I18N: { lang: "zh" }, location: { origin: "http://127.0.0.1" } },
@@ -296,20 +296,9 @@ test("Bug 5.9 (09-settings.js): renderLocalCard 与 loadBill 切卡后 catch 不
       clearTimeout,
     };
 
-    vm.runInNewContext(src + "\nglobalThis.__set = { renderLocalCard, loadBill, paintLoginState };", box, { filename: "09-settings.js" });
+    vm.runInNewContext(src + "\nglobalThis.__set = { loadBill, paintLoginState };", box, { filename: "09-settings.js" });
 
-    // 1) renderLocalCard：切走后 /api/local 报错不得写进当前卡片 DOM
-    const dLocal = defer();
-    apiHandlers.set("/api/local", () => dLocal.promise);
-    const cardBox = makeMockNode("prov-card");
-    const pLocal = box.__set.renderLocalCard(cardBox, { id: "local", label: "端侧", local: true });
-    state.provView = "deepseek";
-    cardBox.innerHTML = '<div class="sub">DeepSeek</div>';
-    dLocal.reject(new Error("local-boom"));
-    await pLocal;
-    assert.equal(cardBox.innerHTML, '<div class="sub">DeepSeek</div>', "renderLocalCard catch 不得在切卡后写入旧卡错误");
-
-    // 2) loadBill：切走后 /api/billing 报错不得覆盖当前卡片的 #pc-bill
+    // 1) loadBill：切走后 /api/billing 报错不得覆盖当前卡片的 #pc-bill
     const dBill = defer();
     apiHandlers.set("/api/billing", () => dBill.promise);
     const billEl = $("pc-bill");

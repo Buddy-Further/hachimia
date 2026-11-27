@@ -26,8 +26,8 @@ function sniff(buf) {
   return null;
 }
 
-/** 这家要不要兜底：设置里勾了的，且不是端侧小模型 */
-export const wantsInline = (P) => !!(P && P.inlineImages && !P.local);
+/** 这家要不要兜底：设置里勾了的 */
+export const wantsInline = (P) => !!(P && P.inlineImages);
 
 /** 消息里提到的图片路径（去重、存在的、最多 5 张） */
 export function imageRefs(msg) {

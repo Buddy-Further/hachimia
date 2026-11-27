@@ -483,7 +483,7 @@ function quarantineBadMapping(file = providerStateFile()) {
 function findManagedProviderByConnection(connection) {
   if (!connection?.baseUrl || !connection?.apiKey) return null;
   const matches = Object.entries(PROVIDERS_CFG.providers || {}).filter(([, provider]) =>
-    provider?.custom && !provider.login && !provider.local && !provider.nativeModels &&
+    provider?.custom && !provider.login && !provider.nativeModels &&
     !provider.endpoints?.length && !provider.endpoint && !provider.apiKeyEnv &&
     !Object.keys(provider.extraEnv || {}).length && ["bearer", "x-api-key"].includes(provider.authStyle) &&
     provider.baseUrl === connection.baseUrl && provider.apiKey === connection.apiKey
@@ -518,7 +518,7 @@ function mappedProvider(connection, { allowCorrupt = false } = {}) {
   }
   const provider = PROVIDERS_CFG.providers[state.providerId];
   if (!provider) return { id: "", stale: false, corrupt: false };
-  if (!provider.custom || provider.login || provider.local || provider.authStyle !== "bearer" ||
+  if (!provider.custom || provider.login || provider.authStyle !== "bearer" ||
       provider.endpoints?.length || provider.apiKeyEnv || Object.keys(provider.extraEnv || {}).length) throw conflict("APP_PROVIDER");
   providerModels(provider);
   // 只有写前记录的精确旧/新组合可恢复；删掉清单或换成第三种清单仍是冲突。
@@ -717,7 +717,7 @@ async function repairCandidate() {
     providerId = state.providerId;
     provider = PROVIDERS_CFG.providers[providerId];
   }
-  if (!provider?.custom || provider.login || provider.local || provider.nativeModels || provider.endpoints?.length || provider.endpoint ||
+  if (!provider?.custom || provider.login || provider.nativeModels || provider.endpoints?.length || provider.endpoint ||
       provider.apiKeyEnv || Object.keys(provider.extraEnv || {}).length || !["bearer", "x-api-key"].includes(provider.authStyle) ||
       provider.baseUrl !== connection.baseUrl || provider.apiKey !== connection.apiKey) throw repairFailure();
   const fingerprint = localFingerprint(connection);

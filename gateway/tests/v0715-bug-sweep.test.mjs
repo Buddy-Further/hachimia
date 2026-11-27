@@ -157,15 +157,6 @@ test("extensions.mjs: mcpAddArgs 复用 parseStdioTarget 正确处理转义引�
   assert.deepEqual(parseStdioTarget('node -e "console.log(\\"hi\\")"'), ["node", "-e", 'console.log("hi")']);
 });
 
-test("local.mjs: modelFetch 不在 meta 声明前引用 meta（修复 TDZ ReferenceError）", () => {
-  const src = fs.readFileSync(path.join(process.cwd(), "gateway", "gw", "local.mjs"), "utf8");
-  const m = /function modelFetch\([\s\S]{0,1200}/.exec(src);
-  assert.ok(m, "找到 modelFetch");
-  const idxMetaDecl = m[0].indexOf("const meta = part +");
-  const idxJobDecl = m[0].indexOf("const job = {");
-  assert.ok(idxMetaDecl > 0 && idxJobDecl > 0 && idxMetaDecl < idxJobDecl, "meta 必须在 job 对象字面量之前声明");
-});
-
 test("components.mjs: reapComponentRuns 正确剥离 11 字符 .installing 后缀", () => {
   const src = fs.readFileSync(path.join(process.cwd(), "gateway", "gw", "components.mjs"), "utf8");
   assert.ok(!src.includes("f.slice(0, -12)"), "不应使用错误的 -12 截断 11 字符的 .installing");

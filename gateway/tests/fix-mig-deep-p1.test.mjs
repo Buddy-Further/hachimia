@@ -260,26 +260,3 @@ test("MIG-28（reg-models F-2 已回退）：终端环境不得注入 GEMINI_API
   assert.doesNotMatch(src, /syncTermAgySettings\(\);/, "termNew 里不得再有 syncTermAgySettings() 调用");
   assert.doesNotMatch(src, /env\.GEMINI_API_KEY\s*=/, "终端不得把 GEMINI_API_KEY 写进环境");
 });
-
-// ── MIG-34：agy-only 下端侧小模型标不可用、报错说实话；端侧链保留 ──
-test("MIG-34：agy-only 时 local 不可用；有旧版 claude 残留时仍可用", () => {
-  const fakeAgy = path.join(CFG.home, "mig34-agy");
-  fs.writeFileSync(fakeAgy, "#!/bin/sh\n", { mode: 0o755 });
-  const fakeClaude = path.join(CFG.home, "mig34-claude");
-  PATHS.agy = fakeAgy; PATHS.claude = path.join(CFG.home, "mig34-no-claude");
-  assert.equal(isAgyOnlyMode(), true);
-  assert.equal(isProviderUsable({ id: "local", local: true }), false, "agy-only 下端侧应标不可用");
-  fs.writeFileSync(fakeClaude, "#!/bin/sh\n", { mode: 0o755 });
-  PATHS.claude = fakeClaude;
-  assert.equal(isAgyOnlyMode(), false);
-  assert.equal(isProviderUsable({ id: "local", local: true }), true, "有旧版 runtime/claude 残留时端侧链仍可用");
-  PATHS.agy = origAgyPath; PATHS.claude = origClaudePath;
-});
-
-test("MIG-34 源码：run.mjs 里端侧在 agy-only 下报错说实话；ensureLlama 链未动", () => {
-  const run = fs.readFileSync(path.join(ROOT, "gateway", "gw", "run.mjs"), "utf8");
-  assert.match(run, /端侧小模型需要 Claude Code，当前设备只有 Antigravity CLI，暂不可用/);
-  assert.match(run, /ensureLlama/);
-  const providers = fs.readFileSync(path.join(ROOT, "gateway", "gw", "providers.mjs"), "utf8");
-  assert.match(providers, /isProviderUsable/);
-});

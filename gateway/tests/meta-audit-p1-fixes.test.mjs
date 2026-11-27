@@ -259,85 +259,35 @@ test("P1 #6：空闲 persistAcpAssistantOnly 前核后封——干净会话不�
   assert.equal(await checkSessionAsync(sidTampered, f2), "edited", "空闲重封绝不能洗白此前的外部篡改");
 });
 
-test("P1 #9：09-settings.js renderLocalCard 的 del/stop/lm 与 logout 在途切卡时不抹掉新厂商卡", async () => {
+test("P1 #9：09-settings.js logout 在途切卡时不抹掉新厂商卡", async () => {
   const src = read("gateway/web/app/09-settings.js");
-  const start = src.indexOf("  let localCardSeq = 0;");
-  const end = src.indexOf("  // ── 账户登录卡");
   const logoutStart = src.indexOf("  async function logout(p) {");
   const logoutEnd = src.indexOf("  // ── 密钥卡");
-  assert.ok(start > 0 && end > start && logoutStart > 0 && logoutEnd > logoutStart);
+  assert.ok(logoutStart > 0 && logoutEnd > logoutStart);
 
   const resolvers = [];
   const defer = () => new Promise((r) => resolvers.push(r));
   let renderProvCalls = 0;
 
-  function makeBox() {
-    const radios = [{ value: "custom", listeners: [], addEventListener(ev, fn) { if (ev === "change") this.listeners.push(fn); } }];
-    return {
-      innerHTML: "",
-      onclick: null,
-      querySelectorAll: () => radios,
-      _radios: radios,
-    };
-  }
-
   const ctx = {
-    state: { provView: "local" },
+    state: { provView: "antigravity" },
     esc: (s) => String(s ?? ""),
     t: (s) => String(s),
-    pLabel: (p) => p.label,
-    pHint: () => "",
-    useBtn: () => "",
-    useProvider: () => {},
-    copyText: () => {},
     toast: () => {},
     confirm: () => true,
     renderProvCard: () => { renderProvCalls++; },
     refreshStatus: () => {},
     qbLoad: () => {},
     loadQuota: () => Promise.resolve(),
-    api: async () => ({ bin: true, gpu: false, memTotal: 1e9, memAvail: 1e9, ctx: 4096, threads: 4, dirs: ["/m"], models: [{ id: "m1", size: 1e6 }], mode: "chat", server: { state: "ready", model: "m1", idleMs: 60000 }, custom: { ok: true, label: "C" } }),
     post: () => defer(),
   };
   vm.createContext(ctx);
-  vm.runInContext(`${src.slice(start, end)}\n${src.slice(logoutStart, logoutEnd)}\nthis.__api = { renderLocalCard, logout };`, ctx);
-
-  const box = makeBox();
-  const localP = { id: "local", label: "Local" };
-  await ctx.__api.renderLocalCard(box, localP);
-  assert.match(box.innerHTML, /m1/);
-
-  // 触发删除模型，在途切到另一个厂商卡并写新内容，随后请求返回 -> 新卡绝不能被刷成「读取中…」
-  const delPromise = box.onclick({ target: { closest: () => ({ dataset: { del: "m1" } }) } });
-  ctx.state.provView = "antigravity";
-  box.innerHTML = "ANTIGRAVITY_NEW_CARD";
-  resolvers.shift()({ ok: true });
-  await delPromise;
-  assert.equal(box.innerHTML, "ANTIGRAVITY_NEW_CARD", "del 在途切卡后不得覆盖新卡为读取中");
-
-  // 同样验证 stop 与 lm 单选失败回调
-  ctx.state.provView = "local";
-  await ctx.__api.renderLocalCard(box, localP);
-  const stopPromise = box.onclick({ target: { closest: () => null, dataset: { act: "stop" } } });
-  ctx.state.provView = "antigravity";
-  box.innerHTML = "ANTIGRAVITY_AFTER_STOP";
-  resolvers.shift()({ ok: true });
-  await stopPromise;
-  assert.equal(box.innerHTML, "ANTIGRAVITY_AFTER_STOP", "stop 在途切卡后不得覆盖新卡");
-
-  ctx.state.provView = "local";
-  await ctx.__api.renderLocalCard(box, localP);
-  const lmPromise = box._radios[0].listeners[0]();
-  ctx.state.provView = "antigravity";
-  box.innerHTML = "ANTIGRAVITY_AFTER_LM";
-  resolvers.shift()({ ok: false, message: "bad" });
-  await lmPromise;
-  assert.equal(box.innerHTML, "ANTIGRAVITY_AFTER_LM", "lm 失败回调在途切卡后不得覆盖新卡");
+  vm.runInContext(`${src.slice(logoutStart, logoutEnd)}\nthis.__api = { logout };`, ctx);
 
   // 验证 logout 在途切卡不重画当前已切换的新卡
   ctx.state.provView = "antigravity";
   const outPromise = ctx.__api.logout({ id: "antigravity" });
-  ctx.state.provView = "local";
+  ctx.state.provView = "gemini-key";
   resolvers.shift()({ ok: true });
   await outPromise;
   assert.equal(renderProvCalls, 0, "logout 在途切卡后不得强制重画新卡");

@@ -29,7 +29,7 @@
 //    preview     HTML 预览                              envfacts    本机实况
 //    terminal    应用内终端                             feedback    反馈（GitHub Issue 草稿）
 //    git         git 可视化                             extensions  插件 / 技能 / MCP / Hooks / 官方目录
-//    components  可选组件、gh 登录                      local       端侧小模型与模型下载
+//    components  可选组件、gh 登录
 //    custom      自定义组件                             office      Office 文档
 //    modules     模块化工具包（加装 / 卸载单个模块）
 //
@@ -66,7 +66,6 @@ import { routeLogin } from "./gw/login.mjs";
 import { routeRun } from "./gw/run.mjs";
 import { routeOffice } from "./gw/office.mjs";
 import { routePdfTools } from "./gw/pdf-tools.mjs";
-import { routeLocal } from "./gw/local.mjs";
 import { routeUsage } from "./gw/usage.mjs";
 import { routeDevside } from "./gw/devside.mjs";
 import { routeFeedback } from "./gw/feedback.mjs";
@@ -94,7 +93,7 @@ import { COOKIE, SESSION, UI_HOST, cookieHostOk, denyLog, denyReason, localAddr,
 import { startWorkIsland, stopWorkIslandSync } from "./gw/work-island.mjs";
 
 // 各模块的路由函数，按原来分支的先后排；返回 NEXT 表示不归它管
-const ROUTES = [routeClaude, routeFeedback, routeUsage, routeCaps, routeProviders, routeSettings, routeProjects, routeBookmarks, routeFonts, commandRoutes(builtinCommands), routeUi, routeSched, routeSessModel, routeBackfill, routeMerge, routeProfile, routeLineage, routeArchive, routeSessions, routeExtensions, routeModels, routeTerminal, routeComponents, routeModules, routeOrphans, routeStorage, routeCustom, routeGit, routeLocal, routeOffice, routePdfTools, routeArc, routeFiles, routePreview, routeBus, routeQueue, routeDevside, routeLogin, routeRun, routeNotices, routeReconcile];
+const ROUTES = [routeClaude, routeFeedback, routeUsage, routeCaps, routeProviders, routeSettings, routeProjects, routeBookmarks, routeFonts, commandRoutes(builtinCommands), routeUi, routeSched, routeSessModel, routeBackfill, routeMerge, routeProfile, routeLineage, routeArchive, routeSessions, routeExtensions, routeModels, routeTerminal, routeComponents, routeModules, routeOrphans, routeStorage, routeCustom, routeGit, routeOffice, routePdfTools, routeArc, routeFiles, routePreview, routeBus, routeQueue, routeDevside, routeLogin, routeRun, routeNotices, routeReconcile];
 
 // ── 路由 ──────────────────────────────────────────────────────────────
 const server = http.createServer(async (req, res) => {

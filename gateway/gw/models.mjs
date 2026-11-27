@@ -6,7 +6,6 @@ import { isObj, loadState, saveState } from "./statefile.mjs";
 import { SETTINGS } from "./settings-store.mjs";
 import { PROVIDER, fetchKeyed, keyOf, modelsUrlOk, providerBrief, providerById, usesAcp } from "./providers.mjs";
 import { NEXT, fetchJsonCapped, sendJson } from "./http.mjs";
-import { localModels } from "./local.mjs";
 import { effectiveModel } from "./sessmodel.mjs";
 import { effectiveAutoCompact } from "./stream.mjs";
 import { hasAgySessionFiles } from "./agy-creds.mjs";
@@ -89,18 +88,11 @@ export function loggedInKnown() { return LOGGED_IN; }
 // 只扫顶层的副本，凭据在子目录时登录页认登录、选单却标“还没就绪”（MIG-14）。
 const agySessionFilesReady = () => hasAgySessionFiles();
 const loginReady = () => (LOGGED_IN != null ? LOGGED_IN : agySessionFilesReady());
-// 每次开选单都扫模型目录不值当：结果记 5 秒
-let LOCAL_AT = 0, LOCAL_OK = false;
-const localReady = () => {
-  if (SETTINGS.localMode === "custom") return true;
-  if (Date.now() - LOCAL_AT > 5000) { LOCAL_OK = localModels().length > 0; LOCAL_AT = Date.now(); }
-  return LOCAL_OK;
-};
 export function providerList() {
   const hide = new Set(Array.isArray(SETTINGS.hiddenProviders) ? SETTINGS.hiddenProviders : []);
   return providerBrief().map((p) => ({
     ...p,
-    usable: p.keyMode === "key" ? p.usable : p.login ? loginReady() : p.local ? localReady() : p.usable,
+    usable: p.keyMode === "key" ? p.usable : p.login ? loginReady() : p.usable,
     hidden: hide.has(p.id),
   }));
 }
@@ -330,7 +322,7 @@ let WINDOWS = loadState(PATHS.windows, { shape: windowsShape, fallback: () => ({
  *  gemini-api-key 认证、protocol:"gemini" 声明的厂商都可学；纯 bearer 的第三方厂商
  *  （Claude 路径的旧守卫）仍不学。返回 false 时调用方（feedAcpWindow）不得谎报已写入。 */
 export function learnWindow(result, p = PROVIDER) {
-  if (!p || p.local) return false;
+  if (!p) return false;
   const acpLearnable = p.nativeModels || p.group === "antigravity" || p.authStyle === "gemini-api-key"
     || p.authType === "gemini-api-key" || p.protocol === "gemini";
   if (!acpLearnable) return false;
@@ -447,7 +439,7 @@ export function applyCatalog(list, cat, keys) {
 /** 自定义接口在设置里写的默认/快速模型：上游不给清单时也列出来，面板里点得到（#66 第 5 项）。
  *  窗口用用户在接口设置里声明的 contextWindow（只给这两个型号补），没声明就是 0 = 不知道，不瞎编（#67） */
 export function withConfigured(list, p) {
-  if (!p || !p.custom || p.local || p.login) return list;
+  if (!p || !p.custom || p.login) return list;
   const n = Number(p.contextWindow), cw = okWindow(n) ? n : 0;   // 手改配置文件塞的怪值不认
   const ids = [...new Set([p.defaultModel, p.fastModel].filter((x) => typeof x === "string" && x))];
   const one = (id, w) => ({ id, context_window: w, max_output_tokens: 0, input_modalities: ["text"], effort: null, configured: true });
@@ -511,7 +503,6 @@ async function fetchModelsOf(p, force, guess) {
     return list;
   };
   if (!force && c && c.at && Date.now() - c.at < 600000) return c.list;
-  if (p.local) return keep(localModels(), false);   // 端侧：模型目录里有什么就是什么（每次现扫，刚放进去的文件马上能选）
   const flightKey = !force ? `${p.id}|${sig}|${guess ? 1 : 0}|${gen}` : null;
   if (flightKey && FETCH_INFLIGHT.has(flightKey)) return FETCH_INFLIGHT.get(flightKey);
 
@@ -729,7 +720,7 @@ export function normEffort(model, want, p = PROVIDER) {
  *  窗口的八成，且至少给总结请求留 40k；claude 只认 100k–1M（大了按 1M、2.1.311 实测），够不着 100k 的窗口不给。
  *  原生厂商（claude 认得模型）和端侧小模型不给，见 claudeEnv */
 export function defaultCompactLine(win, p) {
-  if (!p || p.nativeModels || p.local || !(win > 0)) return null;
+  if (!p || p.nativeModels || !(win > 0)) return null;
   const n = Math.floor(Math.min(win * 0.8, win - 40000, 1000000) / 1000) * 1000;
   return n >= 100000 ? n : null;
 }
@@ -739,7 +730,7 @@ export function defaultCompactLine(win, p) {
  *  ACP 由网关自己按线发 /compact，没有 claude 的 100k 下限；只要求给总结留 40k。
  *  注意：触发回退（run.mjs 的 ACP 轮后比较）还不在本函数里，那一步在 B 片跟进；这里只提供默认值本身。 */
 export function defaultAcpCompactLine(win, p) {
-  if (!p || p.local || !(win > 0)) return null;
+  if (!p || !(win > 0)) return null;
   const n = Math.floor(Math.min(win * 0.8, win - 40000, 1000000) / 1000) * 1000;
   return n >= 40000 ? n : null;
 }
@@ -748,7 +739,7 @@ export function compactLineOf(set, win, p, acp = false) {
   // MIG-3：ACP 下触发侧（run.mjs 的 acpAutoCompactLine）直接用用户设的值，不按窗口兜底；
   // 显示侧也一样：窗口未知时不再按 Claude 的 200k 截断，否则界面写的线与实际触发的线脱节。
   if (acp && !(win > 0)) return set;
-  const w = win > 0 ? win : (p && !p.nativeModels && !p.local ? 200000 : 0);
+  const w = win > 0 ? win : (p && !p.nativeModels ? 200000 : 0);
   return w ? Math.min(set, w) : set;
 }
 
