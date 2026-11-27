@@ -14,6 +14,7 @@ const HELP = `用法:
 标准输入会转给命令；退出码与命令一致。`;
 
 const MAX_RESP = 4 << 20;
+const MAX_FRAME = 16 << 20;
 const DEFAULT_TIMEOUT_MS = Number(process.env.CCAPP_PRIV_TIMEOUT_MS) > 0 ? Number(process.env.CCAPP_PRIV_TIMEOUT_MS) : 20000;
 
 function oneShot(req, timeoutMs = DEFAULT_TIMEOUT_MS) {
@@ -24,11 +25,12 @@ function oneShot(req, timeoutMs = DEFAULT_TIMEOUT_MS) {
     const finish = (err, val) => {
       if (settled) return;
       settled = true;
-      s.setTimeout(0);
+      clearTimeout(timer);
       if (err) reject(err);
       else resolve(val);
     };
-    s.setTimeout(timeoutMs, () => { s.destroy(); finish(new Error("超时")); });
+    // 总超时（而非空闲超时）：防止慢速滴答流永远续命挂死
+    const timer = setTimeout(() => { s.destroy(); finish(new Error("超时")); }, timeoutMs);
     s.on("data", (d) => {
       bytes += Buffer.byteLength(d);
       if (bytes > MAX_RESP) {
@@ -50,12 +52,24 @@ function oneShot(req, timeoutMs = DEFAULT_TIMEOUT_MS) {
 function exec(argv) {
   // shell 进不了本应用的私有目录，工作目录只在共享存储时沿用
   const cwd = /^\/(sdcard|storage)\//.test(process.cwd()) ? process.cwd() : "/";
+  let stdinPaused = false;
   const s = net.connect({ path: SOCKET }, () => {
     s.write(JSON.stringify({ op: "exec", argv, cwd }) + "\n");
     const frame = (type, b) => {
       const h = Buffer.alloc(5); h[0] = type; h.writeUInt32BE(b.length, 1);
-      s.write(Buffer.concat([h, b]));
+      const ok = s.write(Buffer.concat([h, b]));
+      if (!ok && !stdinPaused && !process.stdin.isTTY) {
+        stdinPaused = true;
+        process.stdin.pause();
+      }
+      return ok;
     };
+    s.on("drain", () => {
+      if (stdinPaused) {
+        stdinPaused = false;
+        process.stdin.resume();
+      }
+    });
     if (process.stdin.isTTY) frame(0, Buffer.alloc(0));
     else {
       process.stdin.on("data", (d) => frame(0, d));
@@ -63,19 +77,27 @@ function exec(argv) {
       process.stdin.on("error", () => frame(0, Buffer.alloc(0)));
     }
   });
-  let buf = Buffer.alloc(0), connected = false, gotExit = false;
+  let buf = Buffer.alloc(0), connected = false, gotExit = false, failed = false;
   s.on("connect", () => { connected = true; });
   s.on("data", (d) => {
     buf = Buffer.concat([buf, d]);
     while (buf.length >= 5) {
       const type = buf[0], len = buf.readUInt32BE(1);
+      if (len > MAX_FRAME) {
+        failed = true;
+        process.stderr.write(`priv: 回应帧过大（${len} 字节）\n`);
+        process.exitCode = 125;
+        s.destroy();
+        process.stdin.destroy();
+        return;
+      }
       if (buf.length < 5 + len) break;
       const body = buf.subarray(5, 5 + len);
       buf = buf.subarray(5 + len);
       if (type === 1) process.stdout.write(body);
       else if (type === 2) process.stderr.write(body);
       else if (type === 4) process.stderr.write("priv: " + body.toString() + "\n");
-      else if (type === 3) { gotExit = true; process.exitCode = body.readInt32BE(0); s.destroy(); process.stdin.destroy(); }
+      else if (type === 3) { gotExit = true; process.exitCode = body.length >= 4 ? body.readInt32BE(0) : 125; s.destroy(); process.stdin.destroy(); }
     }
   });
   // 连上之后的写错误（对端先结束了，我们还在递 stdin）不算失败 —— 回应可能已经在缓冲里，等 close 时再判断
@@ -85,7 +107,7 @@ function exec(argv) {
     process.exit(125);
   });
   s.on("close", () => {
-    if (!gotExit) { process.stderr.write("priv: 连接中断，没有收到退出码\n"); process.exitCode = 125; }
+    if (!gotExit && !failed) { process.stderr.write("priv: 连接中断，没有收到退出码\n"); process.exitCode = 125; }
     process.stdin.destroy();
   });
 }

@@ -451,6 +451,7 @@ int execvpe(const char *file, char *const argv[], char *const envp[]) {
                 for (int j = 1; j <= ac; j++) sv[j + 1] = argv[j];
                 if (ac == 0) sv[2] = 0;
                 execve(sh_path(), sv, envp);
+                e = ERRNO;
             }
         }
         /* 这几种换下一个接着试（同 glibc execvpe）；别的错误直接报 */

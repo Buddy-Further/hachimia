@@ -30,18 +30,19 @@ const die = (s) => { console.error("✗ " + s); process.exit(1); };
 const DEFAULT_INSTALL_URL = "https://antigravity.google/cli/install.sh";
 const DEFAULT_MANIFEST_BASE = "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests";
 
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+
 function resolveTrustedUrl(raw, defaultUrl, allowedOrigins, label) {
   if (!raw) return defaultUrl;
   let u;
   try { u = new URL(raw); } catch { die(`无效的 ${label} URL：${raw}`); }
+  if (u.username || u.password) die(`拒绝含凭据的 ${label}：${raw}`);
+  if (u.protocol === "https:" && allowedOrigins.includes(u.origin)) return raw;
   if (IS_TEST) {
-    if (u.protocol === "https:" || u.protocol === "http:") return raw;
-    die(`无效的 ${label} 协议：${u.protocol}`);
+    if ((u.protocol === "http:" || u.protocol === "https:") && LOOPBACK_HOSTS.has(u.hostname.toLowerCase())) return raw;
+    die(`测试模式下只放行本地回环地址的 ${label}：${raw}`);
   }
-  if (u.protocol !== "https:" || u.username || u.password || !allowedOrigins.includes(u.origin)) {
-    die(`拒绝不受信任的 ${label}：${raw}`);
-  }
-  return raw;
+  die(`拒绝不受信任的 ${label}：${raw}`);
 }
 
 const INSTALL_URL = resolveTrustedUrl(

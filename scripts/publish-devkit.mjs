@@ -158,9 +158,21 @@ step.ci = async () => {
 step.fetch = async () => {
   for (const f of fs.readdirSync(REL)) fs.rmSync(path.join(REL, f));
   gh("release", "download", TAG, "-R", REPO, "-D", REL, "-p", "devkit.lock.json", "-p", "modules.json", "-p", "modules.json.sig");
-  const lock = lockOf(), mods = json(path.join(REL, "modules.json"));
+  try { gh("release", "download", TAG, "-R", REPO, "-D", REL, "-p", "devkit.lock.json.sig"); } catch {}
+  const lockBuf = fs.readFileSync(path.join(REL, "devkit.lock.json"));
+  const lock = JSON.parse(lockBuf.toString()), mods = json(path.join(REL, "modules.json"));
   if (!verifySig(fs.readFileSync(path.join(REL, "modules.json")), fs.readFileSync(path.join(REL, "modules.json.sig"), "utf8"))) fail("modules.json 验签失败");
-  say("  ✓ modules.json 验签");
+  if (mods.release && mods.release !== TAG) fail(`modules.json 里的 release 是 ${mods.release}，不是 ${TAG}——App 会拒装`);
+  const lsigPath = path.join(REL, "devkit.lock.json.sig");
+  const ymd = (TAG.match(/(\d{4})\.(\d{1,2})\.(\d{1,2})/) || []).slice(1).map(Number);
+  const needLockSig = ymd.length && ymd[0] * 1e4 + ymd[1] * 100 + ymd[2] >= 20261029;
+  if (!fs.existsSync(lsigPath)) {
+    if (needLockSig) fail("devkit.lock.json.sig 不在 Release 上");
+  } else {
+    if (!verifySig(lockBuf, fs.readFileSync(lsigPath, "utf8"))) fail("devkit.lock.json 验签失败");
+    if (lock.release !== TAG) fail(`devkit.lock.json 签进去的 release 是 ${lock.release || "（空）"}，不是 ${TAG}——App 会拒装`);
+  }
+  say("  ✓ modules.json / devkit.lock.json 验签");
   // Release 里的每个 gz 都在，大小与清单一致
   const assets = new Map(JSON.parse(gh("release", "view", TAG, "-R", REPO, "--json", "assets")).assets.map((a) => [a.name, a.size]));
   const want = [[lock.gz.file, lock.gz.bytes], ...mods.modules.map((m) => [m.file || m.gz.file, m.bytes || m.gz.bytes])];

@@ -71,21 +71,23 @@ static int inspect_file(const char *path, char *line, size_t cap) {
         memcpy(&phent, h + 54, sizeof phent);
         memcpy(&phnum, h + 56, sizeof phnum);
         k = ends_with(path, "ld-linux-aarch64.so.1") ? K_LDSO : K_OTHER;
-        for (int i = 0; i < phnum && i < 64; i++) {
-            unsigned char ph[56];
-            if (pread(fd, ph, sizeof ph, (off_t)(phoff + (unsigned long)i * phent)) != (ssize_t)sizeof ph) break;
-            unsigned int ptype = 0;
-            memcpy(&ptype, ph, sizeof ptype);
-            if (ptype != 3 /* PT_INTERP */) continue;
-            unsigned long off = 0, sz = 0;
-            memcpy(&off, ph + 8, sizeof off);
-            memcpy(&sz, ph + 32, sizeof sz);
-            char ip[128];
-            if (sz == 0 || sz >= sizeof ip) break;
-            if (pread(fd, ip, sz, (off_t)off) != (ssize_t)sz) break;
-            ip[sz] = 0;
-            k = ends_with(ip, "linker64") ? K_BIONIC : ends_with(ip, "ld-linux-aarch64.so.1") ? K_GLIBC : K_OTHER;
-            break;
+        if (phent >= 56) {
+            for (int i = 0; i < phnum && i < 64; i++) {
+                unsigned char ph[56];
+                if (pread(fd, ph, sizeof ph, (off_t)(phoff + (unsigned long)i * phent)) != (ssize_t)sizeof ph) break;
+                unsigned int ptype = 0;
+                memcpy(&ptype, ph, sizeof ptype);
+                if (ptype != 3 /* PT_INTERP */) continue;
+                unsigned long off = 0, sz = 0;
+                memcpy(&off, ph + 8, sizeof off);
+                memcpy(&sz, ph + 32, sizeof sz);
+                char ip[128];
+                if (sz == 0 || sz >= sizeof ip) break;
+                if (pread(fd, ip, sz, (off_t)off) != (ssize_t)sz) break;
+                ip[sz] = 0;
+                k = ends_with(ip, "linker64") ? K_BIONIC : ends_with(ip, "ld-linux-aarch64.so.1") ? K_GLIBC : K_OTHER;
+                break;
+            }
         }
     } else if (hn >= 2 && h[0] == '#' && h[1] == '!') {
         ssize_t n = pread(fd, line, cap - 1, 2);
@@ -99,6 +101,19 @@ static int inspect_file(const char *path, char *line, size_t cap) {
     }
     close(fd);
     return k;
+}
+
+static int is_plain_script(const char *path) {
+    int fd = open(path, O_RDONLY | O_CLOEXEC | O_NONBLOCK);
+    if (fd < 0) return 0;
+    struct stat st;
+    if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)) { close(fd); return 0; }
+    unsigned char h[4];
+    ssize_t n = pread(fd, h, sizeof h, 0);
+    close(fd);
+    if (n >= 4 && h[0] == 0x7f && h[1] == 'E' && h[2] == 'L' && h[3] == 'F') return 0;
+    if (n >= 2 && h[0] == '#' && h[1] == '!') return 0;
+    return 1;
 }
 
 static int file_exists_stat(const char *p) {
@@ -379,6 +394,14 @@ int main(int argc, char **argv) {
             break;
         }
         execv(cur, av + s);
+        if ((errno == ENOEXEC || (errno == EACCES && is_plain_script(cur))) && s > 0) {
+            const char *sh = file_exists_stat("/system/bin/sh") ? "/system/bin/sh" : "/bin/sh";
+            if (bionic_preload && *bionic_preload) setenv("LD_PRELOAD", bionic_preload, 1);
+            else unsetenv("LD_PRELOAD");
+            av[s] = cur;
+            av[--s] = (char *)sh;
+            execv(sh, av + s);
+        }
         break;
     }
 

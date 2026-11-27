@@ -1515,6 +1515,25 @@ public class MainActivity extends Activity {
     //  底部同理（安卓 11+）：手势条 / 三键导航那一截也画进去，高度经 --safe-b 交给页面，输入框、侧栏底的底色延伸下去；
     //  以前这里留白，那一截只能刷导航栏色，和侧栏、输入框的底色对不上，折叠屏上看着像界面短了一截。
     //  输入法弹起时仍由这里按键盘高度留白（adjustResize 的效果不变），这时 --safe-b 归 0。左右仍由这里留白。
+    /** 计算边到边安全区：[padLeft, insetTop, padRight, padBot, insetBot]（API 30+ 网页无输入法时底部交由 CSS --safe-b） */
+    static int[] computeEdgeInsets(int sdkInt, int sysL, int sysT, int sysR, int sysB,
+                                   int cutL, int cutT, int cutR, int cutB,
+                                   int imeB, boolean hasWeb) {
+        int padLeft = sysL, insetTop = sysT, padRight = sysR, padBot = sysB, insetBot = 0;
+        if (sdkInt >= 30) {
+            if (hasWeb) {
+                if (imeB > 0) padBot = Math.max(imeB, sysB);
+                else { padBot = 0; insetBot = sysB; }
+            }
+        } else if (sdkInt >= 28) {
+            padLeft = Math.max(padLeft, cutL);
+            insetTop = Math.max(insetTop, cutT);
+            padRight = Math.max(padRight, cutR);
+            padBot = Math.max(padBot, cutB);
+        }
+        return new int[] { padLeft, insetTop, padRight, padBot, insetBot };
+    }
+
     private int insetTop = 0, insetBot = 0;
     private void edgeToEdge() {
         getWindow().setStatusBarColor(Color.TRANSPARENT);
@@ -1528,35 +1547,32 @@ public class MainActivity extends Activity {
         }
         d.setSystemUiVisibility(d.getSystemUiVisibility() | f);
         root.setOnApplyWindowInsetsListener((v, in) -> {
-            int padLeft, padRight, padBot;
-            insetBot = 0;
+            int sysL, sysT, sysR, sysB, cutL = 0, cutT = 0, cutR = 0, cutB = 0, imeB = 0;
             if (android.os.Build.VERSION.SDK_INT >= 30) {
                 android.graphics.Insets sys = in.getInsets(
                     android.view.WindowInsets.Type.systemBars() | android.view.WindowInsets.Type.displayCutout());
-                padLeft = sys.left;
-                insetTop = sys.top;
-                padRight = sys.right;
-                padBot = sys.bottom;
-                if (web != null) {
-                    int ime = in.getInsets(android.view.WindowInsets.Type.ime()).bottom;
-                    if (ime > 0) padBot = Math.max(ime, sys.bottom);
-                    else { padBot = 0; insetBot = sys.bottom; }
-                }
+                sysL = sys.left; sysT = sys.top; sysR = sys.right; sysB = sys.bottom;
+                if (web != null) imeB = in.getInsets(android.view.WindowInsets.Type.ime()).bottom;
             } else {
-                padLeft = in.getSystemWindowInsetLeft();
-                insetTop = in.getSystemWindowInsetTop();
-                padRight = in.getSystemWindowInsetRight();
-                padBot = in.getSystemWindowInsetBottom();
+                sysL = in.getSystemWindowInsetLeft();
+                sysT = in.getSystemWindowInsetTop();
+                sysR = in.getSystemWindowInsetRight();
+                sysB = in.getSystemWindowInsetBottom();
                 if (android.os.Build.VERSION.SDK_INT >= 28) {
                     android.view.DisplayCutout dc = in.getDisplayCutout();
                     if (dc != null) {
-                        padLeft = Math.max(padLeft, dc.getSafeInsetLeft());
-                        insetTop = Math.max(insetTop, dc.getSafeInsetTop());
-                        padRight = Math.max(padRight, dc.getSafeInsetRight());
-                        padBot = Math.max(padBot, dc.getSafeInsetBottom());
+                        cutL = dc.getSafeInsetLeft();
+                        cutT = dc.getSafeInsetTop();
+                        cutR = dc.getSafeInsetRight();
+                        cutB = dc.getSafeInsetBottom();
                     }
                 }
             }
+            int[] res = computeEdgeInsets(android.os.Build.VERSION.SDK_INT, sysL, sysT, sysR, sysB,
+                cutL, cutT, cutR, cutB, imeB, web != null);
+            int padLeft = res[0], padRight = res[2], padBot = res[3];
+            insetTop = res[1];
+            insetBot = res[4];
             // 安装页没有网页来避让，顶部、底部都由这里留白；界面起来以后交给 --safe-t / --safe-b
             v.setPadding(padLeft, web == null ? insetTop : 0, padRight, padBot);
             pushInsets();
@@ -2727,31 +2743,34 @@ public class MainActivity extends Activity {
         if (h == null) return true;          // data: / blob: 之类没有主机，本来就不出网
         return isLoopbackHost(h) || loopbackV4(h.toLowerCase(java.util.Locale.ROOT)) || isUiHost(h);
     }
-    /** 是不是界面专用地址（Env.HOST：默认 127.0.0.2，个别设备回退 127.0.0.1，见 Env.checkHost）：
-     *  各种写法（2130706434、0x7f000002、127.2 …）浏览器都会规范成它，一并认 */
-    static boolean isUiHost(String h) {
+    /** 匹配指定 IPv4（支持 inet_aton 多种写法）或任意全写/缩写 IPv4-mapped IPv6（走 parseIpv6，不触发 DNS） */
+    private static boolean isMappedOrIpv4(String h, long targetIp) {
         if (h == null) return false;
-        h = h.toLowerCase(java.util.Locale.ROOT);
-        boolean one = "127.0.0.1".equals(Env.HOST);
-        if (h.startsWith("[::ffff:")) {          // [::ffff:127.0.0.2] / [::ffff:7f00:2]
-            String t = h.substring(8, h.length() - (h.endsWith("]") ? 1 : 0));
-            if (t.equals(one ? "7f00:1" : "7f00:2")) return true;
-            h = t;
+        String s = h.trim().toLowerCase(java.util.Locale.ROOT);
+        if (s.isEmpty()) return false;
+        int[] v6 = parseIpv6(s);
+        if (v6 != null) {
+            int hi = (int) ((targetIp >>> 16) & 0xffffL);
+            int lo = (int) (targetIp & 0xffffL);
+            return v6[0] == 0 && v6[1] == 0 && v6[2] == 0 && v6[3] == 0 && v6[4] == 0 && v6[5] == 0xffff
+                && v6[6] == hi && v6[7] == lo;
         }
-        return ipv4(h) == (one ? 0x7f000001L : 0x7f000002L);
+        if (s.startsWith("[::ffff:") && s.endsWith("]")) {
+            if (ipv4(s.substring(8, s.length() - 1)) == targetIp) return true;
+        }
+        return ipv4(s) == targetIp;
     }
-    /** 老界面专用地址 127.0.0.2（各种写法）。内置浏览器（BrowserPane）的拦截锚在这里，不跟 Env.HOST 的回退走：
+    /** 是不是界面专用地址（Env.HOST：默认 127.0.0.2，个别设备回退 127.0.0.1，见 Env.checkHost）：
+     *  各种写法（2130706434、0x7f000002、127.2、[0:0:0:0:0:ffff:127.0.0.2] …）浏览器都会规范成它，一并认 */
+    static boolean isUiHost(String h) {
+        boolean one = "127.0.0.1".equals(Env.HOST);
+        return isMappedOrIpv4(h, one ? 0x7f000001L : 0x7f000002L);
+    }
+    /** 老界面专用地址 127.0.0.2（各种写法，含 IPv4-mapped IPv6 全写/缩写）。内置浏览器（BrowserPane）的拦截锚在这里，不跟 Env.HOST 的回退走：
      *  回退设备上界面地址是 127.0.0.1，内置浏览器还要能开本机 127.0.0.1 别的端口上的服务（本地开发服务器之类）。
      *  代价：回退设备上会话 Cookie 种在 127.0.0.1，用户自己去开那个地址时会带上它（11-14 交接 2.6 明示的安全代价，只在回退设备上存在） */
     static boolean isUiHostDot2(String h) {
-        if (h == null) return false;
-        h = h.toLowerCase(java.util.Locale.ROOT);
-        if (h.startsWith("[::ffff:")) {
-            String t = h.substring(8, h.length() - (h.endsWith("]") ? 1 : 0));
-            if (t.equals("7f00:2")) return true;
-            h = t;
-        }
-        return ipv4(h) == 0x7f000002L;
+        return isMappedOrIpv4(h, 0x7f000002L);
     }
     static android.webkit.WebResourceResponse unavailable() {
         return new android.webkit.WebResourceResponse("text/plain", "utf-8", 502, "Bad Gateway", null, new java.io.ByteArrayInputStream(new byte[0]));

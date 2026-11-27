@@ -606,19 +606,46 @@ final class Updater {
                 rels = lists[1];
                 mirror = rels != null;
                 // GitHub 不通：应用本身改看镜像的发布列表；工具包没有镜像，如实说查不了（别报成"已是最新"）
-                if (rels == null) app.set("error", lastError);
-                if (pinnedInstalled()) devkit.set("uptodate", Tr.t("已是本应用配套的版本（GitHub 连不上，暂时查不了更新的）"));
-                else devkit.set("error", lastError);
+                // 持锁并避让 downloading/installing/verifying/ready，防止离线定时检查击穿校验与安装互斥
+                synchronized (this) {
+                    if (rels == null && canOverwriteAppOnCheck(app.state, appWaiting, devkitMoving())) {
+                        app.set("error", lastError);
+                    }
+                    if ("verifying".equals(devkit.state)) {
+                        recheckDevkit = true;
+                    } else if (canOverwriteDevkitOnCheck(devkit.state)) {
+                        if (pinnedInstalled()) devkit.set("uptodate", Tr.t("已是本应用配套的版本（GitHub 连不上，暂时查不了更新的）"));
+                        else devkit.set("error", lastError);
+                    }
+                }
             }
             if (rels != null) {
                 try { checkApp(rels); if (mirror && !"error".equals(app.state)) app.message = app.message.isEmpty() ? Tr.t("来自 hachimia.net 镜像") : app.message + Tr.t(" · 来自 hachimia.net 镜像"); }
-                catch (Exception e) { app.set("error", e.getMessage()); }
+                catch (Exception e) {
+                    synchronized (this) {
+                        if (canOverwriteAppOnCheck(app.state, appWaiting, devkitMoving())) app.set("error", e.getMessage());
+                    }
+                }
                 // 首装还没完成（工具包没装好）就别查工具包：那时读不到已装的模块，planModules 会按「整包用户」规划成全部模块，
                 // 自动更新在 Wi‑Fi 下把它们全下好，首装刚按勾选装完，启动流程又把这份「已下载的更新」装上 —— 勾了两个、装了八个（群友 10-24）
-                if (!env.devkitReady()) devkit.set("uptodate", Tr.t("首次安装进行中"));
-                else if (!mirror) try { checkDevkit(rels); } catch (Exception e) { if (!"ready".equals(devkit.state)) devkit.set("error", e.getMessage()); }
+                if (!env.devkitReady()) {
+                    synchronized (this) {
+                        if (canOverwriteDevkitOnCheck(devkit.state)) devkit.set("uptodate", Tr.t("首次安装进行中"));
+                    }
+                } else if (!mirror) {
+                    try { checkDevkit(rels); }
+                    catch (Exception e) {
+                        synchronized (this) {
+                            if (canOverwriteDevkitOnCheck(devkit.state)) devkit.set("error", e.getMessage());
+                        }
+                    }
+                }
             }
-            try { checkClaude(); } catch (Exception e) { claude.set("error", Tr.t("检查 Antigravity CLI 更新失败：") + e.getMessage()); }
+            try { checkClaude(); } catch (Exception e) {
+                synchronized (this) {
+                    if (canOverwriteClaudeOnCheck(claude.state)) claude.set("error", Tr.t("检查 Antigravity CLI 更新失败：") + e.getMessage());
+                }
+            }
             long now = System.currentTimeMillis();
             android.content.SharedPreferences.Editor ed = prefs().edit().putLong("lastCheck", now);
             if (!manual) ed.putLong("lastAutoCheck", now);
@@ -654,10 +681,10 @@ final class Updater {
             t.setDaemon(true);
             t.start();
         }
-        long t0 = System.currentTimeMillis();
+        long t0 = android.os.SystemClock.elapsedRealtime();
         synchronized (lk) {
             for (;;) {
-                long el = System.currentTimeMillis() - t0;
+                long el = android.os.SystemClock.elapsedRealtime() - t0;
                 boolean mirOk = got[1] != null || got[2] != null, mirDone = mirOk || fin[1] && fin[2];
                 // GitHub 通了就用；GitHub 失败且镜像都有结果了就收；GitHub 挂过 15 秒、镜像确实拿到了列表才不等它。
                 // 镜像都不通时得接着等 GitHub（慢但能通的梯子），不能 15 秒就放弃
@@ -1310,6 +1337,19 @@ final class Updater {
         return startedGen == currentGen && "verifying".equals(currentState);
     }
 
+    /** 离线/异常检查路径覆盖状态前的统一避让守卫（与 checkApp/checkDevkit/checkClaude 保持对称） */
+    static boolean canOverwriteAppOnCheck(String state, boolean waiting, boolean devkitMoving) {
+        return !"downloading".equals(state) && !"installing".equals(state) && !waiting && !("ready".equals(state) && devkitMoving);
+    }
+
+    static boolean canOverwriteDevkitOnCheck(String state) {
+        return !isDevkitMovingState(state) && !"ready".equals(state);
+    }
+
+    static boolean canOverwriteClaudeOnCheck(String state) {
+        return !"installing".equals(state) && !"downloading".equals(state);
+    }
+
     boolean devkitMoving() { return isDevkitMovingState(devkit.state); }
 
     /** 推迟 APK，等工具包这一步走完（synchronized 防与 releaseApp 丢唤醒） */
@@ -1664,6 +1704,7 @@ final class Updater {
                     repairing = false;
                     if ("downloading".equals(devkit.state)) devkit.set("error", r.optString("message", ""));
                 }
+                releaseApp();
             }
         }
     }

@@ -95,7 +95,7 @@ if (GIVEN) {
     ? (() => {
       let r = spawnSync(ENOSYS, ["-v", "-f", BIN, "--version"], { encoding: "utf8", env: { ...process.env, AGY_CLI_DISABLE_AUTO_UPDATE: "true" } });
       if (r.status !== 0 && process.env.CCAPP_EXEC === "loader" && fs.existsSync("/system/bin/linker64")) {
-        r = spawnSync("/system/bin/linker64", [BIN, "--version"], { encoding: "utf8", env: { ...process.env, AGY_CLI_DISABLE_AUTO_UPDATE: "true", TERMUX_EXEC__PROC_SELF_EXE: BIN } });
+        r = spawnSync(ENOSYS, ["-v", "-f", "/system/bin/linker64", BIN, "--version"], { encoding: "utf8", env: { ...process.env, AGY_CLI_DISABLE_AUTO_UPDATE: "true", TERMUX_EXEC__PROC_SELF_EXE: BIN } });
       }
       return (r.stdout || "") + "\n" + (r.stderr || "");
     })()
@@ -108,7 +108,19 @@ if (GIVEN) {
 if (!info.current) try { info.current = path.basename(fs.readlinkSync(path.join(installed, "current"))); } catch {}
 if (!GIVEN && !info.channel && /^(stable|latest)$/.test(WANT)) {
   if (isAgy) {
-    const manifestBase = process.env.HACHIMIA_AGY_MANIFEST_BASE || "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests";
+    const DEFAULT_MB = "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests";
+    const ALLOWED_MB = new Set(["https://antigravity.google", "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app"]);
+    const rawMb = String(process.env.HACHIMIA_AGY_MANIFEST_BASE || "").trim();
+    let manifestBase = DEFAULT_MB;
+    if (rawMb) {
+      let u = null; try { u = new URL(rawMb); } catch {}
+      const loopback = u && ["127.0.0.1", "localhost", "::1", "[::1]"].includes(u.hostname.toLowerCase());
+      if (u && !u.username && !u.password && ((u.protocol === "https:" && ALLOWED_MB.has(u.origin)) || (process.env.CCAPP_TEST === "1" && (u.protocol === "http:" || u.protocol === "https:") && loopback))) {
+        manifestBase = rawMb.replace(/\/+$/, "");
+      } else {
+        die(`拒绝不受信任的 HACHIMIA_AGY_MANIFEST_BASE：${rawMb}`);
+      }
+    }
     const arch = process.arch === "arm64" ? "arm64" : "amd64";
     try {
       const j = await (await fetch(`${manifestBase}/android_${arch}.json`, { signal: AbortSignal.timeout(8000) })).json();
@@ -192,7 +204,8 @@ if (steps.version.pass) {
     : `Use the Bash tool to run exactly this command: printf %s ${token} > probe.txt && cat probe.txt\nThen reply with only the command's output, nothing else.`;
   const r = await run(["-p", prompt, ...(isAgy ? ["--dangerously-skip-permissions"] : ["--allowedTools", "Bash"]), ...common]);
   const evs = events(r.out), res = evs.find((e) => e.type === "result");
-  sid = res?.session_id || res?.conversation_id || evs.find((e) => e.session_id || e.conversation_id)?.session_id || "";
+  const sidEv = evs.find((e) => e.session_id || e.conversation_id);
+  sid = res?.session_id || res?.conversation_id || sidEv?.session_id || sidEv?.conversation_id || "";
   const file = (() => { try { return fs.readFileSync(path.join(work, "probe.txt"), "utf8"); } catch { return ""; } })();
   if (isAgy) {
     const why = r.code !== 0 ? (tail(r.err || r.out) || `退出码 ${r.code}`) : file !== token ? "probe.txt 内容不对" : !(r.out || "").includes(token) ? "最后的回复里没有标记串" : "";

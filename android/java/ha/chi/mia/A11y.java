@@ -180,7 +180,7 @@ public class A11y extends AccessibilityService {
 
     @Override protected void onServiceConnected() {
         self = this;
-        lastUse = System.currentTimeMillis();
+        lastUse = android.os.SystemClock.elapsedRealtime();
         Log.i(TAG, "无障碍服务已连接");
         scheduleIdle();
     }
@@ -196,7 +196,11 @@ public class A11y extends AccessibilityService {
     @Override public void onAccessibilityEvent(AccessibilityEvent e) { lastEvt = android.os.SystemClock.uptimeMillis(); evts++; }
     @Override public void onInterrupt() { }
 
-    static void touch() { lastUse = System.currentTimeMillis(); }
+    static void touch() { lastUse = android.os.SystemClock.elapsedRealtime(); }
+
+    static boolean idleExpired(long lastUseMono, long nowMono, long idleMin) {
+        return nowMono - lastUseMono > idleMin * 60_000L;
+    }
 
     /** 「用时自动开」：空闲够久就自己关。每分钟看一次 */
     private void scheduleIdle() {
@@ -207,7 +211,7 @@ public class A11y extends AccessibilityService {
                 SharedPreferences sp = getSharedPreferences(DeviceTools.PREFS, Context.MODE_PRIVATE);
                 String mode = DeviceTools.a11yMode(A11y.this);
                 int idle = sp.getInt("a11yIdle", 10);
-                if (!"on".equals(mode) && System.currentTimeMillis() - lastUse > idle * 60_000L) {
+                if (!"on".equals(mode) && idleExpired(lastUse, android.os.SystemClock.elapsedRealtime(), idle)) {
                     Log.i(TAG, "无障碍空闲 " + idle + " 分钟，自动关闭");
                     disableSelf();
                     return;
@@ -238,8 +242,8 @@ public class A11y extends AccessibilityService {
         } catch (SecurityException e) {
             return Tr.t("写系统设置被拒绝：") + e.getMessage();
         }
-        long end = System.currentTimeMillis() + waitMs;
-        while (self == null && System.currentTimeMillis() < end) try { Thread.sleep(100); } catch (InterruptedException ignored) { break; }
+        long t0 = android.os.SystemClock.elapsedRealtime();
+        while (self == null && android.os.SystemClock.elapsedRealtime() - t0 < waitMs) try { Thread.sleep(100); } catch (InterruptedException ignored) { break; }
         return self != null ? null : Tr.t("已经写了系统设置，但服务没连上（有的系统会拦，去系统的无障碍设置里看看）");
     }
 
@@ -268,7 +272,10 @@ public class A11y extends AccessibilityService {
         }
         AccessibilityNodeInfo root = s.getRootInActiveWindow();
         JSONObject r = new JSONObject().put("ok", true);
-        if (root == null) return r.put("ok", false).put("message", Tr.t("拿不到当前界面（锁屏、或者是不让读的安全界面）"));
+        if (root == null) {
+            synchronized (LOCK) { clearNodesLocked(); }
+            return r.put("ok", false).put("message", Tr.t("拿不到当前界面（锁屏、或者是不让读的安全界面）"));
+        }
         List<AccessibilityNodeInfo> localNodes = new ArrayList<>();
         List<String> localSigs = new ArrayList<>();
         boolean transferred = false;
@@ -300,7 +307,17 @@ public class A11y extends AccessibilityService {
             // 网页（WebView / 浏览器）在无障碍刚打开时还没生成内容树，只露出一个空壳：等一下再读一次
             if (localNodes.size() <= 2 && out.indexOf("WebView") >= 0) {
                 Thread.sleep(800);
+                String protAfter = protectedVisiblePackage(s);
+                if (protAfter != null) {
+                    synchronized (LOCK) { clearNodesLocked(); }
+                    return fail(Tr.t("当前界面属于支付、网银、动态口令、密码管理或系统授权受保护应用，已拒绝读取：") + protAfter);
+                }
                 root.refresh();
+                String pkgAfter = String.valueOf(root.getPackageName());
+                if (isProtectedPackage(pkgAfter)) {
+                    synchronized (LOCK) { clearNodesLocked(); }
+                    return fail(Tr.t("当前界面属于支付、网银、动态口令、密码管理或系统授权受保护应用，已拒绝读取：") + pkgAfter);
+                }
                 out.setLength(0);
                 recycleListExcept(localNodes, root);
                 localNodes.clear(); localSigs.clear();
@@ -405,19 +422,26 @@ public class A11y extends AccessibilityService {
         }
     }
 
-    private static boolean performWithParents(AccessibilityNodeInfo n, java.util.function.Predicate<AccessibilityNodeInfo> fn) {
-        AccessibilityNodeInfo p = n;
+    static <T> boolean walkParentsAndRecycle(T start,
+                                             java.util.function.Function<T, T> parentOf,
+                                             java.util.function.Predicate<T> fn,
+                                             java.util.function.Consumer<T> recycler) {
+        T p = start;
         try {
             while (p != null) {
                 if (fn.test(p)) return true;
-                AccessibilityNodeInfo next = p.getParent();
-                if (p != n) safeRecycle(p);
+                T next = parentOf.apply(p);
+                if (p != start) recycler.accept(p);
                 p = next;
             }
             return false;
         } finally {
-            if (p != null && p != n) safeRecycle(p);
+            if (p != null && p != start) recycler.accept(p);
         }
+    }
+
+    private static boolean performWithParents(AccessibilityNodeInfo n, java.util.function.Predicate<AccessibilityNodeInfo> fn) {
+        return walkParentsAndRecycle(n, AccessibilityNodeInfo::getParent, fn, A11y::safeRecycle);
     }
 
     // ── 动作后等界面静下来 ────────────────────────────────────────────────

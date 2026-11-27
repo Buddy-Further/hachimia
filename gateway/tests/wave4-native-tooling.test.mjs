@@ -716,4 +716,162 @@ int main(void) {
   const runH = spawnSync(harnessBin, [], { encoding: "utf8", timeout: 10000 });
   assert.equal(runH.status, 0, `运行 C harness 失败 (rc=${runH.status}):\nstdout=${runH.stdout}\nstderr=${runH.stderr}`);
   assert.match(runH.stdout, /SHIM_HARNESS_OK/);
+
+  // ── -DBIONIC 行为 harness：实测 K_BIONIC 交回 next_execve、K_GLIBC/K_LDSO/sysdir 改写、__errno() 传播 ──
+  const glibcElf = path.join(fdir, "glibc-tool");
+  const glibcBuf = Buffer.alloc(64 + 56 + 64);
+  glibcBuf.set([0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0], 0);
+  glibcBuf.writeBigUInt64LE(64n, 32);
+  glibcBuf.writeUInt16LE(56, 54);
+  glibcBuf.writeUInt16LE(1, 56);
+  glibcBuf.writeUInt32LE(3, 64);
+  glibcBuf.writeBigUInt64LE(120n, 64 + 8);
+  const glibcInterp = "/data/data/ha.chi.mia/files/usr/glibc/lib/ld-linux-aarch64.so.1\0";
+  glibcBuf.writeBigUInt64LE(BigInt(glibcInterp.length), 64 + 32);
+  glibcBuf.write(glibcInterp, 120);
+  fs.writeFileSync(glibcElf, glibcBuf, { mode: 0o755 });
+
+  const ldsoElf = path.join(fdir, "ld-linux-aarch64.so.1");
+  const ldsoBuf = Buffer.alloc(64);
+  ldsoBuf.set([0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0], 0);
+  fs.writeFileSync(ldsoElf, ldsoBuf, { mode: 0o755 });
+
+  const bionicHarnessC = path.join(TMP, "shim_bionic_harness.c");
+  const bionicHarnessBin = path.join(TMP, "shim_bionic_harness");
+  fs.writeFileSync(bionicHarnessC, `
+#define _GNU_SOURCE
+#include <assert.h>
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+extern char **environ;
+#ifndef __BIONIC__
+int *__errno(void) { return &errno; }
+#endif
+
+static int next_calls = 0;
+static char last_next_path[512];
+static int mock_next_execve(const char *path, char *const argv[], char *const envp[]) {
+    (void)argv; (void)envp;
+    next_calls++;
+    snprintf(last_next_path, sizeof last_next_path, "%s", path ? path : "");
+    errno = ETXTBSY;
+    return -1;
+}
+static void *bionic_dlsym(void *h, const char *sym) {
+    (void)h;
+    if (strcmp(sym, "execve") == 0) return (void *)mock_next_execve;
+    return NULL;
+}
+
+#define dlsym bionic_dlsym
+#define execve bshim_execve
+#define execv bshim_execv
+#define execvpe bshim_execvpe
+#define execvp bshim_execvp
+#define execl bshim_execl
+#define execlp bshim_execlp
+#define execle bshim_execle
+#define fexecve bshim_fexecve
+#define execveat bshim_execveat
+#define readlink bshim_readlink
+#define readlinkat bshim_readlinkat
+#include "${shimSrc.replace(/\\/g, "\\\\")}"
+#undef dlsym
+#undef execve
+#undef execv
+#undef execvpe
+#undef execvp
+#undef execl
+#undef execlp
+#undef execle
+#undef fexecve
+#undef execveat
+#undef readlink
+#undef readlinkat
+
+int main(void) {
+    setenv("CCAPP_LD", "/fake/libldlinux.so", 1);
+    setenv("CCAPP_GLIBC_LIB", "/fake/glibc/lib", 1);
+    setenv("CCAPP_GLIBC_PRELOAD", "/fake/enosys.so", 1);
+    setenv("CCAPP_BIONIC_PRELOAD", "/fake/bionic-pre.so", 1);
+
+    /* 1. -DBIONIC: K_BIONIC 必须返回 0 并经 bshim_execve 移交 next_execve (termux-exec) */
+    {
+        char *av_in[] = { "bash", "-c", "echo hi", NULL };
+        char *env_in[] = { "HOME=/tmp", NULL };
+        PLAN_SPACE(av_in, env_in);
+        int mr = mkplan("${bionicElf}", av_in, env_in, av_, ev_, &ar_, &pl_);
+        assert(mr == 0);
+        next_calls = 0;
+        errno = 0;
+        assert(bshim_execve("${bionicElf}", av_in, env_in) == -1);
+        assert(next_calls == 1);
+        assert(strcmp(last_next_path, "${bionicElf}") == 0);
+        assert(errno == ETXTBSY);
+    }
+
+    /* 2. -DBIONIC: K_GLIBC 必须改走 CCAPP_LD 并设置 CCAPP_SELF_EXE、剥离 bionic LD_PRELOAD */
+    {
+        char *av_in[] = { "glibc-tool", "--v", NULL };
+        char *env_in[] = { "LD_PRELOAD=/old/bionic.so", "HOME=/tmp", NULL };
+        PLAN_SPACE(av_in, env_in);
+        int mr = mkplan("${glibcElf}", av_in, env_in, av_, ev_, &ar_, &pl_);
+        assert(mr == 1);
+        assert(strcmp(pl_.path, "/fake/libldlinux.so") == 0);
+        int saw_self = 0, saw_preload = 0;
+        for (int i = 0; pl_.envp[i]; i++) {
+            if (strcmp(pl_.envp[i], "CCAPP_SELF_EXE=${glibcElf}") == 0) saw_self = 1;
+            if (strncmp(pl_.envp[i], "LD_PRELOAD=", 11) == 0) saw_preload = 1;
+        }
+        assert(saw_self && !saw_preload);
+    }
+
+    /* 3. -DBIONIC: 直接 exec ld-linux-aarch64.so.1 必须替换成 CCAPP_LD */
+    {
+        char *av_in[] = { "ld-linux-aarch64.so.1", "/app/bin", NULL };
+        char *env_in[] = { "LD_PRELOAD=/old/bionic.so", NULL };
+        PLAN_SPACE(av_in, env_in);
+        int mr = mkplan("${ldsoElf}", av_in, env_in, av_, ev_, &ar_, &pl_);
+        assert(mr == 1);
+        assert(strcmp(pl_.path, "/fake/libldlinux.so") == 0);
+    }
+
+    /* 4. -DBIONIC: 系统目录程序必须保留 CCAPP_BIONIC_PRELOAD */
+    {
+        char *av_in[] = { "/system/bin/pm", "list", NULL };
+        char *env_in[] = { "HOME=/tmp", NULL };
+        PLAN_SPACE(av_in, env_in);
+        int mr = mkplan("/system/bin/pm", av_in, env_in, av_, ev_, &ar_, &pl_);
+        assert(mr == 1);
+        assert(strcmp(pl_.path, "/system/bin/pm") == 0);
+        int saw_pre = 0;
+        for (int i = 0; pl_.envp[i]; i++) {
+            if (strcmp(pl_.envp[i], "LD_PRELOAD=/fake/bionic-pre.so") == 0) saw_pre = 1;
+        }
+        assert(saw_pre);
+    }
+
+    /* 5. -DBIONIC: 环状 #! 脚本通过 __errno() 返回 ELOOP */
+    {
+        char *av_in[] = { "loopA", NULL };
+        char *env_in[] = { NULL };
+        errno = 0;
+        assert(bshim_execve("${loopA}", av_in, env_in) == -1);
+        assert(errno == ELOOP);
+    }
+
+    printf("SHIM_BIONIC_HARNESS_OK\\n");
+    return 0;
+}
+`);
+  const compB = spawnSync("clang", ["-DBIONIC", "-O2", "-Wall", "-Wextra", "-o", bionicHarnessBin, bionicHarnessC], { encoding: "utf8" });
+  assert.equal(compB.status, 0, `编译 -DBIONIC harness 失败:\n${compB.stderr}`);
+
+  const runB = spawnSync(bionicHarnessBin, [], { encoding: "utf8", timeout: 10000 });
+  assert.equal(runB.status, 0, `运行 -DBIONIC harness 失败 (rc=${runB.status}):\nstdout=${runB.stdout}\nstderr=${runB.stderr}`);
+  assert.match(runB.stdout, /SHIM_BIONIC_HARNESS_OK/);
 });

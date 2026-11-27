@@ -220,13 +220,13 @@ final class Installer {
             t.setDaemon(true);
             t.start();
         }
-        long t0 = System.currentTimeMillis(), firstOk = 0;
+        long t0 = monoMs(), firstOk = -1;
         synchronized (lk) {
             for (;;) {
                 boolean all = true;
-                for (int i = 0; i < n; i++) { all &= fin[i]; if (fin[i] && ms[i] > 0 && firstOk == 0) firstOk = System.currentTimeMillis(); }
-                long now = System.currentTimeMillis();
-                if (all || now - t0 >= 15000 || firstOk > 0 && now - firstOk >= 3000) break;
+                long now = monoMs();
+                for (int i = 0; i < n; i++) { all &= fin[i]; if (fin[i] && ms[i] > 0 && firstOk < 0) firstOk = now; }
+                if (all || now - t0 >= 15000 || firstOk >= 0 && now - firstOk >= 3000) break;
                 try { lk.wait(250); } catch (InterruptedException e) { break; }
             }
             java.util.List<Integer> ok = new java.util.ArrayList<>(), pending = new java.util.ArrayList<>(), down = new java.util.ArrayList<>();
@@ -254,9 +254,15 @@ final class Installer {
 
     static final long NO_RANGE = 1_000_000;
 
+    /** 单调时钟（毫秒）：真机走 SystemClock.elapsedRealtime()，主机 JVM 单测桩退回 System.nanoTime() */
+    static long monoMs() {
+        try { return android.os.SystemClock.elapsedRealtime(); }
+        catch (RuntimeException stub) { return System.nanoTime() / 1_000_000L; }
+    }
+
     /** 要头 PROBE 字节，返回收完的毫秒数（至少 1，不认 Range 的另加 NO_RANGE）；连不上/出错 -1；总大小与清单不符 -2 */
     static long probe(String url, long size) {
-        long t0 = System.currentTimeMillis();
+        long t0 = monoMs();
         HttpURLConnection c = null;
         try {
             c = open(url);
@@ -279,7 +285,7 @@ final class Installer {
             }
             if (got < want) return -1;
             // 不认 Range 的（回 200）排在认的后面：大文件分段下、续传都用不了它，轮到它就得从头来
-            return Math.max(1, System.currentTimeMillis() - t0) + (code == 200 ? NO_RANGE : 0);
+            return Math.max(1, monoMs() - t0) + (code == 200 ? NO_RANGE : 0);
         } catch (IOException | RuntimeException e) {
             return -1;
         } finally { if (c != null) c.disconnect(); }
@@ -457,14 +463,14 @@ final class Installer {
             try (InputStream in = new BufferedInputStream(c.getInputStream(), 1 << 16);
                  OutputStream out = new FileOutputStream(part, append)) {
                 byte[] buf = new byte[1 << 16];
-                long tick = 0;
+                long tick = monoMs() - 1000;
                 Slow slow = new Slow();
                 for (int r; (r = in.read(buf)) > 0; ) {
                     out.write(buf, 0, r);
                     have += r;
                     slow.add(r);
                     // 每秒报一次进度：以前每 2 MB 报一次，慢的时候界面一直停在 0%，看着像死了
-                    long now = System.currentTimeMillis();
+                    long now = monoMs();
                     if (now - tick >= 1000) { tick = now; ui.bytes(have, size); }
                 }
             }
@@ -483,10 +489,12 @@ final class Installer {
 
     static final class Slow {
         static final long WINDOW = 30_000, MIN = 600L << 10;
-        long t0 = System.currentTimeMillis(), n;
-        void add(int r) throws IOException {
+        long t0, n;
+        Slow() { this(monoMs()); }
+        Slow(long startMs) { this.t0 = startMs; }
+        void add(int r) throws IOException { add(r, monoMs()); }
+        void add(int r, long now) throws IOException {
             n += r;
-            long now = System.currentTimeMillis();
             if (now - t0 < WINDOW) return;
             if (n < MIN) throw new SlowException(Tr.f("太慢（30 秒只下了 {0} KB）", n >> 10));
             t0 = now; n = 0;
@@ -1206,10 +1214,36 @@ final class Installer {
     }
 
     // ── tar（ustar + GNU 长名 + pax）────────────────────────────────────
+    interface TarFs {
+        void chmod(File f, int mode) throws IOException;
+        void symlink(String target, File link) throws IOException;
+        void link(File existing, File link) throws IOException;
+    }
+
+    static final TarFs OS_FS = new TarFs() {
+        @Override public void chmod(File f, int mode) throws IOException {
+            try { Os.chmod(f.getPath(), mode); }
+            catch (android.system.ErrnoException e) { throw new IOException(f.getPath() + ": " + e.getMessage(), e); }
+        }
+        @Override public void symlink(String target, File link) throws IOException {
+            try { Os.symlink(target, link.getPath()); }
+            catch (android.system.ErrnoException e) { throw new IOException(link.getPath() + ": " + e.getMessage(), e); }
+        }
+        @Override public void link(File existing, File link) throws IOException {
+            try { Os.link(existing.getPath(), link.getPath()); }
+            catch (android.system.ErrnoException e) { throw new IOException(link.getPath() + ": " + e.getMessage(), e); }
+        }
+    };
+
     private void untar(InputStream in, File root, String strip) throws IOException {
+        untar(in, root, strip, OS_FS);
+    }
+
+    static void untar(InputStream in, File root, String strip, TarFs fs) throws IOException {
         byte[] h = new byte[512];
         String longName = null, longLink = null;
         String rootPath = root.getCanonicalPath();
+        java.nio.file.Path rootNorm = root.toPath().toAbsolutePath().normalize();
         while (true) {
             if (!readFully(in, h)) break;
             if (allZero(h)) break;
@@ -1248,54 +1282,52 @@ final class Installer {
             name = name.substring(strip.length());
             if (name.isEmpty() || name.equals("/")) { skip(in, size); continue; }
             File f = new File(root, name);
+            java.nio.file.Path fNorm = f.toPath().toAbsolutePath().normalize();
+            if (!fNorm.startsWith(rootNorm) || fNorm.equals(rootNorm)) throw new IOException(Tr.t("越界条目: ") + name);
             // 比前缀要带上分隔符：只比 rootPath 的话 usr.newEvil/x 也算在 usr 里头（审查 低5）；
             // 链接条目查的是它「放在哪」（父目录），指向哪不限：工具包里本来就有指到最终 usr 路径（usr.new 解包期）或系统路径的合法软链；
             // Wave 3 1.5：写文件/建目录/硬链前拦截已有软链与祖先软链，确保悬空或指向 rootPath 外的软链绝不能被后续条目跟随写入/chmod
             if (!inside(type == '2' ? f.getParentFile() : f, rootPath)) throw new IOException(Tr.t("越界条目: ") + name);
             if (hasSymlinkBetween(root, f.getParentFile())) throw new IOException(Tr.t("越界条目: ") + name);
-            try {
-                switch (type) {
-                    case '5':
-                        if (isSymlinkPath(f)) throw new IOException(Tr.t("越界条目: ") + name);
-                        f.mkdirs();
-                        if (isSymlinkPath(f) || hasSymlinkBetween(root, f) || !inside(f, rootPath)) throw new IOException(Tr.t("越界条目: ") + name);
-                        Os.chmod(f.getPath(), (mode & 0777) | 0700);
-                        break;
-                    case '2':
-                        f.getParentFile().mkdirs();
-                        if (hasSymlinkBetween(root, f.getParentFile()) || !inside(f.getParentFile(), rootPath)) throw new IOException(Tr.t("越界条目: ") + name);
-                        java.nio.file.Files.deleteIfExists(f.toPath());
-                        Os.symlink(link, f.getPath());
-                        break;
-                    case '1': {
-                        String target = link.startsWith("./") ? link.substring(2) : link;
-                        if (target.startsWith(strip)) target = target.substring(strip.length());
-                        File tf = new File(root, target);
-                        if (!inside(tf, rootPath) || isSymlinkPath(tf) || hasSymlinkBetween(root, tf)) throw new IOException(Tr.t("越界条目: ") + name);
-                        f.getParentFile().mkdirs();
-                        if (hasSymlinkBetween(root, f.getParentFile()) || !inside(f.getParentFile(), rootPath)) throw new IOException(Tr.t("越界条目: ") + name);
-                        f.delete();
-                        Os.link(tf.getPath(), f.getPath());
-                        break;
-                    }
-                    case '0': case '7': {
-                        if (isSymlinkPath(f)) throw new IOException(Tr.t("越界条目: ") + name);
-                        f.getParentFile().mkdirs();
-                        if (isSymlinkPath(f) || hasSymlinkBetween(root, f) || !inside(f, rootPath)) throw new IOException(Tr.t("越界条目: ") + name);
-                        try (OutputStream o = new FileOutputStream(f)) { copy(in, o, size); }
-                        pad(in, size);
-                        Os.chmod(f.getPath(), (mode & 0777) | 0600);
-                        // 保留包里的修改时间。不保留的话一律是解包那一刻，先后全凭解包顺序 ——
-                        // gdb 内嵌的 Guile 一看 .scm 比编译好的 .go 新，就逐个重编译（而编译器本身用不了），
-                        // 表现为 gdb 任何参数都无输出、原地空转烧 CPU。make 之类按时间戳判断的工具也会被搅乱。
-                        if (mtime > 0) f.setLastModified(mtime * 1000);
-                        continue;
-                    }
-                    default:
-                        break;
+            switch (type) {
+                case '5':
+                    if (isSymlinkPath(f)) throw new IOException(Tr.t("越界条目: ") + name);
+                    f.mkdirs();
+                    if (isSymlinkPath(f) || hasSymlinkBetween(root, f) || !inside(f, rootPath)) throw new IOException(Tr.t("越界条目: ") + name);
+                    fs.chmod(f, (mode & 0777) | 0700);
+                    break;
+                case '2':
+                    f.getParentFile().mkdirs();
+                    if (hasSymlinkBetween(root, f.getParentFile()) || !inside(f.getParentFile(), rootPath)) throw new IOException(Tr.t("越界条目: ") + name);
+                    java.nio.file.Files.deleteIfExists(f.toPath());
+                    fs.symlink(link, f);
+                    break;
+                case '1': {
+                    String target = link.startsWith("./") ? link.substring(2) : link;
+                    if (target.startsWith(strip)) target = target.substring(strip.length());
+                    File tf = new File(root, target);
+                    if (!inside(tf, rootPath) || isSymlinkPath(tf) || hasSymlinkBetween(root, tf)) throw new IOException(Tr.t("越界条目: ") + name);
+                    f.getParentFile().mkdirs();
+                    if (hasSymlinkBetween(root, f.getParentFile()) || !inside(f.getParentFile(), rootPath)) throw new IOException(Tr.t("越界条目: ") + name);
+                    f.delete();
+                    fs.link(tf, f);
+                    break;
                 }
-            } catch (android.system.ErrnoException e) {
-                throw new IOException(name + ": " + e.getMessage());
+                case '0': case '7': {
+                    if (isSymlinkPath(f)) throw new IOException(Tr.t("越界条目: ") + name);
+                    f.getParentFile().mkdirs();
+                    if (isSymlinkPath(f) || hasSymlinkBetween(root, f) || !inside(f, rootPath)) throw new IOException(Tr.t("越界条目: ") + name);
+                    try (OutputStream o = new FileOutputStream(f)) { copy(in, o, size); }
+                    pad(in, size);
+                    fs.chmod(f, (mode & 0777) | 0600);
+                    // 保留包里的修改时间。不保留的话一律是解包那一刻，先后全凭解包顺序 ——
+                    // gdb 内嵌的 Guile 一看 .scm 比编译好的 .go 新，就逐个重编译（而编译器本身用不了），
+                    // 表现为 gdb 任何参数都无输出、原地空转烧 CPU。make 之类按时间戳判断的工具也会被搅乱。
+                    if (mtime > 0) f.setLastModified(mtime * 1000);
+                    continue;
+                }
+                default:
+                    break;
             }
             skip(in, size);
         }
@@ -1323,35 +1355,6 @@ final class Installer {
             if (isSymlinkPath(cur)) return true;
         }
         return true;
-    }
-
-    /** 判断 tar 软链接目标（相对链接父目录，或绝对路径）是否落在 rootPath 之内。 */
-    static boolean symlinkTargetInside(File root, File linkFile, String linkTarget, String rootPath) {
-        if (root == null || linkFile == null || linkTarget == null || linkTarget.isEmpty() || rootPath == null || linkTarget.indexOf('\0') >= 0) {
-            return false;
-        }
-        try {
-            File parent = linkFile.getParentFile();
-            if (parent == null) return false;
-            java.nio.file.Path rootLex = root.toPath().toAbsolutePath().normalize();
-            java.nio.file.Path lexBase = parent.toPath().toAbsolutePath().normalize();
-            java.nio.file.Path lexTarget = linkTarget.startsWith("/")
-                ? java.nio.file.Paths.get(linkTarget).normalize()
-                : lexBase.resolve(linkTarget).normalize();
-            if (!lexTarget.equals(rootLex) && !lexTarget.startsWith(rootLex)) return false;
-            java.nio.file.Path rootCan = new File(rootPath).getCanonicalFile().toPath().normalize();
-            if (linkTarget.startsWith("/")) {
-                return lexTarget.equals(rootCan) || lexTarget.startsWith(rootCan);
-            }
-            if (parent.exists()) {
-                java.nio.file.Path canBase = parent.getCanonicalFile().toPath().normalize();
-                java.nio.file.Path canTarget = canBase.resolve(linkTarget).normalize();
-                if (!canTarget.equals(rootCan) && !canTarget.startsWith(rootCan)) return false;
-            }
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
     }
 
     private static boolean readFully(InputStream in, byte[] b) throws IOException {

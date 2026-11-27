@@ -476,6 +476,7 @@ final class Env {
     void apply(Map<String, String> e) {
         e.remove("LD_LIBRARY_PATH");
         e.remove("LD_PRELOAD");
+        e.remove("CCAPP_TEST");
         e.put("PREFIX", usr.getPath());
         e.put("HOME", home.getPath());
         e.put("TMPDIR", new File(usr, "tmp").getPath());

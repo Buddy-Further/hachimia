@@ -369,7 +369,11 @@ public class GatewayService extends Service {
     /** 网关运行库凑不齐（GwRuntime.ensure 失败）：发行版不起网关 */
     static final class GwUnavailable extends Exception { GwUnavailable(String m) { super(m); } }
     private String gwLastErr;        // 同一个原因只记一次账本
-    private long gwFetchAt;          // 上次联网取运行库的时间：取回来还对不上时别每分钟下一遍 128 MB
+    private long gwFetchAt = -1;     // 上次联网取运行库的时间（单调钟）：取回来还对不上时别每分钟下一遍 128 MB
+    static final long GW_FETCH_COOLDOWN_MS = 30 * 60000L;
+    static boolean shouldFetchGwRuntime(long lastFetchAt, long nowMono) {
+        return lastFetchAt < 0 || nowMono - lastFetchAt > GW_FETCH_COOLDOWN_MS;
+    }
     /** 起网关前正在联网取回网关运行库（GwRuntime.fetchBase）：当前这一步和下载字节数。启动页据此显示进度、不按 60 秒超时切走。
      *  11-09 群友：移动数据下 122 MB 的基础模块包下了好几分钟，启动页只写「等待网关…」、进度只在通知栏里，以为卡死，划掉重开了六次 */
     static volatile String gwFetchStep;
@@ -462,7 +466,7 @@ public class GatewayService extends Service {
         // 凑不齐：发行版不起网关（$PREFIX 里的 node 和库同 uid 的进程都能换）；开发版退回 $PREFIX 的，记账本
         checkSpawn(myGen);                   // 这段可能要联网下 128 MB：停掉 / 停住之后别再白干（BUG-A03）
         GwRuntime gw = new GwRuntime(this, env);
-        boolean fetch = System.currentTimeMillis() - gwFetchAt > 30 * 60000L;
+        boolean fetch = shouldFetchGwRuntime(gwFetchAt, android.os.SystemClock.elapsedRealtime());
         String gwErr;
         try {
             gwErr = gw.ensure(fetch, new GwRuntime.Say() {
@@ -476,7 +480,7 @@ public class GatewayService extends Service {
             });
         } finally { gwFetchStep = null; gwFetchDone = gwFetchTotal = 0; }
         checkSpawn(myGen);                   // 取运行库期间可能已经被停掉（BUG-A03）
-        if (gwErr != null && fetch) gwFetchAt = System.currentTimeMillis();
+        if (gwErr != null && fetch) gwFetchAt = android.os.SystemClock.elapsedRealtime();
         if (gwErr != null && !gwErr.equals(gwLastErr)) Ledger.add(env, "verify", false, Tr.t("网关运行库：") + gwErr, null);
         gwLastErr = gwErr;
         if (gwErr != null && GwRuntime.sealed(this)) throw new GwUnavailable(gwErr);

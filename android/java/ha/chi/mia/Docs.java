@@ -96,6 +96,7 @@ public final class Docs extends DocumentsProvider {
         if (p.endsWith("/.gemini/antigravity-cli") || p.contains("/.gemini/antigravity-cli/")) return true;
         if (p.endsWith("/.local/share/hachimia/agy") || p.contains("/.local/share/hachimia/agy/")) return true;
         if (p.endsWith("/.local/share/cccodroid/claude") || p.contains("/.local/share/cccodroid/claude/")) return true;
+        if (p.contains("/.claude/") || p.contains("/.gemini/")) return true;
         if (p.contains("/.ssh/") || p.contains("/.gnupg/") || p.contains("/.ccapp-userconf/")) return true;
         return (".claude".equals(pn) || ".gemini".equals(pn) || "antigravity-cli".equals(pn)) && nm.matches("settings(\\.local)?\\.json");
     }
@@ -211,6 +212,7 @@ public final class Docs extends DocumentsProvider {
     @Override
     public Cursor queryChildDocuments(String parentId, String[] projection, String sortOrder) throws FileNotFoundException {
         File dir = fileOf(parentId);
+        denySensitive(dir);
         String[] cols = projection != null ? projection : new String[] {
             Document.COLUMN_DOCUMENT_ID, Document.COLUMN_DISPLAY_NAME, Document.COLUMN_MIME_TYPE,
             Document.COLUMN_SIZE, Document.COLUMN_LAST_MODIFIED, Document.COLUMN_FLAGS };
@@ -247,6 +249,7 @@ public final class Docs extends DocumentsProvider {
             visited++;
             for (File k : list) {
                 if (k.getName().startsWith(".git")) continue;
+                if (sensitive(k)) continue;
                 if (k.isDirectory() && !isSymlink(k)) { if (depthOf(k) < 4) queue.add(k); }   // 不顺着链接翻到作用域外
                 if (k.getName().toLowerCase(Locale.ROOT).contains(q)) {
                     try { row(c, k); found++; } catch (FileNotFoundException ignored) {}
@@ -332,6 +335,7 @@ public final class Docs extends DocumentsProvider {
     public String createDocument(String parentId, String mimeType, String displayName) throws FileNotFoundException {
         File parent = fileOf(parentId);
         if (!parent.isDirectory()) parent = parent.getParentFile();
+        denySensitive(parent);
         String name = safeName(displayName == null || displayName.isEmpty() ? "未命名" : displayName);
         File f = checked(new File(parent, name));
         // 同名已存在就另起名「名字 (1).扩展名」：直接把已有文件交出去，对方一写就把用户的文件冲掉了

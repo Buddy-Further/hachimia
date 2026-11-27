@@ -40,4 +40,11 @@ if [ -f "$AJAR" ]; then
   java -cp "$OUT:$AJAR" ha.chi.mia.Wave3SecurityTest
   javac -nowarn -d "$OUT" -cp "$OUT:$AJAR" "$ROOT/android/tests/ha/chi/mia/Wave5AndroidTest.java"
   java -cp "$OUT:$AJAR" ha.chi.mia.Wave5AndroidTest
-else echo "跳过 WhatsNewPickTest（没有 android.jar）"; fi
+else
+  if [ "${ALLOW_NO_ANDROID_JAR:-0}" = "1" ] && [ "${CI:-}" != "true" ] && [ "${GITHUB_ACTIONS:-}" != "true" ]; then
+    echo "⚠ 跳过 8 组依赖 android.jar 的 Java 测试（ALLOW_NO_ANDROID_JAR=1，仅限本机）" >&2
+  else
+    echo "✗ 找不到 android.jar（请设置 ANDROID_JAR 或 ANDROID_SDK_ROOT；本机临时跳过需显式设置 ALLOW_NO_ANDROID_JAR=1）" >&2
+    exit 1
+  fi
+fi

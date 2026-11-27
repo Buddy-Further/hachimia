@@ -408,7 +408,7 @@ final class ShizukuSetup {
                     if (s == null) { failNote(Tr.t("配对回了成功，但本机的无线调试不认我们的钥匙，配对可能被别的应用截了。到「无线调试」里取消多出来的配对设备，再重新配对")); return; }
                     adb(10, "disconnect", s);
                     markPaired();
-                    pairOk = 1; pairCheckedAt = System.currentTimeMillis();
+                    pairOk = 1; pairCheckedAt = android.os.SystemClock.elapsedRealtime();
                     cancelNote();
                     set("done", Tr.t("✓ 已重新配对。重启手机后会自动激活（需连着 Wi‑Fi）"));
                     return;
@@ -416,7 +416,7 @@ final class ShizukuSetup {
                 pairNote(Tr.t("✓ 配对成功，正在启动 Shizuku…"), false);
                 Thread.sleep(1500);
                 if (!connectAndStart(true)) { failNote(Tr.t("配对回了成功，但连不上无线调试：确认「无线调试」开关开着再点「激活」；还不行就到「无线调试」里取消多出来的配对设备，重新配对")); return; }
-                pairOk = 1; pairCheckedAt = System.currentTimeMillis();
+                pairOk = 1; pairCheckedAt = android.os.SystemClock.elapsedRealtime();
             } catch (Exception e) {
                 // 别只改状态：通知还停在常驻的「配对中…」，用户划不掉
                 failNote(Tr.t("配对出错：") + e.getMessage());
@@ -571,7 +571,11 @@ final class ShizukuSetup {
 
     /** 配对是否仍被信任：1 有效、0 失效、-1 没验证过 */
     private volatile int pairOk = -1;
-    private volatile long pairCheckedAt;
+    private volatile long pairCheckedAt = -1;
+    static final long PAIR_CHECK_COOLDOWN_MS = 5 * 60_000L;
+    static boolean pairCheckCooldownActive(long checkedAt, long nowMono) {
+        return checkedAt >= 0 && nowMono - checkedAt < PAIR_CHECK_COOLDOWN_MS;
+    }
 
     /**
      * 打开设置页时静默验证一次配对（最多 5 分钟一次）：删掉无线调试里的配对不会停掉正在跑的 Shizuku，
@@ -579,8 +583,9 @@ final class ShizukuSetup {
      */
     void verifyPairAsync() {
         if (!prefs().getBoolean("paired", false) || Build.VERSION.SDK_INT < 30 || busy) return;
-        if (System.currentTimeMillis() - pairCheckedAt < 5 * 60_000L || wirelessOn() == 0) return;
-        pairCheckedAt = System.currentTimeMillis();
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (pairCheckCooldownActive(pairCheckedAt, now) || wirelessOn() == 0) return;
+        pairCheckedAt = now;
         new Thread(() -> {
             synchronized (this) { if (busy) return; busy = true; }
             try {
@@ -704,10 +709,11 @@ final class ShizukuSetup {
         NsdManager.DiscoveryListener l = new Disc(found, null);
         nm.discoverServices(type, NsdManager.PROTOCOL_DNS_SD, l);
         // 等到第一个出现后再多等 1 秒（同类服务一般一起冒出来），最多等 ms
-        long t0 = System.currentTimeMillis(), first = 0;
-        while (System.currentTimeMillis() - t0 < ms) {
-            if (first == 0 && !found.isEmpty()) first = System.currentTimeMillis();
-            if (first > 0 && System.currentTimeMillis() - first > 1000) break;
+        long t0 = android.os.SystemClock.elapsedRealtime(), first = -1;
+        while (android.os.SystemClock.elapsedRealtime() - t0 < ms) {
+            long now = android.os.SystemClock.elapsedRealtime();
+            if (first < 0 && !found.isEmpty()) first = now;
+            if (first >= 0 && now - first > 1000) break;
             Thread.sleep(100);
         }
         try { nm.stopServiceDiscovery(l); } catch (Exception ignored) {}

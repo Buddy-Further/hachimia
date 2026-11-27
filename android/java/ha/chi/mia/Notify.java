@@ -272,23 +272,40 @@ final class Notify {
 
     static final String[] ASK_INPUT_KEYS = {
         "toolSummary", "CommandLine", "command", "Path", "TargetFile", "AbsolutePath",
-        "file_path", "notebook_path", "ScriptPath", "DirectoryPath", "SearchPath",
-        "url", "Url", "Query", "query", "Pattern", "pattern", "path"
+        "file_path", "notebook_path", "ScriptPath", "DirectoryPath", "TargetDirectory", "SearchPath",
+        "url", "Url", "Query", "query", "Pattern", "pattern", "Description", "Prompt", "TaskId", "path"
     };
 
+    static String baseToolName(String tool) {
+        if (tool == null) return "";
+        String s = tool.trim();
+        if (s.regionMatches(true, 0, "run ", 0, 4)) s = s.substring(4).trim();
+        int lp = s.lastIndexOf('(');
+        if (lp > 0 && s.endsWith(")")) s = s.substring(0, lp).trim();
+        return s;
+    }
+
     static boolean isQuestionTool(String tool) {
-        return "AskUserQuestion".equals(tool) || "ask_question".equals(tool);
+        String b = baseToolName(tool);
+        return "AskUserQuestion".equals(b) || "ask_question".equals(b);
+    }
+
+    static boolean isPlanTool(String tool) {
+        String b = baseToolName(tool);
+        return "ExitPlanMode".equals(b) || "exit_plan_mode".equals(b);
     }
 
     static String[] askNoteFields(String tool, String plan, String firstQuestion, String inputSummary, String description, String rawInput) {
-        boolean question = isQuestionTool(tool);
+        boolean hasQ = firstQuestion != null && !firstQuestion.isEmpty();
+        boolean planTool = isPlanTool(tool);
+        boolean question = !planTool && (isQuestionTool(tool) || hasQ);
         String title, body;
-        if ("ExitPlanMode".equals(tool)) {
+        if (planTool) {
             title = Tr.t("计划待批准");
             body = plan == null ? "" : plan;
         } else if (question) {
             title = Tr.t("Antigravity 想问你");
-            body = firstQuestion == null ? "" : firstQuestion;
+            body = hasQ ? firstQuestion : "";
         } else {
             title = Tr.t("需要确认：") + (tool == null ? "" : tool);
             body = inputSummary == null ? "" : inputSummary;
@@ -304,9 +321,11 @@ final class Notify {
         if (in == null) in = new JSONObject();
         JSONArray qs = in.optJSONArray("questions");
         JSONObject q = qs == null ? null : qs.optJSONObject(0);
+        String plan = in.optString("plan");
+        if (plan.isEmpty()) plan = in.optString("Plan");
         String[] fields = askNoteFields(
             tool,
-            in.optString("plan"),
+            plan,
             q == null ? "" : q.optString("question"),
             firstOf(in, ASK_INPUT_KEYS),
             p.optString("description"),

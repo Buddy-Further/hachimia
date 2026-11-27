@@ -703,6 +703,8 @@ final class Priv {
                         resp = new JSONObject().put("ok", false).put("message", Tr.t("用户没有允许写剪贴板（hachimia 不在前台时也会直接拒绝）"));
                     } else if ("open".equals(tool) && !ask(Tr.t("设备工具：打开") + "\n\n" + clip(da == null ? "{}" : da.toString(2)), who, "dev:open", false)) {
                         resp = new JSONObject().put("ok", false).put("message", Tr.t("用户没有允许打开（hachimia 不在前台时也会直接拒绝）"));
+                    } else if ("share_file".equals(tool) && !ask(Tr.t("设备工具") + ": share_file\n\n" + clip(da == null ? "" : da.optString("path", "")), who, "dev:share_file", false)) {
+                        resp = new JSONObject().put("ok", false).put("message", Tr.t("用户没有允许打开（hachimia 不在前台时也会直接拒绝）"));
                     // 读屏 / 点按 / 输入 / 截图：每个会话第一次问一次，点了允许，这个会话后面的屏幕操作不再问；
                     // 认不出会话的（终端、脚本直连套接字）每次都问（11-03 审查 M-6）
                     } else if (DeviceTools.screenReady(ctx, tool) && !devSessOk(sessToken(pid), who, tool)) {
@@ -894,14 +896,24 @@ final class Priv {
         return cmd != null && cmd.contains("server.mjs");
     }
 
+    static boolean devToolRequiresAsk(String tool) {
+        return "clipboard_read".equals(tool)
+            || "clipboard_write".equals(tool)
+            || "open".equals(tool)
+            || "share_file".equals(tool);
+    }
+
     static boolean requiresGatewayPeer(String op) {
         if (op == null) return false;
         switch (op) {
             case "upd_set":
             case "upd_apply":
+            case "upd_verify":
             case "upd_repair":
             case "dev_set":
+            case "keepalive":
             case "shz_install":
+            case "shz_autostart":
             case "shz_repair":
             case "notify_set":
             case "share_logs":
