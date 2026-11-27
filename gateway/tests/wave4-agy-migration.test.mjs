@@ -92,19 +92,19 @@ process.stdout.write("agy-ok-output\\n");
   });
 });
 
-test("10.2: 纯 agy 模式下 backfill.ask 使用 -p --output-format json --disable-slash-commands 并兼容多种 JSON/文本输出", async () => {
+test("10.2: 纯 agy 模式下 backfill.ask 使用 --output-format json --disable-slash-commands -p=<prompt> 并兼容多种 JSON/文本输出", async () => {
   const calls = [];
   const logFile = path.join(WORK, "ask-calls.jsonl");
   const mockAgy = makeMockAgy("mock-agy-ask.mjs", `
 import fs from "node:fs";
-const stdin = fs.readFileSync(0, "utf8");
+const argv = process.argv.slice(2);
 const mode = process.env.MOCK_ASK_MODE || "result";
-fs.appendFileSync(${JSON.stringify(logFile)}, JSON.stringify({ argv: process.argv.slice(2), stdin, autoUpd: process.env.AGY_CLI_DISABLE_AUTO_UPDATE }) + "\\n");
+fs.appendFileSync(${JSON.stringify(logFile)}, JSON.stringify({ argv, autoUpd: process.env.AGY_CLI_DISABLE_AUTO_UPDATE }) + "\\n");
 process.stdout.write("ERROR: logging before google.Init: I1128 01:47:21.019277       1 server_zerog.go:46] Initialized Android local timezone to Asia/Shanghai\\n");
 if (mode === "result") {
   process.stdout.write(JSON.stringify({ result: '{"1":"测试标题"}', usage: { input_tokens: 12, output_tokens: 5 } }) + "\\n");
 } else if (mode === "response") {
-  process.stdout.write(JSON.stringify({ response: '{"1":"兼容响应"}', stats: { inputTokens: 20, outputTokens: 8 } }) + "\\n");
+  process.stdout.write(JSON.stringify({ response: '{"1":"兼容响应"}', usage: { input_tokens: 15, cache_read_tokens: 5, output_tokens: 8 } }) + "\\n");
 } else if (mode === "text") {
   process.stdout.write(JSON.stringify({ text: '{"1":"文本字段"}' }) + "\\n");
 } else if (mode === "plain") {
@@ -131,10 +131,12 @@ if (mode === "result") {
     assert.equal(calls[1].tout, 8);
     const logged = fs.readFileSync(logFile, "utf8").trim().split("\n").map((l) => JSON.parse(l));
     const argv0 = logged[0].argv;
-    assert.ok(argv0.includes("-p") && argv0.includes("--output-format") && argv0.includes("json") && argv0.includes("--disable-slash-commands"));
+    assert.ok(argv0.includes("--output-format") && argv0.includes("json") && argv0.includes("--disable-slash-commands"));
+    assert.ok(!argv0.includes("-p"), "agy 不应传裸 -p（会把下个旗标吞成 prompt）");
+    const pFlag = argv0.find((a) => a.startsWith("-p="));
+    assert.ok(pFlag && /章内容/.test(pFlag), "应通过 -p=<prompt> 传入系统提示与正文");
     assert.ok(!argv0.includes("--no-session-persistence") && !argv0.includes("--tools") && !argv0.includes("--strict-mcp-config") && !argv0.includes("--system-prompt"));
     assert.equal(logged[0].autoUpd, "true");
-    assert.match(logged[0].stdin, /章内容/);
   });
 });
 
