@@ -46,6 +46,24 @@ public final class A11yProtectedPackageTest {
         checkPkg(false, "org.mozilla.firefox");
         checkPkg(false, "com.android.settings");
 
+        checkBool("firstProtectedPackage finds protected window among visible windows", true,
+            "com.x8bit.bitwarden".equals(A11y.firstProtectedPackage(
+                java.util.Arrays.asList("com.android.launcher", "com.x8bit.bitwarden", "com.android.systemui"))));
+        checkBool("firstProtectedPackage returns null when all windows are normal", true,
+            A11y.firstProtectedPackage(java.util.Arrays.asList("ha.chi.mia", "com.android.chrome")) == null);
+        checkBool("firstProtectedPackage returns null on empty list", true,
+            A11y.firstProtectedPackage(java.util.Collections.emptyList()) == null);
+        checkBool("hasAnyPackage false on empty or blank list (fail-closed)", false,
+            A11y.hasAnyPackage(java.util.Arrays.asList(null, "", "   ")));
+        checkBool("hasAnyPackage true when a window package exists", true,
+            A11y.hasAnyPackage(java.util.Arrays.asList("", "com.android.chrome")));
+        checkBool("keyAllowedOnProtected allows back", true, A11y.keyAllowedOnProtected("back"));
+        checkBool("keyAllowedOnProtected allows home", true, A11y.keyAllowedOnProtected("home"));
+        checkBool("keyAllowedOnProtected allows recents", true, A11y.keyAllowedOnProtected("recents"));
+        checkBool("keyAllowedOnProtected blocks notifications", false, A11y.keyAllowedOnProtected("notifications"));
+        checkBool("keyAllowedOnProtected blocks quick_settings", false, A11y.keyAllowedOnProtected("quick_settings"));
+        checkBool("keyAllowedOnProtected blocks lock_screen", false, A11y.keyAllowedOnProtected("lock_screen"));
+
         Path tmp = Files.createTempDirectory("ccapp-ghproxy-test-");
         try {
             File files = tmp.toFile();

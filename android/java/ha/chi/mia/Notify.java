@@ -270,26 +270,50 @@ final class Notify {
             .build());
     }
 
+    static final String[] ASK_INPUT_KEYS = {
+        "toolSummary", "CommandLine", "command", "Path", "TargetFile", "AbsolutePath",
+        "file_path", "notebook_path", "ScriptPath", "DirectoryPath", "SearchPath",
+        "url", "Url", "Query", "query", "Pattern", "pattern", "path"
+    };
+
+    static boolean isQuestionTool(String tool) {
+        return "AskUserQuestion".equals(tool) || "ask_question".equals(tool);
+    }
+
+    static String[] askNoteFields(String tool, String plan, String firstQuestion, String inputSummary, String description, String rawInput) {
+        boolean question = isQuestionTool(tool);
+        String title, body;
+        if ("ExitPlanMode".equals(tool)) {
+            title = Tr.t("计划待批准");
+            body = plan == null ? "" : plan;
+        } else if (question) {
+            title = Tr.t("Antigravity 想问你");
+            body = firstQuestion == null ? "" : firstQuestion;
+        } else {
+            title = Tr.t("需要确认：") + (tool == null ? "" : tool);
+            body = inputSummary == null ? "" : inputSummary;
+            if (body.isEmpty() && description != null) body = description;
+            if (body.isEmpty() && rawInput != null) body = rawInput;
+        }
+        return new String[]{ question ? "1" : "0", title, body };
+    }
+
     private Notification askNote(JSONObject p) {
         String tool = p.optString("tool");
         JSONObject in = p.optJSONObject("input");
         if (in == null) in = new JSONObject();
-        String title, body;
-        boolean question = "AskUserQuestion".equals(tool);
-        if ("ExitPlanMode".equals(tool)) {
-            title = Tr.t("计划待批准");
-            body = in.optString("plan");
-        } else if (question) {
-            title = Tr.t("Antigravity 想问你");
-            JSONArray qs = in.optJSONArray("questions");
-            JSONObject q = qs == null ? null : qs.optJSONObject(0);
-            body = q == null ? "" : q.optString("question");
-        } else {
-            title = Tr.t("需要确认：") + tool;
-            body = firstOf(in, "command", "file_path", "notebook_path", "url", "pattern", "path");
-            if (body.isEmpty()) body = p.optString("description");
-            if (body.isEmpty()) body = in.toString();
-        }
+        JSONArray qs = in.optJSONArray("questions");
+        JSONObject q = qs == null ? null : qs.optJSONObject(0);
+        String[] fields = askNoteFields(
+            tool,
+            in.optString("plan"),
+            q == null ? "" : q.optString("question"),
+            firstOf(in, ASK_INPUT_KEYS),
+            p.optString("description"),
+            in.toString()
+        );
+        boolean question = "1".equals(fields[0]);
+        String title = fields[1], body = fields[2];
         String id = p.optString("id");
         Notification.Builder b = new Notification.Builder(ctx, CH_ASK)
             .setSmallIcon(android.R.drawable.stat_sys_warning)
@@ -371,9 +395,17 @@ final class Notify {
             android.widget.Toast.makeText(c, Tr.t("拒绝没送到，打开应用里处理这项确认"), android.widget.Toast.LENGTH_LONG).show());
     }
 
-    private static String firstOf(JSONObject o, String... keys) {
-        for (String k : keys) { String v = o.optString(k); if (!v.isEmpty()) return v; }
+    static String firstNonEmpty(java.util.function.Function<String, String> getter, String... keys) {
+        if (getter == null || keys == null) return "";
+        for (String k : keys) {
+            String v = getter.apply(k);
+            if (v != null && !v.isEmpty()) return v;
+        }
         return "";
+    }
+
+    private static String firstOf(JSONObject o, String... keys) {
+        return firstNonEmpty(o::optString, keys);
     }
 
     private static String clip(String s, int n) {

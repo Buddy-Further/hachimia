@@ -84,18 +84,51 @@ public final class Docs extends DocumentsProvider {
 
     /** 不通过文件访问框架交出去的文件：workspace 下的 .claude/settings(.local).json 里常放 ANTHROPIC_AUTH_TOKEN，
      *  settings 还能挂 hooks —— 目录授权给文件管理器一次，就等于把令牌和「下次运行什么命令」一起交了出去。
-     *  只挡这两个名字，别的工作区文件照常（0.6.10 审计 199-1-01）。 */
-    private static boolean sensitive(File f) {
-        File p = f.getParentFile();
-        return p != null && (".claude".equals(p.getName()) || ".gemini".equals(p.getName()) || "antigravity-cli".equals(p.getName())) && f.getName().matches("settings(\\.local)?\\.json");
+     *  敏感目录本身（.claude/.gemini/.ssh/.gnupg/.ccapp-userconf/.local/share/hachimia/agy 等）及包含敏感项的目录一并拦住（0.6.10 审计 199-1-01 + Wave 3）。 */
+    static boolean sensitive(File f) {
+        if (f == null) return false;
+        String nm = f.getName();
+        String p = f.getPath().replace('\\', '/');
+        File parent = f.getParentFile();
+        String pn = parent != null ? parent.getName() : "";
+        if (".claude".equals(nm) || ".gemini".equals(nm) || ".ssh".equals(nm) || ".gnupg".equals(nm) || ".ccapp-userconf".equals(nm)) return true;
+        if ("antigravity-cli".equals(nm) && ".gemini".equals(pn)) return true;
+        if (p.endsWith("/.gemini/antigravity-cli") || p.contains("/.gemini/antigravity-cli/")) return true;
+        if (p.endsWith("/.local/share/hachimia/agy") || p.contains("/.local/share/hachimia/agy/")) return true;
+        if (p.endsWith("/.local/share/cccodroid/claude") || p.contains("/.local/share/cccodroid/claude/")) return true;
+        if (p.contains("/.ssh/") || p.contains("/.gnupg/") || p.contains("/.ccapp-userconf/")) return true;
+        return (".claude".equals(pn) || ".gemini".equals(pn) || "antigravity-cli".equals(pn)) && nm.matches("settings(\\.local)?\\.json");
     }
 
-    /** 软链接按真实路径再认一遍：工作区里自己建的别名可以指向 .claude/settings.json，只看名字会漏。 */
+    /** 软链接按真实路径再认一遍：工作区里自己建的别名可以指向 .claude/settings.json 或敏感目录，只看名字会漏。 */
     private static void denySensitive(File f) throws FileNotFoundException {
         if (sensitive(f)) throw new FileNotFoundException(Tr.t("这个文件不通过文件访问提供"));
         try {
             if (sensitive(f.getCanonicalFile())) throw new FileNotFoundException(Tr.t("这个文件不通过文件访问提供"));
         } catch (java.io.IOException ignored) { /* 悬空链接：交给后面存在性 / 越界检查 */ }
+    }
+
+    /** 目录树内是否包含敏感文件/目录（供删/改名拦截：改名父目录会把受保护文件带走并绕过路径名匹配）。 */
+    static boolean containsSensitive(File f) {
+        if (f == null) return false;
+        if (sensitive(f)) return true;
+        try { if (sensitive(f.getCanonicalFile())) return true; } catch (java.io.IOException ignored) {}
+        if (isSymlink(f) || !f.isDirectory()) return false;
+        File[] kids = f.listFiles();
+        if (kids == null) return false;
+        for (File k : kids) {
+            if (containsSensitive(k)) return true;
+        }
+        return false;
+    }
+
+    static void denySensitiveTree(File f) throws FileNotFoundException {
+        denySensitive(f);
+        if (containsSensitive(f)) throw new FileNotFoundException(Tr.t("这个文件不通过文件访问提供"));
+    }
+
+    static boolean wantsTruncate(String mode) {
+        return mode != null && mode.contains("w") && !mode.contains("a") && (mode.indexOf('r') < 0 || mode.indexOf('t') >= 0);
     }
 
     /** ID 用名字本身的路径（不解开软链接），越界检查照旧按真实路径（checked）。
@@ -240,15 +273,33 @@ public final class Docs extends DocumentsProvider {
     public ParcelFileDescriptor openDocument(String docId, String mode, CancellationSignal signal) throws FileNotFoundException {
         File target = fileOf(docId);
         denySensitive(target);   // 读和写都不给（0.6.10 审计 199-1-01）
-        // 写模式会在 open 时截断：硬链接文件有多个名字，截断前先拒绝（以前的检查在 open 之后，已经清空了）
-        if (mode != null && mode.contains("w") && !mode.contains("a")) {
+        if (mode == null) throw new FileNotFoundException("invalid mode");
+        int pfdMode = ParcelFileDescriptor.parseMode(mode);
+        int rwMask = ParcelFileDescriptor.MODE_READ_ONLY | ParcelFileDescriptor.MODE_WRITE_ONLY | ParcelFileDescriptor.MODE_READ_WRITE;
+        int rw = pfdMode & rwMask;
+        // 不在 open() 时带 O_TRUNC（Wave 3 4.3）：写模式带 O_NOFOLLOW 且无截断打开，完成 /proc/self/fd 与 st_nlink 核验后再按需 ftruncate(..., 0)；
+        // 纯读模式不加 O_NOFOLLOW 以兼容工作区内合法软链别名（仍靠下方 /proc/self/fd 真路径复核防越界）
+        boolean isWrite = rw == ParcelFileDescriptor.MODE_WRITE_ONLY || rw == ParcelFileDescriptor.MODE_READ_WRITE;
+        int flags = android.system.OsConstants.O_CLOEXEC | (isWrite ? android.system.OsConstants.O_NOFOLLOW : 0);
+        if (rw == ParcelFileDescriptor.MODE_READ_WRITE) flags |= android.system.OsConstants.O_RDWR;
+        else if (rw == ParcelFileDescriptor.MODE_WRITE_ONLY) flags |= android.system.OsConstants.O_WRONLY;
+        else flags |= android.system.OsConstants.O_RDONLY;
+        if ((pfdMode & ParcelFileDescriptor.MODE_CREATE) != 0) flags |= android.system.OsConstants.O_CREAT;
+        if ((pfdMode & ParcelFileDescriptor.MODE_APPEND) != 0) flags |= android.system.OsConstants.O_APPEND;
+        boolean trunc = wantsTruncate(mode) && (pfdMode & ParcelFileDescriptor.MODE_TRUNCATE) != 0;
+
+        ParcelFileDescriptor pfd;
+        try {
+            java.io.FileDescriptor rawFd = android.system.Os.open(target.getPath(), flags, 0600);
             try {
-                android.system.StructStat st = android.system.Os.stat(target.getPath());
-                if (android.system.OsConstants.S_ISREG(st.st_mode) && st.st_nlink > 1) throw new FileNotFoundException("硬链接文件不能写");
-            } catch (FileNotFoundException e) { throw e; }
-            catch (Exception ignore) {}
+                pfd = ParcelFileDescriptor.dup(rawFd);
+            } finally {
+                try { android.system.Os.close(rawFd); } catch (Exception ignored) {}
+            }
+        } catch (Exception e) {
+            throw new FileNotFoundException(target.getName());
         }
-        ParcelFileDescriptor pfd = ParcelFileDescriptor.open(target, ParcelFileDescriptor.parseMode(mode));
+
         // fileOf 查过真实路径，但查完到打开之间文件可能被换成指向作用域外的软链（审查 v0.5.7 L8）：
         // 打开以后按 fd 反查它实际是哪个文件，不在作用域里就关掉不给。根目录也按 fd 取，两边写法一致
         try {
@@ -258,7 +309,12 @@ public final class Docs extends DocumentsProvider {
             boolean linked = android.system.OsConstants.S_ISREG(st.st_mode) && st.st_nlink > 1;
             // 打开的可能是指向 .claude/settings*.json 的软链：按 fd 的真实路径再挡一次（0.6.10 审计 199-1-01）
             if (sensitive(new File(real))) throw new FileNotFoundException(Tr.t("这个文件不通过文件访问提供"));
-            if (!linked && (real.equals(base) || real.startsWith(base + "/"))) return pfd;
+            if (!linked && (real.equals(base) || real.startsWith(base + "/"))) {
+                if (trunc && android.system.OsConstants.S_ISREG(st.st_mode)) {
+                    android.system.Os.ftruncate(pfd.getFileDescriptor(), 0);
+                }
+                return pfd;
+            }
         } catch (Exception e) { /* 落到下面：查不了也不给 */ }
         try { pfd.close(); } catch (java.io.IOException ignored) {}
         throw new FileNotFoundException("越界：" + docId);
@@ -301,7 +357,7 @@ public final class Docs extends DocumentsProvider {
     @Override
     public void deleteDocument(String docId) throws FileNotFoundException {
         File f = fileOf(docId);
-        denySensitive(f);   // 看不见的文件也不给删（0.6.10 审计 199-1-01）
+        denySensitiveTree(f);   // 看不见的文件及含敏感项的目录也不给删（0.6.10 审计 199-1-01 + Wave 3）
         // 用规范路径判根：docId 里的 "."/".." 会让未规范化的 File 不等于 home，从而递归删掉整个工作区
         try { if (f.getCanonicalFile().equals(home.getCanonicalFile())) throw new FileNotFoundException("不能删根"); }
         catch (java.io.IOException e) { throw new FileNotFoundException("不能删根"); }
@@ -337,9 +393,17 @@ public final class Docs extends DocumentsProvider {
     @Override
     public String renameDocument(String docId, String displayName) throws FileNotFoundException {
         File f = fileOf(docId);
-        denySensitive(f);   // 改名等于换个名字把内容交出去（源）；也不许把别的文件改成这个名字（目标）（0.6.10 审计 199-1-01）
+        denySensitiveTree(f);   // 改名等于换个名字把内容交出去（源）；也不许把别的文件或含敏感项的目录改成敏感名（目标）（0.6.10 审计 199-1-01 + Wave 3）
         File to = checked(new File(f.getParentFile(), safeName(displayName)));
-        denySensitive(to);
+        denySensitiveTree(to);
+        if (!isSymlink(f) && f.isDirectory()) {
+            File[] kids = f.listFiles();
+            if (kids != null) {
+                for (File k : kids) {
+                    if (sensitive(new File(to, k.getName()))) throw new FileNotFoundException(Tr.t("这个文件不通过文件访问提供"));
+                }
+            }
+        }
         try { if (f.getCanonicalFile().equals(home.getCanonicalFile())) throw new FileNotFoundException("改名失败"); }
         catch (java.io.IOException e) { throw new FileNotFoundException("改名失败"); }
         if (to.equals(f)) return idOf(f);

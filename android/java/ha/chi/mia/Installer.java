@@ -1248,32 +1248,40 @@ final class Installer {
             name = name.substring(strip.length());
             if (name.isEmpty() || name.equals("/")) { skip(in, size); continue; }
             File f = new File(root, name);
-            // 比前缀要带上分隔符：只比 rootPath 的话 usr.newEvil/x 也算在 usr 里头（审查 低5）
-            // 链接条目查的是它「放在哪」（父目录），指向哪不限：工具包里本来就有指到 usr 外的链接，顺着它写文件时上面这条照样拦（审查 10-29 L11）
+            // 比前缀要带上分隔符：只比 rootPath 的话 usr.newEvil/x 也算在 usr 里头（审查 低5）；
+            // 链接条目查的是它「放在哪」（父目录），指向哪不限：工具包里本来就有指到最终 usr 路径（usr.new 解包期）或系统路径的合法软链；
+            // Wave 3 1.5：写文件/建目录/硬链前拦截已有软链与祖先软链，确保悬空或指向 rootPath 外的软链绝不能被后续条目跟随写入/chmod
             if (!inside(type == '2' ? f.getParentFile() : f, rootPath)) throw new IOException(Tr.t("越界条目: ") + name);
+            if (hasSymlinkBetween(root, f.getParentFile())) throw new IOException(Tr.t("越界条目: ") + name);
             try {
                 switch (type) {
                     case '5':
+                        if (isSymlinkPath(f)) throw new IOException(Tr.t("越界条目: ") + name);
                         f.mkdirs();
+                        if (isSymlinkPath(f) || hasSymlinkBetween(root, f) || !inside(f, rootPath)) throw new IOException(Tr.t("越界条目: ") + name);
                         Os.chmod(f.getPath(), (mode & 0777) | 0700);
                         break;
                     case '2':
                         f.getParentFile().mkdirs();
-                        f.delete();
+                        if (hasSymlinkBetween(root, f.getParentFile()) || !inside(f.getParentFile(), rootPath)) throw new IOException(Tr.t("越界条目: ") + name);
+                        java.nio.file.Files.deleteIfExists(f.toPath());
                         Os.symlink(link, f.getPath());
                         break;
                     case '1': {
                         String target = link.startsWith("./") ? link.substring(2) : link;
                         if (target.startsWith(strip)) target = target.substring(strip.length());
                         File tf = new File(root, target);
-                        if (!inside(tf, rootPath)) throw new IOException(Tr.t("越界条目: ") + name);
+                        if (!inside(tf, rootPath) || isSymlinkPath(tf) || hasSymlinkBetween(root, tf)) throw new IOException(Tr.t("越界条目: ") + name);
                         f.getParentFile().mkdirs();
+                        if (hasSymlinkBetween(root, f.getParentFile()) || !inside(f.getParentFile(), rootPath)) throw new IOException(Tr.t("越界条目: ") + name);
                         f.delete();
                         Os.link(tf.getPath(), f.getPath());
                         break;
                     }
                     case '0': case '7': {
+                        if (isSymlinkPath(f)) throw new IOException(Tr.t("越界条目: ") + name);
                         f.getParentFile().mkdirs();
+                        if (isSymlinkPath(f) || hasSymlinkBetween(root, f) || !inside(f, rootPath)) throw new IOException(Tr.t("越界条目: ") + name);
                         try (OutputStream o = new FileOutputStream(f)) { copy(in, o, size); }
                         pad(in, size);
                         Os.chmod(f.getPath(), (mode & 0777) | 0600);
@@ -1296,6 +1304,54 @@ final class Installer {
     private static boolean inside(File f, String rootPath) throws IOException {
         String p = f.getCanonicalPath();
         return p.equals(rootPath) || p.startsWith(rootPath + File.separator);
+    }
+
+    static boolean isSymlinkPath(File f) {
+        if (f == null) return false;
+        try { return java.nio.file.Files.isSymbolicLink(f.toPath()); }
+        catch (Exception e) { return false; }
+    }
+
+    /** 检查从 root（不含）到 f（含）之间是否存在符号链接，防止沿既有符号链接把目录或文件写到 rootPath 之外。 */
+    static boolean hasSymlinkBetween(File root, File f) {
+        if (root == null || f == null) return true;
+        java.nio.file.Path rootNorm = root.toPath().toAbsolutePath().normalize();
+        java.nio.file.Path curNorm = f.toPath().toAbsolutePath().normalize();
+        if (!curNorm.startsWith(rootNorm)) return true;
+        for (File cur = curNorm.toFile(); cur != null; cur = cur.getParentFile()) {
+            if (cur.toPath().toAbsolutePath().normalize().equals(rootNorm)) return false;
+            if (isSymlinkPath(cur)) return true;
+        }
+        return true;
+    }
+
+    /** 判断 tar 软链接目标（相对链接父目录，或绝对路径）是否落在 rootPath 之内。 */
+    static boolean symlinkTargetInside(File root, File linkFile, String linkTarget, String rootPath) {
+        if (root == null || linkFile == null || linkTarget == null || linkTarget.isEmpty() || rootPath == null || linkTarget.indexOf('\0') >= 0) {
+            return false;
+        }
+        try {
+            File parent = linkFile.getParentFile();
+            if (parent == null) return false;
+            java.nio.file.Path rootLex = root.toPath().toAbsolutePath().normalize();
+            java.nio.file.Path lexBase = parent.toPath().toAbsolutePath().normalize();
+            java.nio.file.Path lexTarget = linkTarget.startsWith("/")
+                ? java.nio.file.Paths.get(linkTarget).normalize()
+                : lexBase.resolve(linkTarget).normalize();
+            if (!lexTarget.equals(rootLex) && !lexTarget.startsWith(rootLex)) return false;
+            java.nio.file.Path rootCan = new File(rootPath).getCanonicalFile().toPath().normalize();
+            if (linkTarget.startsWith("/")) {
+                return lexTarget.equals(rootCan) || lexTarget.startsWith(rootCan);
+            }
+            if (parent.exists()) {
+                java.nio.file.Path canBase = parent.getCanonicalFile().toPath().normalize();
+                java.nio.file.Path canTarget = canBase.resolve(linkTarget).normalize();
+                if (!canTarget.equals(rootCan) && !canTarget.startsWith(rootCan)) return false;
+            }
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private static boolean readFully(InputStream in, byte[] b) throws IOException {

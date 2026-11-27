@@ -504,8 +504,12 @@ final class Priv {
             OutputStream out = sock.getOutputStream();
             JSONObject req = new JSONObject(readLine(in));
             String op = req.optString("op");
+            int peerPid = 0; try { peerPid = sock.getPeerCredentials().getPid(); } catch (IOException ignored) {}
             JSONObject resp;
-            switch (op) {
+            String gateErr = checkHostOpGate(op, peerPid);
+            if (gateErr != null) {
+                resp = new JSONObject().put("ok", false).put("message", gateErr);
+            } else switch (op) {
                 case "exec": {
                     int pid = 0; try { pid = sock.getPeerCredentials().getPid(); } catch (IOException ignored) {}
                     Thread stdin = exec(req, in, out, pid);
@@ -870,19 +874,102 @@ final class Priv {
      *  靠两条不变量成立，改动时别破坏（审查 0601b）：① 本应用的直接子进程只有网关（GatewayService.spawnGateway）；
      *  ② CCAPP_PRIV_SESS 只放进 run.mjs 给 claude 的环境，网关的其他直接子进程（终端的 ptyhost、cc-mem…）一律不带。
      *  比如把终端改成 shell 直接挂在网关下面，shell 就能 exec env CCAPP_PRIV_SESS=偷来的口令 重新执行自己，冒充已允许的会话 */
+    static boolean isGatewayPeer(int pid) {
+        return isGatewayPeerWith(pid, android.os.Process.myPid(), GatewayService::isGatewayPid, Priv::ppid, Priv::proc);
+    }
+
+    static boolean isGatewayPeerWith(
+            int pid,
+            int myPid,
+            java.util.function.IntPredicate liveGwCheck,
+            java.util.function.IntUnaryOperator ppidFn,
+            java.util.function.BiFunction<Integer, String, String> procFn) {
+        if (pid <= 0) return false;
+        if (liveGwCheck != null && liveGwCheck.test(pid)) return true;
+        if (myPid <= 0 || ppidFn == null || procFn == null) return false;
+        if (ppidFn.applyAsInt(pid) != myPid) return false;
+        String cmd = procFn.apply(pid, "cmdline");
+        return cmd != null && cmd.contains("server.mjs");
+    }
+
+    static boolean requiresGatewayPeer(String op) {
+        if (op == null) return false;
+        switch (op) {
+            case "upd_set":
+            case "upd_apply":
+            case "upd_repair":
+            case "dev_set":
+            case "shz_install":
+            case "shz_repair":
+            case "notify_set":
+            case "share_logs":
+            case "share_file":
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    static boolean requiresForegroundOp(String op) {
+        if (op == null) return false;
+        switch (op) {
+            case "upd_set":
+            case "dev_set":
+            case "share_logs":
+            case "share_file":
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    static String hostOpGateError(String op, boolean gatewayPeer, boolean inForeground) {
+        if (requiresGatewayPeer(op) && !gatewayPeer) return "只允许网关发起这项操作";
+        if (requiresForegroundOp(op) && !inForeground) return Tr.t("请先把 hachimia 切到前台");
+        return null;
+    }
+
+    private static String checkHostOpGate(String op, int pid) {
+        boolean needGw = requiresGatewayPeer(op), needFg = requiresForegroundOp(op);
+        if (!needGw && !needFg) return null;
+        return hostOpGateError(op, !needGw || isGatewayPeer(pid), !needFg || foreground());
+    }
+
     static String sessToken(int pid) { return chainToken(pid, android.os.Process.myPid()); }
     /** me：本应用的进程号（拆出来是为了能在宿主上测） */
     static String chainToken(int pid, int me) {
+        return chainTokenWith(pid, me, Priv::ppid, Priv::proc, Priv::witness);
+    }
+
+    static String chainTokenWith(
+            int pid,
+            int me,
+            java.util.function.IntUnaryOperator ppidFn,
+            java.util.function.BiFunction<Integer, String, String> procFn,
+            java.util.function.BiFunction<Integer, Integer, String> witnessFn) {
         int below = 0, cur = pid;
         for (int i = 0; i < 64 && cur > 1; i++) {
-            int pp = ppid(cur);
+            int pp = ppidFn.applyAsInt(cur);
             if (pp <= 0) return null;
-            // 网关经引导起时命令行里是 boot.mjs 的原文，原文里也有 "server.mjs"（GatewayService.spawnGateway）
-            if (pp == me) return below > 0 && proc(cur, "cmdline").contains("server.mjs") ? envToken(below) : null;
-            // 0.6.7 起网关和发行版的 claude 不可转储（android/native/nodump.c）：/proc 里看不见，读不了 stat 也读不了环境。
-            // 往上数碰到看不见的那一层就问网关作证（它认得自己起的每一轮 claude，见 gateway/gw/run.mjs privWitness）。
-            // 请求方自己就看不见（上面 pp<=0）不问：会话里的命令都是 claude 的子孙，看得见
-            if (pp != 1 && ppid(pp) <= 0) return witness(pp, cur);
+            // 网关经引导起时命令行里是 boot.mjs 的原文，原文里也有 "server.mjs"（GatewayService.spawnGateway）；
+            // 若 cur 或 below 开了 nodump 读不到 cmdline/environ，回退问网关作证（Wave 3 4.5）
+            if (pp == me) {
+                if (below <= 0) return null;
+                String cmd = procFn.apply(cur, "cmdline");
+                if (cmd != null && cmd.contains("server.mjs")) {
+                    String tok = envTokenWith(below, procFn);
+                    if (tok != null) return tok;
+                }
+                return witnessFn.apply(cur, below);
+            }
+            // 0.6.7 起网关和发行版的 claude 不可转储（android/native/nodump.c）：部分内核上 /proc/<pp>/stat 仍可读（ppid(pp)>0），
+            // 但 /proc/<pp>/cmdline 与 /environ 返回 EACCES（""）；cmdline 读空时同样触发网关作证（Wave 3 4.5）
+            if (pp != 1) {
+                String ppCmd = procFn.apply(pp, "cmdline");
+                if (ppidFn.applyAsInt(pp) <= 0 || ppCmd == null || ppCmd.isEmpty()) {
+                    return witnessFn.apply(pp, cur);
+                }
+            }
             below = cur; cur = pp;
         }
         return null;
@@ -916,7 +1003,12 @@ final class Priv {
         try { return Integer.parseInt(s.substring(r + 2).split(" ")[1]); } catch (Exception e) { return -1; }
     }
     private static String envToken(int pid) {
-        for (String kv : proc(pid, "environ").split("\0")) if (kv.startsWith("CCAPP_PRIV_SESS=")) {
+        return envTokenWith(pid, Priv::proc);
+    }
+    private static String envTokenWith(int pid, java.util.function.BiFunction<Integer, String, String> procFn) {
+        String env = procFn.apply(pid, "environ");
+        if (env == null || env.isEmpty()) return null;
+        for (String kv : env.split("\0")) if (kv.startsWith("CCAPP_PRIV_SESS=")) {
             String v = kv.substring(16);
             return v.matches("[0-9a-f]{32}") ? v : null;
         }
@@ -935,7 +1027,7 @@ final class Priv {
         return true;
     }
 
-    private static boolean foreground() {
+    static boolean foreground() {
         android.app.ActivityManager.RunningAppProcessInfo i = new android.app.ActivityManager.RunningAppProcessInfo();
         android.app.ActivityManager.getMyMemoryState(i);
         return i.importance <= android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND;

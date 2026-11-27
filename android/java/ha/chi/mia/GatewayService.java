@@ -109,6 +109,19 @@ public class GatewayService extends Service {
     /** 服务这会儿在不在（常驻通知里点了停止之后为 false） */
     static boolean serviceUp() { return self != null; }
 
+    /** pid 是否是本服务当前管理的网关进程（直属 live proc，或同进程服务重建后接管的 .gateway.pid） */
+    static boolean isGatewayPid(int pid) {
+        if (pid <= 0) return false;
+        GatewayService s = self;
+        if (s == null) return false;
+        Process p = s.proc;
+        if (p != null) {
+            return p.isAlive() && processPid(p) == pid;
+        }
+        long[] saved = s.env != null ? readGatewayPid(s.env.files) : null;
+        return saved != null && (int) saved[0] == pid && procStartTime(pid) == saved[1];
+    }
+
     static void start(Context c) {
         start(c, new Intent(c, GatewayService.class));
     }

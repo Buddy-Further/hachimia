@@ -70,13 +70,77 @@ public class A11y extends AccessibilityService {
         return PROTECTED_PACKAGES.contains(pkg) || pkg.startsWith("keepass2android.");
     }
 
-    private static String activePackage(A11y s) {
-        if (s == null) return "";
+    static String firstProtectedPackage(Iterable<String> pkgs) {
+        if (pkgs == null) return null;
+        for (String pkg : pkgs) {
+            if (isProtectedPackage(pkg)) return pkg;
+        }
+        return null;
+    }
+
+    static boolean hasAnyPackage(Iterable<String> pkgs) {
+        if (pkgs == null) return false;
+        for (String pkg : pkgs) {
+            if (pkg != null && !pkg.trim().isEmpty()) return true;
+        }
+        return false;
+    }
+
+    static boolean keyAllowedOnProtected(String key) {
+        return "back".equals(key) || "home".equals(key) || "recents".equals(key);
+    }
+
+    private static void safeRecycle(AccessibilityNodeInfo n) {
+        if (n != null && android.os.Build.VERSION.SDK_INT < 33) {
+            try { n.recycle(); } catch (Throwable ignored) {}
+        }
+    }
+
+    private static void safeRecycle(AccessibilityWindowInfo w) {
+        if (w != null && android.os.Build.VERSION.SDK_INT < 33) {
+            try { w.recycle(); } catch (Throwable ignored) {}
+        }
+    }
+
+    private static List<String> visiblePackages(A11y s) {
+        List<String> pkgs = new ArrayList<>();
+        if (s == null) return pkgs;
+        AccessibilityNodeInfo active = null;
         try {
-            AccessibilityNodeInfo root = s.getRootInActiveWindow();
-            if (root != null && root.getPackageName() != null) return String.valueOf(root.getPackageName());
+            active = s.getRootInActiveWindow();
+            if (active != null && active.getPackageName() != null) {
+                String p = String.valueOf(active.getPackageName()).trim();
+                if (!p.isEmpty()) pkgs.add(p);
+            }
+        } catch (Throwable ignored) {
+        } finally {
+            safeRecycle(active);
+        }
+        try {
+            List<AccessibilityWindowInfo> wins = s.getWindows();
+            if (wins != null) {
+                for (AccessibilityWindowInfo w : wins) {
+                    if (w == null) continue;
+                    AccessibilityNodeInfo wr = null;
+                    try {
+                        wr = w.getRoot();
+                        if (wr != null && wr.getPackageName() != null) {
+                            String p = String.valueOf(wr.getPackageName()).trim();
+                            if (!p.isEmpty() && !pkgs.contains(p)) pkgs.add(p);
+                        }
+                    } catch (Throwable ignored) {
+                    } finally {
+                        safeRecycle(wr);
+                        safeRecycle(w);
+                    }
+                }
+            }
         } catch (Throwable ignored) {}
-        return "";
+        return pkgs;
+    }
+
+    static String protectedVisiblePackage(A11y s) {
+        return firstProtectedPackage(visiblePackages(s));
     }
     private static final Object LOCK = new Object();
     private static final List<AccessibilityNodeInfo> nodes = new ArrayList<>();
@@ -173,6 +237,11 @@ public class A11y extends AccessibilityService {
         A11y s = self;
         if (s == null) return fail(Tr.t("无障碍没开。到 设置 → 设备工具 里打开（要先激活 Shizuku），或自己去系统的无障碍设置里打开 hachimia"));
         touch();
+        String prot = protectedVisiblePackage(s);
+        if (prot != null) {
+            synchronized (LOCK) { nodes.clear(); sigs.clear(); }
+            return fail(Tr.t("当前界面属于支付、网银、动态口令、密码管理或系统授权受保护应用，已拒绝读取：") + prot);
+        }
         AccessibilityNodeInfo root = s.getRootInActiveWindow();
         JSONObject r = new JSONObject().put("ok", true);
         if (root == null) return r.put("ok", false).put("message", Tr.t("拿不到当前界面（锁屏、或者是不让读的安全界面）"));
@@ -331,10 +400,25 @@ public class A11y extends AccessibilityService {
     }
 
     // ── 动作 ─────────────────────────────────────────────────────────────
+    private static JSONObject guardActionScreen(A11y s, String protMsg) throws Exception {
+        if (s == null) return fail(Tr.t("无障碍没开。到 设置 → 设备工具 里打开（要先激活 Shizuku），或自己去系统的无障碍设置里打开 hachimia"));
+        List<String> pkgs = visiblePackages(s);
+        String prot = firstProtectedPackage(pkgs);
+        if (prot != null) {
+            synchronized (LOCK) { nodes.clear(); sigs.clear(); }
+            return fail(protMsg + prot);
+        }
+        if (!hasAnyPackage(pkgs)) {
+            synchronized (LOCK) { nodes.clear(); sigs.clear(); }
+            return fail(Tr.t("拿不到当前界面（锁屏、或者是不让读的安全界面）"));
+        }
+        return null;
+    }
+
     static JSONObject tap(JSONObject a) throws Exception {
         touch();
-        String activePkg = activePackage(self);
-        if (isProtectedPackage(activePkg)) return fail(Tr.t("当前界面属于支付、网银、动态口令、密码管理或系统授权受保护应用，已拒绝操作：") + activePkg);
+        JSONObject blocked = guardActionScreen(self, Tr.t("当前界面属于支付、网银、动态口令、密码管理或系统授权受保护应用，已拒绝操作："));
+        if (blocked != null) return blocked;
         boolean lng = a.optBoolean("long", false);
         if (a.has("node")) {
             String[] miss = new String[1];
@@ -354,8 +438,8 @@ public class A11y extends AccessibilityService {
 
     static JSONObject swipe(JSONObject a) throws Exception {
         touch();
-        String activePkg = activePackage(self);
-        if (isProtectedPackage(activePkg)) return fail(Tr.t("当前界面属于支付、网银、动态口令、密码管理或系统授权受保护应用，已拒绝操作：") + activePkg);
+        JSONObject blocked = guardActionScreen(self, Tr.t("当前界面属于支付、网银、动态口令、密码管理或系统授权受保护应用，已拒绝操作："));
+        if (blocked != null) return blocked;
         if (a.has("node")) {
             String[] miss = new String[1];
             AccessibilityNodeInfo n = node(a.getInt("node"), miss);
@@ -372,13 +456,12 @@ public class A11y extends AccessibilityService {
 
     static JSONObject type(JSONObject a) throws Exception {
         touch();
-        String activePkg = activePackage(self);
-        if (isProtectedPackage(activePkg)) return fail(Tr.t("当前界面属于支付、网银、动态口令、密码管理或系统授权受保护应用，已拒绝操作：") + activePkg);
+        A11y s = self;
+        JSONObject blocked = guardActionScreen(s, Tr.t("当前界面属于支付、网银、动态口令、密码管理或系统授权受保护应用，已拒绝操作："));
+        if (blocked != null) return blocked;
         AccessibilityNodeInfo n = null;
         if (a.has("node")) { String[] miss = new String[1]; n = node(a.getInt("node"), miss); if (n == null) return fail(miss[0]); }
         else {
-            A11y s = self;
-            if (s == null) return fail(Tr.t("无障碍没开。到 设置 → 设备工具 里打开（要先激活 Shizuku），或自己去系统的无障碍设置里打开 hachimia"));
             AccessibilityNodeInfo root = s.getRootInActiveWindow();
             if (root != null) n = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
         }
@@ -411,6 +494,10 @@ public class A11y extends AccessibilityService {
         }
         A11y s = self;
         if (s == null) return fail(Tr.t("无障碍没开。到 设置 → 设备工具 里打开（要先激活 Shizuku），或自己去系统的无障碍设置里打开 hachimia"));
+        if (!keyAllowedOnProtected(k)) {
+            JSONObject blocked = guardActionScreen(s, Tr.t("当前界面属于支付、网银、动态口令、密码管理或系统授权受保护应用，已拒绝操作："));
+            if (blocked != null) return blocked;
+        }
         return s.performGlobalAction(g) ? ok(k) : fail(Tr.t("系统没执行"));
     }
 
@@ -419,10 +506,8 @@ public class A11y extends AccessibilityService {
         touch();
         if (android.os.Build.VERSION.SDK_INT < 30) return fail(Tr.t("截屏要安卓 11 以上"));
         A11y s = self;
-        if (s == null) return fail(Tr.t("无障碍没开。到 设置 → 设备工具 里打开（要先激活 Shizuku），或自己去系统的无障碍设置里打开 hachimia"));
-        String activePkg = activePackage(s);
-        if (isProtectedPackage(activePkg))
-            return fail(Tr.t("当前界面属于支付、网银、动态口令、密码管理或系统授权受保护应用，已拒绝截屏：") + activePkg);
+        JSONObject blocked = guardActionScreen(s, Tr.t("当前界面属于支付、网银、动态口令、密码管理或系统授权受保护应用，已拒绝截屏："));
+        if (blocked != null) return blocked;
         CountDownLatch done = new CountDownLatch(1);
         AtomicReference<Bitmap> bmp = new AtomicReference<>();
         AtomicReference<String> err = new AtomicReference<>();

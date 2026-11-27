@@ -64,6 +64,7 @@ final class Updater {
     /** 最近一次校验的结果（给界面看） */
     private volatile JSONObject lastVerify;
     private volatile boolean repairing;    // 这次下载 / 安装是「修复」发起的（账本里分开记）
+    private long devkitVerifyGen;          // 每次工具包安装 / 修复 / 下载 / 清理递增，防过期 upd-verify 线程覆盖新状态（Wave 3 5.3）
 
     static final class Item {
         final String id, name;
@@ -162,7 +163,8 @@ final class Updater {
     }
 
     /** 清掉暂存工具包的落盘文件、待装记录、通知与内存计划（keepModules 非空时保留新清单里同文件名且同 sha256 的模块分块包供续用） */
-    private void clearStagedDevkit(JSONObject keepModules, String nextState) {
+    private synchronized void clearStagedDevkit(JSONObject keepModules, String nextState) {
+        devkitVerifyGen++;
         if (devkit.file != null) {
             devkit.file.delete();
             new File(devkit.file.getPath() + ".part").delete();
@@ -543,7 +545,11 @@ final class Updater {
         String floor = downgradeFloorForInstall(tag, tagOf(installedDevkitBase()), pin != null ? pin.optString("tag", "") : "", false);
         if (floor != null && !allowDevkitDowngrade(tag, floor, Tr.t("从本地文件安装开发工具包")))
             throw new IOException(Tr.f("{0} 比现在装着的开发工具包旧，没有安装", tag));
-        devkit.set("installing", "");
+        synchronized (this) {
+            if (devkitMoving()) throw new IOException(Tr.t("工具包正在下载或安装，等它结束再试"));
+            devkitVerifyGen++;
+            devkit.set("installing", "");
+        }
         GatewayService.pause(true);
         try {
             for (int i = 0; i < 40 && pingGateway(); i++) Thread.sleep(250);
@@ -1135,7 +1141,7 @@ final class Updater {
         JSONObject r = new JSONObject();
         try {
             if (it == null) return r.put("ok", false).put("message", Tr.t("未知项 ") + id);
-            if ("downloading".equals(it.state) || "installing".equals(it.state)) return r.put("ok", true).put("message", Tr.t("进行中"));
+            if ("downloading".equals(it.state) || "installing".equals(it.state) || (it == devkit && devkitMoving())) return r.put("ok", true).put("message", Tr.t("进行中"));
             if (it == claude) {
                 String ver = version == null ? "" : version.trim();
                 if (!ver.isEmpty() && !ver.matches("stable|latest|\\d+\\.\\d+\\.\\d+[\\w.+-]*"))
@@ -1159,6 +1165,7 @@ final class Updater {
                 if (user) { new Thread(this::startDevkitApply, "upd-devkit").start(); return r.put("ok", true).put("message", Tr.t("正在替换开发工具包")); }
                 return r.put("ok", true).put("message", Tr.t("已下载，等待安装"));
             }
+            if (it == devkit) devkitVerifyGen++;
             it.set("downloading", "");
             new Thread(() -> download(it, user), "upd-dl-" + id).start();
             return r.put("ok", true).put("message", Tr.t("开始下载"));
@@ -1269,8 +1276,16 @@ final class Updater {
         return Build.VERSION.SDK_INT >= 28 ? pi.getLongVersionCode() : pi.versionCode;
     }
 
-    /** 工具包正在下载 / 替换：这时装 APK 会把它拦腰截断 */
-    boolean devkitMoving() { return "downloading".equals(devkit.state) || "installing".equals(devkit.state); }
+    /** 工具包正在下载 / 替换 / 校验：这时装 APK 或发起并发安装/修复/卸载会互相踩 */
+    static boolean isDevkitMovingState(String state) {
+        return "downloading".equals(state) || "installing".equals(state) || "verifying".equals(state);
+    }
+
+    static boolean canCommitVerifyResult(long startedGen, long currentGen, String currentState) {
+        return startedGen == currentGen && "verifying".equals(currentState);
+    }
+
+    boolean devkitMoving() { return isDevkitMovingState(devkit.state); }
 
     /** 推迟 APK，等工具包这一步走完（synchronized 防与 releaseApp 丢唤醒） */
     private synchronized boolean deferApp(boolean user) {
@@ -1434,7 +1449,10 @@ final class Updater {
                 throw new IOException(Tr.f("{0} 比现在装着的开发工具包旧，没有安装", tag));
             }
         }
-        devkit.set("installing", "");
+        synchronized (this) {
+            devkitVerifyGen++;
+            devkit.set("installing", "");
+        }
         try {
             // 落盘以后可能过了好几天、经历过 APK 升级：装之前再核一遍，坏了就删掉重下，不拿它去换掉能用的旧版
             ins.step(Tr.t("核对已下载的工具包…"));
@@ -1496,9 +1514,11 @@ final class Updater {
         try {
             if (!env.devkitReady()) return r.put("ok", false).put("message", Tr.t("开发工具包还没装好"));
             final String prev, prevMsg;
+            final long vGen;
             synchronized (this) {
-                if (devkitMoving() || "verifying".equals(devkit.state)) return r.put("ok", true).put("message", Tr.t("进行中"));
+                if (devkitMoving()) return r.put("ok", true).put("message", Tr.t("进行中"));
                 prev = devkit.state; prevMsg = devkit.message;
+                vGen = ++devkitVerifyGen;
                 devkit.set("verifying", full ? Tr.t("逐个文件核对哈希") : "");
                 devkit.done = 0; devkit.total = 0;
             }
@@ -1506,36 +1526,50 @@ final class Updater {
                 try {
                     JSONObject v = installer(devkit).verifyDevkit(full);
                     v.put("full", full).put("at", System.currentTimeMillis());
-                    lastVerify = v;
                     int nBad = v.optInt("missing") + v.optInt("changed");
+                    boolean manifest = v.optBoolean("manifest");
+                    boolean shouldRecheck = false;
+                    synchronized (this) {
+                        if (!canCommitVerifyResult(vGen, devkitVerifyGen, devkit.state)) {
+                            Log.i(TAG, "工具包校验结果已过时，忽略写回");
+                            return;
+                        }
+                        lastVerify = v;
+                        if (!manifest) {
+                            devkit.set(full ? "damaged" : prev, full ? Tr.t("这一版工具包没带文件清单，没法逐个核对；可以修复（重装同一版本）") : prevMsg);
+                            shouldRecheck = !full;
+                        } else if (nBad == 0) {
+                            // 之前是「出错」（多半是上次检查 / 下载没成功）也一样：装着的这份完好，就别再挂着出错和一个点了没用的「重试」
+                            devkit.set("damaged".equals(prev) || "error".equals(prev) ? "uptodate" : prev, full ? Tr.f("已核对 {0} 个文件，全部完好", v.optInt("total")) : prevMsg);
+                            shouldRecheck = true;
+                        } else {
+                            devkit.set("damaged", (v.optInt("missing") > 0 ? Tr.f("缺 {0} 个文件", v.optInt("missing")) : "")
+                                + (v.optInt("missing") > 0 && v.optInt("changed") > 0 ? "、" : "")
+                                + (v.optInt("changed") > 0 ? Tr.f("{0} 个文件内容不对", v.optInt("changed")) : "") + Tr.t("，点修复重装同一版本"));
+                        }
+                    }
                     // 启动时的快速自检每次都跑，没问题就不记，免得账本被刷满
-                    if (full || nBad > 0 || !v.optBoolean("manifest"))
-                        Ledger.add(env, "verify", v.optBoolean("manifest") && nBad == 0,
-                            (full ? Tr.t("完整校验") : Tr.t("快速自检")) + Tr.t("：") + (!v.optBoolean("manifest") ? Tr.t("没有文件清单，无法核对")
+                    if (full || nBad > 0 || !manifest)
+                        Ledger.add(env, "verify", manifest && nBad == 0,
+                            (full ? Tr.t("完整校验") : Tr.t("快速自检")) + Tr.t("：") + (!manifest ? Tr.t("没有文件清单，无法核对")
                                 : nBad == 0 ? Tr.f("{0} 个文件完好", v.optInt("total"))
                                 : Tr.f("缺 {0} 个、内容不对 {1} 个", v.optInt("missing"), v.optInt("changed"))),
                             new JSONObject().put("installed", tagOf(installedDevkitBase())).put("total", v.optInt("total"))
                                 .put("missing", v.optInt("missing")).put("changed", v.optInt("changed")).put("samples", v.optJSONArray("samples")));
-                    if (!v.optBoolean("manifest")) {
-                        devkit.set(full ? "damaged" : prev, full ? Tr.t("这一版工具包没带文件清单，没法逐个核对；可以修复（重装同一版本）") : prevMsg);
-                        if (!full) recheckAfterVerify();
-                        return;
-                    }
-                    int bad = v.optInt("missing") + v.optInt("changed");
-                    if (bad == 0) {
-                        // 之前是「出错」（多半是上次检查 / 下载没成功）也一样：装着的这份完好，就别再挂着出错和一个点了没用的「重试」
-                        devkit.set("damaged".equals(prev) || "error".equals(prev) ? "uptodate" : prev, full ? Tr.f("已核对 {0} 个文件，全部完好", v.optInt("total")) : prevMsg);
-                        recheckAfterVerify();
-                        return;
-                    }
-                    devkit.set("damaged", (v.optInt("missing") > 0 ? Tr.f("缺 {0} 个文件", v.optInt("missing")) : "")
-                        + (v.optInt("missing") > 0 && v.optInt("changed") > 0 ? "、" : "")
-                        + (v.optInt("changed") > 0 ? Tr.f("{0} 个文件内容不对", v.optInt("changed")) : "") + Tr.t("，点修复重装同一版本"));
-                    if (!full) notifyDamaged(v);
+                    if (shouldRecheck) recheckAfterVerify();
+                    if (!full && manifest && nBad > 0) notifyDamaged(v);
                 } catch (Exception e) {
-                    recheckDevkit = false;
-                    devkit.set("error", Tr.t("校验失败：") + e.getMessage());
-                    Ledger.add(env, "verify", false, Tr.t("校验失败：") + e.getMessage(), null);
+                    boolean committed = false;
+                    synchronized (this) {
+                        if (canCommitVerifyResult(vGen, devkitVerifyGen, devkit.state)) {
+                            recheckDevkit = false;
+                            devkit.set("error", Tr.t("校验失败：") + e.getMessage());
+                            committed = true;
+                        }
+                    }
+                    if (committed) Ledger.add(env, "verify", false, Tr.t("校验失败：") + e.getMessage(), null);
+                } finally {
+                    releaseApp();
                 }
             }, "upd-verify").start();
             return r.put("ok", true).put("message", full ? Tr.t("开始逐个核对（一两分钟）") : Tr.t("开始核对"));
@@ -1552,6 +1586,7 @@ final class Updater {
             if (devkitMoving()) {
                 try { return r.put("ok", true).put("message", Tr.t("进行中")); } catch (Exception ignored) { return r; }
             }
+            devkitVerifyGen++;
             devkit.set("downloading", "");
             repairing = true;
         }

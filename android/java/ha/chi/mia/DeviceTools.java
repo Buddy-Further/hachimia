@@ -110,6 +110,9 @@ final class DeviceTools {
         // 读屏切到「用时自动开」或「常开」：每次都要用户在原生对话框里点头（审查 v0.5.9 B4；10-31 复核：以前点过一次就永久免问，
         // 之后谁发一条 dev_set 都能静默切到常开）。这条设置能经网关改，被带偏的模型也改得了；对话框只能在 App 前台弹，后台发起的直接没下文
         boolean ask = (mode.equals("auto") || mode.equals("on")) && !mode.equals(a11yMode(c));
+        if ((ask || askOn) && !Priv.foreground()) {
+            return status(c).put("ok", false).put("message", Tr.t("请先把 hachimia 切到前台"));
+        }
         if (ask || askOn) {
             try { c.startActivity(MainActivity.internal(c, MainActivity.ACTION_A11Y_OK).putExtra("mode", ask ? mode : "").putExtra("on", askOn)
                 .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)); } catch (Exception ignored) {}
@@ -452,6 +455,7 @@ final class DeviceTools {
     }
 
     private static JSONObject shareFile(Context c, JSONObject a) throws Exception {
+        if (!Priv.foreground()) return fail(Tr.t("请先把 hachimia 切到前台"));
         File f = new File(a.optString("path"));
         if (!f.isFile()) return fail(Tr.t("文件不存在：") + f);
         try { f = Share.shareable(c, f); } catch (Exception e) { return fail(e.getMessage()); }

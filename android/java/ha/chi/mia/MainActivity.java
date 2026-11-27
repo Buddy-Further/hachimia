@@ -783,15 +783,33 @@ public class MainActivity extends Activity {
     }
     /** 附件大小门限（与界面 05-composer.js 的 BIG_ATT 同值）：超过的不经网页上传 */
     static final long BIG_ATTACH = 20L << 20;
+    static boolean isOwnAuthority(String authority, String host, String pkg) {
+        if (pkg == null || pkg.isEmpty()) return false;
+        String p = pkg.toLowerCase(java.util.Locale.ROOT);
+        if (matchesOwnHost(host, p)) return true;
+        if (authority == null || authority.isEmpty()) return false;
+        int at = authority.lastIndexOf('@');
+        String stripped = at >= 0 ? authority.substring(at + 1) : authority;
+        int colon = stripped.indexOf(':');
+        if (colon >= 0) stripped = stripped.substring(0, colon);
+        return matchesOwnHost(stripped, p);
+    }
+
+    private static boolean matchesOwnHost(String h, String pLower) {
+        if (h == null || h.isEmpty()) return false;
+        String s = h.toLowerCase(java.util.Locale.ROOT);
+        return s.equals(pLower) || s.startsWith(pLower + ".");
+    }
+
     /** content:// 对应的共享存储真实路径（系统文件选择器、下载、媒体库常见的几种）；对不上、读不了、不在 /storage 下都给 null。
      *  只认共享存储：指向本应用私有目录的照旧走 openShared 的拦截 */
     private String realPath(Uri u) {
         try {
-            String p = null, sc = String.valueOf(u.getScheme());
-            if ("file".equals(sc)) p = u.getPath();
-            else if ("content".equals(sc)) {
+            String p = null, sc = u.getScheme();
+            if ("file".equalsIgnoreCase(sc)) p = u.getPath();
+            else if ("content".equalsIgnoreCase(sc)) {
+                if (isOwnAuthority(u.getAuthority(), u.getHost(), getPackageName())) return null;
                 String au = String.valueOf(u.getAuthority());
-                if (au.equals(getPackageName()) || au.startsWith(getPackageName() + ".")) return null;
                 if (android.provider.DocumentsContract.isDocumentUri(this, u)) {
                     String id = android.provider.DocumentsContract.getDocumentId(u);
                     if ("com.android.externalstorage.documents".equals(au) && id.indexOf(58) > 0) {
@@ -875,15 +893,14 @@ public class MainActivity extends Activity {
      *  file:///data/user/0/ha.chi.mia/files/home/.gateway-token 这种指向我们私有目录的、或我们自己 provider 的 content://，
      *  照收就等于把私有文件拷进 uploads 交出去。file:// 先打开、再按 /proc/self/fd 读真实路径判断，中途换软链也躲不过 */
     private InputStream openShared(android.net.Uri u) throws java.io.IOException {
-        String sc = String.valueOf(u.getScheme()).toLowerCase(java.util.Locale.ROOT);
-        if ("content".equals(sc)) {
-            String au = String.valueOf(u.getAuthority());
-            if (au.equals(getPackageName()) || au.startsWith(getPackageName() + ".")) throw new java.io.IOException(Tr.t("不收本应用私有目录里的文件"));
+        String sc = u.getScheme();
+        if ("content".equalsIgnoreCase(sc)) {
+            if (isOwnAuthority(u.getAuthority(), u.getHost(), getPackageName())) throw new java.io.IOException(Tr.t("不收本应用私有目录里的文件"));
             InputStream in = getContentResolver().openInputStream(u);
             if (in == null) throw new java.io.IOException(Tr.t("读不了这个文件"));
             return in;
         }
-        if (!"file".equals(sc) || u.getPath() == null) throw new java.io.IOException(Tr.t("读不了这个文件"));
+        if (!"file".equalsIgnoreCase(sc) || u.getPath() == null) throw new java.io.IOException(Tr.t("读不了这个文件"));
         android.os.ParcelFileDescriptor pfd = android.os.ParcelFileDescriptor.open(new File(u.getPath()), android.os.ParcelFileDescriptor.MODE_READ_ONLY);
         String real;
         try { real = android.system.Os.readlink("/proc/self/fd/" + pfd.getFd()); }
@@ -2757,9 +2774,8 @@ public class MainActivity extends Activity {
      *  界面会以本应用身份把工作区里任意文件读出来交给页面（再随对话送去模型）。正常应用给的云盘 / 共享存储 URI 不受影响。 */
     private static boolean ownUri(android.content.Context c, Uri u) {
         if (u == null) return false;
-        String a = u.getAuthority(), pkg = c.getPackageName();
-        if (a != null && (a.equals(pkg) || a.startsWith(pkg + "."))) return true;
-        if ("file".equals(u.getScheme())) {
+        if (isOwnAuthority(u.getAuthority(), u.getHost(), c.getPackageName())) return true;
+        if ("file".equalsIgnoreCase(u.getScheme())) {
             try {
                 String p = new File(u.getPath()).getCanonicalPath(), d = c.getDataDir().getCanonicalPath();
                 return p.equals(d) || p.startsWith(d + File.separator);
