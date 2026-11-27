@@ -1725,8 +1725,8 @@ input[type=checkbox].sw::after{content:"";position:absolute;top:3px;inset-inline
 input[type=checkbox].sw:checked{background:var(--accent)}
 input[type=checkbox].sw:checked::after{inset-inline-start:21px;background:var(--on-accent)}   /* 逐月深色强调色是白：滑块跟着变黑，不然看不见 */
 input[type=checkbox].sw:disabled{opacity:.45;cursor:default}
-/* 窄：控件掉到说明下面整行 */
-#tab-settings.set-one .srow:has(.sc select),#tab-settings.set-one .srow:has(.sc input:not(.sw):not(.narrow)){flex-direction:column;align-items:stretch;gap:8px}
+/* 窄：控件掉到说明下面整行（竖排必须 nowrap，防 Blink 按 min-content 虚撑 .sl 高度或横溢） */
+#tab-settings.set-one .srow:has(.sc select),#tab-settings.set-one .srow:has(.sc input:not(.sw):not(.narrow)){flex-direction:column;align-items:stretch;flex-wrap:nowrap;gap:8px}
 #tab-settings.set-one .srow .sc{max-width:none}
 #tab-settings.set-one .srow .sc select,#tab-settings.set-one .srow .sc input:not(.sw):not(.narrow){width:100%}
 /* 窄屏 */
@@ -3373,10 +3373,10 @@ html[data-motion="on"] .tool.mo-flash::after{content:"";position:absolute;inset:
 #tb-pins{display:flex;align-items:center;gap:inherit;flex:none}
 #tb-pins:empty{display:none}
 #topbar .tb-off{display:none !important}
-/* 列表占满整行、「恢复默认」挪到下面靠右：窄屏俄语时三段选择放不进左栏，被裁掉一截（审查 #49 待确认-6，溢出探针 ru@360） */
-.tb-row{align-items:flex-start;flex-wrap:wrap;row-gap:8px}
-.tb-row>.sl{flex-basis:100%}
-.tb-row>.sc{margin-inline-start:auto}
+/* 列表占满整行、「恢复默认」挪到下面靠右：窄屏俄语时三段选择放不进左栏，被裁掉一截（审查 #49 待确认-6，溢出探针 ru@360）；
+   用单列竖排（nowrap）替代 row+wrap，避免宽屏被 #set-ov .srow>.sl / #tab-settings .srow 盖掉、窄屏落入 column+wrap 虚撑 .sl 高度 */
+#tab-settings .set-cat .srow.tb-row{flex-direction:column;align-items:stretch;flex-wrap:nowrap;gap:8px}
+#tab-settings .set-cat .srow.tb-row>.sc{margin-inline-start:auto;max-width:none}
 .tb-list{margin-top:8px;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}
 .tb-item{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:5px 8px 5px 2px;border-bottom:1px solid var(--line);background:var(--panel);position:relative}
 .tb-item:last-child{border-bottom:0}
@@ -3689,9 +3689,9 @@ html[dir="rtl"] #ctxbar:is(.warn,.danger) #ctxtxt{background:linear-gradient(270
 #pages .panel > .row.pj-row{flex-wrap:wrap;row-gap:6px}
 #pages .panel > .row.pj-row[data-task] > .grow{flex:1 1 12em;min-width:12em}
 
-/* 设置：窄屏分段 / 按钮行整行落下；宽屏放不下时分段按钮折行；长单词可断 */
-#tab-settings.set-one .srow:has(.sc .seg){flex-direction:column;align-items:stretch;gap:8px}
-#tab-settings.set-one .srow:has(.sc .btn){flex-direction:column;align-items:stretch;gap:8px}
+/* 设置：窄屏分段 / 按钮行整行落下（竖排一律 nowrap，防 column+wrap 虚撑 .sl 高度）；宽屏放不下时分段按钮折行；长单词可断 */
+#tab-settings.set-one .srow:has(.sc .seg){flex-direction:column;align-items:stretch;flex-wrap:nowrap;gap:8px}
+#tab-settings.set-one .srow:has(.sc .btn){flex-direction:column;align-items:stretch;flex-wrap:nowrap;gap:8px}
 #tab-settings.set-one .srow:has(.sc .seg) > .sc,
 #tab-settings.set-one .srow:has(.sc .btn) > .sc{max-width:none}
 #tab-settings.set-one .srow .sc select{max-width:none}

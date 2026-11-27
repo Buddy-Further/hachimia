@@ -166,11 +166,42 @@ try {
   await sleep(250);
   assert.equal(await cdp.eval("document.querySelectorAll('.pop-menu').length"), 0, "Esc removes account menu");
   ok("desktop menus", "plus/account open and Escape close");
+  const checkTbRow = async (label) => {
+    const m = await cdp.eval(`(() => {
+      const pane = document.querySelector('.set-cat[data-cat="general"]:not(.mo-ghost)');
+      const badWrap = [...pane.querySelectorAll('.srow')].filter((r) => {
+        if (!r.getClientRects().length || r.closest('.hidden')) return false;
+        const s = getComputedStyle(r);
+        return s.flexDirection === 'column' && s.flexWrap !== 'nowrap';
+      }).map((r) => r.className);
+      const row = pane.querySelector('.srow.tb-row'), sl = row.querySelector(':scope > .sl'), list = row.querySelector('#tb-list'), btn = row.querySelector('#tb-reset');
+      const cs = getComputedStyle(row), rRow = row.getBoundingClientRect(), rSl = sl.getBoundingClientRect(), rList = list.getBoundingClientRect(), rBtn = btn.getBoundingClientRect();
+      return {
+        badWrap,
+        fd: cs.flexDirection, fw: cs.flexWrap,
+        slExtra: rSl.bottom - rList.bottom,
+        gap: rBtn.top - rList.bottom,
+        listFullWidth: Math.abs(rList.width - rRow.width) <= 1,
+        btnAlignedEnd: Math.abs(rRow.right - rBtn.right) <= 1,
+        rowOv: row.scrollWidth - row.clientWidth,
+        listOv: list.scrollWidth - list.clientWidth,
+      };
+    })()`);
+    assert.deepEqual(m.badWrap, [], `${label}: no .srow may combine column + wrap`);
+    assert.equal(m.fd, "column", `${label}: .tb-row uses vertical stack`);
+    assert.equal(m.fw, "nowrap", `${label}: .tb-row must not wrap in column mode`);
+    assert.ok(m.listFullWidth, `${label}: #tb-list fills row width`);
+    assert.ok(m.btnAlignedEnd, `${label}: #tb-reset aligns to inline-end below list`);
+    assert.ok(m.slExtra >= -1 && m.slExtra <= 2, `${label}: .sl has no phantom bottom gap (got ${m.slExtra})`);
+    assert.ok(m.gap >= 4 && m.gap <= 16, `${label}: #tb-list to #tb-reset gap stays ~8px (got ${m.gap})`);
+    assert.ok(m.rowOv <= 1 && m.listOv <= 1, `${label}: .tb-row / #tb-list has no horizontal overflow`);
+  };
   await cdp.eval("__cc.openPage('settings')");
   await until(() => cdp.eval(visible("#set-ov")), "desktop settings modal");
   await click('#set-cats button[data-cat="general"]');
   await key("Tab");
   assert.ok(await cdp.eval("document.querySelector('#set-ov').contains(document.activeElement)"), "settings retains keyboard focus");
+  await checkTbRow("desktop general");
   await key("Escape");
   await until(() => cdp.eval("document.querySelector('#set-ov').classList.contains('hidden')"), "desktop settings closes");
   ok("desktop settings", "category selection; keyboard focus stays in modal; Escape closes");
@@ -577,6 +608,8 @@ try {
   await until(() => cdp.eval("document.querySelector('#tab-settings').classList.contains('set-list')"), "narrow settings category list");
   await click('#set-cats button[data-cat="general"]');
   await until(() => cdp.eval("document.querySelector('#tab-settings').classList.contains('set-one')"), "narrow settings category opens");
+  await until(() => cdp.eval("document.querySelectorAll('#tab-settings .mo-ghost').length === 0"), "narrow settings transition finishes");
+  await checkTbRow("narrow general");
   await click("#set-back");
   await until(() => cdp.eval("document.querySelector('#tab-settings').classList.contains('set-list')"), "narrow settings returns to categories");
   await click("#set-back");
