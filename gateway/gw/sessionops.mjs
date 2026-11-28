@@ -258,6 +258,7 @@ export function deleteMessage(id, userText, after, which, uuid = "", replyUuid =
   resealAfterEdit(id, found.file, dirty);
   PEEK_CACHE.delete(found.file);
   lineageForget(id);
+  let orphanHead = null;
   if (which === "user") {
     // 记下这一轮回复的起点：之后界面再单独删它，要能认出来（文件已经换掉，按旧行号从备份里找）
     let head = null;
@@ -265,11 +266,11 @@ export function deleteMessage(id, userText, after, which, uuid = "", replyUuid =
       if (head || i <= from || i >= to || !l.trim()) return head ? false : undefined;
       try { const ev = JSON.parse(l); if (ev.uuid && CHAIN_TYPES.has(ev.type) && !ev.isSidechain) head = ev.uuid; } catch {}
     });
-    if (head) { if (!ORPHAN_HEADS.has(id)) ORPHAN_HEADS.set(id, new Set()); ORPHAN_HEADS.get(id).add(head); saveOrphans(); }
+    if (head) { orphanHead = head; if (!ORPHAN_HEADS.has(id)) ORPHAN_HEADS.set(id, new Set()); ORPHAN_HEADS.get(id).add(head); saveOrphans(); }
   }
   pruneEdits(id);
   const st = fs.statSync(found.file);
-  UNDO.set(id, { backup, size: st.size, mtime: st.mtimeMs });
+  UNDO.set(id, { backup, size: st.size, mtime: st.mtimeMs, orphanHead });
   log(`删消息 ${id.slice(0, 8)}：第 ${best + 1} 轮的${which === "user" ? "提问" : "回复"}，${drop.size} 行`);
   return { ok: true, removed: drop.size, undo: backup, moved, size: st.size };
 }
@@ -293,7 +294,14 @@ export function undoDelete(id, backup) {
   resealAfterEdit(id, found.file, dirty);
   PEEK_CACHE.delete(found.file);
   UNDO.delete(id);
-  ORPHAN_HEADS.delete(id); saveOrphans();   // 抄回删之前的样子：提问回来了，界面也整份重开
+  if (u.orphanHead) {
+    const set = ORPHAN_HEADS.get(id);
+    if (set) {
+      set.delete(u.orphanHead);
+      if (!set.size) ORPHAN_HEADS.delete(id);
+      saveOrphans();
+    }
+  }
   log(`撤销删消息 ${id.slice(0, 8)}`);
   return { ok: true };
 }

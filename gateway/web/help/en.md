@@ -68,7 +68,7 @@ These choices are stored in the app's own data, so clearing the WebView cache wo
 
 - Turn it on only for a clear task where you know which files it will touch, and switch back afterwards.
 - Leave it off when it is reading unfamiliar web pages, repositories or files of unknown origin.
-- "Confirm sensitive actions" (Settings → Claude behaviour, on by default) is a safety net: when it is about to read keys or sign-in credentials (.env, SSH keys, API keys, the gateway token and so on), read the screen or tap in other apps, read the clipboard, or share a file out, a red-bordered card asks you even under "Allow everything". If you see one and did not ask it to do that, deny it. It only recognises the obvious forms and can be sidestepped on purpose, so do not treat it as insurance for "Allow everything".
+- "Confirm sensitive actions" (Settings → Antigravity behavior, on by default) is a safety net: when it is about to read keys or sign-in credentials (.env, SSH keys, API keys, the gateway token and so on), read the screen or tap in other apps, read the clipboard, or share a file out, a red-bordered card asks you even under "Allow everything". If you see one and did not ask it to do that, deny it. It only recognises the obvious forms and can be sidestepped on purpose, so do not treat it as insurance for "Allow everything".
 
 - Approval cards appear under the tool that needs them, and a bar above the input box keeps them in view. Allow, always allow, or deny with an optional reason. Approving a request never loosens the mode; change that in Settings.
 - If it enters plan mode by itself while "Allow everything" is on, tap "Approve, keep current mode" on the plan card: that turn goes back to your previous mode and the global setting stays as it was.
@@ -123,7 +123,7 @@ Layout follows the window width, not orientation:
 
 First check which protocol the endpoint speaks; the setup differs:
 
-- **Anthropic protocol** (the address usually ends in `/anthropic`, or the provider says it is for Claude Code): Settings → Provider & model → "＋ Add a custom endpoint…", then fill in the address, key and default model name. **You can leave the model list URL empty**: the app then looks for `/v1/models` and `/models` on the same host as the API address, and if it finds a list you can pick models from it. If the provider doesn't publish a list, typing the model name still works.
+- **Gemini-compatible protocol** (or a custom Gemini proxy): Settings → Provider & model → "＋ Add a custom endpoint…", choose **x-goog-api-key (Gemini / Antigravity)** auth (or declare **Gemini** protocol), then fill in the address, key and default model name. **You can leave the model list URL empty**: the app automatically probes `/v1beta/models` on the endpoint, and if it finds a list you can pick models from it. If the provider doesn't publish a list, typing the model name still works.
 - **OpenAI protocol** (only `/v1/chat/completions`): Extensions → Optional components → install "OpenAI API local protocol bridge", then tap "Config". The bridge translates between the two protocols on the device; the model still runs remotely, on your own key and quota.
   - **Several APIs are supported**: each API has its own address, key, models (tick the option to read the model list automatically to pick from suggestions) and context window, and you choose one default model across all of them. Saving shows which services your conversations will be sent to and only takes effect after you confirm. Saved keys are never shown again; leave the key empty when changing other fields to keep it.
   - `https://api.example.com` or `…/v1` is completed to `/v1` automatically; if the provider uses a custom path, enter the full `…/chat/completions` address it gives you. Services that only offer `/v1/responses` won't work.
@@ -131,15 +131,16 @@ First check which protocol the endpoint speaks; the setup differs:
 **Example template** (not a real service; replace the values with what your provider gives you):
 
 ```text
-Base URL: https://api.example.com/anthropic
-Auth: Authorization: Bearer
-Default model: your-model-id
-Fast model: your-fast-model-id (optional)
-Models URL: https://api.example.com/v1/models (optional)
+Base URL: https://proxy.example.com
+Auth: x-goog-api-key (Gemini / Antigravity)
+Protocol: Gemini
+Default model: gemini-3.8-flash
+Fast model: gemini-3.8-flash (optional)
+Models URL: https://proxy.example.com/v1beta/models (optional)
 Extra models (one per line):
-your-model-id 200k
-your-cheap-model 128k
-Context window: 200k (optional; only if the provider doesn't report one)
+gemini-4-neon 1m
+gemini-3.8-flash 1m
+Context window: 1m (optional; only if the provider doesn't report one)
 ```
 
 Third-party endpoints are your choice; the app does not vet or endorse them. The operator can see your key, code and conversations, so use only services you trust, and do not use shared or resold accounts.
@@ -151,7 +152,7 @@ Third-party endpoints are your choice; the app does not vet or endorse them. The
 
 - **Toolkit modules**: install and remove as needed; each shows what it is for, its size and what uses it. Typing a missing command in the terminal tells you which module has it.
 - **Components**: large tools such as Chromium, Blender, Godot, LibreOffice, llama.cpp, GPU drivers and QQ bots (native NapCat / SnowLuma), installed when you need them. Signatures are checked first, and each component ships a skill so it knows how to use it.
-- **Saved prompts**: create one under Saved prompts on the Extensions page: give it a name (say, issue) and write what should be sent to it. Then type `/issue your details` in the input box, and the text after the name fills `$ARGUMENTS`. A prompt can be for all projects or just the current one. They're stored as Claude Code-format command files, so claude in the terminal can use them too.
+- **Saved prompts**: create one under Saved prompts on the Extensions page: give it a name (say, issue) and write what should be sent to it. Then type `/issue your details` in the input box, and the text after the name fills `$ARGUMENTS`. A prompt can be for all projects or just the current one, and the gateway expands it automatically when sending to Antigravity.
 - **Plugins, skills, MCP**: add, edit and manage them on the Extensions page (long-press or double-tap an MCP entry to edit it directly; tokens are never echoed, only their names); changes apply from the next message. More → Capabilities shows everything it can use this turn.
 - **pkg**: in the terminal, `pkg install rust` installs packages from the Termux repository; `pkg verified` lists the ones tested on device.
 
@@ -191,4 +192,4 @@ Third-party endpoints are your choice; the app does not vet or endorse them. The
 
 Start with Settings → Troubleshooting → Check records, then the Repair ledger. If that does not help, send a Diagnostics bundle to whoever is helping you, or use Report on GitHub: the device, system and self-test results are filled in, and keys and your messages are left out.
 
-If a hook, plugin or CLAUDE.md breaks things, turn on **Safe mode** under Settings → Claude behavior. Nothing custom is loaded until you turn it off again.
+If a hook, plugin or CLAUDE.md breaks things, turn on **Safe mode** under Settings → Antigravity behavior. Nothing custom is loaded until you turn it off again.

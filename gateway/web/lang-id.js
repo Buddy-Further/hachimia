@@ -3099,4 +3099,7 @@ window.I18N_DICT["id"] = {
   "这个版本的 Antigravity CLI 还没有官方签名清单，这一轮没有启动。正在联网补核，过一两分钟再发送；一直不行就到 设置 → 更新 里重新安装。": "Versi Antigravity CLI ini belum memiliki manifes resmi bertanda tangan, sehingga giliran ini tidak dimulai. Memeriksa ulang secara daring — coba lagi dalam 1–2 menit, atau pasang ulang di Pengaturan → Pembaruan.",
   "Antigravity CLI 程序和官方签名清单对不上，可能被改过，这一轮没有启动。到 设置 → 更新 里重新安装后再试。": "Biner Antigravity CLI tidak cocok dengan manifes resmi bertanda tangan dan mungkin telah diubah, sehingga giliran ini tidak dimulai. Pasang ulang di Pengaturan → Pembaruan lalu coba lagi.",
   "这个项目带有会自动运行的配置，尚未信任，这一轮没有启动。": "Proyek ini berisi konfigurasi jalan otomatis yang belum dipercaya, sehingga giliran ini tidak dimulai.",
+  "还没装插件。": "Belum ada plugin yang terpasang.",
+  "该接口在 Antigravity 下暂不支持：Antigravity CLI 没有通用第三方 API Key 通道。请声明 protocol:\"gemini\"（端点须讲 Gemini 协议），或换用 Gemini / 订阅登录厂商。": "Penyedia ini belum didukung di Antigravity: Antigravity CLI tidak memiliki saluran kunci API pihak ketiga umum. Deklarasikan protocol:\"gemini\" (untuk endpoint berprotokol Gemini) atau beralih ke Gemini / penyedia login.",
+  "该接口在纯 Antigravity 模式下不可用，请重新选择接口": "Penyedia ini tidak tersedia dalam mode Antigravity murni; silakan pilih penyedia lain.",
 };

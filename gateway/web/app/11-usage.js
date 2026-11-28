@@ -518,6 +518,7 @@
                ${p.hasKey ? `<button class="btn sm ghost danger" data-act="clear">${t("清除 Key")}</button>` : ""}
                <button class="btn sm ghost danger" data-act="del">${t("删除")}</button>${useBtn(p)}` : ""}
       </div>
+${p && p.noAcpKeyChannel ? `<div class="tiny warn">${esc(t("在 Antigravity 下暂不支持：Antigravity CLI 没有通用第三方 API Key 通道。请声明 protocol:\"gemini\"（端点须讲 Gemini 协议），或换用 Gemini / 订阅登录厂商。"))}</div>` : ""}
 ${p && p.plainHttp ? `<div class="tiny warn">${esc(t("这个地址是明文 http，密钥和对话内容会不加密地发到对方机器上；能用 https 就换成 https。"))}</div>` : ""}
       <div class="prov-state" id="pc-result"></div>
       <div class="tiny">${t("选择 <b>Gemini / Antigravity</b> 认证时会通过 <code>GOOGLE_GEMINI_BASE_URL</code> + <code>GEMINI_API_KEY</code> 驱动官方 <code>agy</code> CLI。")}

@@ -8,6 +8,7 @@ import { NEXT, rangeOf, readBody, sendJson } from "./http.mjs";
 import { safeFilePath } from "./files.mjs";
 import { termEnv } from "./terminal.mjs";
 import { markChild, unmarkChild } from "./components.mjs";
+import { writeAtomic } from "./statefile.mjs";
 const OFFICE_ENV_DENY = /^(ANTHROPIC_|OPENAI_|GH_|GITHUB_|GITLAB_|GITEE_|AWS_|AZURE_|GOOGLE_|GCP_|HF_|HUGGING|NPM_|DEEPSEEK_|MOONSHOT_|DASHSCOPE_|ZHIPU|ARK_|XAI_|OPENROUTER_|CLAUDE_CODE_OAUTH)|_(KEY|KEYS|TOKEN|TOKENS|SECRET|SECRETS|PASSWORD|PASSWD|PWD|PASS|PASSPHRASE|AUTH|CREDENTIAL|CREDENTIALS|COOKIE|SESSION)(_FILE)?$|^(PASSWORD|PASSWD|TOKEN|SECRET|API_KEY|APIKEY)$/i;
 
 // ── Office 文档：docx / xlsx 前端自己渲染；ppt / pptx / doc / odt… 交给 LibreOffice 转成 PDF 再看 ──
@@ -39,7 +40,7 @@ ${alias(["Microsoft YaHei", "微软雅黑", "Microsoft YaHei UI", "SimHei", "黑
 </fontconfig>
 `;
   let cur = ""; try { cur = fs.readFileSync(f, "utf8"); } catch {}
-  if (cur !== xml) fs.writeFileSync(f, xml);
+  if (cur !== xml) writeAtomic(f, xml);
   return f;
 }
 

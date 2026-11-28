@@ -8,7 +8,7 @@ import { MODEL_ID_RE, dropModelCache, extraModelsOf, isGeminiProvider, normalize
 import { RUNS } from "./runs.mjs";
 import { NEXT, fetchText, readBody, sendJson } from "./http.mjs";
 import { readSmallFile } from "./saferead.mjs";
-import { isObj, loadState, saveState } from "./statefile.mjs";
+import { isObj, loadState, saveState, writeAtomic } from "./statefile.mjs";
 import { onShutdown } from "./crashguard.mjs";
 
 // ── 厂商配置（不写死任何一家）─────────────────────────────────────────
@@ -569,6 +569,7 @@ function provShape(j) {
 // MIG-10：agy-only 下启动/切换时把 Claude 预置迁回 antigravity 的记录（给 /api/providers 提示界面用）。
 // 声明必须在 loadProviders() 首次执行之前（它在迁移分支里赋值）。
 export let PROVIDER_MIGRATED_FROM = null;
+let CLEANED_LOCAL = false;
 function loadProviders() {
   // 读坏了（语法错、形状不对）：原文件留底成 .bad-*（厂商 Key 都在里面），按空表起。
   // 以前是静默回落空表，下一次保存就把整份连 Key 一起覆盖掉（0.6.9 审计 P1-1）
@@ -592,6 +593,7 @@ function loadProviders() {
   }
   if (PROVIDERS_RAW.providers.local && !PROVIDERS_RAW.providers.local.baseUrl && !providers.local) {
     delete PROVIDERS_RAW.providers.local;
+    CLEANED_LOCAL = true;
   }
   // MIG-10：纯 agy 下 Claude 系预置不可用。旧配置的 active 仍指着它时迁回 antigravity，
   // 这里只改内存并记 flag，落盘由模块加载后统一做（见 PROVIDERS_CFG 赋值后的那段）。
@@ -711,7 +713,7 @@ export function providersDiskCheck() {
 export let PROVIDERS_CFG = loadProviders();
 // MIG-10：落盘放这里做（saveProvidersRaw 内部会再调一次 loadProviders，重入时 active 已是
 // antigravity，不会重复迁移）。
-if (PROVIDER_MIGRATED_FROM) { try { saveProvidersRaw(); } catch (e) { log(`[厂商] 迁移落盘失败：${e.message}`); } }
+if (PROVIDER_MIGRATED_FROM || CLEANED_LOCAL) { try { saveProvidersRaw(); } catch (e) { log(`[厂商] 迁移落盘失败：${e.message}`); } }
 // 受控修复会重写整表，必须核对整份原始配置，包括删除的字段、无关接口和 active。
 export const providersDiskMatches = (disk) => isDeepStrictEqual(disk, { ...PROVIDERS_RAW, providers: { ...PROVIDERS_RAW.providers } });
 
@@ -1282,12 +1284,12 @@ function loadApiKey(p) {
     if (k) {
       try {
         fs.mkdirSync(path.dirname(PATHS.config), { recursive: true });
-        fs.writeFileSync(PATHS.config, JSON.stringify({ apiKey: k }, null, 2), { mode: 0o600 });
+        writeAtomic(PATHS.config, JSON.stringify({ apiKey: k }, null, 2), { mode: 0o600 });
         log(`[key] 已从共享位置导入密钥到私有目录`);
         // 导完立刻把共享区那份清空 —— 明文密钥不该在 /sdcard 上多留一秒，
         // 那是任何有存储权限的应用都读得到的地方。密钥已进私有目录，清空不影响使用。
         try {
-          fs.writeFileSync(SEED_FILE, "{}");
+          writeAtomic(SEED_FILE, "{}");
           log(`[key] 已清空共享区的 seed 文件 ${SEED_FILE}`);
         } catch (e) { log(`[key] 共享区清空失败（不影响使用）: ${e.message}`); }
       } catch (e) { log(`[key] 私有目录写入失败: ${e.message}`); }
@@ -1303,6 +1305,12 @@ export function providerById(id) {
   if (!id || id === PROVIDER.id) return PROVIDER;
   if (PROVIDERS_CFG && PROVIDERS_CFG.providers[id]) return pickProvider(id);
   return id === BUILTIN_PROVIDER.id ? BUILTIN_PROVIDER : null;
+}
+/** 纯 Antigravity 模式下允许被会话/项目/定时任务钉选的厂商（拒绝已下线的 local 与隐藏的 Claude 预置） */
+export function isSelectableProvider(id) {
+  if (!id || id === "local") return false;
+  const p = providerById(id);
+  return !!(p && p.group !== "claude");
 }
 /** 各家能不能用（有钥匙 / 走登录），给输入栏的模型面板按接口分组用。钥匙本身不出网关 */
 export function providerBrief() {
@@ -1327,11 +1335,14 @@ export function keyOf(p) {
 /** 应用当前厂商：更新上游与密钥。
  *  模型清单缓存无需在此清除 —— 缓存按接口配置指纹存取（models.mjs 的 sigOf），
  *  换厂商自然对不上。 */
+let LOCAL_MODEL_CLEARED = false;
 export function applyProvider() {
-  // 已下线的端侧小模型：老设置若仍选中 provider="local" 或仅由 active="local" 迁出但残存 .gguf 模型名，清空并平滑切回默认厂商
+  // 已下线的端侧小模型：老设置若仍选中 provider="local"，或启动时由 active="local" 迁出（旧 local.mjs 的模型 id 去掉了 .gguf 后缀），
+  // 清空旧模型名并平滑切回默认厂商；用 LOCAL_MODEL_CLEARED 确保只清一次，不误伤用户迁完后新选的模型
   if ((SETTINGS.provider === "local" && !PROVIDERS_CFG.providers.local)
-    || (PROVIDER_MIGRATED_FROM === "local" && !SETTINGS.provider && /\.gguf$/i.test(String(SETTINGS.model || "")))) {
+    || (PROVIDER_MIGRATED_FROM === "local" && !LOCAL_MODEL_CLEARED && !SETTINGS.provider && SETTINGS.model)) {
     PROVIDER_MIGRATED_FROM = "local";
+    LOCAL_MODEL_CLEARED = true;
     log("[厂商] 端侧小模型已下线，旧设置已自动切回默认接口");
     if (SETTINGS.provider === "local") SETTINGS.provider = null;
     SETTINGS.model = null;

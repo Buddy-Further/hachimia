@@ -135,7 +135,8 @@
       if (!r || !r.ok) return stOut("err", "✗ " + ((r && r.message) || t("失败")));
       // 清理已经执行：离开时只记结果，回来仍能看到；不重启已离开的轮询。
       stOut("ok", t("✓ 删了 {n} 项，腾出 {size}", { n: r.n, size: sz(r.freed) }) + (r.skipped ? "；" + t("{n} 项没删（正在用或不在允许的范围里）", { n: r.skipped }) : ""));
-      ST.picks = null;
+      ST.picks = new Set();
+      for (const ck of $("st-cards").querySelectorAll("[data-st-pick]")) ck.disabled = true;
       stLater(800, setVisit);
     } finally {
       ST.cleaning = false;
@@ -154,6 +155,7 @@
   $("st-cards").addEventListener("change", (e) => {
     const ck = e.target.closest("[data-st-pick]");
     if (!ck) return;
+    ST.picks ||= new Set();
     if (ck.checked) ST.picks.add(ck.dataset.stPick); else ST.picks.delete(ck.dataset.stPick);
   });
   $("st-cards").addEventListener("click", async (e) => {

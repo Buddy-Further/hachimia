@@ -245,11 +245,11 @@ final class Updater {
         }
     }
     /** stable / latest = 跟随官方渠道；pinned = 固定在 pinVer()，自动更新、检查更新都不动它（用户 10-22 定：不能强制绑最新） */
-    String channel() { String o = ovCh; return o != null ? o : prefs().getString("channel", "stable"); }
-    String pinVer() { String o = ovPin; return o != null ? o : prefs().getString("pin", ""); }
-    // 换渠道 / 固定版本在等用户确认降级时：新设置只放在内存里（见 set），确认了才写盘。
-    // 拒绝、出错、进程被杀，盘上都还是原来的设置（10-31 六轮核验：先写盘再回滚，挡不住并发请求和杀进程）
-    private volatile String ovCh, ovPin;
+    String channel() { return prefs().getString("channel", "stable"); }
+    String pinVer() { return prefs().getString("pin", ""); }
+    // checkClaude 串行锁与换渠道期延后复查标记：避免 upd-channel 在等待 Priv.confirm 期间与 upd-check 并发改写 claude.*（Law 10 / Meta-Pattern A）
+    private final Object claudeCheckLock = new Object();
+    private volatile boolean pendingClaudeRecheck = false;
     String latestClaude() { return claude.latest; }
     // claude.latest 是哪个渠道查出来的：拿 stable / latest 判降级时，得是同一个渠道的结果才作数
     private volatile String latestCh = "";
@@ -332,47 +332,61 @@ final class Updater {
         if (!switching.compareAndSet(false, true)) { Log.i("hachimia", "上一次换渠道还没完，这次不接"); return; }
         final String toCh = ch, toPin = pin;
         final String prevCh = prefs().getString("channel", "stable"), prevPin = prefs().getString("pin", "");
-        // 换渠道是用户明说要哪个版本：马上按新渠道查，版本对不上就直接换（切回 stable 也会换回 stable 的版本）
+        // 换渠道是用户明说要哪个版本：先探测目标版本、确认降级通过后再改偏好和 claude.*，避免 60s 确认窗内污染全局状态与并发 upd-check
         new Thread(() -> {
-            boolean keep = false;
+            boolean preserveError = false;
             try {
-                ovPin = toPin; ovCh = toCh;
-                checkClaude();
-                String to = claude.latest;
+                String to;
+                if ("pinned".equals(toCh)) {
+                    refreshCurrent();
+                    to = toPin;
+                } else {
+                    synchronized (claudeCheckLock) {
+                        refreshCurrent();
+                        to = probeClaudeOnline();
+                    }
+                }
                 // 只按版本判，不看状态：「安装中」时状态不更新，以前借这个跳过确认直接写盘（10-31 七轮核验）
                 boolean down = claudeDowngrade(to);
                 // 换渠道 / 固定版本落到比已装的旧：和 upd_apply 指定旧版本一样要用户点头（10-31 四轮复核：这是降级的另一条路）
                 if (down && !Priv.confirm(Tr.f("把 Antigravity CLI 降级到 {0}", to), who, "upd:" + to)) {
                     Log.i("hachimia", "没有允许降级到 " + to + "，设置不变");
-                } else if ("pinned".equals(toCh) && "available".equals(claude.state)) {
-                    // 固定到指定版本需要先真正切换成功再落盘偏好：否则上游不支持装旧版而报错时，界面却已显示「CLI：固定 x.y.z」，与实际装着的版本永久脱节
-                    ovCh = null; ovPin = null;
-                    boolean okInstall;
-                    synchronized (Updater.this) {
-                        if ("downloading".equals(claude.state) || "installing".equals(claude.state)) okInstall = false;
-                        else { claude.set("installing", ""); okInstall = true; }
-                    }
-                    if (okInstall && installClaude(to) && toPin.equals(claude.current)) {
+                } else if ("pinned".equals(toCh)) {
+                    if (toPin.equals(claude.current)) {
                         prefs().edit().putString("channel", toCh).putString("pin", toPin).commit();
-                        keep = true;
+                        checkClaude();
                     } else {
-                        prefs().edit().putString("channel", prevCh).putString("pin", prevPin).commit();
-                        keep = true; // 保留 installClaude 写下的明确错误提示，不让 finally 的 checkClaude 把错误冲掉
+                        // 固定到指定版本需要先真正切换成功再落盘偏好：否则上游不支持装旧版而报错时，界面却已显示「CLI：固定 x.y.z」，与实际装着的版本永久脱节
+                        boolean okInstall;
+                        synchronized (Updater.this) {
+                            if ("downloading".equals(claude.state) || "installing".equals(claude.state)) okInstall = false;
+                            else { claude.set("installing", ""); okInstall = true; }
+                        }
+                        if (okInstall && installClaude(toPin) && toPin.equals(claude.current)) {
+                            prefs().edit().putString("channel", toCh).putString("pin", toPin).commit();
+                            checkClaude();
+                        } else {
+                            prefs().edit().putString("channel", prevCh).putString("pin", prevPin).commit();
+                            preserveError = true; // 保留 installClaude 写下的明确错误提示，不让后续 checkClaude 把错误冲掉
+                        }
                     }
                 } else {
                     prefs().edit().putString("channel", toCh).putString("pin", toPin).commit();
-                    keep = true;
-                    ovCh = null; ovPin = null;
+                    checkClaude();
                     if ("available".equals(claude.state)) apply("claude", true, to);   // 装的就是确认过的这一版
                 }
             } catch (Exception ex) {
                 // 查不到版本（断网）：stable / latest 的选择照样记下（比已装的旧时 claudeOlder 会挡住自动更新）；固定版本不查网，到不了这里
-                if (!"pinned".equals(toCh)) { prefs().edit().putString("channel", toCh).commit(); keep = true; }
+                if (!"pinned".equals(toCh)) { prefs().edit().putString("channel", toCh).commit(); }
                 claude.set("error", Tr.t("检查 Antigravity CLI 更新失败：") + ex.getMessage());
+                preserveError = true;
             } finally {
-                ovCh = null; ovPin = null;
-                if (!keep) { try { checkClaude(); } catch (Exception ignored) {} }
+                boolean needRecheck = pendingClaudeRecheck;
+                pendingClaudeRecheck = false;
                 switching.set(false);
+                if (needRecheck && !preserveError) {
+                    try { checkClaude(); } catch (Exception ignored) {}
+                }
             }
         }, "upd-channel").start();
     }
@@ -641,9 +655,13 @@ final class Updater {
                     }
                 }
             }
-            try { checkClaude(); } catch (Exception e) {
-                synchronized (this) {
-                    if (canOverwriteClaudeOnCheck(claude.state)) claude.set("error", Tr.t("检查 Antigravity CLI 更新失败：") + e.getMessage());
+            if (switching.get()) {
+                pendingClaudeRecheck = true;
+            } else {
+                try { checkClaude(); } catch (Exception e) {
+                    synchronized (this) {
+                        if (canOverwriteClaudeOnCheck(claude.state)) claude.set("error", Tr.t("检查 Antigravity CLI 更新失败：") + e.getMessage());
+                    }
                 }
             }
             long now = System.currentTimeMillis();
@@ -984,7 +1002,55 @@ final class Updater {
         return ids;
     }
 
+    /** 只探测远端最新版本并刷新已装版本探针，不改写 claude.state/latestCh/claudeOlder */
+    private String probeClaudeOnline() throws Exception {
+        File script = new File(env.app, "scripts/install-agy.mjs");
+        if (!script.isFile() || !env.devkitReady()) return "";
+        ProcessBuilder pb = env.proc(env.bin("node").getPath(), script.getPath(), "--check");
+        pb.environment().remove("CCAPP_TOKEN_FILE");
+        pb.redirectErrorStream(true);
+        Process p = pb.start();
+        final byte[][] box = new byte[1][];
+        Thread reader = new Thread(() -> {
+            try { box[0] = readAll(p.getInputStream()); } catch (Exception ignored) { box[0] = new byte[0]; }
+        }, "upd-agy-check-io");
+        reader.setDaemon(true);
+        reader.start();
+        if (!p.waitFor(30, java.util.concurrent.TimeUnit.SECONDS)) {
+            p.destroyForcibly();
+            try { reader.join(1000); } catch (InterruptedException ignored) {}
+            throw new IOException("check timed out (30s)");
+        }
+        int rc = p.exitValue();
+        try { reader.join(2000); } catch (InterruptedException ignored) {}
+        String out = new String(box[0] != null ? box[0] : new byte[0], StandardCharsets.UTF_8).trim();
+        JSONObject j = null;
+        try { j = new JSONObject(out.substring(out.lastIndexOf('{'))); } catch (Exception ignored) {}
+        if (j != null) {
+            String inst = j.optString("installed", "").trim();
+            try {
+                File curLink = new File(env.home, ".local/share/hachimia/agy/current");
+                File bin = new File(curLink, "agy");
+                if (!inst.isEmpty() && bin.isFile()) {
+                    String linkVer = new File(Os.readlink(curLink.getPath())).getName();
+                    probedClaudeKey = claudeFileKey(linkVer, bin);
+                    probedClaudeVer = inst;
+                    claude.current = inst;
+                } else if (inst.isEmpty() && !bin.isFile()) {
+                    probedClaudeKey = "";
+                    probedClaudeVer = "";
+                    claude.current = "";
+                }
+            } catch (Exception ignored) {}
+        }
+        if (j == null || !j.optBoolean("ok", false)) {
+            throw new IOException(j != null ? j.optString("error", "check failed") : ("exit " + rc));
+        }
+        return j.optString("latest", "").trim();
+    }
+
     private void checkClaude() throws Exception {
+        synchronized (claudeCheckLock) {
         // hachimia：通过 install-agy.mjs --check 检查官方 Antigravity CLI (agy) 版本与可用性
         claudeHeld = false;
         claudeOlder = false;
@@ -1011,47 +1077,7 @@ final class Updater {
         String v = "";
         Exception checkErr = null;
         try {
-            ProcessBuilder pb = env.proc(env.bin("node").getPath(), script.getPath(), "--check");
-            pb.environment().remove("CCAPP_TOKEN_FILE");
-            pb.redirectErrorStream(true);
-            Process p = pb.start();
-            final byte[][] box = new byte[1][];
-            Thread reader = new Thread(() -> {
-                try { box[0] = readAll(p.getInputStream()); } catch (Exception ignored) { box[0] = new byte[0]; }
-            }, "upd-agy-check-io");
-            reader.setDaemon(true);
-            reader.start();
-            if (!p.waitFor(30, java.util.concurrent.TimeUnit.SECONDS)) {
-                p.destroyForcibly();
-                try { reader.join(1000); } catch (InterruptedException ignored) {}
-                throw new IOException("check timed out (30s)");
-            }
-            int rc = p.exitValue();
-            try { reader.join(2000); } catch (InterruptedException ignored) {}
-            String out = new String(box[0] != null ? box[0] : new byte[0], StandardCharsets.UTF_8).trim();
-            JSONObject j = null;
-            try { j = new JSONObject(out.substring(out.lastIndexOf('{'))); } catch (Exception ignored) {}
-            if (j != null) {
-                String inst = j.optString("installed", "").trim();
-                try {
-                    File curLink = new File(env.home, ".local/share/hachimia/agy/current");
-                    File bin = new File(curLink, "agy");
-                    if (!inst.isEmpty() && bin.isFile()) {
-                        String linkVer = new File(Os.readlink(curLink.getPath())).getName();
-                        probedClaudeKey = claudeFileKey(linkVer, bin);
-                        probedClaudeVer = inst;
-                        claude.current = inst;
-                    } else if (inst.isEmpty() && !bin.isFile()) {
-                        probedClaudeKey = "";
-                        probedClaudeVer = "";
-                        claude.current = "";
-                    }
-                } catch (Exception ignored) {}
-            }
-            if (j == null || !j.optBoolean("ok", false)) {
-                throw new IOException(j != null ? j.optString("error", "check failed") : ("exit " + rc));
-            }
-            v = j.optString("latest", "").trim();
+            v = probeClaudeOnline();
         } catch (Exception ex) {
             checkErr = ex;
         }
@@ -1091,6 +1117,7 @@ final class Updater {
         }
         if (!"installing".equals(claude.state) && new File(env.home, ".local/share/hachimia/agy/current/.mismatch").isFile())
             claude.set("available", Tr.t("这一版与清单的 sha256 对不上，点更新重新下载"));
+        }
     }
 
     /** 渠道上的新版被标成有问题时为 true：autoApply 不装它 */

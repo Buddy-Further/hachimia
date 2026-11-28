@@ -12,6 +12,7 @@ import { NEXT, readBody, sendJson } from "./http.mjs";
 import { toFront } from "./devside.mjs";
 import { RATE_LIMITS, clearRateLimits } from "./stream.mjs";
 import { publish } from "./bus.mjs";
+import { writeAtomic } from "./statefile.mjs";
 
 // ── Google Antigravity 账户登录（OAuth 全程由官方 agy CLI 完成；网关只转递地址与授权码，不碰凭据）──
 //
@@ -182,9 +183,7 @@ function writeAuthDisk(v) {
   try {
     if (!v || !v.loggedIn) { fs.unlinkSync(AUTH_FILE); return; }
     fs.mkdirSync(path.dirname(AUTH_FILE), { recursive: true });
-    const tmp = `${AUTH_FILE}.${process.pid}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify({ at: Date.now(), v }));
-    fs.renameSync(tmp, AUTH_FILE);
+    writeAtomic(AUTH_FILE, JSON.stringify({ at: Date.now(), v }), { mode: 0o600 });
   } catch {}
 }
 
@@ -295,12 +294,14 @@ function execAgyJsonCmd(bin, slashCmd, timeoutMs = 15000) {
     });
   });
 }
+let AGY_QUOTA_INELIGIBLE_LOGGED = false;
 /** 通过官方 `agy --output-format json -p "/usage"`（及 `/credits`）零消耗查询订阅 5h / 周额度 */
 export async function fetchAgyQuota(force = false) {
   if (!force && AGY_QUOTA && Date.now() - AGY_QUOTA.at < AGY_QUOTA_TTL_MS) return AGY_QUOTA;
   if (AGY_QUOTA_INFLIGHT) return AGY_QUOTA_INFLIGHT;
   const bin = agyBin();
   if (!bin || !fs.existsSync(bin)) return AGY_QUOTA;
+  if (await claudeBlocked()) return AGY_QUOTA;
 
   const task = (async () => {
     const [uRes, cRes] = await Promise.all([
@@ -308,11 +309,19 @@ export async function fetchAgyQuota(force = false) {
       execAgyJsonCmd(bin, "/credits", 12000),
     ]);
     const parsed = parseAgyQuotaJson(uRes.stdout, cRes.status === 0 ? cRes.stdout : null);
-    if (!parsed) return AGY_QUOTA;
+    if (!parsed) {
+      const combined = `${uRes.stderr}\n${uRes.stdout}`;
+      if (!AGY_QUOTA_INELIGIBLE_LOGGED && /Eligibility check failed|not currently available in your location|Account ineligible/i.test(combined)) {
+        AGY_QUOTA_INELIGIBLE_LOGGED = true;
+        log("[quota] agy -p /usage 受当前网络地区资格限制无法查询订阅额度（主 ACP 对话不受影响）");
+      }
+      return AGY_QUOTA;
+    }
+    AGY_QUOTA_INELIGIBLE_LOGGED = false;
     AGY_QUOTA = parsed;
     try {
       fs.mkdirSync(path.dirname(QUOTA_FILE), { recursive: true });
-      fs.writeFileSync(QUOTA_FILE, JSON.stringify(AGY_QUOTA));
+      writeAtomic(QUOTA_FILE, JSON.stringify(AGY_QUOTA), { mode: 0o600 });
     } catch {}
     publish({ type: "quota" });
     return AGY_QUOTA;
@@ -346,7 +355,7 @@ function noteLoginMethod(method) {
   LAST_LOGIN_METHOD = method === "enterprise" ? "enterprise" : "personal";
   try {
     fs.mkdirSync(path.dirname(LOGIN_METHOD_FILE), { recursive: true });
-    fs.writeFileSync(LOGIN_METHOD_FILE, JSON.stringify({ method: LAST_LOGIN_METHOD, at: Date.now() }));
+    writeAtomic(LOGIN_METHOD_FILE, JSON.stringify({ method: LAST_LOGIN_METHOD, at: Date.now() }), { mode: 0o600 });
   } catch {}
 }
 function loginAuthMethod() { return LAST_LOGIN_METHOD === "enterprise" ? "oauth-business" : "oauth-personal"; }
@@ -358,7 +367,7 @@ export function noteAuthTier(tier) {
   AUTH_TIER = name;
   try {
     fs.mkdirSync(path.dirname(TIER_FILE), { recursive: true });
-    fs.writeFileSync(TIER_FILE, JSON.stringify({ name, at: Date.now() }));
+    writeAtomic(TIER_FILE, JSON.stringify({ name, at: Date.now() }), { mode: 0o600 });
   } catch {}
   if (AUTH_CACHE?.v?.loggedIn) AUTH_CACHE.v.plan = name;
   if (AUTH_GOOD?.loggedIn) AUTH_GOOD.plan = name;

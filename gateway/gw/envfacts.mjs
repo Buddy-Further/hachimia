@@ -10,6 +10,7 @@ import { modInstalled, modulesInfo } from "./modules.mjs";
 import { reconcileFacts } from "./reconcile.mjs";
 import { deviceFacts } from "./device.mjs";
 import { readSmallFile } from "./saferead.mjs";
+import { writeAtomic } from "./statefile.mjs";
 import { guarded } from "./crashguard.mjs";
 import { extOff } from "./extoff.mjs";
 
@@ -76,7 +77,7 @@ function envFactsRun(why = "工具包或应用换了版本") {
       else if (l.startsWith("INFO ")) r.info.push(l.slice(5, 260));
     }
     if (!r.pass) { envFactsErr = "empty"; log("[env] 自检没跑出结果，下次再试"); return; }
-    try { fs.writeFileSync(ENV_FACTS, JSON.stringify(r, null, 1)); } catch (e) { envFactsErr = "write: " + (e.code || e.message); }
+    if (!writeAtomic(ENV_FACTS, JSON.stringify(r, null, 1))) envFactsErr = "write: failed";
     log(`[env] 本机自检：通过 ${r.pass} 项，失败 ${r.fail.length} 项`);
   }));
 }

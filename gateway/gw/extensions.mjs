@@ -165,6 +165,8 @@ async function listPlugins(q, offset, withAvailable) {
   const ids = new Set(installed.map((p) => p.id || p.name));
   const res = {
     installed: installed.map((p) => ({ id: p.id || p.name, version: p.version, scope: p.scope, enabled: p.enabled !== false, installedAt: p.installedAt })),
+    supportsCatalog: false,
+    supportsMarketplaces: false,
   };
   if (withAvailable && PLUGIN_CATALOG) {
     const words = String(q || "").toLowerCase().split(/\s+/).filter(Boolean);
@@ -886,8 +888,18 @@ async function importSkill(buf) {
     if (!dir || !SID_RE.test(dir)) throw new Error(tz("技能名不合法"));
     const dst = path.join(SKILLS_DIR, dir);
     if (fs.existsSync(dst)) throw new Error(tz("已有同名技能「{name}」，先删掉旧的", { name: dir }));
-    fs.mkdirSync(dst, { recursive: true });
-    fs.writeFileSync(path.join(dst, "SKILL.md"), buf);
+    const tmp = path.join(path.dirname(SKILLS_DIR), ".ccapp-skill-import-" + crypto.randomBytes(4).toString("hex"));
+    const ucb = ucAppBegin();
+    try {
+      fs.mkdirSync(tmp, { recursive: true });
+      fs.writeFileSync(path.join(tmp, "SKILL.md"), buf);
+      fs.mkdirSync(SKILLS_DIR, { recursive: true });
+      fs.renameSync(tmp, dst);
+      ucAppWrote([`.claude/skills/${dir}/`], ucb);
+    } catch (e) {
+      try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {}
+      throw e;
+    }
     return { ok: true, dir, dirs: [dir], skipped: [] };
   }
   // 先按目录尾记录核对条目数再解压：几万个小条目的包光解出来就能占满内存/时间，别等解开才后悔
@@ -914,6 +926,7 @@ async function importSkill(buf) {
     // 先写进临时目录，整个写完再改名过去：写到一半失败（满盘）不留下没有 SKILL.md 的半截目录占着名字（#151-2）。
     // 临时目录在 .claude 下、不在用户配置的监控范围里，和技能目录同一个文件系统，改名是原子的
     const tmp = path.join(path.dirname(SKILLS_DIR), ".ccapp-skill-import-" + crypto.randomBytes(4).toString("hex"));
+    const ucb = ucAppBegin();
     try {
       for (const f of files) {
         if (!f.name.startsWith(root)) continue;
@@ -927,6 +940,7 @@ async function importSkill(buf) {
       }
       fs.mkdirSync(SKILLS_DIR, { recursive: true });
       fs.renameSync(tmp, dst);
+      ucAppWrote([`.claude/skills/${dir}/`], ucb);
     } catch (e) {
       try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {}
       throw e;
@@ -958,7 +972,7 @@ export async function routeExtensions(req, res, u, p) {
         if (r.ok) log(`插件 ${op[1]} ${body.id}`);
         return sendJson(res, 200, r);
       }
-      if (req.method === "GET" && p === "/api/ext/marketplaces") return sendJson(res, 200, { items: await listMarketplaces() });
+      if (req.method === "GET" && p === "/api/ext/marketplaces") return sendJson(res, 200, { items: await listMarketplaces(), supported: false });
       if (req.method === "POST" && p === "/api/ext/marketplaces/add") return sendJson(res, 200, await marketplaceOp("add", String(body.source || "").trim()));
       if (req.method === "POST" && p === "/api/ext/marketplaces/remove") return sendJson(res, 200, await marketplaceOp("remove", String(body.name || "")));
       if (req.method === "GET" && p === "/api/ext/mcp") return sendJson(res, 200, { items: await listMcp() });

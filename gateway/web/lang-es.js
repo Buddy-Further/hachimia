@@ -3099,4 +3099,7 @@ window.I18N_DICT["es"] = {
   "这个版本的 Antigravity CLI 还没有官方签名清单，这一轮没有启动。正在联网补核，过一两分钟再发送；一直不行就到 设置 → 更新 里重新安装。": "Esta versión de Antigravity CLI aún no tiene un manifiesto oficial firmado, así que este turno no se inició. Comprobando en línea — inténtalo en uno o dos minutos o reinstala en Ajustes → Actualizaciones.",
   "Antigravity CLI 程序和官方签名清单对不上，可能被改过，这一轮没有启动。到 设置 → 更新 里重新安装后再试。": "El binario de Antigravity CLI no coincide con el manifiesto oficial firmado y puede haber sido modificado, así que este turno no se inició. Reinstálalo en Ajustes → Actualizaciones e inténtalo de nuevo.",
   "这个项目带有会自动运行的配置，尚未信任，这一轮没有启动。": "Este proyecto contiene configuración de ejecución automática que aún no es de confianza, así que este turno no se inició.",
+  "还没装插件。": "Aún no hay plugins instalados.",
+  "该接口在 Antigravity 下暂不支持：Antigravity CLI 没有通用第三方 API Key 通道。请声明 protocol:\"gemini\"（端点须讲 Gemini 协议），或换用 Gemini / 订阅登录厂商。": "Este proveedor aún no es compatible con Antigravity: Antigravity CLI no tiene un canal genérico para claves API de terceros. Declara protocol:\"gemini\" (para un punto de conexión compatible con Gemini) o cambia a Gemini / un proveedor con inicio de sesión.",
+  "该接口在纯 Antigravity 模式下不可用，请重新选择接口": "Este proveedor no está disponible en el modo Antigravity puro; elige otro proveedor.",
 };

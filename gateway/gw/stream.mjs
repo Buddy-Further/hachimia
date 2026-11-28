@@ -8,6 +8,7 @@ import { AUTH_CACHE, authStatus } from "./login.mjs";
 import { envFacts } from "./envfacts.mjs";
 import { APP } from "./appfiles.mjs";
 import { publish } from "./bus.mjs";
+import { writeAtomic } from "./statefile.mjs";
 
 // ── 系统提示补充、claude 流事件翻译、订阅额度 ─────────────────────────
 /** 给 claude 的工具说明。两种布局装的东西不一样，各说各的，别把没有的命令告诉它 */
@@ -373,6 +374,6 @@ function noteRateLimit(info, p) {
 function saveRateLimits() {
   try {
     fs.mkdirSync(path.dirname(RL_FILE), { recursive: true });
-    fs.writeFileSync(RL_FILE, JSON.stringify(RATE_LIMITS));
+    writeAtomic(RL_FILE, JSON.stringify(RATE_LIMITS));
   } catch {}
 }

@@ -9,7 +9,7 @@ import path from "node:path";
 import { CFG, log, tz } from "./config.mjs";
 import { isObj, loadState, saveState, stateUnread } from "./statefile.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
-import { PROVIDER, providerById } from "./providers.mjs";
+import { PROVIDER, isSelectableProvider, providerById } from "./providers.mjs";
 import { SETTINGS } from "./settings-store.mjs";
 import { cachedModels, effortLevelsOf, normEffort } from "./models.mjs";
 import { projectById, projectDefaults, projectOfDir } from "./projects.mjs";
@@ -184,7 +184,7 @@ export async function routeSessModel(req, res, u, p) {
     if (typeof b.effort === "string") patch.effort = b.effort.trim().slice(0, 20);
     if (!b.id) return sendJson(res, 400, { error: "id" });
     if (typeof b.provider === "string" && b.provider) {
-      if (!providerById(b.provider)) return sendJson(res, 400, { error: "provider" });
+      if (!isSelectableProvider(b.provider)) return sendJson(res, 400, { error: "provider" });
       patch.provider = b.provider;
     }
     const before = { ...DB };

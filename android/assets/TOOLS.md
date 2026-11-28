@@ -36,8 +36,8 @@
 
 - API 地址使用当前网关端口的回环地址；请求体为 JSON，`Content-Type: application/json`。浏览器内同源请求沿用应用会话 Cookie；本机工具使用已授权的 `X-CC-Token` 请求头（不是 `Authorization: Bearer`）。Host 必须是网关允许的本机地址，带 Origin 时也要通过来源检查。
 - 沿用应用/工具已有的鉴权与网关身份核验，不把令牌放进 URL、日志或回复，也不为配置接口关闭校验。没有现成的授权调用入口时，用应用接口设置页。
-- `GET /api/providers` 可查接口 id 和非完整密钥的状态；不要把返回里的密钥尾号写进回复。保存某家时传它的 `id`，只传需要更新的字段，例如 `{"id":"custom-1","defaultModel":"example-model"}`；新建自定义接口时省略 `id`，至少传 `baseUrl`，可传 `label`、`defaultModel`、`fastModel`、`apiKey`、`authStyle`（`bearer` 或 `x-api-key`）。示例中的 id 和型号只是占位，先查实际列表。
-- `baseUrl` 是兼容 Anthropic Messages 的接口根地址，网关会移除末尾 `/v1`，客户端再补 `/v1/messages`；OpenAI 协议接口应使用应用的桥接配置入口。
+- `GET /api/providers` 可查接口 id 和非完整密钥的状态；不要把返回里的密钥尾号写进回复。保存某家时传它的 `id`，只传需要更新的字段，例如 `{"id":"custom-1","defaultModel":"example-model"}`；新建自定义接口时省略 `id`，至少传 `baseUrl`，可传 `label`、`defaultModel`、`fastModel`、`apiKey`、`authStyle`（推荐 `gemini-api-key`，或配合 `protocol: "gemini"` 使用 `bearer` / `x-api-key`）与 `protocol`（直连 Antigravity CLI 须为 `"gemini"`）。示例中的 id 和型号只是占位，先查实际列表。
+- `baseUrl` 在 Antigravity CLI 模式下需为兼容 Gemini 协议的接口地址（经 `GOOGLE_GEMINI_BASE_URL` + `GEMINI_API_KEY` 注入）；仅支持 OpenAI `/v1/chat/completions` 协议的接口应通过 扩展 → 可选组件 安装「OpenAI API 本地协议桥」并走其配置入口。
 - 不传 `apiKey` 或传空串通常保留已有密钥；`clearKey: true` 才是显式清除。更换主机或预置线路且未提供新密钥时可能清除旧密钥，检查返回的 `keyCleared`。预置厂商的地址由线路目录管理，选线路传 `endpoint`。
 - 检查 JSON 的 `ok` / `error`，不能只看 HTTP 状态；成功返回 `id` 和 `provider`。正在使用该接口时修改连接信息可能返回 HTTP 409 / `busy`，等当前轮结束再保存。保存不会自动把会话切换到新接口。
 

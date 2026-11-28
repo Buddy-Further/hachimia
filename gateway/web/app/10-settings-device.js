@@ -435,19 +435,20 @@
   async function loadNotify() {
     const visit = setVisit;
     if (!setVisible("device", visit)) return;
+    const ok = latest("notify");
     let st;
     try {
       st = await api("/api/app/notify_status");
       if (!st?.ok && st?.message && st.state !== "unsupported") throw new Error(st.message);
     } catch (e) {
-      if (!setVisible("device", visit)) return;
+      if (!ok() || !setVisible("device", visit)) return;
       // 网关刚起 / 断网：以前直接隐藏整块，和「这个版本没有这项」分不出来（稳定性报告 FIND-032）
       $("ntf-err").textContent = t("读取失败") + (e && e.message ? "：" + e.message : "");
       $("ntf-err-block").classList.remove("hidden");
       if (isTransientSetErr(e)) { clearTimeout(ntfPoll); ntfPoll = setTimeout(() => { if (setVisible("device", visit)) loadNotify(); }, 2000); }
       return;
     }
-    if (!setVisible("device", visit)) return;
+    if (!ok() || !setVisible("device", visit)) return;
     clearTimeout(ntfPoll);
     $("ntf-err-block").classList.add("hidden");
     $("ntf-field").classList.toggle("hidden", !st.ok);
@@ -463,10 +464,21 @@
     $("ntf-actions").classList.toggle("hidden", !off);
   }
   for (const k of ["done", "ask"])
-    // 没存上：说出来，并按网关的真实状态把开关拨回去（#177-7）
-    $("ntf-" + k).addEventListener("change", (e) => post("/api/app/notify_set", { [k]: e.target.checked })
-      .then((j) => { if (j && j.ok === false) throw new Error(j.message || t("保存失败")); })
-      .then(loadNotify, (err) => { toast(t("保存失败：{msg}", { msg: err.message || "" }), true); loadNotify(); }));
+    // 没存上：说出来，并按网关的真实状态把开关拨回去（#177-7）；提交与重拉期间锁住开关避免并发乱序覆盖
+    $("ntf-" + k).addEventListener("change", async (e) => {
+      const ck = e.target;
+      ck.disabled = true;
+      latest("notify");
+      try {
+        const j = await post("/api/app/notify_set", { [k]: ck.checked });
+        if (j && j.ok === false) throw new Error(j.message || t("保存失败"));
+      } catch (err) {
+        toast(t("保存失败：{msg}", { msg: err.message || "" }), true);
+      } finally {
+        await loadNotify();
+        if (ck.isConnected) ck.disabled = false;
+      }
+    });
   $("ntf-sys").addEventListener("click", () => appPost("/api/app/notify_settings"));
   $("ntf-retry").addEventListener("click", () => loadNotify());
   // 去系统设置里改完通知权限再回来，设置页不会重新打开：状态要自己重拉一次，不然一直显示改之前的（稳定性报告 FIND-031）
@@ -514,9 +526,10 @@
   };
   function devSet(body) {
     const visit = setVisit;
+    const ok = latest("dev");
     return post("/api/app/dev_set", body).then((st) => {
       if (!st || st.ok === false || !Array.isArray(st.tools)) { toast((st && st.message) || t("保存失败"), true); return devBack(visit); }
-      if (!setVisible("device", visit)) return;
+      if (!ok() || !setVisible("device", visit)) return;
       lastDev = st; devRender(st);
       // 打开设备工具、切读屏模式都要在原生对话框里点头（DeviceTools.set）：提示一下，点完把状态拉回来
       if (st.message && (body.a11y || body.on === true)) {
@@ -536,19 +549,20 @@
   async function loadDev() {
     const visit = setVisit;
     if (!setVisible("device", visit)) return false;
+    const ok = latest("dev");
     let st;
     try {
       st = await api("/api/app/dev_status");
       if (!st?.ok && st?.message && st.state !== "unsupported") throw new Error(st.message);
     } catch (e) {
-      if (!setVisible("device", visit)) return false;
+      if (!ok() || !setVisible("device", visit)) return false;
       // 同通知：首读失败要说出原因、给重试，不能和「这个版本没有设备工具」一样整块隐藏（FIND-032）
       $("dev-err").textContent = t("读取失败") + (e && e.message ? "：" + e.message : "");
       $("dev-err-block").classList.remove("hidden");
       if (isTransientSetErr(e)) { clearTimeout(devPoll); devPoll = setTimeout(() => { if (setVisible("device", visit)) loadDev(); }, 2000); }
       return false;
     }
-    if (!setVisible("device", visit)) return false;
+    if (!ok() || !setVisible("device", visit)) return false;
     $("dev-err-block").classList.add("hidden");
     $("dev-field").classList.toggle("hidden", !st.ok);
     if (!st.ok) return false;
@@ -632,30 +646,40 @@
     followUpd(); post("/api/app/upd_set", { channel: e.target.value }).then((r) => (r && r.ok === false ? updBack(r.message) : loadUpd(true))).catch((e2) => updBack(e2.message));
   });
   $("priv-ka").addEventListener("change", async (e) => {
-    const on = e.target.checked;
+    const ck = e.target, on = ck.checked;
     if (on && !confirm(t("开启后台保活增强？\n\n会改几项系统设置：幽灵进程上限（影响所有应用）、本应用的电池白名单与后台运行限制。关掉开关会恢复前两项。"))) {
-      e.target.checked = false; return;
+      ck.checked = false; return;
     }
-    const out = $("priv-ka-result");
-    out.className = "prov-state"; out.textContent = on ? t("正在应用…") : t("正在恢复…");
-    const r = await post("/api/priv/keepalive", { enable: on }).catch((e2) => ({ ok: false, message: e2.message }));
-    out.className = "prov-state " + (r.ok ? "ok" : "err");
-    out.textContent = r.ok
-            ? (on ? t("✓ 已应用") + (r.phantom ? t("（幽灵进程上限 {n}）", { n: r.phantom }) : "") : t("✓ 已恢复"))
-      : "✗ " + (r.message || t("失败"));
-    await loadPriv();
-    // 关的时候有几步没恢复成：开关留在开着，再点一次关就是重试（GHSA-7wwv）
-    if (!on && !r.ok) $("priv-ka").checked = true;
+    ck.disabled = true;
+    try {
+      const out = $("priv-ka-result");
+      out.className = "prov-state"; out.textContent = on ? t("正在应用…") : t("正在恢复…");
+      const r = await post("/api/priv/keepalive", { enable: on }).catch((e2) => ({ ok: false, message: e2.message }));
+      out.className = "prov-state " + (r.ok ? "ok" : "err");
+      out.textContent = r.ok
+              ? (on ? t("✓ 已应用") + (r.phantom ? t("（幽灵进程上限 {n}）", { n: r.phantom }) : "") : t("✓ 已恢复"))
+        : "✗ " + (r.message || t("失败"));
+      await loadPriv();
+      // 关的时候有几步没恢复成：开关留在开着，再点一次关就是重试（GHSA-7wwv）
+      if (!on && !r.ok) $("priv-ka").checked = true;
+    } finally {
+      if (ck.isConnected) ck.disabled = false;
+    }
   });
 
   // 特权命令免确认：打开时由应用弹原生的免责说明（这里不另问一遍），点了「打开」才生效
   $("priv-na").addEventListener("change", async (e) => {
-    const on = e.target.checked, out = $("priv-na-result");
-    out.className = "prov-state"; out.textContent = on ? t("请在弹出的说明里确认…") : t("正在关闭…");
-    const r = await post("/api/priv/noask", { enable: on, hours: +$("priv-na-hours").value || 24 }).catch((e2) => ({ ok: false, message: e2.message }));
-    out.className = "prov-state " + (r.ok ? (on ? "warn" : "ok") : "err");
-    out.textContent = r.ok ? (on ? t("已打开：特权命令不再逐条确认") : t("✓ 已关闭，恢复逐条确认")) : "✗ " + (r.message || t("失败"));
-    loadPriv();
+    const ck = e.target, on = ck.checked, out = $("priv-na-result");
+    ck.disabled = true;
+    try {
+      out.className = "prov-state"; out.textContent = on ? t("请在弹出的说明里确认…") : t("正在关闭…");
+      const r = await post("/api/priv/noask", { enable: on, hours: +$("priv-na-hours").value || 24 }).catch((e2) => ({ ok: false, message: e2.message }));
+      out.className = "prov-state " + (r.ok ? (on ? "warn" : "ok") : "err");
+      out.textContent = r.ok ? (on ? t("已打开：特权命令不再逐条确认") : t("✓ 已关闭，恢复逐条确认")) : "✗ " + (r.message || t("失败"));
+      await loadPriv();
+    } finally {
+      if (ck.isConnected) ck.disabled = false;
+    }
   });
 
   // ── 内存管家（cc-mem）──

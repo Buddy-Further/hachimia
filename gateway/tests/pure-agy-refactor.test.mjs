@@ -9,17 +9,17 @@ import { execFileSync } from "node:child_process";
 
 const ROOT = path.resolve(new URL("../..", import.meta.url).pathname);
 
-test("Stage 1 升级兜底：老配置选了 provider=local / active=local / localMode=custom 时平滑迁回默认不崩溃", () => {
+test("Stage 1 升级兜底：老配置选了 provider=local / active=local / localMode=custom（含真实无 .gguf 后缀模型名）时平滑迁回默认不崩溃", () => {
   const home = fs.mkdtempSync(path.join(process.env.CCAPP_TMP, "pure-agy-s1-"));
   const fakePre = path.join(home, "pre");
   fs.mkdirSync(fakePre, { recursive: true });
   fs.writeFileSync(path.join(home, "ccapp-providers.json"), JSON.stringify({
     active: "local",
-    providers: { local: { defaultModel: "qwen-4b.gguf" } },
+    providers: { local: { defaultModel: "qwen2.5-3b-instruct-q4_k_m" } },
   }));
   fs.writeFileSync(path.join(home, "ccapp-settings.json"), JSON.stringify({
-    provider: "local",
-    model: "qwen-4b.gguf",
+    provider: null,
+    model: "qwen2.5-3b-instruct-q4_k_m",
     localMode: "custom",
     permissionMode: "default",
     guard: true,
@@ -27,15 +27,24 @@ test("Stage 1 升级兜底：老配置选了 provider=local / active=local / loc
   }));
   const gw = new URL("../gw/", import.meta.url).href;
   const src = `
+    import fs from "node:fs";
+    import path from "node:path";
     const s = await import(${JSON.stringify(gw + "settings-store.mjs")});
     const p = await import(${JSON.stringify(gw + "providers.mjs")});
+    p.applyProvider();
+    const modelAfterMigrate = s.SETTINGS.model;
+    const diskModelAfterMigrate = JSON.parse(fs.readFileSync(path.join(${JSON.stringify(home)}, "ccapp-settings.json"), "utf8")).model;
+    // 迁出后用户新选的模型不应在二次 applyProvider() 时被误清
+    s.SETTINGS.model = "gemini-3.8-flash";
     p.applyProvider();
     console.log(JSON.stringify({
       active: p.PROVIDERS_CFG.active,
       providerId: p.PROVIDER.id,
       hasLocalPreset: "local" in p.PROVIDERS_CFG.providers,
       settingsProvider: s.SETTINGS.provider,
-      settingsModel: s.SETTINGS.model,
+      modelAfterMigrate,
+      diskModelAfterMigrate,
+      settingsModelAfterPick: s.SETTINGS.model,
       hasLocalMode: "localMode" in s.SETTINGS,
       migratedFrom: p.PROVIDER_MIGRATED_FROM,
     }));
@@ -48,8 +57,10 @@ test("Stage 1 升级兜底：老配置选了 provider=local / active=local / loc
   assert.equal(j.hasLocalPreset, false, "PRESETS.local 已下线，不应再出现");
   assert.equal(j.active, "antigravity", "active=local 应回退到 antigravity");
   assert.equal(j.providerId, "antigravity", "生效厂商应切回 antigravity");
-  assert.equal(j.settingsProvider, null, "老设置 provider=local 应清空");
-  assert.equal(j.settingsModel, null, "老设置 .gguf 模型名应一并清空");
+  assert.equal(j.settingsProvider, null, "老设置 provider 应为 null");
+  assert.equal(j.modelAfterMigrate, null, "初次迁移应清空真实无后缀本地模型名");
+  assert.equal(j.diskModelAfterMigrate, null, "初次迁移落盘应已清空无后缀本地模型名");
+  assert.equal(j.settingsModelAfterPick, "gemini-3.8-flash", "初次迁移清掉旧模型后，用户新选模型应保留");
   assert.equal(j.hasLocalMode, false, "老设置 localMode 字段应清除");
   assert.equal(j.migratedFrom, "local");
   const savedProv = JSON.parse(fs.readFileSync(path.join(home, "ccapp-providers.json"), "utf8"));

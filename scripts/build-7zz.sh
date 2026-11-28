@@ -10,7 +10,7 @@ SHA=a4e374c8f864f51df48c2cfd0e1413ec3b2ea030deae852d6a655402ebb61ac4     # 同 t
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 OUT="$ROOT/android/prebuilt/libcc7zz.so"
 TC=$HOME/.bldtools/c4tc/tc/gcc
-[ -x "$TC/bin/aarch64-linux-android-g++" ] || { echo "✗ 没有 $TC（C4droid GCC 10）"; exit 1; }
+[ -f "$TC/bin/aarch64-linux-android-g++" ] || { echo "✗ 没有 $TC（C4droid GCC 10）"; exit 1; }
 W=${TMPDIR:-/tmp}/build-7zz; rm -rf "$W"; mkdir -p "$W"; cd "$W"
 curl -fsSL -o src.tar.xz "https://github.com/ip7z/7zip/releases/download/$VER/7z$(echo $VER | tr -d .)-src.tar.xz"
 echo "$SHA  src.tar.xz" | sha256sum -c -
@@ -30,7 +30,11 @@ clang -O2 -fPIE -D_GNU_SOURCE -DNDEBUG -D_REENTRANT -D_FILE_OFFSET_BITS=64 -D_LA
 NEED=$(readelf -d b/g/7zz | sed -n 's/.*NEEDED.*\[\(.*\)\]/\1/p' | sort | tr '\n' ' ')
 [ "$NEED" = "libc.so libdl.so libm.so " ] || { echo "✗ 依赖不对：$NEED"; exit 1; }
 readelf -d b/g/7zz | grep -q RUNPATH && { echo "✗ 带了 RUNPATH"; exit 1; }
-env -i b/g/7zz i >/dev/null || { echo "✗ 干净环境里跑不起来"; exit 1; }
+if [ "$CCAPP_EXEC" = "loader" ] && [ -e /system/bin/linker64 ]; then
+  env -i /system/bin/linker64 b/g/7zz i >/dev/null || { echo "✗ 干净环境里跑不起来"; exit 1; }
+else
+  env -i b/g/7zz i >/dev/null || { echo "✗ 干净环境里跑不起来"; exit 1; }
+fi
 cp b/g/7zz "$OUT"
 sha256sum "$OUT" | cut -c1-64 > "$OUT.sha256"
 echo "✓ $OUT  7-Zip $VER · $(stat -c %s "$OUT") 字节 · sha256 $(cat "$OUT.sha256")"

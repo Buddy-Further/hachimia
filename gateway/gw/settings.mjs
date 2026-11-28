@@ -11,6 +11,7 @@ import { idleDisarmAll, publishState, pump, setPermMode, strList } from "./queue
 
 export { SETTINGS, saveSettings } from "./settings-store.mjs";
 import { SETTINGS, saveSettings, outputStyles } from "./settings-store.mjs";
+import { writeAtomic } from "./statefile.mjs";
 import { clampAutoCompact } from "./stream.mjs";
 import { ghProxyEnabled } from "./pget.mjs";
 
@@ -48,7 +49,7 @@ export async function routeSettings(req, res, u, p) {
         const m = String(b.mode);
         if (!["auto", "direct", "loader"].includes(m)) return sendJson(res, 400, { error: "bad mode" });
         if (must && m === "direct") return sendJson(res, 409, { error: tz("这个版本（targetSdk {n}）只能经加载器运行，不能切到直接执行", { n: sdk }) });
-        if (m === "auto") fs.rmSync(f, { force: true }); else fs.writeFileSync(f, m + "\n");
+        if (m === "auto") fs.rmSync(f, { force: true }); else writeAtomic(f, m + "\n");
         log(`执行方式偏好改为 ${m}`);
       }
       if (b.restart) {
@@ -91,6 +92,19 @@ export async function routeSettings(req, res, u, p) {
       }
       // 输出风格只收列出来的那些（内置两种 + 用户目录里的）：直发请求也选不了工作区里别人放的文件
       if (b.outputStyle && !outputStyles().some((o) => o.id === b.outputStyle)) return sendJson(res, 400, { error: "unknown outputStyle" });
+      // 先完成可能失败的 .gh-proxy 磁盘写入，避免已改动内存 SETTINGS / permissionMode 后中途 500 留下半套状态（FIND-051）
+      if ("ghProxy" in b && CFG.runtime) {
+        const want = !!b.ghProxy;
+        const gf = path.join(CFG.runtime, ".gh-proxy");
+        try {
+          fs.mkdirSync(CFG.runtime, { recursive: true });
+          if (want) writeAtomic(gf, "1\n");
+          else fs.rmSync(gf, { force: true });
+        } catch (e) {
+          log("写入 .gh-proxy 失败: " + e.message);
+          return sendJson(res, 500, { ok: false, error: tz("设置没能写入磁盘；本次运行内可能仍按新值生效，重启后恢复旧值（详情见网关日志）") });
+        }
+      }
       for (const k of ["model", "outputStyle", "effort", "titleModel"]) if (k in b) SETTINGS[k] = b[k] || null;
       // 权限模式只收 claude 认的值；正在跑的那一轮也当场切过去
       // 落盘统一放到本路由末尾的一次 saveSettings()：以前 setPermMode 在这里就先写一次盘，后面任何校验失败都会留下半套设置（FIND-051）
@@ -117,21 +131,7 @@ export async function routeSettings(req, res, u, p) {
       if ("idleCompaction" in b) { SETTINGS.idleCompaction = !!b.idleCompaction; if (!SETTINGS.idleCompaction) idleDisarmAll(); }
       if ("workIsland" in b) SETTINGS.workIsland = !!b.workIsland;
       if ("remoteNotices" in b) SETTINGS.remoteNotices = !!b.remoteNotices;
-      if ("ghProxy" in b) {
-        const want = !!b.ghProxy;
-        if (CFG.runtime) {
-          const gf = path.join(CFG.runtime, ".gh-proxy");
-          try {
-            fs.mkdirSync(CFG.runtime, { recursive: true });
-            if (want) fs.writeFileSync(gf, "1\n");
-            else fs.rmSync(gf, { force: true });
-          } catch (e) {
-            log("写入 .gh-proxy 失败: " + e.message);
-            return sendJson(res, 500, { ok: false, error: tz("设置没能写入磁盘；本次运行内可能仍按新值生效，重启后恢复旧值（详情见网关日志）") });
-          }
-        }
-        SETTINGS.ghProxy = want;
-      }
+      if ("ghProxy" in b) SETTINGS.ghProxy = !!b.ghProxy;
       // 存储的自动清理（D10）：开关 + 频次（每天 / 每周 / 每月）
       if (b.autoClean && typeof b.autoClean === "object") {
         const a = SETTINGS.autoClean || {};

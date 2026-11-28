@@ -22,6 +22,7 @@ import { saveState, writeAtomic as stateWriteAtomic } from "./statefile.mjs";
 const FILES = [
   ".claude/CLAUDE.md", ".claude/settings.json", ".claude/settings.local.json", ".claude.json",
   ".claude/plugins/installed_plugins.json", ".claude/plugins/known_marketplaces.json",
+  ".gemini/config/mcp_config.json",
   ".gemini/antigravity-cli/GEMINI.md", ".gemini/antigravity-cli/CLAUDE.md",
   ".gemini/antigravity-cli/settings.json", ".gemini/antigravity-cli/settings.local.json",
 ];
@@ -45,7 +46,7 @@ const canon = (v) => Array.isArray(v) ? "[" + v.map(canon).join(",") + "]"
   : v && typeof v === "object" ? "{" + Object.keys(v).sort().map((k) => JSON.stringify(k) + ":" + canon(v[k])).join(",") + "}"
   : JSON.stringify(v ?? null);
 
-/** JSON 里要管的那一块：设置文件去掉不让东西跑起来的键；.claude.json 只看 MCP 服务器（全局和各项目的） */
+/** JSON 里要管的那一块：设置文件去掉不让东西跑起来的键；.claude.json 与 .gemini/config/mcp_config.json 只看 MCP 服务器 */
 function riskyPart(rel, j) {
   if (!j || typeof j !== "object" || Array.isArray(j)) return null;
   if (rel === ".claude.json") {
@@ -56,6 +57,11 @@ function riskyPart(rel, j) {
     if (Object.keys(pr).length) out.projects = pr;
     return out;
   }
+  if (rel === ".gemini/config/mcp_config.json") {
+    const out = {};
+    if (j.mcpServers && Object.keys(j.mcpServers).length) out.mcpServers = j.mcpServers;
+    return out;
+  }
   if (rel.endsWith("/settings.json") || rel.endsWith("/settings.local.json")) {
     const out = {};
     for (const [k, v] of Object.entries(j)) if (!SAFE_KEYS.has(k)) out[k] = v;
@@ -63,7 +69,7 @@ function riskyPart(rel, j) {
   }
   return null;
 }
-const isJsonPart = (rel) => rel === ".claude.json" || /\/settings(\.local)?\.json$/.test(rel);
+const isJsonPart = (rel) => rel === ".claude.json" || rel === ".gemini/config/mcp_config.json" || /\/settings(\.local)?\.json$/.test(rel);
 
 // Claude Code 自己在插件版本目录根上记的运行状态：每个进程一份 .in_use/<pid>（开一轮就多一个、退出删掉），清理时的 .orphaned_at。
 // 不是配置，官方给插件算摘要时也把它们排除在外（2.1.311 实测）；算进来的话开着一轮时再开一轮，必定弹「用户级配置改了」，
@@ -170,7 +176,7 @@ const PEND = new Set();
 let pendT = null;
 const ACTIVE = new Map();     // 正在跑的轮次 runId → sessionId（记是哪一轮期间改的）
 const FILE_SET = new Set(FILES), TREE_SET = new Set(TREES);
-const PARENTS = ["", ".claude", ".claude/plugins", ".gemini", ".gemini/antigravity-cli"];
+const PARENTS = ["", ".claude", ".claude/plugins", ".gemini", ".gemini/config", ".gemini/antigravity-cli"];
 
 function onParent(prel, name) {
   // 没有名字（监视出错后的重扫，或者平台没给文件名）：这一层底下要盯的全部过一遍（DeepSeek 复核 11-04 建议）
@@ -351,6 +357,7 @@ function preview(rel, f, oldText) {
 export const UC_SEALED = [
   ".claude.json",
   ".claude/settings.json",
+  ".gemini/config/mcp_config.json",
   ".gemini/antigravity-cli/settings.json",
   ".gemini/antigravity-cli/settings.local.json",
 ];

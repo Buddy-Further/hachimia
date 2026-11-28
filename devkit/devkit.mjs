@@ -1510,7 +1510,7 @@ if (cmd === "build" || cmd === "component") {
   const py = R.to + "files/usr/bin/python3";
   if (EXTRAS) {
     fr.push(
-      `if [ -x "${py}" ]; then`,
+      `if [ -f "${py}" ]; then`,
       `  echo "▸ 预编译 Python 标准库与 site-packages"`,
       `  if [ "$CCAPP_EXEC" = "loader" ]; then`,
       `    "${py}" -m compileall -q -j 0 "$("${py}" -c "import sysconfig; print(sysconfig.get_path('stdlib'))")" >/dev/null 2>&1`,

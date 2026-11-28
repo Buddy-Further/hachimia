@@ -3099,4 +3099,7 @@ window.I18N_DICT["zh-Hant"] = {
   "这个版本的 Antigravity CLI 还没有官方签名清单，这一轮没有启动。正在联网补核，过一两分钟再发送；一直不行就到 设置 → 更新 里重新安装。": "這個版本的 Antigravity CLI 還沒有官方簽章清單，這一輪沒有啟動。正在連線補核，過一兩分鐘再傳送；一直不行就到 設定 → 更新 裡重新安裝。",
   "Antigravity CLI 程序和官方签名清单对不上，可能被改过，这一轮没有启动。到 设置 → 更新 里重新安装后再试。": "Antigravity CLI 程式和官方簽章清單對不上，可能被改過，這一輪沒有啟動。到 設定 → 更新 裡重新安裝後再試。",
   "这个项目带有会自动运行的配置，尚未信任，这一轮没有启动。": "這個專案帶有會自動執行的設定，尚未信任，這一輪沒有啟動。",
+  "还没装插件。": "還沒裝外掛。",
+  "该接口在 Antigravity 下暂不支持：Antigravity CLI 没有通用第三方 API Key 通道。请声明 protocol:\"gemini\"（端点须讲 Gemini 协议），或换用 Gemini / 订阅登录厂商。": "該介面在 Antigravity 下暫不支援：Antigravity CLI 沒有通用第三方 API Key 通道。請宣告 protocol:\"gemini\"（端點須講 Gemini 協定），或改用 Gemini / 訂閱登入廠商。",
+  "该接口在纯 Antigravity 模式下不可用，请重新选择接口": "該介面在純 Antigravity 模式下無法使用，請重新選擇介面",
 };

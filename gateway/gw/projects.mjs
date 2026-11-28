@@ -21,7 +21,7 @@ import { pathBlocked, writeNoFollow } from "./files.mjs";
 import { holdsPrivate, isPrivate } from "./pathguard.mjs";
 import { loadState, saveState } from "./statefile.mjs";
 import { syncGitSafe } from "./gitsafe.mjs";
-import { providerById } from "./providers.mjs";
+import { isSelectableProvider, providerById } from "./providers.mjs";
 import { closeAcpSession, hasAcpIdleBurst } from "./acp.mjs";
 
 const FILE = path.join(CFG.home, "ccapp-projects.json");
@@ -288,23 +288,30 @@ export function moveSession(sid, projectId) {
   closeAcpSession(sid);
   fs.mkdirSync(dir, { recursive: true });
   const dirty = checkSession(sid, found.file);   // 改写 cwd 前先核对，搬完重新封签：网关自己改的不算外部改动，原本不干净的也不洗白
-  const dst = inPlace ? found.file + ".mv" : path.join(dir, sid + ".jsonl");
+  const dst = path.join(dir, sid + ".jsonl");
+  const tmp = (inPlace ? found.file : dst) + ".mv-" + process.pid + "-" + crypto.randomBytes(4).toString("hex");
   const st = fs.statSync(found.file);
   // 按行流式改写（gw/bigfile.mjs）：1 GB 以上的会话整份读成字符串会超过 V8 单串上限
-  // 中途写不下（ENOSPC 之类）：删掉半成品再报错，原记录没动（DeepSeek 复核 #4）
+  // 先写同目录独占临时名并 fsync，写不下时删半成品，绝不把截断文件暴露为最终 .jsonl（Law 4）
   try {
-    rewriteLines(found.file, dst, (l) => {
+    rewriteLines(found.file, tmp, (l) => {
       if (!l.includes('"cwd"')) return l;
       try { const ev = JSON.parse(l); if (ev.cwd) ev.cwd = cwd; return JSON.stringify(ev); } catch { return l; }
     });
-  } catch (e) { fs.rmSync(dst, { force: true }); throw e; }
-  try { fs.utimesSync(dst, st.atime, st.mtime); } catch {}
+  } catch (e) { fs.rmSync(tmp, { force: true }); throw e; }
+  try { fs.utimesSync(tmp, st.atime, st.mtime); } catch {}
   if (inPlace) {
-    fs.renameSync(dst, found.file);
+    fs.renameSync(tmp, found.file);
     resealAfterEdit(sid, found.file, dirty);
     PEEK_CACHE.delete(found.file); lineageForget(sid);   // 脉络按大小认缓存：等长路径改写后大小不变，得明说重读（#98 03-005）
     log(`📁 会话 ${sid.slice(0, 8)} → ${p ? "项目 " + p.name : "工作区"}（同一目录，改写 cwd）`);
     return { ok: true };
+  }
+  try {
+    fs.renameSync(tmp, dst);
+  } catch (e) {
+    fs.rmSync(tmp, { force: true });
+    throw e;
   }
   // 同名目录（子代理记录、超长工具结果）搬不过去就整个不搬：删掉刚写的新记录、原会话原样留着，报错（#98 03-003）。
   // 以前吞掉这个错接着删原记录，附件留在旧目录，新位置的会话读不到子代理过程
@@ -411,7 +418,14 @@ export async function routeProjects(req, res, u, p) {
     const b = await body();
     if (typeof b.name === "string" && b.name.trim()) proj.name = b.name.trim().slice(0, 60);
     if (typeof b.color === "string" && /^#[0-9a-f]{6}$/i.test(b.color)) proj.color = b.color;
-    for (const k of ["model", "effort", "perm", "provider"]) if (typeof b[k] === "string") proj[k] = b[k].trim().slice(0, 80);
+    if (typeof b.provider === "string") {
+      const pv = b.provider.trim().slice(0, 80);
+      if (pv && pv !== "follow" && !isSelectableProvider(pv)) {
+        return sendJson(res, 400, { error: tz("该接口在纯 Antigravity 模式下不可用，请重新选择接口") });
+      }
+      proj.provider = pv;
+    }
+    for (const k of ["model", "effort", "perm"]) if (typeof b[k] === "string") proj[k] = b[k].trim().slice(0, 80);
     if (!save()) return sendJson(res, 500, SAVE_FAIL());
     return sendJson(res, 200, { ok: true, project: proj });
   }

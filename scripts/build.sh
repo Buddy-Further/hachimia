@@ -30,10 +30,10 @@ else
   # hachimia 终端（作者 11-05 起在开发版里发版）：工具都在 PATH，钥匙与 android.jar 在 ~/.bldtools
   B=${BLDTOOLS:-$HOME/.bldtools}
   # 原生小库优先用旧开发端搬来的 GCC 10（~/.bldtools/cc4），产物和以前逐字节一致；没有才用 clang
-  if [ -x "$B/cc4" ]; then CC_ANDROID=${CC_ANDROID:-$B/cc4}; else CC_ANDROID=${CC_ANDROID:-cc}; fi
+  if [ -f "$B/cc4" ]; then CC_ANDROID=${CC_ANDROID:-$B/cc4}; else CC_ANDROID=${CC_ANDROID:-cc}; fi
   # 旧开发端搬来的 JDK 17 与 d8.jar（~/.bldtools/jdk17）：javac 21 编出的 dex 不同，用它才和以前的包逐字节一致
   K=$B/jdk17
-  if [ -x "$K/java-17-openjdk/bin/javac" ]; then
+  if [ -f "$K/java-17-openjdk/bin/javac" ]; then
     JAVAC=${JAVAC:-"env LD_LIBRARY_PATH=$K/prefixlib $K/java-17-openjdk/bin/javac"}
     D8=${D8:-"env LD_LIBRARY_PATH=$K/prefixlib $K/java-17-openjdk/bin/java -cp $K/d8.jar com.android.tools.r8.D8"}
   else

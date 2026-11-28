@@ -174,7 +174,7 @@ export async function routeFonts(req, res, u, p) {
     const id = sha.slice(0, 12);
     const target = path.join(DIR, `${id}.${fmt}`);
     fs.mkdirSync(DIR, { recursive: true });
-    await fs.promises.writeFile(target, buf);
+    if (!writeAtomic(target, buf)) return sendJson(res, 500, { error: "write_failed", message: "写入字体文件失败" });
     // 清单在异步解析和写盘之后再取：避免交错覆盖（审查 B21）
     const list = load();
     // 先认重：字体文件按 sha 命名，重传已有字体会写回同一个 target；若先查数量上限，
@@ -183,7 +183,9 @@ export async function routeFonts(req, res, u, p) {
     if (dup) return sendJson(res, 200, { ok: true, font: pub(dup), dup: true });
     if (list.length >= FONT_COUNT) { try { fs.unlinkSync(target); } catch {} return sendJson(res, 400, { error: "too many", message: "最多导入 10 个字体，先删掉一个再导入" }); }
     const f = { id, name: parsedName, file: raw || `${stem}.${fmt}`, fmt, size: buf.length, sha, at: Date.now() };
-    list.push(f); save(list);
+    list.push(f);
+    try { save(list); }
+    catch (e) { try { fs.unlinkSync(target); } catch {} throw e; }
     log(`[fonts] 导入 ${f.file}（${f.name}，${fmt}，${buf.length}B）→ ${f.id}`);
     return sendJson(res, 200, { ok: true, font: pub(f) });
   }

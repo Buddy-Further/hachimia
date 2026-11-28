@@ -316,7 +316,11 @@ export function noteAcpInit(run, sessionId, item = null) {
   rememberSession(sessionId);
   if (item?.pin && !run.pinSaved) {
     run.pinSaved = true;
-    setSessModel(sessionId, item.pin, item.projectId);
+    let pin = item.pin;
+    if (pin.provider && (pin.provider === "local" || providerById(pin.provider)?.group === "claude")) {
+      pin = { ...pin, provider: "antigravity", model: pin.model != null ? "" : null };
+    }
+    setSessModel(sessionId, pin, item.projectId);
   }
   if (item?.mergeFrom && !item.sessionId) {
     recordExtra(sessionId, item.mergeFrom);

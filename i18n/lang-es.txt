@@ -3096,3 +3096,6 @@
 3096	Esta versión de Antigravity CLI aún no tiene un manifiesto oficial firmado, así que este turno no se inició. Comprobando en línea — inténtalo en uno o dos minutos o reinstala en Ajustes → Actualizaciones.
 3097	El binario de Antigravity CLI no coincide con el manifiesto oficial firmado y puede haber sido modificado, así que este turno no se inició. Reinstálalo en Ajustes → Actualizaciones e inténtalo de nuevo.
 3098	Este proyecto contiene configuración de ejecución automática que aún no es de confianza, así que este turno no se inició.
+3099	Aún no hay plugins instalados.
+3100	Este proveedor aún no es compatible con Antigravity: Antigravity CLI no tiene un canal genérico para claves API de terceros. Declara protocol:"gemini" (para un punto de conexión compatible con Gemini) o cambia a Gemini / un proveedor con inicio de sesión.
+3101	Este proveedor no está disponible en el modo Antigravity puro; elige otro proveedor.

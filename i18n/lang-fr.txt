@@ -3096,3 +3096,6 @@
 3096	Cette version d'Antigravity CLI n'a pas encore de manifeste signé officiel ; ce tour n'a pas démarré. Revérification en ligne — réessayez dans une ou deux minutes, ou réinstallez dans Réglages → Mises à jour.
 3097	Le binaire Antigravity CLI ne correspond pas au manifeste officiel signé et a peut-être été modifié ; ce tour n'a pas démarré. Réinstallez-le dans Réglages → Mises à jour puis réessayez.
 3098	Ce projet contient une configuration d'exécution automatique non encore approuvée ; ce tour n'a pas démarré.
+3099	Aucun plugin installé pour l’instant.
+3100	Ce fournisseur n’est pas encore pris en charge dans Antigravity : Antigravity CLI ne dispose pas de canal générique pour les clés API tierces. Déclarez protocol:"gemini" (pour un point de terminaison compatible Gemini) ou passez à Gemini / un compte connecté.
+3101	Ce fournisseur n’est pas disponible en mode Antigravity pur ; veuillez en choisir un autre.

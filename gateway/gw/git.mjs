@@ -287,11 +287,24 @@ async function gitStatus(root) {
     out.files.push(f);
     if (out.files.length >= 1000) { out.truncated = true; break; }
   }
-  // 每个文件的增删行数（工作区对 HEAD；新文件按行数算）
+  // 每个文件的增删行数（工作区对 HEAD；新文件按行数算；-z 下重命名条目为 "<add>\t<del>\t\0<old>\0<new>\0"）
   const ns = await git(root, ["diff", "HEAD", "--numstat", "-z"]);
   if (!ns.code) {
     const map = new Map();
-    for (const rec of ns.out.split("\0")) { const m = rec.match(/^(\d+|-)\t(\d+|-)\t(.+)$/); if (m) map.set(m[3], [m[1], m[2]]); }
+    const parts = ns.out.split("\0");
+    for (let i = 0; i < parts.length; i++) {
+      const rec = parts[i];
+      if (!rec) continue;
+      const ren = rec.match(/^(\d+|-)\t(\d+|-)\t$/);
+      if (ren) {
+        const newPath = parts[i + 2];
+        if (newPath) map.set(newPath, [ren[1], ren[2]]);
+        i += 2;
+        continue;
+      }
+      const m = rec.match(/^(\d+|-)\t(\d+|-)\t(.+)$/);
+      if (m) map.set(m[3], [m[1], m[2]]);
+    }
     for (const f of out.files) { const n = map.get(f.path); if (n) { f.add = n[0] === "-" ? null : +n[0]; f.del = n[1] === "-" ? null : +n[1]; } }
   }
   // 未跟踪文件的行数只用于 +N 展示。给总读取量封顶，别让浏览一个含很多大文件的目录把事件循环同步卡死
@@ -546,8 +559,10 @@ async function handleGit(req, res, p, u) {
   if (act === "identity") {
     const name = String(body.name || "").trim(), email = String(body.email || "").trim();
     if (!name || !/^[^@\s]+@[^@\s]+$/.test(email)) return sendJson(res, 400, { error: tz("名字和邮箱都要填") });
-    await git(root, ["config", "--global", "user.name", name]);
-    await git(root, ["config", "--global", "user.email", email]);
+    const r1 = await git(root, ["config", "--global", "user.name", name]);
+    if (r1.code) return sendJson(res, 500, { error: r1.err || r1.out.trim() || "git config user.name failed" });
+    const r2 = await git(root, ["config", "--global", "user.email", email]);
+    if (r2.code) return sendJson(res, 500, { error: r2.err || r2.out.trim() || "git config user.email failed" });
     return sendJson(res, 200, { ok: true });
   }
 

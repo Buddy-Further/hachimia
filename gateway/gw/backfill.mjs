@@ -7,14 +7,15 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { CFG, LAST_LANG, log, tz } from "./config.mjs";
-import { ucPending } from "./userconf.mjs";
+import { CFG, LAST_LANG, PATHS, log, tz } from "./config.mjs";
+import { UC_SEALED, ucPending } from "./userconf.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
 import { publish } from "./bus.mjs";
-import { agyCmd, agyEnv, claudeBlocked, currentModelInfo, killTree, stripAgyGlog } from "./claude.mjs";
+import { agyCmd, agyEnv, claudeBlocked, currentModelInfo, isGeminiApiKey, killTree, stripAgyGlog } from "./claude.mjs";
+import { ACP_PROTOCOL_VERSION, createAcpClient } from "./acp.mjs";
 import { sealed } from "./edition.mjs";
 import { SETTINGS } from "./settings-store.mjs";
-import { PROVIDER } from "./providers.mjs";
+import { PROVIDER, hasAcpKeyChannel, hasAdcCredentials, keyOf } from "./providers.mjs";
 import { lineageCached, lineageGraph } from "./lineage.mjs";
 import { findSessionFile } from "./sessions.mjs";
 import { archiveDb } from "./archive-store.mjs";
@@ -191,22 +192,134 @@ export function parseTitles(text) {
 }
 
 const WORK = path.join(CFG.home, ".cache", "ccapp-backfill");
+let AGY_PRINT_INELIGIBLE = false;
+const isEligibilityErr = (msg) => /Eligibility check failed|not currently available in your location|Account ineligible/i.test(String(msg || ""));
+
+/** 轻量一次性 agy acp 问答（无工具权限、不入常驻池）：当 agy -p 受 OAuth 地区资格检查拦住时自动回退 */
+async function askViaAcpOneShot(agyPrompt, { env, provider: P, model, own }) {
+  const bin = PATHS.agy;
+  if (!bin || !fs.existsSync(bin)) return { error: tz("Antigravity CLI (agy) 未安装。到 设置 → 更新 里点「安装」即可。") };
+  let chunks = "", fullMsg = "", tin = 0, tout = 0, client = null;
+  let timer = null;
+  try {
+    client = createAcpClient({
+      bin,
+      args: ["acp"],
+      cwd: WORK,
+      env,
+      onNotification: (method, params) => {
+        if (method !== "session/update") return;
+        const u = params?.update;
+        if (!u || typeof u !== "object") return;
+        if (u.sessionUpdate === "agent_message_chunk") {
+          const t = typeof u.content === "string" ? u.content : (u.content?.type === "text" ? String(u.content.text || "") : "");
+          if (t) chunks += t;
+        } else if (u.sessionUpdate === "agent_message") {
+          const t = typeof u.content === "string" ? u.content : (u.content?.type === "text" ? String(u.content.text || "") : "");
+          if (t) fullMsg = t;
+        } else if (u.sessionUpdate === "usage_update") {
+          const raw = u.usage || u;
+          const inp = Number(raw.inputTokens ?? raw.input_tokens ?? 0) || 0;
+          const cached = Number(raw.cachedReadTokens ?? raw.cache_read_input_tokens ?? 0) || 0;
+          const outT = Number(raw.outputTokens ?? raw.output_tokens ?? 0) || 0;
+          if (inp + cached > tin) tin = inp + cached;
+          if (outT > tout) tout = outT;
+        }
+      },
+      onRequest: async (method, params) => {
+        if (method === "session/request_permission") {
+          const opts = Array.isArray(params?.options) ? params.options : [];
+          const rej = opts.find((x) => /reject|deny|cancel/i.test(String(x?.kind || x?.optionId || "")));
+          return rej ? { outcome: { outcome: "selected", optionId: rej.optionId } } : { outcome: { outcome: "cancelled" } };
+        }
+        return {};
+      },
+    });
+    if (own) JOB.child = client.child;
+    const timeoutPromise = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        try { killTree(client.child); } catch {}
+        try { client.close(); } catch {}
+        reject(new Error("timeout"));
+      }, 180000);
+      timer.unref?.();
+    });
+    const run = async () => {
+      const initRes = await client.request("initialize", {
+        protocolVersion: ACP_PROTOCOL_VERSION,
+        clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
+        clientInfo: { name: "hachimia", version: process.env.CCAPP_APP_VERSION || "0.1.0" },
+      }, 30000);
+      if (!own && false) return;
+      if (own && JOB.stop) return { error: "stopped" };
+      const key = keyOf(P);
+      const authType = P?.authType || (isGeminiApiKey(P, key) ? "gemini-api-key" : (P?.login ? "oauth-personal" : ""));
+      const authMethods = Array.isArray(initRes?.authMethods) ? initRes.authMethods : [];
+      if (authType && authMethods.some((m) => m.id === authType)) {
+        const authParams = { methodId: authType };
+        if (authType === "gemini-api-key" && key) authParams._meta = { "api-key": key };
+        try { await client.request("authenticate", authParams, 20000); }
+        catch (e) {
+          if (!/already (authenticated|authorized|logged in|signed in)|authentication (not required|not needed)/i.test(e.message || "")) throw e;
+        }
+      }
+      if (own && JOB.stop) return { error: "stopped" };
+      const sessRes = await client.request("session/new", { cwd: WORK, mcpServers: [] }, 30000);
+      const sid = sessRes?.sessionId;
+      if (!sid) throw new Error("ACP session/new returned no sessionId");
+      if (model) {
+        const cfgOpts = Array.isArray(sessRes?.configOptions) ? sessRes.configOptions : [];
+        const mOpt = cfgOpts.find((c) => c && (c.id === "model" || c.category === "model"));
+        const configId = mOpt?.id || "model";
+        try { await client.request("session/set_config_option", { sessionId: sid, configId, value: model }, 10000); } catch {}
+      }
+      if (own && JOB.stop) return { error: "stopped" };
+      const pr = await client.request("session/prompt", { sessionId: sid, prompt: [{ type: "text", text: agyPrompt }] }, 150000);
+      const pu = pr?.usage || {};
+      if (!tin) tin = (Number(pu.inputTokens ?? pu.input_tokens ?? 0) || 0) + (Number(pu.cachedReadTokens ?? pu.cache_read_input_tokens ?? 0) || 0);
+      if (!tout) tout = Number(pu.outputTokens ?? pu.output_tokens ?? 0) || 0;
+      const text = (fullMsg || chunks).trim();
+      return text ? { text, tin, tout } : { error: stripAgyGlog(client.stderr).slice(-300) || "no output" };
+    };
+    return await Promise.race([run(), timeoutPromise]);
+  } catch (e) {
+    if (own && JOB.stop) return { error: "stopped" };
+    return { error: String(e?.message || e || "acp error").slice(0, 300) };
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (client) {
+      try { client.close(); } catch {}
+      try { killTree(client.child); } catch {}
+    }
+    if (own) JOB.child = null;
+  }
+}
+
 /** 问一次。o.provider / o.model：自动起名用对话那家（autotitle.mjs）；不给就是补档，走全局默认、子进程挂在 JOB 上好停 */
 export async function ask(prompt, o = {}) {
-  // 起 claude 就会加载用户级钩子、CLAUDE.md：有没确认的改动先别起（见 userconf.mjs）。发行版封口，用户级配置一概不读，也就没有卡片
-  if (!sealed() && ucPending()) return { error: tz("Antigravity CLI 的用户级配置有改动还没确认。先发一条消息，在弹出的卡片里确认后再试。") };
+  // 起 agy 就会加载用户级配置：有没确认的改动先别起（发行版亦核 UC_SEALED，与 run.mjs 对齐）
+  if (ucPending(sealed() ? UC_SEALED : null)) return { error: tz("Antigravity CLI 的用户级配置有改动还没确认。先发一条消息，在弹出的卡片里确认后再试。") };
   const blocked = await claudeBlocked();
   if (blocked) return { error: blocked };
   if (!o.provider && JOB.stop) return { error: "stopped" };   // 核验那一下里用户点了停止：别再起（调用方先看 JOB.stop，这条不记错）
-  return new Promise((resolve) => {
-    fs.mkdirSync(WORK, { recursive: true });
-    const P = o.provider || PROVIDER, own = !o.provider;
-    const rawAgyPrompt = `${systemPrompt()}\n\n${prompt}`;
-    const agyPrompt = Buffer.byteLength(`-p=${rawAgyPrompt}`, "utf8") > AGY_ARG_HARD_CAP
-      ? trimUtf8Bytes(rawAgyPrompt, AGY_ARG_HARD_CAP - 3)
-      : rawAgyPrompt;
+  const P = o.provider || PROVIDER, own = !o.provider;
+  if (!hasAcpKeyChannel(P)) {
+    return { error: tz("该接口在 Antigravity 下暂不支持：Antigravity CLI 没有通用第三方 API Key 通道。请声明 protocol:\"gemini\"（端点须讲 Gemini 协议），或换用 Gemini / 订阅登录厂商。") };
+  }
+  if ((P?.authType === "agent-platform" || P?.authStyle === "adc") && !hasAdcCredentials()) {
+    return { error: tz("没有找到 Google Cloud ADC 凭据（Application Default Credentials）。请先在终端运行 gcloud auth application-default login 登录，再回来选 ADC。") };
+  }
+  fs.mkdirSync(WORK, { recursive: true });
+  const rawAgyPrompt = `${systemPrompt()}\n\n${prompt}`;
+  const agyPrompt = Buffer.byteLength(`-p=${rawAgyPrompt}`, "utf8") > AGY_ARG_HARD_CAP
+    ? trimUtf8Bytes(rawAgyPrompt, AGY_ARG_HARD_CAP - 3)
+    : rawAgyPrompt;
+  const env = own ? agyEnv() : agyEnv({ model: o.model || "", provider: P });
+  if (AGY_PRINT_INELIGIBLE && P?.login) {
+    return askViaAcpOneShot(agyPrompt, { env, provider: P, model: o.model || "", own });
+  }
+  const printRes = await new Promise((resolve) => {
     const [cmd, args] = agyCmd(["--output-format", "json", "--disable-slash-commands", ...(o.model ? ["--model", o.model] : []), `-p=${agyPrompt}`]);
-    const env = own ? agyEnv() : agyEnv({ model: o.model || "", provider: P });
     const child = spawn(cmd, args, { cwd: WORK, env, stdio: ["ignore", "pipe", "pipe"], detached: true });
     if (own) JOB.child = child;
     let out = "", err = "", done = false;
@@ -244,6 +357,12 @@ export async function ask(prompt, o = {}) {
       return fin({ error: (cleanErr || cleanOut).trim().slice(-300) || "no output" });
     });
   });
+  if (printRes?.error && isEligibilityErr(printRes.error) && !(own && JOB.stop)) {
+    if (P?.login) AGY_PRINT_INELIGIBLE = true;
+    log("[backfill] agy -p 触发地区资格限制，自动改走一次性 agy acp 通道");
+    return askViaAcpOneShot(agyPrompt, { env, provider: P, model: o.model || "", own });
+  }
+  return printRes;
 }
 
 // ── 任务 ──

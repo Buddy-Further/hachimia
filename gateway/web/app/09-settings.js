@@ -748,6 +748,7 @@
         <select id="pc-endpoint" aria-labelledby="pc-endpoint-l">${p.endpoints.map((e) =>
           `<option value="${esc(e.id)}" ${e.id === p.endpoint ? "selected" : ""}>${esc(pLabel(e))}</option>`).join("")}</select>` : ""}
       ${p.endpointLost ? `<div class="tiny warn">${esc(t("原线路已下线，请重选线路并重填 Key。"))}</div>` : ""}
+      ${p && p.noAcpKeyChannel ? `<div class="tiny warn">${esc(t("在 Antigravity 下暂不支持：Antigravity CLI 没有通用第三方 API Key 通道。请声明 protocol:\"gemini\"（端点须讲 Gemini 协议），或换用 Gemini / 订阅登录厂商。"))}</div>` : ""}
       ${p && p.plainHttp ? `<div class="tiny warn">${esc(t("这个地址是明文 http，密钥和对话内容会不加密地发到对方机器上；能用 https 就换成 https。"))}</div>` : ""}
       <input id="pc-key" type="password" autocomplete="off"
         placeholder="${p.hasKey ? t("已保存（…{tail}），留空则不改", { tail: esc(p.keyTail) }) : t("粘贴 API Key")}">

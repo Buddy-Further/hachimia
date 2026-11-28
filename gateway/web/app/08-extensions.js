@@ -583,13 +583,18 @@
     try { r = await api("/api/ext/plugins"); } catch (e) { if (!ok()) return; if (box.querySelector(".item")) return toast(e.message, true); box.innerHTML = `<div class="tiny">${esc(e.message)}</div>`; return; }
     if (!ok()) return;
     if (r.ok === false) { if (box.querySelector(".item")) return toast(r.message || "?", true); box.innerHTML = `<div class="tiny">${esc(r.message)}</div>`; return; }
+    const canCatalog = r.supportsCatalog !== false;
+    const canMarkets = r.supportsMarketplaces !== false;
+    if ($("ext-p-searchbox")) $("ext-p-searchbox").classList.toggle("hidden", !canCatalog);
+    if ($("ext-catalog")) $("ext-catalog").classList.toggle("hidden", !canCatalog);
+    if ($("ext-markets-box") && !canMarkets) $("ext-markets-box").classList.add("hidden");
     $("ext-p-count").textContent = r.installed.length;
     box.innerHTML = r.installed.length ? r.installed.map((p) => extItem(
       esc(p.id.split("@")[0]) + (p.enabled ? "" : ` <span class="badge">${t("已停用")}</span>`),
       `<span>${esc(p.id.split("@")[1] || "")}</span><span>${esc(String(p.version || "").slice(0, 16))}</span><span>${esc(p.scope || "")}</span>`,
       `<button data-x="${p.enabled ? "disable" : "enable"}" data-id="${esc(p.id)}">${p.enabled ? t("停用") : t("启用")}</button>
        <button data-x="uninstall" data-id="${esc(p.id)}">${t("卸载")}</button>`, "", [p.enabled ? "on" : "off", "m:" + tg(p.id.split("@")[1] || "")])).join("")
-      : `<div class="tiny">${t("还没装插件。在下面搜索可安装的。")}</div>`;
+      : `<div class="tiny">${canCatalog ? t("还没装插件。在下面搜索可安装的。") : t("还没装插件。")}</div>`;
     renderIdx("plugin", [["on", t("已启用")], ["off", t("已停用")]]);
   }
 
@@ -644,6 +649,11 @@
     // 读失败要报错，不能画成「只有内置的官方目录」（195-N.4 / X.2）
     const r = await api("/api/ext/marketplaces").catch((e) => ({ items: [], err: e.message }));
     if (!ok()) return;
+    if (r.supported === false) {
+      if ($("ext-markets-box")) $("ext-markets-box").classList.add("hidden");
+      return;
+    }
+    if ($("ext-markets-box")) $("ext-markets-box").classList.remove("hidden");
     if (r.ok === false) r.err = r.err || r.message || "?";
     if (r.err) {
       if ($("ext-markets").querySelector(".item")) return toast(t("插件市场读取失败：{msg}", { msg: r.err }), true);
@@ -672,7 +682,7 @@
     // 发行版：skill 经检查后以插件「user」交给 Antigravity，斜杠调用时名字带 user: 前缀（见 gw/seal.mjs）
     // 模式（F5）：开 / 只露名字（省上下文）/ 只能你用斜杠调用 / 关。发行版的技能由网关打包交给 claude，只认开 / 关
     const modes = r.sealed ? [["on", t("开")], ["off", t("关")]] : [["on", t("开")], ["name-only", t("只露名字")], ["user-invocable-only", t("只能你调用")], ["off", t("关")]];
-    const modeSel = (s) => s.orphan ? "" : `<select class="sk-mode" data-id="${esc(s.dir)}" aria-label="${esc(t("技能模式"))}">${modes.map(([v, l]) => `<option value="${v}"${(s.mode || "on") === v ? " selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
+    const modeSel = (s) => s.orphan ? "" : `<select class="sk-mode" data-id="${esc(s.dir)}" data-prev="${esc(s.mode || "on")}" aria-label="${esc(t("技能模式"))}">${modes.map(([v, l]) => `<option value="${v}"${(s.mode || "on") === v ? " selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
     $("ext-skills").innerHTML = (r.sealed && (r.items || []).length ? `<div class="tiny">${esc(t("hachimia 检查过这些技能再交给 Antigravity，用斜杠调用时名字前面带 user:，比如 /user:{name}。", { name: r.items[0].name }))}</div>` : "") + (r.items || []).map((s) => extItem(esc(s.name) + (s.mode && s.mode !== "on" ? ` <span class="badge">${esc((modes.find(([v]) => v === s.mode) || [, t("已停用")])[1])}</span>` : ""), "",
       modeSel(s) + `<button data-x="skill-rm" data-id="${esc(s.dir)}">${t("删除")}</button>`,
       `<div class="tiny ext-desc">${esc(s.orphan ? t("这个文件夹里没有 SKILL.md（可能是以前导入到一半失败留下的），可以删掉。") : !isZh() && s.descEn ? s.descEn : s.description)}</div>`, [s.component ? "comp" : s.official ? "official" : "user"])).join("")
@@ -684,10 +694,17 @@
   $("ext-skills").addEventListener("change", async (e) => {
     const sel = e.target.closest("select.sk-mode");
     if (!sel) return;
+    const prev = sel.dataset.prev || "on";
     sel.disabled = true;
-    const r = await post("/api/ext/skills/mode", { dir: sel.dataset.id, mode: sel.value }).catch((err) => ({ ok: false, message: err.message }));
-    toast(r.ok ? t("下一轮对话起生效") : t("失败：{msg}", { msg: r.message || "" }), !r.ok);
-    loadExtSkills();
+    try {
+      const r = await post("/api/ext/skills/mode", { dir: sel.dataset.id, mode: sel.value }).catch((err) => ({ ok: false, message: err.message }));
+      toast(r.ok ? t("下一轮对话起生效") : t("失败：{msg}", { msg: r.message || "" }), !r.ok);
+      if (r.ok) sel.dataset.prev = sel.value;
+      else if (sel.isConnected) sel.value = prev;
+      await loadExtSkills();
+    } finally {
+      if (sel.isConnected) sel.disabled = false;
+    }
   });
 
   // ── Hooks（自动规则）：到某个时刻自动跑一条命令。常用规则点一下就加，也能自己写；每条都能先试运行看效果 ──
@@ -1475,14 +1492,17 @@
     }[x];
     if (ask && !confirm(ask)) return;
     b.disabled = true;
-    const key = x === "skill-rm" ? "dir" : x.startsWith("mcp-") || x === "market-rm" ? "name" : "id";
-    const r = await post(url, { [key]: id }).catch((err) => ({ ok: false, message: err.message }));
-    toast(r.ok ? t("完成") : t("失败：{msg}", { msg: r.message || "" }), !r.ok);
-    b.disabled = false;
-    if (x === "skill-rm") loadExtSkills();
-    else if (x.startsWith("mcp-")) loadExtMcp();
-    else if (x === "market-rm") { loadExtMarkets(); loadExtPlugins(); }
-    else loadExtPlugins();
+    try {
+      const key = x === "skill-rm" ? "dir" : x.startsWith("mcp-") || x === "market-rm" ? "name" : "id";
+      const r = await post(url, { [key]: id }).catch((err) => ({ ok: false, message: err.message }));
+      toast(r.ok ? t("完成") : t("失败：{msg}", { msg: r.message || "" }), !r.ok);
+      if (x === "skill-rm") await loadExtSkills();
+      else if (x.startsWith("mcp-")) await loadExtMcp();
+      else if (x === "market-rm") await Promise.all([loadExtMarkets(), loadExtPlugins()]);
+      else await loadExtPlugins();
+    } finally {
+      if (b.isConnected) b.disabled = false;
+    }
   });
 
   // ── 排障：安全模式 / 日志分享 / 修复账本 ───────────────────────────

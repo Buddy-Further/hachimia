@@ -1329,17 +1329,30 @@ export function createAcpClient({ bin, args = ["acp"], cwd, env, onNotification,
     }
   });
 
-  child.on("error", (err) => {
+  let closeDelivered = false;
+  let exitGraceTimer = null;
+  const deliverClose = (code, signal) => {
+    if (closeDelivered) return;
+    closeDelivered = true;
     closed = true;
-    rejectAll(err);
-  });
-  child.on("close", (code, signal) => {
-    closed = true;
+    if (exitGraceTimer) { clearTimeout(exitGraceTimer); exitGraceTimer = null; }
     if (jsonBuf) { log(`[acp] 进程退出时仍有未拼完的 stdout 内容: ${jsonBuf}`); jsonBuf = ""; }
-    rl.close();
+    try { rl.close(); } catch {}
     rejectAll(new Error(signal ? `agy acp terminated by ${signal}` : `agy acp exited with code ${code}`));
     try { handlers.onClose?.(code, signal); } catch {}
+  };
+  child.on("error", (err) => {
+    closed = true;
+    if (exitGraceTimer) { clearTimeout(exitGraceTimer); exitGraceTimer = null; }
+    rejectAll(err);
   });
+  child.on("exit", (code, signal) => {
+    if (closeDelivered || exitGraceTimer) return;
+    // 若子孙进程继承了 stdout/stderr 管道导致 Node 迟迟不发 close，500ms 后主动兜底释放挂起 RPC 与锁（Law 6）
+    exitGraceTimer = setTimeout(() => deliverClose(code, signal), 500);
+    exitGraceTimer.unref?.();
+  });
+  child.on("close", (code, signal) => deliverClose(code, signal));
 
   function writeMsg(obj) {
     if (closed || !child.stdin.writable) return false;
@@ -1422,8 +1435,10 @@ export function createAcpClient({ bin, args = ["acp"], cwd, env, onNotification,
 
   function close() {
     closed = true;
+    if (exitGraceTimer) { clearTimeout(exitGraceTimer); exitGraceTimer = null; }
     try { child.stdin.end(); } catch {}
     try { rl.close(); } catch {}
+    rejectAll(new Error("ACP client closed"));
   }
 
   return {
@@ -2775,7 +2790,9 @@ export async function runAcpTurn({
   // 同时通过 --add-dir 传入附加目录（与 session/* 的 additionalDirectories 双保险对齐）。
   const isDefaultAgyArgs = Array.isArray(args) && args[0] === "acp";
   const hasDisallowed = Array.isArray(disallowedTools) && disallowedTools.length > 0;
-  const useSkipPermsFlag = isDefaultAgyArgs && permMode === "bypassPermissions" && !restrictMode && !hasDisallowed;
+  const hasAllowed = Array.isArray(allowedTools) && allowedTools.length > 0;
+  const restrictedRun = !!(run?.unattended || (run?.auto && run.auto !== "bg") || hasAllowed);
+  const useSkipPermsFlag = isDefaultAgyArgs && permMode === "bypassPermissions" && !restrictMode && !hasDisallowed && !restrictedRun;
   const effectiveArgs = isDefaultAgyArgs
     ? [
         ...args,
@@ -2826,7 +2843,7 @@ export async function runAcpTurn({
         const guardHit = judge(guardPair.tool, guardPair.input);
         const isHumanTool = isAcpHumanTool(toolTitle, toolRaw, rawTitle);
 
-        if ((state.permMode === "bypassPermissions" || permMode === "bypassPermissions") && !isHumanTool && !guardHit && allowOpt) {
+        if (!restrictedRun && (state.permMode === "bypassPermissions" || permMode === "bypassPermissions") && !isHumanTool && !guardHit && allowOpt) {
           log(`[agy-acp] 权限自动放行: ${toolTitle} -> ${allowOpt.optionId}`);
           return { outcome: { outcome: "selected", optionId: allowOpt.optionId } };
         }

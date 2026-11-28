@@ -69,15 +69,16 @@ export function lineWriter(file) {
   };
 }
 
-/** 逐行改写 src → dst，换行结构原样保留（结尾有没有换行都照旧） */
-export function rewriteLines(src, dst, fn) {
-  const fd = fs.openSync(dst, "w");
+/** 逐行改写 src → dst，换行结构原样保留（结尾有没有换行都照旧）；写完 fsync 保持久 */
+export function rewriteLines(src, dst, fn, { mode = 0o600 } = {}) {
+  const fd = fs.openSync(dst, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC | (fs.constants.O_NOFOLLOW || 0), mode);
   let parts = [], len = 0, prev = null;
   const put = (s) => { const b = Buffer.from(s, "utf8"); parts.push(b); len += b.length; if (len >= CHUNK) { writeAll(fd, Buffer.concat(parts, len)); parts = []; len = 0; } };
   try {
     forEachLine(src, (l) => { if (prev !== null) put(prev + "\n"); prev = fn(l); });
     if (prev) put(prev);
     if (len) writeAll(fd, Buffer.concat(parts, len));
+    fs.fsyncSync(fd);
   } finally { fs.closeSync(fd); }
 }
 

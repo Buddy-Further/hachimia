@@ -834,12 +834,27 @@
     $("caps-mcp").innerHTML = '<div class="row"><span class="tiny">' + esc(t("查询中…")) + "</span></div>";
     try {
       const r = await api("/api/cli?cmd=" + encodeURIComponent("mcp list"));
-      const lines = (r.out || "").split("\n").map((s) => s.trim()).filter(Boolean);
-      // claude mcp list 一行一个：「名字: 命令 - ✓ Connected」/「✗ Failed to connect」
-      $("caps-mcp").innerHTML = capRows(lines.filter((l) => /:\s/.test(l) && /connect|fail|need/i.test(l)).slice(0, 40), (l) => {
-        const name = l.split(":")[0], ok = /✓|connected/i.test(l) && !/fail|✗/i.test(l);
-        return `<div class="row"><span class="mono grow">${esc(name)}</span>${sdot(ok ? "ok" : "err", ok ? t("已连接") : t("没连上"))}</div>`;
-      }) || '<div class="row"><span class="tiny">' + esc(t("(无 MCP 服务器)")) + "</span></div>";
+      if (r.code && r.code !== 0 && !r.out) throw new Error(r.err || `exit ${r.code}`);
+      const items = [];
+      for (const rawLine of (r.out || "").replace(/\x1b\[[0-9;]*m/g, "").split("\n")) {
+        const l = rawLine.trim();
+        if (!l || /^NAME\s+TYPE\s+STATUS\b/i.test(l) || /^[-─=\s]+$/.test(l) || /logging before google\.Init:/i.test(l)) continue;
+        // agy mcp list 表格行：「NAME TYPE STATUS COMMAND/URL」
+        const tbl = l.match(/^(\S+)\s+(stdio|http|sse)\s+(enabled|disabled)\s+(.+)$/i);
+        if (tbl) {
+          const on = tbl[3].toLowerCase() === "enabled";
+          items.push({ name: tbl[1], ok: on, label: on ? t("已启用") : t("已停用") });
+          continue;
+        }
+        // 兼容旧格式：「名字: 命令 - ✓ Connected」/「✗ Failed to connect」
+        if (/:\s/.test(l) && /connect|fail|need/i.test(l)) {
+          const ok = /✓|✔|connected/i.test(l) && !/fail|✗/i.test(l);
+          items.push({ name: l.split(":")[0].trim(), ok, label: ok ? t("已连接") : t("没连上") });
+        }
+      }
+      $("caps-mcp").innerHTML = items.length
+        ? items.slice(0, 40).map((it) => `<div class="row"><span class="mono grow">${esc(it.name)}</span>${sdot(it.ok ? "ok" : "err", it.label)}</div>`).join("")
+        : '<div class="row"><span class="tiny">' + esc(t("(无 MCP 服务器)")) + "</span></div>";
     } catch (e) { $("caps-mcp").innerHTML = '<div class="row"><span class="tiny">' + esc(t("查询失败：{msg}", { msg: e.message })) + "</span></div>"; }
   });
 

@@ -35,10 +35,16 @@ if (!sealed()) {
 {
   const { claudeSeal } = await import("../gw/claudeseal.mjs");
   const { PATHS } = await import("../gw/config.mjs");
-  // 和 bin/agy 最后 exec 的是同一条路径：固定优先核验 $HOME 下官方安装路径（终端里 CCAPP_HOME / CCAPP_AGY 能随便改，不能借此绕过核验）
-  const home = process.env.HOME || "/nonexistent";
+  // 和 bin/agy 最后 exec 的是同一条路径：发行部署布局下以随包目录推算出的应用私有 home 为不可变锚点，
+  // 防止终端里改 HOME / CCAPP_HOME / CCAPP_AGY 伪造镜像路径与 manifest 绕过核验；非部署/测试环境回退 process.env.HOME
+  const siblingHome = path.basename(HERE) === "app" ? path.resolve(HERE, "..", "home") : "";
+  const home = (process.env.CCAPP_TEST !== "1" && siblingHome && fs.existsSync(siblingHome))
+    ? siblingHome
+    : (process.env.HOME || "/nonexistent");
   const agyDef = path.join(home, ".local", "share", "hachimia", "agy", "current", "agy");
-  const BIN = fs.existsSync(agyDef) ? agyDef : (PATHS.agy && fs.existsSync(PATHS.agy) ? PATHS.agy : agyDef);
+  const BIN = (process.env.CCAPP_TEST !== "1" && siblingHome && fs.existsSync(siblingHome))
+    ? agyDef
+    : (fs.existsSync(agyDef) ? agyDef : (PATHS.agy && fs.existsSync(PATHS.agy) ? PATHS.agy : agyDef));
   const reqBin = verifyOnly && argv[1] ? argv[1] : "";
   if (reqBin) {
     let realReq = "", realDef = "";

@@ -3096,3 +3096,6 @@
 3096	Versi Antigravity CLI ini belum memiliki manifes resmi bertanda tangan, sehingga giliran ini tidak dimulai. Memeriksa ulang secara daring — coba lagi dalam 1–2 menit, atau pasang ulang di Pengaturan → Pembaruan.
 3097	Biner Antigravity CLI tidak cocok dengan manifes resmi bertanda tangan dan mungkin telah diubah, sehingga giliran ini tidak dimulai. Pasang ulang di Pengaturan → Pembaruan lalu coba lagi.
 3098	Proyek ini berisi konfigurasi jalan otomatis yang belum dipercaya, sehingga giliran ini tidak dimulai.
+3099	Belum ada plugin yang terpasang.
+3100	Penyedia ini belum didukung di Antigravity: Antigravity CLI tidak memiliki saluran kunci API pihak ketiga umum. Deklarasikan protocol:"gemini" (untuk endpoint berprotokol Gemini) atau beralih ke Gemini / penyedia login.
+3101	Penyedia ini tidak tersedia dalam mode Antigravity murni; silakan pilih penyedia lain.

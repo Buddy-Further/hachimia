@@ -21,7 +21,7 @@ import { projectById } from "./projects.mjs";
 import { isLoginMode } from "./models.mjs";
 import { pickProvider } from "./run.mjs";
 import { privCall } from "./usage.mjs";
-import { providerById, usdCny } from "./providers.mjs";
+import { isSelectableProvider, providerById, usdCny } from "./providers.mjs";
 
 // node 在安卓上可能没拿到时区（TZ 没设就是 UTC）：「每天 09:00」必须按本地时间算
 // 按系统设置取的就要跟着系统变：出差、手动改时区后，每天 09:00 要按新时区的 09:00（#107 06-012）。tick 里隔几分钟再问一次
@@ -776,6 +776,9 @@ function clean(b, old = {}) {
   const t = { ...old };
   const s = (k, n = 200) => { if (typeof b[k] === "string") t[k] = b[k].trim().slice(0, n); };
   s("name", 60); s("prompt", 8000); s("tools", 500); s("model", 80); s("effort", 20); s("provider", 40); s("quiet", 60);
+  if (typeof b.provider === "string" && t.provider && !isSelectableProvider(t.provider)) {
+    throw new Error(tz("该接口在纯 Antigravity 模式下不可用，请重新选择接口"));
+  }
   if ("projectId" in b) t.projectId = b.projectId && projectById(b.projectId) ? b.projectId : null;
   if (b.freq && KINDS.includes(b.freq.kind)) {
     const f = b.freq, o = { ...(isObj(old.freq) ? old.freq : {}), kind: f.kind };   // F-5：部分 PATCH 未给的字段沿用 old.freq，别整体丢掉

@@ -10,6 +10,7 @@ import { sealEnv, sealed } from "./edition.mjs";
 import { claudeSeal } from "./claudeseal.mjs";
 import { gwRuntimeBlocked } from "./gwpin.mjs";
 import { ucAppBegin, ucAppWrote } from "./userconf.mjs";
+import { writeAtomic } from "./statefile.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
 
 // ── 给 claude 造一个它认得的 shell ────────────────────────────────────
@@ -48,7 +49,7 @@ export function ensureShell() {
     const body = '#!' + SYS_SH + '\nunset CLAUDE_CODE_EXECPATH\n' + pre + 'exec "' + real + '" "$@"\n';
     let need = true;
     try { need = fs.readFileSync(sh, "utf8") !== body; } catch {}
-    if (need) fs.writeFileSync(sh, body, { mode: 0o755 });
+    if (need) writeAtomic(sh, body, { mode: 0o755 });
     fs.chmodSync(sh, 0o755);
     SHELL_PATH = sh;
   } catch (e) {
@@ -297,7 +298,7 @@ export function termKeyFile(p = PROVIDER) {
   if (!key) { try { fs.unlinkSync(file); } catch {} return ""; }
   try {
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, key, { mode: 0o600 });
+    if (!writeAtomic(file, key, { mode: 0o600 })) return "";
     fs.chmodSync(file, 0o600);
     return file;
   } catch (e) { log("写终端密钥文件失败: " + e.message); return ""; }
