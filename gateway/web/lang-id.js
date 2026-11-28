@@ -3102,4 +3102,6 @@ window.I18N_DICT["id"] = {
   "还没装插件。": "Belum ada plugin yang terpasang.",
   "该接口在 Antigravity 下暂不支持：Antigravity CLI 没有通用第三方 API Key 通道。请声明 protocol:\"gemini\"（端点须讲 Gemini 协议），或换用 Gemini / 订阅登录厂商。": "Penyedia ini belum didukung di Antigravity: Antigravity CLI tidak memiliki saluran kunci API pihak ketiga umum. Deklarasikan protocol:\"gemini\" (untuk endpoint berprotokol Gemini) atau beralih ke Gemini / penyedia login.",
   "该接口在纯 Antigravity 模式下不可用，请重新选择接口": "Penyedia ini tidak tersedia dalam mode Antigravity murni; silakan pilih penyedia lain.",
+  "上下文 {used} / 压缩线 {line} · 轮末压缩": "Konteks {used} / batas {line} · akhir giliran",
+  "上下文 {used} / 压缩线 {line} · 压缩中…": "Konteks {used} / batas {line} · memadatkan…",
 };

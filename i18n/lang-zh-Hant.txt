@@ -3099,3 +3099,5 @@
 3099	還沒裝外掛。
 3100	該介面在 Antigravity 下暫不支援：Antigravity CLI 沒有通用第三方 API Key 通道。請宣告 protocol:"gemini"（端點須講 Gemini 協定），或改用 Gemini / 訂閱登入廠商。
 3101	該介面在純 Antigravity 模式下無法使用，請重新選擇介面
+3102	上下文 {used} / 壓縮線 {line} · 輪末壓縮
+3103	上下文 {used} / 壓縮線 {line} · 壓縮中…

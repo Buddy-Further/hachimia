@@ -20,11 +20,15 @@ test("C9-2：未设压缩线时 ACP 默认线按窗口八成算（200k→160k、
   assert.equal(acpAutoCompactLine(0, p), null, "窗口未知时没有默认线");
 });
 
-test("C9-2：用户显式设了压缩线时以用户的值为准", () => {
+test("C9-2：用户显式设了压缩线时与 compactLineOf 同口径（未知窗口留原值、已知窗口取 min）", () => {
   const prev = SETTINGS.autoCompactWindow;
+  const p = providerById("antigravity");
   try {
+    SETTINGS.autoCompactWindow = 120000;
+    assert.equal(acpAutoCompactLine(200000, p), 120000, "显式值低于窗口时以用户值为准");
     SETTINGS.autoCompactWindow = 500000;
-    assert.equal(acpAutoCompactLine(200000, providerById("antigravity")), 500000);
+    assert.equal(acpAutoCompactLine(0, p), 500000, "未知窗口时保留用户设的值");
+    assert.equal(acpAutoCompactLine(200000, p), 200000, "显式值大于模型窗口时按窗口截断，与展示侧一致");
   } finally {
     if (prev === undefined) delete SETTINGS.autoCompactWindow;
     else SETTINGS.autoCompactWindow = prev;

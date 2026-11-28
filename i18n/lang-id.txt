@@ -3099,3 +3099,5 @@
 3099	Belum ada plugin yang terpasang.
 3100	Penyedia ini belum didukung di Antigravity: Antigravity CLI tidak memiliki saluran kunci API pihak ketiga umum. Deklarasikan protocol:"gemini" (untuk endpoint berprotokol Gemini) atau beralih ke Gemini / penyedia login.
 3101	Penyedia ini tidak tersedia dalam mode Antigravity murni; silakan pilih penyedia lain.
+3102	Konteks {used} / batas {line} · akhir giliran
+3103	Konteks {used} / batas {line} · memadatkan…

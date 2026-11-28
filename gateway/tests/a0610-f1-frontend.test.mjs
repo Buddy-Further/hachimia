@@ -88,6 +88,90 @@ test("引用块合并：连续 > 合成单个 blockquote 并解析内部列表/�
   assert.ok(deep.includes("deep") && (deep.match(/<blockquote>/g) || []).length <= 9);
 });
 
+test("上下文条超线提示：单轮超线标「轮末压缩」、压缩轮/未过线/轮中压缩标「压缩中…」、停下不卡死且不写盘", () => {
+  const a = src04.indexOf("  function updateCtx(");
+  const b = src04.indexOf("  /** 从 /context", a);
+  assert.ok(a > 0 && b > a, "04-session-flow.js updateCtx 代码块找不到");
+  const ctxtxt = { textContent: "" };
+  const classes = new Set();
+  const ctxBar = {
+    classList: {
+      add: (...xs) => xs.forEach((x) => classes.add(x)),
+      remove: (...xs) => xs.forEach((x) => classes.delete(x)),
+      contains: (x) => classes.has(x),
+    },
+    style: { setProperty() {} },
+  };
+  const state = { ctxUsed: 0, ctxTotal: 1000000, compactAt: 400000 };
+  const srv = { run: null };
+  const runViews = new Map();
+  let saveCalls = 0;
+  const box = {
+    state,
+    srv,
+    runViews,
+    ctxBar,
+    ctxFill: { style: { width: "" } },
+    $: (id) => (id === "ctxctx" ? ctxtxt : null),
+    t: (s, v = {}) => s.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? "")),
+    fmtTok: (n) => (n >= 1000 ? Math.round(n / 1000) + "k" : String(n)),
+    saveUiState() { saveCalls++; },
+  };
+  vm.runInNewContext(`${src04.slice(a, b)}\nglobalThis.__u = { updateCtx, ctxLineOf, ctxPhaseOf, syncCtxPhase };`, box);
+  const { updateCtx, syncCtxPhase } = box.__u;
+
+  // 1) 未过线普通轮 → 百分比
+  srv.run = { id: "r1", idle: false, auto: null, text: "普通对话" };
+  updateCtx(300000, 1000000);
+  assert.equal(ctxtxt.textContent, "上下文 300k / 压缩线 400k · 75%");
+
+  // 2) 未过线手动 /compact 与 idle 压缩 → 压缩中…，停下后回落 75% 且不写 localStorage
+  const savesBefore = saveCalls;
+  srv.run = { id: "r2", idle: false, auto: "idle", text: "/compact" };
+  syncCtxPhase();
+  assert.equal(ctxtxt.textContent, "上下文 300k / 压缩线 400k · 压缩中…");
+  assert.equal(saveCalls, savesBefore, "纯阶段重绘不应写 localStorage");
+  srv.run = null;
+  syncCtxPhase();
+  assert.equal(ctxtxt.textContent, "上下文 300k / 压缩线 400k · 75%");
+  assert.equal(saveCalls, savesBefore);
+
+  // 3) 单轮超线 → 轮末压缩；同轮服务端触发 compacting → 压缩中…；结束 → 100%
+  srv.run = { id: "r3", idle: false, auto: null, text: "普通对话" };
+  updateCtx(446000, 1000000);
+  assert.equal(ctxtxt.textContent, "上下文 446k / 压缩线 400k · 轮末压缩");
+  assert.equal(classes.has("danger"), true);
+
+  runViews.set("r3", { compacting: true });
+  syncCtxPhase();
+  assert.equal(ctxtxt.textContent, "上下文 446k / 压缩线 400k · 压缩中…");
+  runViews.set("r3", { compacting: false });
+  syncCtxPhase();
+  assert.equal(ctxtxt.textContent, "上下文 446k / 压缩线 400k · 轮末压缩");
+
+  srv.run = { id: "r4", idle: false, auto: "autocompact", text: "/compact" };
+  syncCtxPhase();
+  assert.equal(ctxtxt.textContent, "上下文 446k / 压缩线 400k · 压缩中…");
+
+  // 4) 本地命令（/model）不触发轮末压缩，不应误标「轮末压缩」
+  srv.run = { id: "r5", idle: false, auto: null, text: "/model" };
+  syncCtxPhase();
+  assert.equal(ctxtxt.textContent, "上下文 446k / 压缩线 400k · 100%");
+
+  // 5) 关键回归：compactAt > ctxTotal 时按 min(compactAt, ctxTotal) 同步，停下后不能卡死在「轮末压缩」
+  state.compactAt = 400000;
+  srv.run = { id: "r6", idle: false, auto: null, text: "小窗口对话" };
+  updateCtx(210000, 200000);
+  assert.equal(ctxtxt.textContent, "上下文 210k / 压缩线 200k · 轮末压缩");
+  srv.run = null;
+  syncCtxPhase();
+  assert.equal(ctxtxt.textContent, "上下文 210k / 压缩线 200k · 100%");
+
+  // 6) 对称入口覆盖：全部 pickViewRun 路径、endReplay、compacting 都接了 syncCtxPhase
+  assert.ok((src04.match(/syncCtxPhase\(\)/g) || []).length >= 7, "对称入口应统一接入 syncCtxPhase()");
+  assert.ok(!src04.includes("state.ctxUsed >= state.compactAt"), "不应再手写未截断的 state.compactAt 比较");
+});
+
 test("前端注入：图片地址白名单、同源接口不带 Cookie、项目颜色校验", () => {
   assert.match(src01, /function safeImgSrc/);
   assert.ok(src01.includes("url.origin === location.origin"));

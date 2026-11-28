@@ -3102,4 +3102,6 @@ window.I18N_DICT["es"] = {
   "还没装插件。": "Aún no hay plugins instalados.",
   "该接口在 Antigravity 下暂不支持：Antigravity CLI 没有通用第三方 API Key 通道。请声明 protocol:\"gemini\"（端点须讲 Gemini 协议），或换用 Gemini / 订阅登录厂商。": "Este proveedor aún no es compatible con Antigravity: Antigravity CLI no tiene un canal genérico para claves API de terceros. Declara protocol:\"gemini\" (para un punto de conexión compatible con Gemini) o cambia a Gemini / un proveedor con inicio de sesión.",
   "该接口在纯 Antigravity 模式下不可用，请重新选择接口": "Este proveedor no está disponible en el modo Antigravity puro; elige otro proveedor.",
+  "上下文 {used} / 压缩线 {line} · 轮末压缩": "Contexto {used} / umbral {line} · al acabar",
+  "上下文 {used} / 压缩线 {line} · 压缩中…": "Contexto {used} / umbral {line} · compactando…",
 };

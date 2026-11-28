@@ -3102,4 +3102,6 @@ window.I18N_DICT["ko"] = {
   "还没装插件。": "설치된 플러그인이 아직 없습니다.",
   "该接口在 Antigravity 下暂不支持：Antigravity CLI 没有通用第三方 API Key 通道。请声明 protocol:\"gemini\"（端点须讲 Gemini 协议），或换用 Gemini / 订阅登录厂商。": "이 공급자는 Antigravity에서 아직 지원되지 않습니다: Antigravity CLI에는 범용 서드파티 API 키 채널이 없습니다. protocol:\"gemini\"(Gemini 프로토콜 엔드포인트)를 선언하거나 Gemini / 로그인 공급자로 전환하세요.",
   "该接口在纯 Antigravity 模式下不可用，请重新选择接口": "이 공급자는 순수 Antigravity 모드에서 사용할 수 없습니다. 다른 공급자를 선택해 주세요.",
+  "上下文 {used} / 压缩线 {line} · 轮末压缩": "컨텍스트 {used} / 압축 기준 {line} · 턴 후 압축",
+  "上下文 {used} / 压缩线 {line} · 压缩中…": "컨텍스트 {used} / 압축 기준 {line} · 압축 중…",
 };

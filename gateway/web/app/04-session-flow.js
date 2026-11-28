@@ -71,30 +71,34 @@
     REPLAY_FLUSH.clear();
     busReplay = false;
     if (replayCtx) { const [u, tot] = replayCtx; replayCtx = null; liveCtx(u, tot); }
+    else if (typeof syncCtxPhase === "function") syncCtxPhase();
     liveEl.classList.remove("replaying");
     syncLivePerms();
     // 补画排下的那次 rAF 不要了：下面这次同步定位就到底
     if (scrollRaf) { cancelAnimationFrame(scrollRaf); scrollRaf = 0; }
     scrollDown();
   }
-  function updateCtx(used, total) {
+  function updateCtx(used, total, opts) {
     if (used != null) state.ctxUsed = used;
     if (total) state.ctxTotal = total;
-    const line = state.compactAt && state.ctxTotal ? Math.min(state.compactAt, state.ctxTotal) : state.compactAt || 0;
+    const persist = opts?.persist !== false;
+    const line = ctxLineOf();
     const scale = line > 0 ? line : (state.ctxTotal || 0);
+    const phase = ctxPhaseOf();
+    updateCtx._phase = phase;
     if (!scale) {
       // 第三方接口不报窗口、也没设压缩线：没刻度就只报已用量，不画进度（以前整条藏掉，用量也看不到）
       // 新对话清零时收起，别残留上个会话的数
       if (!state.ctxUsed) {
         $("ctxctx").textContent = ""; ctxFill.style.width = "0%"; ctxBar.style.setProperty("--p", "0%");
         if (!ctxBar.classList.contains("has-q")) ctxBar.classList.add("hidden");   // 额度速览还挂在这条上就留着
-        saveUiState(); return;
+        if (persist) saveUiState(); return;
       }
       ctxBar.classList.remove("hidden", "warn", "danger");
       ctxFill.style.width = "0%";
       ctxBar.style.setProperty("--p", "0%");
       $("ctxctx").textContent = t("上下文 {used} · 容量未知", { used: fmtTok(state.ctxUsed) });
-      saveUiState();
+      if (persist) saveUiState();
       return;
     }
     const pct = Math.min(100, Math.round((state.ctxUsed / scale) * 100));
@@ -103,10 +107,39 @@
     else if (pct >= 85) ctxBar.classList.add("warn");
     ctxFill.style.width = pct + "%";
     ctxBar.style.setProperty("--p", pct + "%");   // 快满时字按这条分界线分两色（style.css #ctxbar.warn #ctxtxt）
+    // ACP 自动压缩只在整轮结束后由网关发 /compact：单轮中途已过线时明确标「轮末压缩」，压的时候（含未过线的手动/闲置压缩与轮中服务端压缩）标「压缩中…」
     $("ctxctx").textContent = line > 0
-      ? t("上下文 {used} / 压缩线 {line} · {pct}%", { used: fmtTok(state.ctxUsed), line: fmtTok(line), pct })
+      ? (phase === "compacting"
+          ? t("上下文 {used} / 压缩线 {line} · 压缩中…", { used: fmtTok(state.ctxUsed), line: fmtTok(line) })
+          : state.ctxUsed >= line && phase === "running"
+            ? t("上下文 {used} / 压缩线 {line} · 轮末压缩", { used: fmtTok(state.ctxUsed), line: fmtTok(line) })
+            : t("上下文 {used} / 压缩线 {line} · {pct}%", { used: fmtTok(state.ctxUsed), line: fmtTok(line), pct }))
       : t("上下文 {used} / {total} · {pct}%", { used: fmtTok(state.ctxUsed), total: fmtTok(state.ctxTotal), pct });
-    saveUiState();
+    if (persist) saveUiState();
+  }
+  updateCtx._phase = "";
+  function ctxLineOf() {
+    return state.compactAt && state.ctxTotal ? Math.min(state.compactAt, state.ctxTotal) : state.compactAt || 0;
+  }
+  function ctxPhaseOf() {
+    const r = typeof srv !== "undefined" ? srv.run : null;
+    if (!r || r.idle) return "";
+    const rv = typeof runViews !== "undefined" && r.id ? runViews.get(r.id) : null;
+    const txt = String(r.text || "").trim();
+    if (rv?.compacting || r.auto === "autocompact" || r.auto === "idle" || /^\/compact(?:\s|$)/i.test(txt)) return "compacting";
+    if (/^\/(?:model|models|effort|autocompact|login)(?:\s|$)/i.test(txt)) return "";
+    return "running";
+  }
+  function syncCtxPhase() {
+    const line = ctxLineOf();
+    const phase = ctxPhaseOf();
+    const prev = updateCtx._phase || "";
+    if (phase === prev) return;
+    if (line > 0 && (state.ctxUsed >= line || phase === "compacting" || prev === "compacting")) {
+      updateCtx(null, 0, { persist: false });
+    } else {
+      updateCtx._phase = phase;
+    }
   }
   /** 从 /context 的输出里抠出真实占用（形如 "**Tokens:** 17.9k / 200k (9%)"） */
   function parseContextText(t) {
@@ -197,6 +230,7 @@
     statStop();
     statEl.textContent = statLast[view.sessionId] || "";   // 正在跑的话，补发的 run_start 会接着转成实时
     pickViewRun();                     // 换了会话：「本会话在不在跑」要重新算
+    if (typeof syncCtxPhase === "function") syncCtxPhase();
     renderRunStrip(); renderPermBar(); // 后台任务条、权限条也按新算出来的这一轮重画：网关不可达时 hello 迟迟不来，不能一直挂着上一个会话的（#178-2）
     renderQueue();                     // 排队条也换成这个会话的：不然看着是 A 的，点清除却删 B 的（审查 #51 第2项）
     paintProjChip();
@@ -1014,7 +1048,7 @@
         toolResult(ev.id, ev.ok, ev.text, !!ev.cancelled); av.toolDone(ev.id); queueToolFollow(); break;
       case "phase":          av.phase(ev); break;
       // 压缩中的状态会连来好几条：同一次压缩只留一行，压完原地换成结果（#67）
-      case "compacting":     av.phase(null); av.noteK("cmp" + cmpGen, t("正在压缩上下文…")); scrollDown(); break;
+      case "compacting":     rv.compacting = true; av.phase(null); av.noteK("cmp" + cmpGen, t("正在压缩上下文…")); if (!busReplay && typeof syncCtxPhase === "function") syncCtxPhase(); scrollDown(); break;
       case "note": {
         if (ev.key === "acp-session-switched" && ev.runId) {
           switchedRuns.add(ev.runId);
@@ -1024,10 +1058,12 @@
       }
       case "hook_ctx":       av.hookCtx(ev.event, ev.text); scrollDown(); break;
       case "compacted":
+        rv.compacting = false;
         av.noteK("cmp" + cmpGen++, ev.pre != null && ev.post != null
           ? t("上下文已压缩：{pre} → {post} tokens", { pre: ev.pre.toLocaleString(), post: (ev.estimated ? "~" : "") + ev.post.toLocaleString() })
           : t("上下文已压缩"), true);
         if (ev.post != null) liveCtx(ev.post, state.ctxTotal);
+        else if (!busReplay && typeof syncCtxPhase === "function") syncCtxPhase();
         scrollDown(); break;
       case "error":          av.error(ev.message + (ev.detail ? "\n\n" + ev.detail : "")); break;
     }
@@ -1111,6 +1147,7 @@
     let adopted = false;
     if (!sid && adoptDrafts) for (const r of ev.runs || (ev.run ? [ev.run] : [])) if (!r.sessionId) { view.runIds.add(r.id); adopted = true; }
     pickViewRun();
+    if (typeof syncCtxPhase === "function") syncCtxPhase();
     renderSessions();
     if (sid) loadOlder(true);
     else if (!adopted && !(ev.run && keepRuns.has(ev.run.id))) showWelcome();
@@ -1262,6 +1299,7 @@
     if (srv.run?.permMode) setPermChip(srv.run.permMode);   // 这一轮实际在用的模式，以网关为准（安全通告 GHSA-2w6p）
     refreshPlanActs();
     const busy = isBusy();
+    if (typeof syncCtxPhase === "function") syncCtxPhase();
     syncPlaceholder();
     syncInterject();
     renderQueue();
@@ -1381,7 +1419,7 @@
     if (rv) { rv.timer?.stop(); rv.av?.remove(); runViews.delete(runId); }
     for (const m of chatEl.querySelectorAll(`.msg[data-run="${CSS.escape(runId)}"]`)) m.remove();
     for (const [id, it] of PERMS) if (it.runId === runId) { it.el?.remove(); PERMS.delete(id); }
-    if (srv.run?.id === runId) { srv.run = null; pickViewRun(); }
+    if (srv.run?.id === runId) { srv.run = null; pickViewRun(); if (typeof syncCtxPhase === "function") syncCtxPhase(); }
     renderPermBar(); renderRunStrip(); renderQueue(); syncInterject();
     loadSessions();          // B 已经是独立会话了，让它出现在列表里
   }

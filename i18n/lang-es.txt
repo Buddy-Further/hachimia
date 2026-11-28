@@ -3099,3 +3099,5 @@
 3099	Aún no hay plugins instalados.
 3100	Este proveedor aún no es compatible con Antigravity: Antigravity CLI no tiene un canal genérico para claves API de terceros. Declara protocol:"gemini" (para un punto de conexión compatible con Gemini) o cambia a Gemini / un proveedor con inicio de sesión.
 3101	Este proveedor no está disponible en el modo Antigravity puro; elige otro proveedor.
+3102	Contexto {used} / umbral {line} · al acabar
+3103	Contexto {used} / umbral {line} · compactando…

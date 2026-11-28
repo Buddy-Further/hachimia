@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { CFG, LAST_LANG, PATHS, log, tr, tz, permModeAction } from "./config.mjs";
 import { SETTINGS, capList, settingsDiskCheck } from "./settings-store.mjs";
 import { PERM_MODES, PROVIDER, acpAuthType, billAfterRun, hasAcpKeyChannel, hasAdcCredentials, keyOf, noteTokenDelta, providerById, providersDiskCheck } from "./providers.mjs";
-import { defaultAcpCompactLine, effortLevelsOf, fetchModels, learnWindow, modelsCached, normEffort } from "./models.mjs";
+import { compactLineOf, defaultAcpCompactLine, effortLevelsOf, fetchModels, learnWindow, modelsCached, normEffort } from "./models.mjs";
 import { agyEnv, currentModelInfo, safeModePerm, syncAgySettings } from "./claude.mjs";
 import { abortAcpIdleBurst, acpActiveOriginRuns, acpPoolSessionForPid, isAcpToolAllowed, isAcpToolDisallowed, runAcpTurn, stopAcpBgTask } from "./acp.mjs";
 import { refreshAgyQuotaSoon } from "./login.mjs";
@@ -346,12 +346,10 @@ export function clearAcpTurnMarkers(run, acpRes) {
   }
 }
 
-/** ACP 轮后自动压缩线（C9-2）：用户显式设的线优先，否则按 ACP 默认线
- * defaultAcpCompactLine（窗口八成、给总结留 40k，原生厂商也适用）。
- * agy 不读 CLAUDE_CODE_AUTO_COMPACT_WINDOW，只认 effectiveAutoCompact() 时，
- * 默认配置下 ACP 模式就没有任何阈值压缩保护。 */
+/** ACP 轮后自动压缩线（C9-2）：与 models.mjs 的 compactLineOf / effectiveCompactLines 同口径，
+ * 用户显式设的线超过已知模型窗口时按窗口截断，未知窗口保留用户值，未设则按窗口八成默认线。 */
 export function acpAutoCompactLine(ctxWin, p) {
-  return effectiveAutoCompact() ?? defaultAcpCompactLine(ctxWin, p);
+  return compactLineOf(effectiveAutoCompact(), ctxWin, p, true) ?? defaultAcpCompactLine(ctxWin, p);
 }
 
 /** /autocompact 设线后“立即触发”适用的厂商：纯 agy 模式下全部适用 */

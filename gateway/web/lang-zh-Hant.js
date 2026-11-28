@@ -3102,4 +3102,6 @@ window.I18N_DICT["zh-Hant"] = {
   "还没装插件。": "還沒裝外掛。",
   "该接口在 Antigravity 下暂不支持：Antigravity CLI 没有通用第三方 API Key 通道。请声明 protocol:\"gemini\"（端点须讲 Gemini 协议），或换用 Gemini / 订阅登录厂商。": "該介面在 Antigravity 下暫不支援：Antigravity CLI 沒有通用第三方 API Key 通道。請宣告 protocol:\"gemini\"（端點須講 Gemini 協定），或改用 Gemini / 訂閱登入廠商。",
   "该接口在纯 Antigravity 模式下不可用，请重新选择接口": "該介面在純 Antigravity 模式下無法使用，請重新選擇介面",
+  "上下文 {used} / 压缩线 {line} · 轮末压缩": "上下文 {used} / 壓縮線 {line} · 輪末壓縮",
+  "上下文 {used} / 压缩线 {line} · 压缩中…": "上下文 {used} / 壓縮線 {line} · 壓縮中…",
 };
