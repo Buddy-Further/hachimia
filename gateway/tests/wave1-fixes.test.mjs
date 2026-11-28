@@ -217,7 +217,7 @@ test("1.3: install-agy.mjs 在非 CCAPP_TEST=1 下拒绝不可信 HACHIMIA_AGY_I
         encoding: "utf8",
       });
       assert.notEqual(r.status, 0, `非测试环境必须拒绝 ${key}=${badUrl}`);
-      assert.match(r.stderr, /拒绝不受信任/);
+      assert.match(r.stderr, /拒绝(?:不受信任|含凭据)/);
     }
     assert.equal(hits, 0, "被拦截的不可信 URL 绝不能实际发起请求");
   } finally {

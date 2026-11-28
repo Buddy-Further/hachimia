@@ -62,7 +62,12 @@ if (poolCount > 1) console.error(`分 ${poolCount} 池并行（CCAPP_TEST_POOLS 
 // streamfix，U.6 因此挂（D 报告 §B：清掉这 6 个变量后 2/2 通过）。只在测试子进程环境里过滤，不动生产代码
 // gateway/gw/ 的 viaProxy 判定本身；NO_PROXY/no_proxy 是放行名单，不影响判定，保留。
 const PROXY_VARS = new Set(["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"]);
-const clean = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(CCAPP_|CLAUDE_CODE_|ANTHROPIC_)/.test(k) && !PROXY_VARS.has(k)));
+// targetSdk ≥ 29 (W^X) 下 LD_PRELOAD 里的 exec-shim 依赖这 4 个只读 APK 加载器变量重写可写目录下的脚本/二进制 execve；
+// 它们不指向任何用户数据目录，仅在宿主本身处于 loader 模式时保留，以免测试里的假脚本与 git hook 被 SELinux 拒执行。
+const LOADER_SHIM_VARS = process.env.CCAPP_EXEC === "loader"
+  ? new Set(["CCAPP_LD", "CCAPP_BIONIC_PRELOAD", "CCAPP_GLIBC_LIB", "CCAPP_GLIBC_PRELOAD"])
+  : new Set();
+const clean = Object.fromEntries(Object.entries(process.env).filter(([k]) => (LOADER_SHIM_VARS.has(k) || !/^(CCAPP_|CLAUDE_CODE_|ANTHROPIC_)/.test(k)) && !PROXY_VARS.has(k)));
 const loaderBin = process.env.CCAPP_LOADER_BIN ? path.resolve(process.env.CCAPP_LOADER_BIN) : "";
 if (clean.PATH) {
   clean.PATH = clean.PATH.split(":").filter((d) => {

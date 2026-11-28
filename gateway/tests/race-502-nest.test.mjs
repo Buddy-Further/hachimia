@@ -290,11 +290,13 @@ test("Shizuku & 静默自更新 502 防护：Priv 不用标准带参 waitFor/isA
     return nodes.get(id);
   };
   let gwDown = true;
+  const LATEST = {};
   const box = {
     window: { I18N: { lang: "zh" }, CCApp: {} }, I18N: { lang: "zh" },
     setVisit: 1, setCatOpen: "device", setOpen: true,
     setVisible: (cat, v = 1) => cat === "device" && v === 1,
     setDiscovery() {},
+    latest: (k) => { const n = (LATEST[k] = (LATEST[k] || 0) + 1); return () => LATEST[k] === n; },
     state: { settings: {} },
     $: makeNode,
     t: (s, p) => p ? s.replace(/\{(\w+)\}/g, (_, k) => p[k] ?? "") : s,

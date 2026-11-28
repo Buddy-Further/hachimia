@@ -4,7 +4,8 @@ import zlib from "node:zlib";
 import crypto from "node:crypto";
 import { Worker } from "node:worker_threads";
 import { zipReadCore } from "./zipcore.mjs";
-import { CFG, LAST_LANG, PATHS, PREFIX, log, tr, tz } from "./config.mjs";
+import { CFG, LAST_LANG, PATHS, PREFIX, SID_RE, log, tr, tz } from "./config.mjs";
+export { SID_RE } from "./config.mjs";
 import { NAMES, PEEK_CACHE, PINS, findSessionFile, peekSession, saveNames, savePins } from "./sessions.mjs";
 import { agentsDir } from "./agents.mjs";
 import { LAST_SESSION, TRASH_HOOKS, forgetSession, runOfSession } from "./runs.mjs";
@@ -23,11 +24,10 @@ const sessionBusy = (id) => Boolean(runOfSession(id) || hasAcpIdleBurst(id));
 // ── 会话管理：回收站 / 导出 / 导入 ─────────────────────────────────────
 // 回收站放在 claude 的 projects 目录之外（它看不见，--resume 也就找不回来），同一文件系统，挪进挪出都是 rename。
 // 每个会话一格：<id>.jsonl + 同名目录（子代理、超长工具结果）+ meta.json（原项目目录、标题、删除时间）。
-const TRASH_DIR = path.join(CFG.home, ".ccapp-trash");
+function trashDir() { return path.join(CFG.home, ".ccapp-trash"); }
+function editsDir() { return path.join(trashDir(), ".edits"); }
+const TRASH_DIR = trashDir();
 export const TRASH_KEEP_DAYS = 30;
-// 只当单个目录名用：不许全是点（「.」「..」拼进路径就跳出了所在目录，回收站清理曾因此删掉整个 home）
-//  也不许是 __proto__ 这类：会话 id 要当对象的键用（封签表、标题表），会改到原型上（11-03 审查 L-2）
-export const SID_RE = /^(?!\.+$)(?!(__proto__|constructor|prototype)$)[A-Za-z0-9._-]{1,200}$/;
 /** 技能目录名（0.6.9 审计 195-J.5）：技能目录可以是中文或带空格的目录名，列得出来却删不掉。
  *  SID_RE 是为会话 id / 会话文件定的 ASCII 形状，不能拿来卡技能名；这里另起一条：
  *  只收 skills/ 下这次真列出来的那个名字（精确匹配），且必须是单个目录名——
@@ -440,25 +440,27 @@ function dirBytes(dir) {
 // meta.json 仍是回收站条目的入口。tx.v=1：moving → notify → ready → restoring 或 purging。
 // 文件搬移以 dev/ino 判断实际落点，不靠「上一步写到哪」。notify 是可重放的提交后钩子；
 // purging 一旦落盘就不可恢复，条目保留到文件和状态表都清理成功。
-const TRASH_PHASES = new Set(["moving", "notify", "ready", "restoring", "purging"]);
+// 注意：trashPresence/readTrash 可能在 sessions ↔ sessionops ↔ queue 成环加载中途被调到，
+// 这批只读辅助写成提升的 function（不碰顶层 const），避免任何模块求值顺序下的 TDZ。
 const SID_BUSY = new Map();   // 跨异步解包 / 加载清理模块；同步搬移不让出事件循环
-const validTrashId = (id) => typeof id === "string" && id !== ".edits" && SID_RE.test(id);
-const validProject = (name) => typeof name === "string" && /^(?!\.+$)[A-Za-z0-9._-]{1,255}$/.test(name);
-const validName = (name) => typeof name === "string" && name && name !== "." && name !== ".." && !/[/\\\0]/.test(name);
-const isEditFor = (name, id) => name.startsWith(id + ".") && /^\d+\.jsonl$/.test(name.slice(id.length + 1));
+function isTrashPhase(p) { return p === "moving" || p === "notify" || p === "ready" || p === "restoring" || p === "purging"; }
+function validTrashId(id) { return typeof id === "string" && id !== ".edits" && SID_RE.test(id); }
+function validProject(name) { return typeof name === "string" && /^(?!\.+$)[A-Za-z0-9._-]{1,255}$/.test(name); }
+function validName(name) { return typeof name === "string" && name && name !== "." && name !== ".." && !/[/\\\0]/.test(name); }
+function isEditFor(name, id) { return name.startsWith(id + ".") && /^\d+\.jsonl$/.test(name.slice(id.length + 1)); }
 function holdTrashId(id) {
   let resolve;
   const done = new Promise((r) => { resolve = r; });
   SID_BUSY.set(id, done);
   return () => { SID_BUSY.delete(id); resolve(); };
 }
-const absent = (f) => { try { return fs.lstatSync(f, { bigint: true }); } catch (e) { if (e.code === "ENOENT") return null; throw e; } };
-const fileId = (st) => st ? `${st.dev}:${st.ino}` : null;
-const validFileId = (s) => typeof s === "string" && /^\d+:\d+$/.test(s);
-const slotOf = (id) => path.join(TRASH_DIR, id);
-const mainIn = (slot, id) => path.join(slot, id + ".jsonl");
-const sideIn = (slot) => path.join(slot, "dir");
-const metaIn = (slot) => path.join(slot, "meta.json");
+function absent(f) { try { return fs.lstatSync(f, { bigint: true }); } catch (e) { if (e.code === "ENOENT") return null; throw e; } }
+function fileId(st) { return st ? `${st.dev}:${st.ino}` : null; }
+function validFileId(s) { return typeof s === "string" && /^\d+:\d+$/.test(s); }
+function slotOf(id) { return path.join(trashDir(), id); }
+function mainIn(slot, id) { return path.join(slot, id + ".jsonl"); }
+function sideIn(slot) { return path.join(slot, "dir"); }
+function metaIn(slot) { return path.join(slot, "meta.json"); }
 function syncDir(dir) {
   const fd = fs.openSync(dir, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY);
   try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
@@ -488,7 +490,7 @@ function readTrash(slot, id) {
   const m = JSON.parse(fs.readFileSync(mp, "utf8"));
   if (!isObj(m) || m.id !== id) throw new Error(`Invalid trash metadata: ${id}`);
   const tx = m.tx;
-  if (tx !== undefined && (!isObj(tx) || tx.v !== 1 || !TRASH_PHASES.has(tx.phase) ||
+  if (tx !== undefined && (!isObj(tx) || tx.v !== 1 || !isTrashPhase(tx.phase) ||
       !validFileId(tx.file) || (tx.side !== null && !validFileId(tx.side)) || !validProject(m.project) ||
       (tx.phase === "restoring" && !validProject(tx.target)) ||
       (tx.phase === "purging" && (!Array.isArray(tx.files) || tx.files.some((f) => !Array.isArray(f) || !cleanupPathOk(f[0], m) || !validFileId(f[1]))))))
@@ -826,7 +828,7 @@ export function restoreSession(id) {
 }
 
 /** claude 放后台命令输出的地方：它的 TMPDIR（claudeEnv 给的 $PREFIX/tmp）下的 claude-<uid> */
-export const claudeTmpRoot = () => path.join(PREFIX ? path.join(PREFIX, "tmp") : CFG.home, "claude-" + process.getuid());
+export function claudeTmpRoot() { return path.join(PREFIX ? path.join(PREFIX, "tmp") : CFG.home, "claude-" + process.getuid()); }
 function readDirIfPresent(dir) {
   try { return fs.readdirSync(dir, { withFileTypes: true }); }
   catch (e) { if (e.code === "ENOENT") return []; throw e; }
@@ -845,7 +847,7 @@ function cleanupPathOk(file, meta) {
   const { id } = meta;
   const tmp = path.relative(claudeTmpRoot(), file).split(path.sep);
   return exactCleanupPaths(meta).includes(file) ||
-    (path.dirname(file) === EDITS_DIR && isEditFor(path.basename(file), id)) ||
+    (path.dirname(file) === editsDir() && isEditFor(path.basename(file), id)) ||
     (tmp.length === 2 && validName(tmp[0]) && tmp[1] === id);
 }
 function cleanupFiles(id, meta) {

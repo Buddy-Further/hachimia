@@ -13,7 +13,7 @@ const gw = new URL("../gw/", import.meta.url).href;
 // Each boot is a fresh module graph over the same synthetic home. No live startup,
 // test CLI, or network is needed to observe checkpoints and held queue state.
 export function fixture(t, { sched = false, queueFirst = false } = {}) {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), "queue-sched-home-"));
+  const home = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "queue-sched-home-")));
   t.after(() => fs.rmSync(home, { recursive: true, force: true }));
   const put = (file, data) => fs.writeFileSync(path.join(home, file), JSON.stringify(data));
   const boot = (code) => {

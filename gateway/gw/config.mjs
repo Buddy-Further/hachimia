@@ -25,6 +25,9 @@ export const CFG = {
   upstream: process.env.CCAPP_UPSTREAM || "https://generativelanguage.googleapis.com",
   model: process.env.CCAPP_MODEL || "gemini-3.8-flash",
 };
+// 会话号合法性正则放在叶子模块 config.mjs，避免 sessions ↔ sessionops ↔ queue 成环求值期触发 TDZ。
+// 只当单个目录名用：不许全是点（「.」「..」拼进路径就跳出了所在目录），也不许是 __proto__ 等原型键。
+export const SID_RE = /^(?!\.+$)(?!(__proto__|constructor|prototype)$)[A-Za-z0-9._-]{1,200}$/;
 
 // 前缀布局（hachimia）：工具链是原生 Termux 前缀，claude 是官方原版二进制，
 // 由宿主 App 用环境变量告诉我们位置；没设就按旧布局（runtime/ 下）找。

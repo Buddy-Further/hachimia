@@ -38,11 +38,44 @@ function split(body) {
 
 // 日期按本机时区：GitHub 给的是 UTC，北京时间早上发的版会差一天，和包里自带的那版对不上
 const ymd = (d) => [d.getFullYear(), d.getMonth() + 1, d.getDate()].map((n) => String(n).padStart(2, "0")).join("-");
+async function fetchGithubReleases() {
+  const tokenFile = [
+    process.env.TOKEN,
+    "/data/user/0/li.dsh.claudecli/files/bldtools/gh-token-hachimia",
+    path.join(process.env.BLDTOOLS || path.join(process.env.HOME || "", ".bldtools"), "gh-token-hachimia"),
+  ].find((p) => p && fs.existsSync(p));
+  const token = (process.env.GH_TOKEN || process.env.GITHUB_TOKEN || (tokenFile ? fs.readFileSync(tokenFile, "utf8") : "")).trim();
+  const headers = {
+    accept: "application/vnd.github+json",
+    "x-github-api-version": "2022-11-28",
+    "user-agent": "hachimia-changelog",
+    ...(token ? { authorization: "Bearer " + token } : {}),
+  };
+  const all = [];
+  let url = `https://api.github.com/repos/${REPO}/releases?per_page=100`;
+  for (let page = 0; page < 20 && url; page++) {
+    const r = await fetch(url, { headers, signal: AbortSignal.timeout(30000) });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const batch = await r.json();
+    if (!Array.isArray(batch)) break;
+    all.push(...batch);
+    const link = r.headers.get("link") || "";
+    const next = link.match(/<([^>]+)>;\s*rel="next"/);
+    url = next ? next[1] : "";
+  }
+  return all;
+}
+
 let released = null;
 try {
-  // 每条 Release 一行 JSON。以前把各页的数组用正则 ][ → , 拼起来：正文里写了 [文字][引用] 这种 Markdown 就被拼坏了
-  const raw = execFileSync("gh", ["api", "--paginate", `repos/${REPO}/releases?per_page=100`, "--jq", ".[] | {tag_name, prerelease, draft, published_at, created_at, body}"], { encoding: "utf8", maxBuffer: 64 << 20, stdio: ["ignore", "pipe", "pipe"] });
-  const list = raw.split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l));
+  let list;
+  try {
+    // 每条 Release 一行 JSON。以前把各页的数组用正则 ][ → , 拼起来：正文里写了 [文字][引用] 这种 Markdown 就被拼坏了
+    const raw = execFileSync("gh", ["api", "--paginate", `repos/${REPO}/releases?per_page=100`, "--jq", ".[] | {tag_name, prerelease, draft, published_at, created_at, body}"], { encoding: "utf8", maxBuffer: 64 << 20, stdio: ["ignore", "pipe", "pipe"] });
+    list = raw.split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l));
+  } catch {
+    list = await fetchGithubReleases();
+  }
   released = { zh: [], en: [] };
   for (const r of list) {
     if (!/^v\d+\.\d+\.\d+$/.test(r.tag_name) || r.prerelease || r.draft) continue;

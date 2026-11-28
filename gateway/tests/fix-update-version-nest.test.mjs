@@ -99,7 +99,7 @@ test("1. 全链路强制锁定 AGY_CLI_DISABLE_AUTO_UPDATE=true（覆盖旧值 1
     assert.match(wrapper, /export DBUS_SESSION_BUS_ADDRESS="\$\{DBUS_SESSION_BUS_ADDRESS:-unix:path=\/nonexistent\}"/);
     assert.match(wrapper, /if \[ "\$1" = "update" \] && \[ "\$#" -eq 1 \]/);
     assert.match(wrapper, /scripts\/install-agy\.mjs/);
-    assert.match(wrapper, /exec "\$NODE_BIN" "\$AGY_INSTALLER" stable/);
+    assert.match(wrapper, /run_node "\$AGY_INSTALLER" stable/);
 
     const wr = spawnSync(SH_BIN, [wrapperPath, "--version"], {
       env: { ...process.env, CCAPP_AGY: spyModelsBin, AGY_CLI_DISABLE_AUTO_UPDATE: "1", DBUS_SESSION_BUS_ADDRESS: "" },

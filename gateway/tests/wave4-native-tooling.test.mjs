@@ -337,9 +337,12 @@ test("Bug 3.2 & 10.3 (devkit.mjs) + Bug 1.7 (publish-devkit.mjs)", () => {
   fs.writeFileSync(dummyC, "int w4_dummy_preload(void) { return 0; }\n");
   const compDummy = spawnSync("clang", ["-shared", "-fPIC", "-o", dummySo, dummyC], { encoding: "utf8" });
   const preloadVal = compDummy.status === 0 ? dummySo : (process.env.LD_PRELOAD || "");
+  const snippetEnv = { ...process.env };
+  delete snippetEnv.CCAPP_LD;
+  delete snippetEnv.CCAPP_BIONIC_PRELOAD;
   if (preloadVal) {
     const rLoader = spawnSync(shPath, ["-c", snippet], {
-      env: { ...process.env, CCAPP_EXEC: "loader", LD_PRELOAD: preloadVal },
+      env: { ...snippetEnv, CCAPP_EXEC: "loader", LD_PRELOAD: preloadVal },
       encoding: "utf8",
     });
     assert.equal(rLoader.status, 0, rLoader.stderr);
@@ -347,7 +350,7 @@ test("Bug 3.2 & 10.3 (devkit.mjs) + Bug 1.7 (publish-devkit.mjs)", () => {
   }
 
   const rDirect = spawnSync(shPath, ["-c", snippet], {
-    env: { ...process.env, CCAPP_EXEC: "direct", LD_PRELOAD: preloadVal },
+    env: { ...snippetEnv, CCAPP_EXEC: "direct", LD_PRELOAD: preloadVal },
     encoding: "utf8",
   });
   assert.equal(rDirect.status, 0, rDirect.stderr);

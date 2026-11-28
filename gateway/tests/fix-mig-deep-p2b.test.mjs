@@ -296,7 +296,7 @@ test("MIG-19 killAcpChild：忽略 SIGTERM 的组长在宽限期后被 SIGKILL",
 
 test("MIG-19 closeAcpSession 走进程组杀（源码锚点）", () => {
   const src = readSrc("gateway/gw/acp.mjs");
-  assert.ok(src.includes("killAcpChild(entry.client.child)"), "closeAcpSession 应调 killAcpChild");
+  assert.ok(/killAcpChild\(entry\.client\.child(?:\s*,|\))/.test(src), "closeAcpSession 应调 killAcpChild");
   assert.ok(!src.includes('entry.client.child?.kill?.("SIGTERM")'), "不应再只 SIGTERM 组长单进程");
 });
 
@@ -435,7 +435,15 @@ test("MIG-35 rg 包装：devkit 有 rg 就用它；都没有就明确报错而�
   const fakeLd = path.join(pre3, "fake-ld");
   fs.writeFileSync(fakeLd, "#!/bin/sh\necho \"LD:$@\"\n", { mode: 0o755 });
   const c = run({ ...baseEnv, PREFIX: pre3, HOME: home3, CCAPP_LD: fakeLd });
-  assert.equal(c.status, 0, "旧 Claude 路径真实存在时仍可走回退：" + JSON.stringify(c));
-  assert.match(c.stdout, /--argv0 rg/);
-  assert.ok(c.stdout.includes(claudeBin), "回退应指向真实存在的 claude 二进制");
+  // targetSdk 36 W^X 下 bin/rg 会先 unset LD_PRELOAD 再 exec $CCAPP_LD（真实环境 $CCAPP_LD 在只读 APK lib 目录），
+  // 此时执行可写目录里的假脚本 fakeLd 会报 126 Permission denied，同样证明已走入 CLAUDE_BIN + CCAPP_LD 分支
+  if (c.status === 0) {
+    assert.match(c.stdout, /--argv0 rg/);
+    assert.ok(c.stdout.includes(claudeBin), "回退应指向真实存在的 claude 二进制");
+  } else {
+    assert.equal(c.status, 126, "旧 Claude 路径真实存在时应执行 CCAPP_LD：" + JSON.stringify(c));
+    assert.ok(c.stderr.includes(fakeLd) && /Permission denied/i.test(c.stderr), "W^X 拒绝目标应为假 CCAPP_LD：" + c.stderr);
+    const rgSrc = readSrc("android/assets/bin/rg");
+    assert.ok(rgSrc.includes('--argv0 rg "$CLAUDE_BIN"'), "回退应指向真实存在的 claude 二进制");
+  }
 });
